@@ -853,13 +853,17 @@ declare
   v_customer_id uuid;
 begin
   perform public.require_service_role();
-  select po, a.customer_id into v_order, v_customer_id
+  select po.* into v_order
   from public.payment_orders po
   join public.appointments a on a.id = po.appointment_id and a.organization_id = po.organization_id
   where po.id = p_payment_order_id for update of po;
   if not found then
     raise exception using errcode = 'P0002', message = 'payment order not found';
   end if;
+  select a.customer_id into v_customer_id
+  from public.appointments a
+  where a.id = v_order.appointment_id
+    and a.organization_id = v_order.organization_id;
   if not (
     public.is_organization_owner(v_order.organization_id, p_requested_by_user_id)
     or public.is_organization_customer(v_order.organization_id, v_customer_id, p_requested_by_user_id)

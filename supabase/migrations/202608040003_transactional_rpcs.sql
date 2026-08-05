@@ -107,9 +107,9 @@ begin
   if v_order.appointment_id <> v_appointment.id
      or v_order.amount_cents <> v_due
      or v_order.provider <> 'MERCADO_PAGO'
-     or v_order.kind <> case v_appointment.payment_mode
+     or v_order.kind <> (case v_appointment.payment_mode
        when 'FULL' then 'FULL'::public.payment_order_kind
-       else 'DEPOSIT'::public.payment_order_kind end then
+       else 'DEPOSIT'::public.payment_order_kind end) then
     raise exception using errcode = '22023', message = 'idempotency key belongs to another checkout request';
   end if;
 
