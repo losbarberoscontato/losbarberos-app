@@ -29,7 +29,7 @@ jobs:
         with:
           deno-version: v2.9.4
       - run: deno fmt --check supabase/functions
-      - run: deno check supabase/functions/*/index.ts
+      - run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
 
   database:
     runs-on: ubuntu-latest

@@ -89,7 +89,8 @@ insert into public.availability_exceptions (
 
 insert into public.appointments (
   id, organization_id, location_id, customer_id, barber_id, status, source,
-  service_period, payment_mode, total_cents_snapshot, list_total_cents_snapshot,
+  service_period, hold_expires_at, payment_mode,
+  total_cents_snapshot, list_total_cents_snapshot,
   deposit_bps_snapshot, deposit_required_cents_snapshot,
   cancellation_lead_minutes_snapshot
 ) values
@@ -101,6 +102,7 @@ insert into public.appointments (
     '50000000-0000-4000-8000-000000000001',
     'CONFIRMED', 'MANAGER',
     tstzrange((select v_start from test_context), (select v_start from test_context) + interval '30 minutes', '[)'),
+    null,
     'COUNTER', 5000, 5000, 3000, 1500, 1440
   ),
   (
@@ -111,6 +113,7 @@ insert into public.appointments (
     '50000000-0000-4000-8000-000000000001',
     'CONFIRMED', 'MANAGER',
     tstzrange((select v_start from test_context) + interval '1 hour', (select v_start from test_context) + interval '90 minutes', '[)'),
+    null,
     'COUNTER', 5000, 5000, 3000, 1500, 1440
   ),
   (
