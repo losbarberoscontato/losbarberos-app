@@ -57,6 +57,7 @@ create temporary table test_context (v_start timestamptz not null);
 insert into test_context values (
   ((current_date + 7) + time '10:00') at time zone 'America/Sao_Paulo'
 );
+grant select on test_context to authenticated;
 
 insert into public.work_intervals (
   organization_id, barber_id, weekday, starts_at, ends_at
