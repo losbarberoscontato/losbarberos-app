@@ -544,6 +544,10 @@
   .booking-stepper > span.is-done { border-color: var(--forest-600); background: var(--sage-100); color: var(--forest-700); }
   .booking-stepper small { position: absolute; top: 35px; color: var(--muted); font-size: 6px; font-weight: 700; white-space: nowrap; }
   .booking-content { width: min(960px, calc(100% - 40px)); margin-inline: auto; }
+  .audience-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .audience-pills span { width: 100%; color: var(--muted); font-size: 9px; font-weight: 750; }
+  .audience-pills button { min-height: 34px; padding: 0 13px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 8px; font-weight: 750; }
+  .audience-pills button.is-active { border-color: var(--forest-600); background: var(--forest-700); color: #fff; }
   .category-pills { display: flex; gap: 6px; margin-bottom: 13px; overflow-x: auto; scrollbar-width: none; }
   .category-pills button { min-height: 34px; flex: 0 0 auto; padding: 0 13px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 8px; font-weight: 750; }
   .category-pills button.is-active { border-color: var(--forest-600); background: var(--forest-700); color: #fff; }

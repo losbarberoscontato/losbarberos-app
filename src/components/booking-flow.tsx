@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { barbers, formatMoney, packages, services } from "@/data/demo";
 import { Avatar } from "@/components/ui";
+import { CATALOG_AUDIENCES, audienceLabel, filterByAudience, type CatalogAudience } from "@/lib/catalog-audiences";
 
 const dates = [
   { weekday: "Hoje", day: "04", month: "AGO" },
@@ -40,11 +41,14 @@ type BookingChoice = {
   durationMinutes: number;
   priceCents: number;
   kind: "service" | "package";
+  category: "Cabelo" | "Barba" | "Combos" | "Cuidados";
+  audiences: readonly CatalogAudience[];
 };
 
 export function BookingFlow() {
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState("Todos");
+  const [audience, setAudience] = useState<CatalogAudience | null>(null);
   const [choice, setChoice] = useState<BookingChoice | null>(null);
   const [barber, setBarber] = useState("barber-any");
   const [date, setDate] = useState("04");
@@ -57,8 +61,10 @@ export function BookingFlow() {
   const choices = useMemo<BookingChoice[]>(() => {
     const serviceChoices = services.map((service) => ({ ...service, kind: "service" as const }));
     const packageChoices = packages.map((item) => ({ ...item, category: "Combos" as const, kind: "package" as const }));
-    return [...serviceChoices, ...packageChoices].filter((item) => category === "Todos" || item.category === category);
-  }, [category]);
+    const allChoices: BookingChoice[] = [...serviceChoices, ...packageChoices];
+    const audienceChoices = audience ? filterByAudience(allChoices, audience) : [];
+    return audienceChoices.filter((item) => category === "Todos" || item.category === category);
+  }, [audience, category]);
 
   const chosenBarber = barber === "barber-any" ? null : barbers.find((item) => item.id === barber);
   const depositCents = choice ? Math.ceil(choice.priceCents * 0.3 / 100) * 100 : 0;
@@ -116,8 +122,10 @@ export function BookingFlow() {
 
       {step === 1 && (
         <div className="booking-content booking-services-step">
+          <div className="audience-pills" role="tablist" aria-label="Público do serviço"><span>Escolha o público</span>{CATALOG_AUDIENCES.map((item) => <button type="button" role="tab" aria-selected={audience === item} key={item} className={audience === item ? "is-active" : ""} onClick={() => { setAudience(item); setChoice(null); }}>{audienceLabel(item)}</button>)}</div>
           <div className="category-pills" role="tablist">{["Todos", "Cabelo", "Barba", "Combos", "Cuidados"].map((item) => <button type="button" key={item} className={category === item ? "is-active" : ""} onClick={() => setCategory(item)}>{item}</button>)}</div>
           <div className="booking-service-list">
+            {!audience && <p className="booking-note">Escolha um público para ver serviços e pacotes.</p>}
             {choices.map((item) => {
               const selected = choice?.id === item.id;
               return (

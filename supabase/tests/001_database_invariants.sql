@@ -43,10 +43,10 @@ insert into public.barbers (id, organization_id, location_id, display_name) valu
   ('50000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'Barbeiro Override');
 
 insert into public.services (
-  id, organization_id, name, price_cents, duration_minutes
+  id, organization_id, name, price_cents, duration_minutes, audiences
 ) values
-  ('60000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'Corte', 5000, 30),
-  ('60000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'Barba', 4000, 30);
+  ('60000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'Corte', 5000, 30, array['MASCULINO']::text[]),
+  ('60000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'Barba', 4000, 30, array['MASCULINO']::text[]);
 
 insert into public.barber_services (organization_id, barber_id, service_id) values
   ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001'),
@@ -377,7 +377,7 @@ select is(
 select lives_ok(
   $$select public.save_package_with_items(
       '20000000-0000-4000-8000-000000000001', null,
-      'Combo Completo', 'teste atomico', 4500, true, 1,
+      'Combo Completo', 'teste atomico', 4500, true, 1, array['MASCULINO']::text[],
       '[{"service_id":"60000000-0000-4000-8000-000000000001","quantity":1}]'::jsonb
     )$$,
   'package and items save atomically'
@@ -395,7 +395,7 @@ select lives_ok(
       (select id from public.packages
         where organization_id = '20000000-0000-4000-8000-000000000001'
           and name = 'Combo Completo'),
-      'Combo Completo', 'segunda versao', 8000, true, 1,
+      'Combo Completo', 'segunda versao', 8000, true, 1, array['MASCULINO']::text[],
       '[{"service_id":"60000000-0000-4000-8000-000000000001","quantity":2}]'::jsonb
     )$$,
   'used package composition can be versioned without deleting history'
@@ -756,8 +756,8 @@ select ok(
   'owner can export tenant data during cancellation retention window'
 );
 select throws_ok(
-  $$insert into public.services (organization_id, name, price_cents, duration_minutes)
-    values ('20000000-0000-4000-8000-000000000001', 'Mutacao Retencao', 1, 5)$$,
+  $$insert into public.services (organization_id, name, price_cents, duration_minutes, audiences)
+    values ('20000000-0000-4000-8000-000000000001', 'Mutacao Retencao', 1, 5, array['MASCULINO']::text[])$$,
   '42501', null, 'retention window is export-only for manager CRUD'
 );
 select lives_ok(

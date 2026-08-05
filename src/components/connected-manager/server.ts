@@ -61,7 +61,7 @@ export async function loadCatalogData() {
   const [servicesResult, packagesResult, itemsResult] = await Promise.all([
     supabase.from("services").select("*").eq("organization_id", organizationId).order("sort_order").order("name"),
     supabase.from("packages").select("*").eq("organization_id", organizationId).order("sort_order").order("name"),
-    supabase.from("package_items").select("*").eq("organization_id", organizationId).order("position"),
+    supabase.from("package_items").select("*").eq("organization_id", organizationId).eq("active", true).order("position"),
   ]);
   return {
     organizationId,

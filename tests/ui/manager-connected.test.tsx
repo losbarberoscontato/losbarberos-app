@@ -21,7 +21,7 @@ const organization = {
 };
 const customer = { id: "customer-1", organization_id: "org-1", full_name: "Cliente Real", phone_e164: "+5511999999999", email: null, birth_date: null, notes: null, active: true, created_at: new Date().toISOString() };
 const barber = { id: "barber-1", organization_id: "org-1", location_id: "location-1", display_name: "Barbeiro Real", bio: null, avatar_url: null, active: true };
-const service = { id: "service-1", organization_id: "org-1", name: "Corte Real", description: null, price_cents: 5000, duration_minutes: 30, active: true, sort_order: 0 };
+const service = { id: "service-1", organization_id: "org-1", name: "Corte Real", description: null, price_cents: 5000, duration_minutes: 30, active: true, sort_order: 0, audiences: ["MASCULINO"] as const };
 
 describe("connected manager UI", () => {
   beforeEach(() => { cleanup(); refresh.mockReset(); });

@@ -75,6 +75,7 @@ export interface ServiceRecord {
   duration_minutes: number;
   active: boolean;
   sort_order: number;
+  audiences: readonly import("@/lib/catalog-audiences").CatalogAudience[];
 }
 
 export interface PackageRecord {
@@ -85,6 +86,7 @@ export interface PackageRecord {
   price_cents: number;
   active: boolean;
   sort_order: number;
+  audiences: readonly import("@/lib/catalog-audiences").CatalogAudience[];
 }
 
 export interface PackageItemRecord {
@@ -94,6 +96,7 @@ export interface PackageItemRecord {
   service_id: string;
   quantity: number;
   position: number;
+  active: boolean;
 }
 
 export interface BarberServiceRecord {

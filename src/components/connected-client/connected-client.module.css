@@ -187,6 +187,10 @@
   box-shadow: 0 10px 28px rgb(25 47 39 / 4%);
 }
 
+.audienceFilter { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 1rem 0 1.25rem; }
+.audienceFilter span { width: 100%; color: #62706b; font-size: .8rem; font-weight: 700; }
+.audienceFilter button { border: 1px solid #d9e0d7; border-radius: 999px; padding: .55rem .85rem; background: #fff; color: #24453b; font: inherit; font-size: .85rem; cursor: pointer; }
+.audienceFilter button:hover, .audienceFilter button.selected { border-color: #1f5b4b; background: #e7f1ea; }
 .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .cards > button { position: relative; min-height: 145px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 18px; border: 1px solid #ded8cc; border-radius: 14px; background: #fff; color: inherit; text-align: left; }
 .cards > button:hover,

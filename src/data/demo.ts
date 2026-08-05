@@ -1,3 +1,5 @@
+import type { CatalogAudience } from "@/lib/catalog-audiences";
+
 export type AppointmentStatus =
   | "CONFIRMED"
   | "PENDING_PAYMENT"
@@ -43,7 +45,21 @@ export type Service = {
   priceCents: number;
   category: "Cabelo" | "Barba" | "Combos" | "Cuidados";
   active: boolean;
+  audiences: CatalogAudience[];
   popular?: boolean;
+};
+
+export type DemoPackage = {
+  id: string;
+  name: string;
+  description: string;
+  items: number;
+  durationMinutes: number;
+  listPriceCents: number;
+  priceCents: number;
+  audiences: CatalogAudience[];
+  active: boolean;
+  featured: boolean;
 };
 
 export type Customer = {
@@ -203,6 +219,7 @@ export const services: Service[] = [
     priceCents: 6500,
     category: "Cabelo",
     active: true,
+    audiences: ["MASCULINO"] as CatalogAudience[],
     popular: true,
   },
   {
@@ -213,6 +230,7 @@ export const services: Service[] = [
     priceCents: 7500,
     category: "Cabelo",
     active: true,
+    audiences: ["MASCULINO"] as CatalogAudience[],
   },
   {
     id: "service-beard",
@@ -222,6 +240,7 @@ export const services: Service[] = [
     priceCents: 5500,
     category: "Barba",
     active: true,
+    audiences: ["MASCULINO"],
   },
   {
     id: "service-brows",
@@ -231,10 +250,11 @@ export const services: Service[] = [
     priceCents: 3800,
     category: "Cuidados",
     active: true,
+    audiences: ["FEMININO", "MASCULINO", "OUTROS_SERVICOS"],
   },
 ];
 
-export const packages = [
+export const packages: DemoPackage[] = [
   {
     id: "package-ritual",
     name: "Ritual Los Barberos",
@@ -243,6 +263,7 @@ export const packages = [
     durationMinutes: 90,
     listPriceCents: 12000,
     priceCents: 10500,
+    audiences: ["MASCULINO"],
     active: true,
     featured: true,
   },
@@ -254,6 +275,7 @@ export const packages = [
     durationMinutes: 120,
     listPriceCents: 17100,
     priceCents: 14900,
+    audiences: ["MASCULINO", "FEMININO"],
     active: true,
     featured: false,
   },

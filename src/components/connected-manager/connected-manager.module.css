@@ -28,6 +28,11 @@
 .buttonSmall { padding: .5rem .75rem; font-size: .78rem; }
 .form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; padding: 1rem; margin-bottom: 1rem; border-radius: 16px; background: #f7f8f5; border: 1px solid #e7ebe5; }
 .formWide { grid-column: 1 / -1; }
+.modalLayer { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 1.5rem; }
+.modalBackdrop { position: absolute; inset: 0; border: 0; background: rgb(12 27 23 / 42%); }
+.modal { position: relative; width: min(100%, 28rem); padding: 1.5rem; border: 1px solid #e4e7df; border-radius: 1.25rem; background: #fffdf8; box-shadow: 0 1.5rem 4rem rgb(12 27 23 / 20%); }
+.modal h2 { margin: 0; color: #10211c; font-size: 1.35rem; }
+.modal p { margin: .6rem 0 1.25rem; color: #62706b; }
 .field { display: grid; gap: .35rem; color: #555f57; font-size: .78rem; font-weight: 700; }
 .field input, .field select, .field textarea { width: 100%; min-width: 0; border: 1px solid #d9dfd7; border-radius: 11px; padding: .7rem .75rem; background: #fff; color: #222823; font: inherit; font-size: .88rem; }
 .field textarea { resize: vertical; min-height: 78px; }
@@ -97,4 +102,3 @@
   .integration { align-items: flex-start; flex-direction: column; }
   .toolbarGroup, .toolbarGroup .button { width: 100%; }
 }
-

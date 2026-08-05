@@ -29,6 +29,7 @@ export function catalogChoices(context: PublicBookingContext): CatalogChoice[] {
       description: service.description,
       priceCents: service.price_cents,
       durationMinutes: service.duration_minutes,
+      audiences: service.audiences,
     })),
     ...context.packages.map((item) => ({
       id: item.id,
@@ -40,6 +41,7 @@ export function catalogChoices(context: PublicBookingContext): CatalogChoice[] {
         (total, packageItem) => total + packageItem.duration_minutes * packageItem.quantity,
         0,
       ),
+      audiences: item.audiences,
     })),
   ];
 }

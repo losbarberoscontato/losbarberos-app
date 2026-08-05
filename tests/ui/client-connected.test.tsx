@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { ConnectedClientProvider } from "@/components/connected-client/context";
+import { filterByAudience } from "@/lib/catalog-audiences";
 import { ConnectedClientGate } from "@/components/connected-client/state";
 import {
   bookingSelection,
@@ -24,12 +25,13 @@ const context: PublicBookingContext = {
     accepting_bookings: true,
   },
   location: null,
-  services: [{ id: "service-1", name: "Corte", description: null, price_cents: 6500, duration_minutes: 35 }],
+  services: [{ id: "service-1", name: "Corte", description: null, price_cents: 6500, duration_minutes: 35, audiences: ["MASCULINO"] }],
   packages: [{
     id: "package-1",
     name: "Combo",
     description: "Corte e barba",
     price_cents: 10500,
+    audiences: ["MASCULINO"],
     items: [
       { service_id: "service-1", name: "Corte", quantity: 1, duration_minutes: 35 },
       { service_id: "service-2", name: "Barba", quantity: 1, duration_minutes: 30 },
@@ -56,6 +58,12 @@ describe("cliente conectado", () => {
     expect(choices[1].durationMinutes).toBe(65);
     expect(bookingSelection(choices[0])).toEqual([{ service_id: "service-1", quantity: 1 }]);
     expect(bookingSelection(choices[1])).toEqual([{ package_id: "package-1", quantity: 1 }]);
+  });
+
+  it("filtra serviços e pacotes pelo público escolhido", () => {
+    const choices = catalogChoices(context);
+    expect(filterByAudience(choices, "MASCULINO").map((choice) => choice.name)).toEqual(["Corte", "Combo"]);
+    expect(filterByAudience(choices, "INFANTIL")).toEqual([]);
   });
 
   it("preserva agrupamento original ao consultar reagendamento", () => {

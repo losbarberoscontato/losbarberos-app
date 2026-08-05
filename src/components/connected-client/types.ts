@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import type { CatalogAudience } from "@/lib/catalog-audiences";
 
 export type PublicOrganization = {
   id: string;
@@ -23,6 +24,7 @@ export type PublicService = {
   description: string | null;
   price_cents: number;
   duration_minutes: number;
+  audiences: readonly CatalogAudience[];
 };
 
 export type PublicPackageItem = {
@@ -37,6 +39,7 @@ export type PublicPackage = {
   name: string;
   description: string | null;
   price_cents: number;
+  audiences: readonly CatalogAudience[];
   items: PublicPackageItem[];
 };
 
@@ -74,6 +77,7 @@ export type CatalogChoice = {
   description: string | null;
   priceCents: number;
   durationMinutes: number;
+  audiences: readonly CatalogAudience[];
 };
 
 export type BookingSelection =

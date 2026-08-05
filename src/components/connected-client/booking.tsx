@@ -27,6 +27,7 @@ import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/s
 import type { AvailableSlot } from "@/components/connected-client/types";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { CATALOG_AUDIENCES, audienceLabel, filterByAudience, type CatalogAudience } from "@/lib/catalog-audiences";
 
 type Draft = {
   choiceId: string;
@@ -35,6 +36,7 @@ type Draft = {
   startsAt: string;
   paymentMode: "DEPOSIT" | "FULL";
   step: number;
+  audience?: CatalogAudience;
 };
 
 type PendingCheckout = { paymentOrderId: string; idempotencyKey: string };
@@ -55,7 +57,11 @@ function BookingContent() {
   const { context, slug, user, customer, reloadCustomer } = useConnectedClient();
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const choices = useMemo(() => context ? catalogChoices(context) : [], [context]);
+  const [selectedAudience, setSelectedAudience] = useState<CatalogAudience | null>(null);
+  const choices = useMemo(() => {
+    if (!context || !selectedAudience) return [];
+    return filterByAudience(catalogChoices(context), selectedAudience);
+  }, [context, selectedAudience]);
   const dates = useMemo(() => context ? dateOptions(context.organization.timezone) : [], [context]);
   const [step, setStep] = useState(1);
   const [choiceId, setChoiceId] = useState("");
@@ -102,6 +108,7 @@ function BookingContent() {
         try {
           const draft = JSON.parse(raw) as Partial<Draft>;
           if (typeof draft.choiceId === "string") setChoiceId(draft.choiceId);
+          if (typeof draft.audience === "string" && CATALOG_AUDIENCES.includes(draft.audience)) setSelectedAudience(draft.audience);
           if (typeof draft.barberId === "string") setBarberId(draft.barberId);
           if (typeof draft.localDate === "string") setLocalDate(draft.localDate);
           if (typeof draft.startsAt === "string") setStartsAt(draft.startsAt);
@@ -118,9 +125,9 @@ function BookingContent() {
 
   useEffect(() => {
     if (!slug || !restored) return;
-    const draft: Draft = { choiceId, barberId, localDate, startsAt, paymentMode, step };
+    const draft: Draft = { choiceId, barberId, localDate, startsAt, paymentMode, step, audience: selectedAudience ?? undefined };
     window.sessionStorage.setItem(draftKey(slug), JSON.stringify(draft));
-  }, [barberId, choiceId, localDate, paymentMode, restored, slug, startsAt, step]);
+  }, [barberId, choiceId, localDate, paymentMode, restored, selectedAudience, slug, startsAt, step]);
 
   useEffect(() => {
     if (!user) return;
@@ -261,7 +268,8 @@ function BookingContent() {
       {step === 1 && (
         <section className={styles.catalog} aria-labelledby="catalog-title">
           <div className={styles.sectionTitle}><Scissors aria-hidden="true" /><div><h2 id="catalog-title">Serviços e pacotes</h2><p>Uma seleção por visita no MVP.</p></div></div>
-          {!choices.length ? <p className={styles.empty}>Nenhum serviço disponível.</p> : (
+          <div className={styles.audienceFilter} role="tablist" aria-label="Público do serviço"><span>Escolha o público</span>{CATALOG_AUDIENCES.map((audience) => <button type="button" key={audience} role="tab" aria-selected={selectedAudience === audience} className={selectedAudience === audience ? styles.selected : undefined} onClick={() => { setSelectedAudience(audience); setChoiceId(""); setBarberId(""); }}>{audienceLabel(audience)}</button>)}</div>
+          {!selectedAudience ? <p className={styles.empty}>Escolha um público para ver serviços e pacotes.</p> : !choices.length ? <p className={styles.empty}>Nenhum serviço disponível para este público.</p> : (
             <div className={styles.cards}>
               {choices.map((item) => {
                 const selected = item.id === choiceId;
