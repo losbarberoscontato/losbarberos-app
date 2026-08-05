@@ -14,7 +14,7 @@ function corsHeaders(request: Request): Record<string, string> {
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-headers":
-      "authorization, content-type, idempotency-key, x-client-info",
+      "authorization, apikey, content-type, idempotency-key, x-client-info",
     "access-control-allow-methods": "GET, POST, OPTIONS",
     vary: "Origin",
   };
