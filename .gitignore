@@ -9,5 +9,6 @@ test-results/
 .env.*.local
 .vercel/
 .supabase/
+supabase/.temp/
 *.log
 *.tsbuildinfo
