@@ -1,0 +1,49 @@
+{
+  "name": "Los Barberos",
+  "short_name": "Barberos",
+  "description": "Agende e acompanhe seus horários na Los Barberos.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "id": "/cliente/",
+  "start_url": "/cliente/agendar?origem=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f7f3eb",
+  "theme_color": "#153f35",
+  "categories": ["business", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agendar horário",
+      "short_name": "Agendar",
+      "url": "/cliente/agendar",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Minhas reservas",
+      "short_name": "Reservas",
+      "url": "/cliente/reservas",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

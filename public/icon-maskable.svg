@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Los Barberos">
+  <rect width="512" height="512" fill="#153f35"/>
+  <circle cx="256" cy="256" r="148" fill="#1b4b40"/>
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#e1b46e" stroke-width="7" opacity=".52"/>
+  <path d="M184 174v168h91" fill="none" stroke="#f8f2e7" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M278 174h31c39 0 64 18 64 47 0 21-13 35-34 42 27 6 43 23 43 49 0 34-28 52-71 52h-33V174Zm27 25v52h7c22 0 34-8 34-26 0-17-13-26-36-26h-5Zm0 76v64h9c26 0 40-11 40-32s-15-32-43-32h-6Z" fill="#e1b46e"/>
+</svg>
+
