@@ -35,7 +35,8 @@ describe("connected manager UI", () => {
   });
 
   it("blocks only new booking and rescheduling while existing operations stay visible", () => {
-    const futureStart = new Date(Date.now() + 86_400_000);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const futureStart = new Date(`${today}T14:00:00-03:00`);
     const futureEnd = new Date(futureStart.getTime() + 30 * 60_000);
     render(<AgendaManager
       organizationId="org-1"
@@ -50,6 +51,7 @@ describe("connected manager UI", () => {
       appointments={[{ id: "appointment-1", organization_id: "org-1", customer_id: customer.id, barber_id: barber.id, status: "CONFIRMED", source: "MANAGER", service_period: `[${futureStart.toISOString()},${futureEnd.toISOString()})`, payment_mode: "COUNTER", currency: "BRL", total_cents_snapshot: 5000, notes: null, schedule_override_reason: null, created_at: new Date().toISOString() }]}
     />);
     expect(screen.getByRole("button", { name: "Novo agendamento" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Cliente Real" }));
     expect(screen.getByRole("button", { name: "Reagendar" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Iniciar" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "No-show" })).toBeEnabled();
@@ -71,7 +73,7 @@ describe("connected manager UI", () => {
     />);
 
     fireEvent.click(screen.getByRole("button", { name: "Novo agendamento" }));
-    fireEvent.change(screen.getByPlaceholderText("Busque por nome ou telefone"), { target: { value: "Real" } });
+    fireEvent.change(screen.getByPlaceholderText("Buscar por nome ou telefone"), { target: { value: "Real" } });
 
     expect(screen.getByRole("button", { name: "Selecionar Cliente Real" })).toBeInTheDocument();
   });
@@ -80,9 +82,53 @@ describe("connected manager UI", () => {
     render(<AgendaManager organizationId="org-1" billingStatus="ACTIVE" organization={organization} customers={[customer]} barbers={[barber]} services={[service]} packages={[]} barberServices={[]} financial={[]} appointments={[]} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Novo agendamento" }));
-    fireEvent.change(screen.getByPlaceholderText("Busque por nome ou telefone"), { target: { value: "Novo cliente" } });
+    fireEvent.change(screen.getByPlaceholderText("Buscar por nome ou telefone"), { target: { value: "Novo cliente" } });
     fireEvent.click(screen.getByRole("button", { name: "Cadastrar novo cliente" }));
 
     expect(screen.getByLabelText("Nome do novo cliente")).toBeInTheDocument();
+  });
+
+  it("exibe o nome snapshot real do atendimento no calendário", () => {
+    const start = new Date("2026-08-07T14:00:00.000Z");
+    const end = new Date("2026-08-07T14:30:00.000Z");
+    render(<AgendaManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      customers={[customer]}
+      barbers={[barber]}
+      services={[service]}
+      packages={[]}
+      barberServices={[]}
+      financial={[]}
+      appointments={[{ id: "appointment-calendar", organization_id: "org-1", customer_id: customer.id, barber_id: barber.id, status: "CONFIRMED", source: "MANAGER", service_period: `[${start.toISOString()},${end.toISOString()})`, payment_mode: "COUNTER", currency: "BRL", total_cents_snapshot: 5000, notes: null, schedule_override_reason: null, created_at: new Date().toISOString() }]}
+      appointmentItems={[{ id: "item-1", organization_id: "org-1", appointment_id: "appointment-calendar", service_name_snapshot: "Corte Real", position: 0 }]}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Selecionar data" }));
+    fireEvent.change(screen.getByLabelText("Selecionar data da agenda"), { target: { value: "2026-08-07" } });
+    expect(screen.getByText("Corte Real")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Semana" }));
+    expect(screen.getByText("Corte Real")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    expect(screen.getByText("1 reserva")).toBeInTheDocument();
+  });
+
+  it("alterna entre calendário diário, semanal e mensal", () => {
+    render(<AgendaManager organizationId="org-1" billingStatus="ACTIVE" organization={organization} customers={[customer]} barbers={[barber]} services={[service]} packages={[]} barberServices={[]} financial={[]} appointments={[]} appointmentItems={[]} />);
+
+    expect(screen.getByRole("region", { name: "Agenda diária" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Semana" }));
+    expect(screen.getByRole("region", { name: "Agenda semanal" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mês" }));
+    expect(screen.getByRole("region", { name: "Agenda mensal" })).toBeInTheDocument();
+  });
+
+  it("abre novo agendamento em uma tela secundária modal", () => {
+    render(<AgendaManager organizationId="org-1" billingStatus="ACTIVE" organization={organization} customers={[customer]} barbers={[barber]} services={[service]} packages={[]} barberServices={[]} financial={[]} appointments={[]} appointmentItems={[]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo agendamento" }));
+    expect(screen.getByRole("dialog", { name: "Novo agendamento" })).toBeInTheDocument();
+    expect(screen.getByText("Reserve um horário")).toBeInTheDocument();
   });
 });

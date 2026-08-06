@@ -4,6 +4,7 @@ import { getAccessContext } from "@/lib/auth/context";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   AppointmentRecord,
+  AppointmentItemRecord,
   AvailabilityExceptionRecord,
   BarberRecord,
   BarberServiceRecord,
@@ -105,9 +106,10 @@ export async function loadAgendaData() {
   from.setDate(from.getDate() - 31);
   const to = new Date(now);
   to.setDate(to.getDate() + 93);
-  const [org, appointments, customers, barbers, services, packages, links, financial] = await Promise.all([
+  const [org, appointments, appointmentItems, customers, barbers, services, packages, links, financial] = await Promise.all([
     supabase.from("organizations").select("*").eq("id", organizationId).single(),
     supabase.from("appointments").select("*").eq("organization_id", organizationId).overlaps("service_period", `[${from.toISOString()},${to.toISOString()})`).order("service_period").limit(MANAGER_ROW_LIMIT),
+    supabase.from("appointment_items").select("id,organization_id,appointment_id,service_name_snapshot,position").eq("organization_id", organizationId).order("position").limit(MANAGER_ROW_LIMIT),
     supabase.from("customers").select("id,organization_id,full_name,phone_e164,email,birth_date,notes,active,created_at").eq("organization_id", organizationId).eq("active", true).is("merged_into_customer_id", null).order("full_name").limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("*").eq("organization_id", organizationId).eq("active", true).order("display_name"),
     supabase.from("services").select("*").eq("organization_id", organizationId).eq("active", true).order("name"),
@@ -120,6 +122,7 @@ export async function loadAgendaData() {
     billingStatus: context.billingStatus,
     organization: requireData(org, "Organização") as OrganizationRecord,
     appointments: requireData(appointments, "Agenda") as AppointmentRecord[],
+    appointmentItems: requireData(appointmentItems, "Itens da agenda") as AppointmentItemRecord[],
     customers: requireData(customers, "Clientes") as CustomerRecord[],
     barbers: requireData(barbers, "Equipe") as BarberRecord[],
     services: requireData(services, "Serviços") as ServiceRecord[],

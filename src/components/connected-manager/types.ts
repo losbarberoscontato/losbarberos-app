@@ -153,6 +153,14 @@ export interface AppointmentRecord {
   created_at: string;
 }
 
+export interface AppointmentItemRecord {
+  id: string;
+  organization_id: string;
+  appointment_id: string;
+  service_name_snapshot: string;
+  position: number;
+}
+
 export interface FinancialSummaryRecord {
   appointment_id: string;
   captured_cents: number;
