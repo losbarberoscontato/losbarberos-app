@@ -9,6 +9,7 @@ import type { CustomerRecord } from "./types";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
+import { normalizePhoneE164 } from "@/lib/phone";
 
 type Props = AwaitedReturn<typeof loadCustomersData>;
 
@@ -31,10 +32,16 @@ export function CustomersManager({ organizationId, customers }: Props) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    const rawPhone = String(data.get("phone_e164") ?? "").trim();
+    const normalizedPhone = normalizePhoneE164(rawPhone);
+    if (rawPhone && !normalizedPhone) {
+      setMessage("Informe um telefone válido com DDD e, se necessário, DDI.");
+      return;
+    }
     const payload = {
       organization_id: organizationId,
       full_name: String(data.get("full_name") ?? "").trim(),
-      phone_e164: String(data.get("phone_e164") ?? "").trim() || null,
+      phone_e164: normalizedPhone,
       email: String(data.get("email") ?? "").trim().toLowerCase() || null,
       birth_date: String(data.get("birth_date") ?? "") || null,
       notes: String(data.get("notes") ?? "").trim() || null,
@@ -96,7 +103,7 @@ export function CustomersManager({ organizationId, customers }: Props) {
       </form>}
       {formOpen && <form className={styles.form} onSubmit={submit} key={editing?.id ?? "new"}>
         <Field label="Nome completo"><input name="full_name" required minLength={2} maxLength={160} defaultValue={editing?.full_name} /></Field>
-        <Field label="Telefone E.164"><input name="phone_e164" inputMode="tel" placeholder="+5511999999999" pattern="\+[1-9][0-9]{7,14}" defaultValue={editing?.phone_e164 ?? ""} /></Field>
+        <Field label="Telefone"><input name="phone_e164" inputMode="tel" placeholder="11999999999 ou +5511999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={editing?.phone_e164 ?? ""} /></Field>
         <Field label="E-mail"><input name="email" type="email" defaultValue={editing?.email ?? ""} /></Field>
         <Field label="Nascimento (opcional)"><input name="birth_date" type="date" defaultValue={editing?.birth_date ?? ""} /></Field>
         <Field label="Observações" wide><textarea name="notes" maxLength={1000} defaultValue={editing?.notes ?? ""} /></Field>
