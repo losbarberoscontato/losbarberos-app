@@ -73,4 +73,15 @@ describe("catálogo do gestor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Inativar pacote" }));
     expect(mutationMocks.rpc).toHaveBeenCalledWith("set_package_active", { p_organization_id: "org-1", p_package_id: "package-1", p_active: false });
   });
+
+  it("confirma reativacao do pacote com aviso para clientes", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    render(<CatalogManager organizationId="org-1" billingStatus="BLOCKED" services={[service]} packages={[{ ...packageRecord, active: false }]} packageItems={[]} />);
+    const packagePanel = screen.getByRole("heading", { name: "Pacotes" }).closest("section");
+    if (!packagePanel) throw new Error("Pacotes panel missing");
+    fireEvent.click(within(packagePanel).getByRole("button", { name: "Reativar" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Esta aÃ§Ã£o farÃ¡ este pacote aparecer novamente para seus clientes.");
+    fireEvent.click(screen.getByRole("button", { name: "Reativar pacote" }));
+    expect(mutationMocks.rpc).toHaveBeenCalledWith("set_package_active", { p_organization_id: "org-1", p_package_id: "package-1", p_active: true });
+  });
 });

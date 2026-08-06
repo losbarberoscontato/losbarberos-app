@@ -21,6 +21,7 @@ export function CatalogManager({ organizationId, services, packages, packageItem
   const [packageForm, setPackageForm] = useState<PackageRecord | "new" | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [pendingPackageInactivation, setPendingPackageInactivation] = useState<PackageRecord | null>(null);
+  const [pendingPackageReactivation, setPendingPackageReactivation] = useState<PackageRecord | null>(null);
   const serviceById = new Map(services.map((service) => [service.id, service]));
 
   function editPackage(item: PackageRecord) {
@@ -89,6 +90,10 @@ export function CatalogManager({ organizationId, services, packages, packageItem
       setPendingPackageInactivation(item);
       return;
     }
+    if (table === "packages") {
+      setPendingPackageReactivation(item);
+      return;
+    }
     const saved = await runMutation(setMessage, async () => {
       await assertResult(await connectedClient().from(table).update({ active: !item.active }).eq("id", item.id).eq("organization_id", organizationId));
     }, item.active ? "Item inativado." : "Item reativado.");
@@ -106,6 +111,20 @@ export function CatalogManager({ organizationId, services, packages, packageItem
         p_active: false,
       }));
     }, "Pacote inativado.");
+    if (saved) router.refresh();
+  }
+
+  async function confirmPackageReactivation() {
+    if (!pendingPackageReactivation) return;
+    const item = pendingPackageReactivation;
+    setPendingPackageReactivation(null);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("set_package_active", {
+        p_organization_id: organizationId,
+        p_package_id: item.id,
+        p_active: true,
+      }));
+    }, "Pacote reativado.");
     if (saved) router.refresh();
   }
 
@@ -145,5 +164,6 @@ export function CatalogManager({ organizationId, services, packages, packageItem
       </Panel>
     </div>
     {pendingPackageInactivation && <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar confirmação" onClick={() => setPendingPackageInactivation(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="inactivate-package-title"><h2 id="inactivate-package-title">Deseja inativar este pacote?</h2><p>{pendingPackageInactivation.name} não aparecerá para novos agendamentos.</p><div className={styles.toolbarGroup}><button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPendingPackageInactivation(null)}>Cancelar</button><button type="button" className={`${styles.button} ${styles.buttonDanger}`} onClick={() => void confirmPackageInactivation()}>Inativar pacote</button></div></section></div>}
+    {pendingPackageReactivation && <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar confirmaÃ§Ã£o" onClick={() => setPendingPackageReactivation(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="reactivate-package-title"><h2 id="reactivate-package-title">Deseja reativar o pacote?</h2><p>Esta aÃ§Ã£o farÃ¡ este pacote aparecer novamente para seus clientes.</p><div className={styles.toolbarGroup}><button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPendingPackageReactivation(null)}>Cancelar</button><button type="button" className={styles.button} onClick={() => void confirmPackageReactivation()}>Reativar pacote</button></div></section></div>}
   </div>;
 }
