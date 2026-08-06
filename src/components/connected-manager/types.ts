@@ -53,6 +53,8 @@ export interface CustomerRecord {
   birth_date: string | null;
   notes: string | null;
   active: boolean;
+  inactivation_reason: string | null;
+  inactivated_at: string | null;
   created_at: string;
 }
 
@@ -168,6 +170,14 @@ export interface FinancialSummaryRecord {
   net_paid_cents: number;
   outstanding_cents: number;
   financial_status: string;
+}
+
+export interface AppointmentStatusEventRecord {
+  id: number;
+  organization_id: string;
+  appointment_id: string;
+  reason: string | null;
+  created_at: string;
 }
 
 export interface CommissionLedgerRecord {

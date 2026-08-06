@@ -93,7 +93,7 @@ export function AgendaManager(props: Props) {
   const [createdCustomers, setCreatedCustomers] = useState<Props["customers"]>([]);
   const [rescheduling, setRescheduling] = useState<AppointmentRecord | null>(null);
   const blocked = props.billingStatus === "BLOCKED";
-  const availableCustomers = useMemo(() => [...props.customers, ...createdCustomers], [createdCustomers, props.customers]);
+  const availableCustomers = useMemo(() => [...props.customers, ...createdCustomers].filter((customer) => customer.active), [createdCustomers, props.customers]);
   const customerById = useMemo(() => new Map(availableCustomers.map((item) => [item.id, item])), [availableCustomers]);
   const barberById = useMemo(() => new Map(props.barbers.map((item) => [item.id, item])), [props.barbers]);
   const financialById = useMemo(() => new Map(props.financial.map((item) => [item.appointment_id, item])), [props.financial]);

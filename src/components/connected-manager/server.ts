@@ -5,6 +5,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   AppointmentRecord,
   AppointmentItemRecord,
+  AppointmentStatusEventRecord,
   AvailabilityExceptionRecord,
   BarberRecord,
   BarberServiceRecord,
@@ -42,18 +43,23 @@ function requireData<T>(result: { data: T | null; error: { message: string } | n
 
 export async function loadCustomersData() {
   const { context, supabase, organizationId } = await managerClient();
-  const result = await supabase
-    .from("customers")
-    .select("id,organization_id,full_name,phone_e164,email,birth_date,notes,active,created_at")
-    .eq("organization_id", organizationId)
-    .is("merged_into_customer_id", null)
-    .order("active", { ascending: false })
-    .order("full_name")
-    .limit(MANAGER_ROW_LIMIT);
+  const [result, appointments, appointmentItems, financial, barbers, statusEvents] = await Promise.all([
+    supabase.from("customers").select("id,organization_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).is("merged_into_customer_id", null).order("active", { ascending: false }).order("full_name").limit(MANAGER_ROW_LIMIT),
+    supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at").eq("organization_id", organizationId).order("service_period", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("appointment_items").select("id,organization_id,appointment_id,service_name_snapshot,position").eq("organization_id", organizationId).order("position").limit(MANAGER_ROW_LIMIT),
+    supabase.from("appointment_financial_summary").select("appointment_id,captured_cents,refunded_cents,net_paid_cents,outstanding_cents,financial_status").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("barbers").select("id,organization_id,location_id,display_name,bio,avatar_url,active").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("appointment_status_events").select("id,organization_id,appointment_id,reason,created_at").eq("organization_id", organizationId).eq("reason", "appointment_rescheduled").limit(MANAGER_ROW_LIMIT),
+  ]);
   return {
     organizationId,
     billingStatus: context.billingStatus,
     customers: requireData(result, "Clientes") as CustomerRecord[],
+    appointments: requireData(appointments, "Agendamentos") as AppointmentRecord[],
+    appointmentItems: requireData(appointmentItems, "Itens da agenda") as AppointmentItemRecord[],
+    financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],
+    barbers: requireData(barbers, "Equipe") as BarberRecord[],
+    statusEvents: requireData(statusEvents, "Histórico de reagendamentos") as AppointmentStatusEventRecord[],
   };
 }
 
@@ -110,7 +116,7 @@ export async function loadAgendaData() {
     supabase.from("organizations").select("*").eq("id", organizationId).single(),
     supabase.from("appointments").select("*").eq("organization_id", organizationId).overlaps("service_period", `[${from.toISOString()},${to.toISOString()})`).order("service_period").limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_items").select("id,organization_id,appointment_id,service_name_snapshot,position").eq("organization_id", organizationId).order("position").limit(MANAGER_ROW_LIMIT),
-    supabase.from("customers").select("id,organization_id,full_name,phone_e164,email,birth_date,notes,active,created_at").eq("organization_id", organizationId).eq("active", true).is("merged_into_customer_id", null).order("full_name").limit(MANAGER_ROW_LIMIT),
+    supabase.from("customers").select("id,organization_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).eq("active", true).is("merged_into_customer_id", null).order("full_name").limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("*").eq("organization_id", organizationId).eq("active", true).order("display_name"),
     supabase.from("services").select("*").eq("organization_id", organizationId).eq("active", true).order("name"),
     supabase.from("packages").select("*").eq("organization_id", organizationId).eq("active", true).order("name"),
@@ -137,7 +143,7 @@ export async function loadFinanceData() {
   const [financial, appointments, customers, barbers, ledger, payouts, refunds, outbox] = await Promise.all([
     supabase.from("appointment_financial_summary").select("*").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(250),
-    supabase.from("customers").select("id,organization_id,full_name,phone_e164,email,birth_date,notes,active,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("customers").select("id,organization_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("*").eq("organization_id", organizationId).order("display_name"),
     supabase.from("commission_ledger").select("id,source_entry_id,barber_id,appointment_id,kind,amount_cents,reason,earned_at").eq("organization_id", organizationId).order("earned_at", { ascending: false }).limit(500),
     supabase.from("commission_payouts").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(200),
@@ -183,7 +189,7 @@ export async function loadDashboardData() {
   const [organization, appointments, customers, barbers, financial, payouts] = await Promise.all([
     supabase.from("organizations").select("*").eq("id", organizationId).single(),
     supabase.from("appointments").select("*").eq("organization_id", organizationId).overlaps("service_period", `[${from},${to})`).order("service_period").limit(500),
-    supabase.from("customers").select("id,organization_id,full_name,phone_e164,email,birth_date,notes,active,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("customers").select("id,organization_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("*").eq("organization_id", organizationId).eq("active", true).order("display_name"),
     supabase.from("appointment_financial_summary").select("*").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("commission_payouts").select("*").eq("organization_id", organizationId).eq("status", "OPEN"),

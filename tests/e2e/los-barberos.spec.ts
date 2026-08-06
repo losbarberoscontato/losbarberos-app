@@ -10,6 +10,7 @@ test.describe("Los Barberos · experiências principais", () => {
 
     await expect(page).toHaveURL(/\/entrar$/);
     await expect(page.getByRole("heading", { name: /Entre na sua barbearia/i })).toBeVisible();
+    await expect(page.locator(".login-card__heading p")).toHaveCSS("font-size", "12px");
     await page.getByRole("tab", { name: "Cliente" }).click();
     await expect(page.getByRole("heading", { name: /Cuide do seu horário/i })).toBeVisible();
   });
