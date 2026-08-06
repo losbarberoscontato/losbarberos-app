@@ -14,7 +14,7 @@ import { CATALOG_AUDIENCES, audienceLabel, type CatalogAudience, hasAudience } f
 
 type Props = AwaitedReturn<typeof loadCatalogData>;
 
-export function CatalogManager({ organizationId, services, packages, packageItems }: Props) {
+export function CatalogManager({ organizationId, services, packages: allPackages, packageItems }: Props) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [serviceForm, setServiceForm] = useState<ServiceRecord | "new" | null>(services.length ? null : "new");
@@ -22,7 +22,9 @@ export function CatalogManager({ organizationId, services, packages, packageItem
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [pendingPackageInactivation, setPendingPackageInactivation] = useState<PackageRecord | null>(null);
   const [pendingPackageReactivation, setPendingPackageReactivation] = useState<PackageRecord | null>(null);
+  const [packageFilter, setPackageFilter] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const serviceById = new Map(services.map((service) => [service.id, service]));
+  const packages = allPackages.filter((item) => packageFilter === "ACTIVE" ? item.active : !item.active);
 
   function editPackage(item: PackageRecord) {
     setPackageForm(item);
@@ -131,6 +133,7 @@ export function CatalogManager({ organizationId, services, packages, packageItem
   return <div className={styles.stack}>
     <PageHeader title="Serviços e pacotes" description="Catálogo real, em centavos e com duração usada pela agenda." />
     <ActionMessage message={message} />
+    <div className={styles.tabs} role="tablist" aria-label="Filtro de pacotes"><button className={`${styles.tab} ${packageFilter === "ACTIVE" ? styles.tabActive : ""}`} type="button" role="tab" aria-selected={packageFilter === "ACTIVE"} onClick={() => setPackageFilter("ACTIVE")}>Pacotes ativos</button><button className={`${styles.tab} ${packageFilter === "INACTIVE" ? styles.tabActive : ""}`} type="button" role="tab" aria-selected={packageFilter === "INACTIVE"} onClick={() => setPackageFilter("INACTIVE")}>Pacotes inativos</button></div>
     <div className={styles.grid}>
       <Panel title="Serviços" description={`${services.filter((item) => item.active).length} ativos`} className={styles.span6} action={<button className={styles.button} type="button" onClick={() => setServiceForm("new")}>Novo serviço</button>}>
         {serviceForm && <form className={styles.form} onSubmit={saveService} key={serviceForm === "new" ? "new" : serviceForm.id}>
