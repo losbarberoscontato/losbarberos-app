@@ -22,8 +22,12 @@ export function CatalogManager({ organizationId, services, packages: allPackages
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [pendingPackageInactivation, setPendingPackageInactivation] = useState<PackageRecord | null>(null);
   const [pendingPackageReactivation, setPendingPackageReactivation] = useState<PackageRecord | null>(null);
+  const [pendingServiceInactivation, setPendingServiceInactivation] = useState<ServiceRecord | null>(null);
+  const [pendingServiceReactivation, setPendingServiceReactivation] = useState<ServiceRecord | null>(null);
+  const [serviceFilter, setServiceFilter] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const [packageFilter, setPackageFilter] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const serviceById = new Map(services.map((service) => [service.id, service]));
+  const visibleServices = services.filter((item) => serviceFilter === "ACTIVE" ? item.active : !item.active);
   const packages = allPackages.filter((item) => packageFilter === "ACTIVE" ? item.active : !item.active);
 
   function editPackage(item: PackageRecord) {
@@ -88,6 +92,14 @@ export function CatalogManager({ organizationId, services, packages: allPackages
   }
 
   async function toggle(table: "services" | "packages", item: ServiceRecord | PackageRecord) {
+    if (table === "services" && item.active) {
+      setPendingServiceInactivation(item as ServiceRecord);
+      return;
+    }
+    if (table === "services") {
+      setPendingServiceReactivation(item as ServiceRecord);
+      return;
+    }
     if (table === "packages" && item.active) {
       setPendingPackageInactivation(item);
       return;
@@ -130,11 +142,36 @@ export function CatalogManager({ organizationId, services, packages: allPackages
     if (saved) router.refresh();
   }
 
+  async function setServiceActive(item: ServiceRecord, active: boolean) {
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("set_service_active", {
+        p_organization_id: organizationId,
+        p_service_id: item.id,
+        p_active: active,
+      }));
+    }, active ? "Serviço reativado." : "Serviço inativado.");
+    if (saved) router.refresh();
+  }
+
+  async function confirmServiceInactivation() {
+    if (!pendingServiceInactivation) return;
+    const item = pendingServiceInactivation;
+    setPendingServiceInactivation(null);
+    await setServiceActive(item, false);
+  }
+
+  async function confirmServiceReactivation() {
+    if (!pendingServiceReactivation) return;
+    const item = pendingServiceReactivation;
+    setPendingServiceReactivation(null);
+    await setServiceActive(item, true);
+  }
+
   return <div className={styles.stack}>
     <PageHeader title="Serviços e pacotes" description="Catálogo real, em centavos e com duração usada pela agenda." />
     <ActionMessage message={message} />
     <div className={styles.grid}>
-      <Panel title="Serviços" description={`${services.filter((item) => item.active).length} ativos`} className={styles.span6} action={<button className={styles.button} type="button" onClick={() => setServiceForm("new")}>Novo serviço</button>}>
+      <Panel title="Serviços" titleAdornment={<select className={styles.packageFilterSelect} aria-label="Filtro de serviços" value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value as "ACTIVE" | "INACTIVE")}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select>} description={`${services.filter((item) => item.active).length} ativos`} className={styles.span6} action={<button className={styles.button} type="button" onClick={() => setServiceForm("new")}>Novo serviço</button>}>
         {serviceForm && <form className={styles.form} onSubmit={saveService} key={serviceForm === "new" ? "new" : serviceForm.id}>
           <Field label="Nome"><input name="name" required minLength={2} defaultValue={serviceForm === "new" ? "" : serviceForm.name} /></Field>
           <Field label="Preço (R$)"><input name="price" required inputMode="decimal" defaultValue={serviceForm === "new" ? "" : (serviceForm.price_cents / 100).toFixed(2).replace(".", ",")} /></Field>
@@ -143,7 +180,7 @@ export function CatalogManager({ organizationId, services, packages: allPackages
           <div className={styles.formWide}><span className={styles.muted}>Público</span><div className={styles.inlineMeta}>{CATALOG_AUDIENCES.map((audience) => <label className={styles.check} key={audience}><input type="checkbox" name="audience" value={audience} defaultChecked={serviceForm !== "new" && serviceForm.audiences.includes(audience)} />{audienceLabel(audience)}</label>)}</div></div>
           <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button} type="submit">Salvar</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setServiceForm(null)}>Cancelar</button></div>
         </form>}
-        {services.length === 0 ? <EmptyState title="Sem serviços">Cadastre o primeiro procedimento.</EmptyState> : <div className={styles.list}>{services.map((service) => <article className={styles.row} key={service.id}>
+        {visibleServices.length === 0 ? <EmptyState title={serviceFilter === "ACTIVE" ? "Sem serviços ativos" : "Sem serviços inativos"}>{serviceFilter === "ACTIVE" ? "Cadastre ou reative um serviço." : "Nenhum serviço inativo no momento."}</EmptyState> : <div className={styles.list}>{visibleServices.map((service) => <article className={styles.row} key={service.id}>
               <span className={styles.rowTitle}><strong>{service.name}</strong><small>{service.description ?? "Sem descrição"}</small><small>{service.audiences.map(audienceLabel).join(" · ") || "Sem público"}</small></span>
           <strong>{formatCents(service.price_cents)}</strong><span>{service.duration_minutes} min</span><StatusChip active={service.active} />
           <span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setServiceForm(service)}>Editar</button><button className={`${styles.button} ${styles.buttonSmall} ${service.active ? styles.buttonDanger : styles.buttonSoft}`} type="button" onClick={() => toggle("services", service)}>{service.active ? "Inativar" : "Reativar"}</button></span>
@@ -165,6 +202,8 @@ export function CatalogManager({ organizationId, services, packages: allPackages
         </article>)}</div>}
       </Panel>
     </div>
+    {pendingServiceInactivation && <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar confirmação" onClick={() => setPendingServiceInactivation(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="inactivate-service-title"><h2 id="inactivate-service-title">Deseja inativar este serviço?</h2><p>{pendingServiceInactivation.name} não aparecerá para novos agendamentos.</p><div className={styles.toolbarGroup}><button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPendingServiceInactivation(null)}>Cancelar</button><button type="button" className={`${styles.button} ${styles.buttonDanger}`} onClick={() => void confirmServiceInactivation()}>Inativar serviço</button></div></section></div>}
+    {pendingServiceReactivation && <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar confirmação" onClick={() => setPendingServiceReactivation(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="reactivate-service-title"><h2 id="reactivate-service-title">Deseja reativar o serviço?</h2><p>Esta ação fará este serviço aparecer novamente para seus clientes.</p><div className={styles.toolbarGroup}><button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPendingServiceReactivation(null)}>Cancelar</button><button type="button" className={styles.button} onClick={() => void confirmServiceReactivation()}>Reativar serviço</button></div></section></div>}
     {pendingPackageInactivation && <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar confirmação" onClick={() => setPendingPackageInactivation(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="inactivate-package-title"><h2 id="inactivate-package-title">Deseja inativar este pacote?</h2><p>{pendingPackageInactivation.name} não aparecerá para novos agendamentos.</p><div className={styles.toolbarGroup}><button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPendingPackageInactivation(null)}>Cancelar</button><button type="button" className={`${styles.button} ${styles.buttonDanger}`} onClick={() => void confirmPackageInactivation()}>Inativar pacote</button></div></section></div>}
     {pendingPackageReactivation && <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar confirmação" onClick={() => setPendingPackageReactivation(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="reactivate-package-title"><h2 id="reactivate-package-title">Deseja reativar o pacote?</h2><p>Esta ação fará este pacote aparecer novamente para seus clientes.</p><div className={styles.toolbarGroup}><button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPendingPackageReactivation(null)}>Cancelar</button><button type="button" className={styles.button} onClick={() => void confirmPackageReactivation()}>Reativar pacote</button></div></section></div>}
   </div>;

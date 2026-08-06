@@ -37,7 +37,7 @@ const packageRecord = {
 };
 
 describe("catálogo do gestor", () => {
-  afterEach(() => cleanup());
+  afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
   it("mostra públicos múltiplos e conta somente itens ativos do pacote", () => {
     render(
@@ -87,5 +87,59 @@ describe("catálogo do gestor", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Esta ação fará este pacote aparecer novamente para seus clientes.");
     fireEvent.click(screen.getByRole("button", { name: "Reativar pacote" }));
     expect(mutationMocks.rpc).toHaveBeenCalledWith("set_package_active", { p_organization_id: "org-1", p_package_id: "package-1", p_active: true });
+  });
+  it("filtra serviços ativos por padrão e permite ver inativos", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    const inactiveService = { ...service, id: "service-2", name: "Barba inativa", active: false };
+    render(<CatalogManager organizationId="org-1" billingStatus="TRIALING" services={[service, inactiveService]} packages={[]} packageItems={[]} />);
+    const servicePanel = screen.getByRole("heading", { name: "Serviços" }).closest("section");
+    if (!servicePanel) throw new Error("Servicos panel missing");
+    const filter = within(servicePanel).getByRole("combobox", { name: "Filtro de serviços" });
+    expect(filter).toHaveValue("ACTIVE");
+    expect(within(servicePanel).getByText("Corte")).toBeInTheDocument();
+    expect(within(servicePanel).queryByText("Barba inativa")).not.toBeInTheDocument();
+    fireEvent.change(filter, { target: { value: "INACTIVE" } });
+    expect(within(servicePanel).getByText("Barba inativa")).toBeInTheDocument();
+    expect(within(servicePanel).queryByText("Corte")).not.toBeInTheDocument();
+  });
+
+  it("abre edição do serviço com os dados atuais preenchidos", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    render(<CatalogManager organizationId="org-1" billingStatus="TRIALING" services={[service]} packages={[]} packageItems={[]} />);
+    const servicePanel = screen.getByRole("heading", { name: "Serviços" }).closest("section");
+    if (!servicePanel) throw new Error("Servicos panel missing");
+    fireEvent.click(within(servicePanel).getByRole("button", { name: "Editar" }));
+    expect(within(servicePanel).getByDisplayValue("Corte")).toBeInTheDocument();
+    expect(within(servicePanel).getByDisplayValue("50,00")).toBeInTheDocument();
+    expect(within(servicePanel).getByRole("checkbox", { name: "Infantil" })).toBeChecked();
+    fireEvent.click(within(servicePanel).getByRole("button", { name: "Salvar" }));
+    expect(mutationMocks.update).toHaveBeenCalledWith({
+      organization_id: "org-1",
+      name: "Corte",
+      description: null,
+      price_cents: 5000,
+      duration_minutes: 30,
+      audiences: ["INFANTIL"],
+    });
+  });
+
+  it("confirma inativação e reativação do serviço pela RPC", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    const { rerender } = render(<CatalogManager organizationId="org-1" billingStatus="BLOCKED" services={[service]} packages={[]} packageItems={[]} />);
+    let servicePanel = screen.getByRole("heading", { name: "Serviços" }).closest("section");
+    if (!servicePanel) throw new Error("Servicos panel missing");
+    fireEvent.click(within(servicePanel).getByRole("button", { name: "Inativar" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Deseja inativar este serviço?");
+    fireEvent.click(screen.getByRole("button", { name: "Inativar serviço" }));
+    expect(mutationMocks.rpc).toHaveBeenCalledWith("set_service_active", { p_organization_id: "org-1", p_service_id: "service-1", p_active: false });
+
+    rerender(<CatalogManager organizationId="org-1" billingStatus="BLOCKED" services={[{ ...service, active: false }]} packages={[]} packageItems={[]} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Filtro de serviços" }), { target: { value: "INACTIVE" } });
+    servicePanel = screen.getByRole("heading", { name: "Serviços" }).closest("section");
+    if (!servicePanel) throw new Error("Servicos panel missing");
+    fireEvent.click(within(servicePanel).getByRole("button", { name: "Reativar" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Esta ação fará este serviço aparecer novamente para seus clientes.");
+    fireEvent.click(screen.getByRole("button", { name: "Reativar serviço" }));
+    expect(mutationMocks.rpc).toHaveBeenCalledWith("set_service_active", { p_organization_id: "org-1", p_service_id: "service-1", p_active: true });
   });
 });
