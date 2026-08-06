@@ -77,7 +77,7 @@ describe("catálogo do gestor", () => {
   it("confirma reativacao do pacote com aviso para clientes", async () => {
     const { fireEvent } = await import("@testing-library/react");
     render(<CatalogManager organizationId="org-1" billingStatus="BLOCKED" services={[service]} packages={[{ ...packageRecord, active: false }]} packageItems={[]} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Pacotes inativos" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Filtro de pacotes" }), { target: { value: "INACTIVE" } });
     const packagePanel = screen.getByRole("heading", { name: "Pacotes" }).closest("section");
     if (!packagePanel) throw new Error("Pacotes panel missing");
     fireEvent.click(within(packagePanel).getByRole("button", { name: "Reativar" }));
