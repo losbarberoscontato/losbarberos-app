@@ -37,7 +37,7 @@ export function useManagerBillingBlocked() {
   return useContext(ManagerBillingContext);
 }
 
-function ManagerNavigation({ onNavigate }: { onNavigate?: () => void }) {
+function ManagerNavigation({ onNavigate, agendaCount }: { onNavigate?: () => void; agendaCount: number }) {
   const pathname = usePathname();
 
   return (
@@ -57,7 +57,7 @@ function ManagerNavigation({ onNavigate }: { onNavigate?: () => void }) {
           >
             <Icon size={19} strokeWidth={1.8} />
             <span>{item.label}</span>
-            {item.href === "/gestor/agenda" && <small>12</small>}
+            {item.href === "/gestor/agenda" && <small>{agendaCount}</small>}
           </Link>
         );
       })}
@@ -79,7 +79,7 @@ function ManagerNavigation({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export function ManagerShell({ children, demoMode = false, billingBlocked = false, organizationName = "Sua barbearia", locationName = "Unidade principal", userName = "Gestor" }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; organizationName?: string; locationName?: string; userName?: string }) {
+export function ManagerShell({ children, demoMode = false, billingBlocked = false, organizationName = "Sua barbearia", locationName = "Unidade principal", userName = "Gestor", agendaCount = 0 }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; organizationName?: string; locationName?: string; userName?: string; agendaCount?: number }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -97,7 +97,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           </span>
           <ChevronDown size={16} />
         </button>
-        <ManagerNavigation />
+        <ManagerNavigation agendaCount={agendaCount} />
         <div className="manager-sidebar__footer">
           <Link className="manager-profile" href="/gestor/configuracoes">
             <Avatar initials="GC" tone="amber" />
@@ -130,7 +130,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           <span><strong>{organizationName}</strong><small>{locationName}</small></span>
           <ChevronDown size={16} />
         </button>
-        <ManagerNavigation onNavigate={() => setMenuOpen(false)} />
+        <ManagerNavigation agendaCount={agendaCount} onNavigate={() => setMenuOpen(false)} />
       </aside>
 
       <div className="manager-workspace">

@@ -13,6 +13,17 @@ import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadAgendaData>;
 const statuses: Array<AppointmentStatus | "ALL"> = ["ALL", "HELD", "PENDING_PAYMENT", "CONFIRMED", "IN_SERVICE", "COMPLETED", "CANCELED", "NO_SHOW", "EXPIRED"];
+const statusLabels: Record<AppointmentStatus | "ALL", string> = {
+  ALL: "Todos",
+  HELD: "Aguardando pagamento",
+  PENDING_PAYMENT: "Pendente de pagamento",
+  CONFIRMED: "Confirmado",
+  IN_SERVICE: "Em serviço",
+  COMPLETED: "Concluído",
+  CANCELED: "Cancelado",
+  NO_SHOW: "Não compareceu",
+  EXPIRED: "Expirado",
+};
 
 export function AgendaManager(props: Props) {
   const router = useRouter();
@@ -161,13 +172,13 @@ export function AgendaManager(props: Props) {
         <Field label="Motivo fora da escala" wide><input name="override_reason" /></Field>
         <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Proteger novo slot</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setRescheduling(null)}>Cancelar</button></div>
       </form>}
-      <div className={styles.toolbar}><div className={styles.tabs} role="tablist" aria-label="Status">{statuses.map((item) => <button className={`${styles.tab} ${status === item ? styles.tabActive : ""}`} type="button" role="tab" aria-selected={status === item} key={item} onClick={() => setStatus(item)}>{item === "ALL" ? "Todos" : item}</button>)}</div><label className={styles.field}><span>Data</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></div>
+      <div className={styles.toolbar}><div className={styles.tabs} role="tablist" aria-label="Status">{statuses.map((item) => <button className={`${styles.tab} ${status === item ? styles.tabActive : ""}`} type="button" role="tab" aria-selected={status === item} key={item} onClick={() => setStatus(item)}>{statusLabels[item]}</button>)}</div><label className={styles.field}><span>Data</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></div>
       {filtered.length === 0 ? <EmptyState title="Agenda vazia">Nenhum dado demonstrativo foi carregado. Ajuste o filtro ou crie uma reserva real.</EmptyState> : <div className={styles.timeline}>{filtered.map((appointment) => {
         const financial = financialById.get(appointment.id);
         return <article className={styles.appointment} key={appointment.id}>
           <span className={styles.appointmentTime}>{formatRange(appointment.service_period, props.organization.timezone)}</span>
           <span className={styles.rowTitle}><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{barberById.get(appointment.barber_id)?.display_name ?? "Profissional"} · {appointment.source}</small></span>
-          <span className={styles.rowTitle}><StatusChip active={["CONFIRMED", "IN_SERVICE", "COMPLETED"].includes(appointment.status)} label={appointment.status} /><small>{financial?.financial_status ?? "UNPAID"} · saldo {formatCents(financial?.outstanding_cents)}</small></span>
+          <span className={styles.rowTitle}><StatusChip active={["CONFIRMED", "IN_SERVICE", "COMPLETED"].includes(appointment.status)} label={statusLabels[appointment.status]} /><small>{financial?.financial_status ?? "UNPAID"} · saldo {formatCents(financial?.outstanding_cents)}</small></span>
           <strong className={styles.appointmentValue}>{formatCents(appointment.total_cents_snapshot)}</strong>
           <span className={styles.rowActions}>
             {["HELD", "PENDING_PAYMENT"].includes(appointment.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => confirmWithoutPayment(appointment)}>Confirmar sem pagamento</button>}

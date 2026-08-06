@@ -107,11 +107,11 @@ export function DemoLogin({ demoMode = false }: { demoMode?: boolean }) {
       <form onSubmit={submit}>
         <label>
           E-mail
-          <span className="input-shell"><Mail size={18} /><input name="email" type="email" defaultValue={role === "manager" ? "guilherme@losbarberos.com.br" : role === "admin" ? "admin@losbarberos.com.br" : "rafael@email.com"} required autoComplete="email" /></span>
+          <span className="input-shell"><Mail size={18} /><input name="email" type="email" defaultValue="" required autoComplete="email" /></span>
         </label>
         <label>
           <span className="label-row"><span>Senha</span><button type="button">Esqueci minha senha</button></span>
-          <span className="input-shell"><LockKeyhole size={18} /><input name="password" type={showPassword ? "text" : "password"} defaultValue="demo1234" required minLength={4} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>
+          <span className="input-shell"><LockKeyhole size={18} /><input name="password" type={showPassword ? "text" : "password"} defaultValue="" required minLength={4} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>
         </label>
         <button className="button button--dark button--block login-submit" type="submit" disabled={loading}>
           {loading ? "Aguarde..." : authMode === "signup" ? "Criar conta" : demoMode ? "Entrar na demonstração" : "Entrar"}<ArrowRight size={17} />

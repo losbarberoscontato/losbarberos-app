@@ -25,6 +25,8 @@ export default async function ManagerDashboardPage() {
     if (data.billingStatus === "CANCELED_RETENTION" || data.billingStatus === "CLOSED") redirect("/regularizacao");
     return <ManagerDashboard {...data} />;
   }
+  const todayKey = new Intl.DateTimeFormat("en-CA").format(new Date());
+  const todayAppointments = appointments.filter((appointment) => appointment.date === todayKey && !["CANCELED", "NO_SHOW"].includes(appointment.status));
   return (
     <div className="dashboard-page">
       <PageHeader
@@ -40,7 +42,7 @@ export default async function ManagerDashboardPage() {
 
       <section className="stats-grid" aria-label="Resumo do dia">
         <StatCard label="Faturamento hoje" value="R$ 1.845" hint="18% acima da terça passada" trend="up" icon={<WalletCards size={19} />} accent="sage" />
-        <StatCard label="Agendamentos" value="12" hint="9 confirmados · 1 pendente" icon={<CalendarCheck2 size={19} />} accent="amber" />
+        <StatCard label="Agendamentos" value={String(todayAppointments.length)} hint={`${todayAppointments.filter((item) => item.status === "CONFIRMED").length} confirmados · ${todayAppointments.filter((item) => item.status === "PENDING_PAYMENT").length} pendente`} icon={<CalendarCheck2 size={19} />} accent="amber" />
         <StatCard label="Ocupação" value="78%" hint="6 horários ainda livres" trend="up" icon={<Clock3 size={19} />} accent="blue" />
         <StatCard label="Novos clientes" value="7" hint="23 neste mês" trend="up" icon={<Users size={19} />} accent="rose" />
       </section>
@@ -53,7 +55,7 @@ export default async function ManagerDashboardPage() {
             action={<Link href="/gestor/agenda" className="text-button">Ver agenda completa <ChevronRight size={16} /></Link>}
           />
           <div className="dashboard-agenda__timeline">
-            {appointments.slice(0, 5).map((appointment, index) => (
+            {todayAppointments.slice(0, 5).map((appointment, index) => (
               <article className={`dashboard-appointment ${appointment.status === "IN_SERVICE" ? "is-current" : ""}`} key={appointment.id}>
                 <div className="dashboard-appointment__time"><strong>{appointment.time}</strong><span>{appointment.endTime}</span></div>
                 <div className="timeline-rail"><span />{index < 4 && <i />}</div>
@@ -66,7 +68,7 @@ export default async function ManagerDashboardPage() {
               </article>
             ))}
           </div>
-          <Link className="dashboard-agenda__more" href="/gestor/agenda">Ver mais 7 agendamentos <ArrowRight size={15} /></Link>
+          <Link className="dashboard-agenda__more" href="/gestor/agenda">Ver agenda completa <ArrowRight size={15} /></Link>
         </section>
 
         <aside className="dashboard-side">
