@@ -133,7 +133,7 @@ export function CatalogManager({ organizationId, services, packages: allPackages
   return <div className={styles.stack}>
     <PageHeader title="Serviços e pacotes" description="Catálogo real, em centavos e com duração usada pela agenda." />
     <ActionMessage message={message} />
-    <label className={styles.field}><span>Pacotes</span><select aria-label="Filtro de pacotes" value={packageFilter} onChange={(event) => setPackageFilter(event.target.value as "ACTIVE" | "INACTIVE")}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select></label>
+    <label className={`${styles.field} ${styles.packageFilter}`}><span>Pacotes</span><select aria-label="Filtro de pacotes" value={packageFilter} onChange={(event) => setPackageFilter(event.target.value as "ACTIVE" | "INACTIVE")}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select></label>
     <div className={styles.grid}>
       <Panel title="Serviços" description={`${services.filter((item) => item.active).length} ativos`} className={styles.span6} action={<button className={styles.button} type="button" onClick={() => setServiceForm("new")}>Novo serviço</button>}>
         {serviceForm && <form className={styles.form} onSubmit={saveService} key={serviceForm === "new" ? "new" : serviceForm.id}>
