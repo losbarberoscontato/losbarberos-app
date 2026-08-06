@@ -1,43 +1,54 @@
-# Prompt para a próxima conversa — testes publicados Los Barberos
+# Prompt inicial para a próxima conversa — Los Barberos
 
 Estamos continuando o projeto **Los Barberos** em `D:\Display SH\Los Barberos`.
 
-Quero iniciar a fase de testes funcionais e visuais no ambiente publicado. Assuma o volante técnico para diagnosticar e implementar as correções que eu relatar, preservando dados existentes.
+O sistema está em fase de testes funcionais e visuais no ambiente publicado. Assuma o volante técnico para diagnosticar e implementar as correções que eu relatar, sempre preservando os dados existentes.
 
 Antes de editar:
 
-1. Leia integralmente `AGENTS.md`, `HANDOFF.md`, `README.md` e `docs/architecture.md`.
-2. Confirme `git status --short`, branch `main`, remote exclusivo `losbarberoscontato/losbarberos-app` e últimos commits.
-3. Use código, migrations, testes e estado remoto verificado como fonte de verdade.
-4. Diferencie sempre interface demo de interface conectada ao Supabase. Se uma correção já estiver correta no fluxo publicado, avise antes de gastar tempo alterando código.
-5. Nunca mostre ou peça em chat chaves Stripe/Supabase, tokens, cookies ou Authorization.
+1. Leia integralmente `AGENTS.md`, `HANDOFF.md`, `README.md`, `IMPLEMENTATION_PROMPT.md` e `docs/architecture.md`.
+2. Confirme `git status --short`, branch `main`, remote `https://github.com/losbarberoscontato/losbarberos-app` e últimos commits locais/remotos.
+3. Confirme o estado remoto com `npx.cmd supabase migration list --linked` e faça smoke HTTP da Vercel.
+4. Use código, migrations, testes e estado remoto verificado como fonte de verdade.
+5. Diferencie interface demo de interface conectada ao Supabase. Se algo relatado já estiver correto no fluxo publicado, avise antes de alterar código.
+6. Nunca mostre chaves, tokens, cookies, headers `Authorization` ou secrets.
 
-Baseline remoto:
+Baseline esperado após a publicação de 06/08/2026:
 
-- GitHub: `https://github.com/losbarberoscontato/losbarberos-app`, branch `main`.
+- GitHub: `https://github.com/losbarberoscontato/losbarberos-app`, branch `main`; confirme o hash publicado no preflight.
 - Vercel: `https://losbarberos-app.vercel.app`.
-- Supabase: `Los Barberos`, ref `bwdjkhqshmppescunwer`.
-- Migrations `202608040001`–`202608040008` aplicadas.
-- Stripe Display SH em Test mode, Price `price_1U18IW0StL37D8g9quhZW9RN`, trial de 14 dias.
-- Edge Functions `stripe-create-checkout`, `stripe-create-portal` e `stripe-webhook` ativas na versão 5.
-- Auth por e-mail e confirmação funcionando.
-- Primeiro tenant real `Barbearia Central` criado; checkout concluído; status SaaS `TRIALING`; painel gestor acessível.
-- Última verificação: TypeScript aprovado e 79 testes Vitest passando.
+- Supabase: projeto `Los Barberos`, ref `bwdjkhqshmppescunwer`.
+- Migrations esperadas: `202608040001` até `202608040008`, `202608050001` e `202608060001` até `202608060004`.
+- Stripe Display SH em Test mode.
+- Price: `price_1U18IW0StL37D8g9quhZW9RN`.
+- Trial: 14 dias.
+- Edge Functions Stripe na versão 5.
+- Cadastro, confirmação de e-mail, tenant `Barbearia Central`, checkout Test e status SaaS `TRIALING` já funcionavam.
+- Última validação local desta fase: ESLint e TypeScript aprovados, 28 arquivos/107 testes Vitest aprovados e build Next.js aprovado.
 
-Correções críticas já feitas:
+Entregas recentes que devem ser preservadas:
 
-- SQL das migrations 003/004 corrigido.
-- CORS Stripe corrigido para `x-client-info` e `apikey`.
-- Cadastro/busca de clientes e criação/navegação de agendamentos na demo corrigidos.
+- Público Infantil/Feminino/Masculino/Outros Serviços para serviços e pacotes.
+- Edição de pacote substitui serviços corretamente.
+- Inativação/reativação e filtros Ativos/Inativos para serviços e pacotes.
+- Login sem credenciais preenchidas.
+- Mensagens informativas temporárias.
+- Telefone com `+55` padrão quando não houver outro DDI.
+- Badge diário real da Agenda e filtros de status em português.
+- Data da agenda atualiza a listagem automaticamente.
+- Intervalos de agenda fixos em 15 minutos no frontend e no banco.
+- Agenda conectada no layout da demo, com dados reais e visões Dia/Semana/Mês.
+- Modal conectado de novo agendamento no padrão da demo.
 
 Regras de trabalho:
 
 - Investigue a causa antes de corrigir.
-- Para bugs, crie teste de regressão quando viável.
-- Migrations devem ser incrementais e não podem apagar dados cadastrados.
-- Não considere o sistema em produção comercial: Vercel está publicado, Supabase é real, mas Stripe está em Test mode e MP/WhatsApp/Google Auth cliente seguem fora.
-- Só faça migrations remotas, deploys ou outras escritas externas quando eu solicitar explicitamente nesta conversa.
-- Quando eu pedir publicação, conclua GitHub → Supabase → Vercel e entregue evidência real.
+- Crie teste de regressão quando viável.
+- Preserve todos os dados cadastrados.
+- Migrations devem ser incrementais e compatíveis.
+- Stripe permanece em Test mode.
+- Mercado Pago, WhatsApp e Google Auth de clientes continuam fora do escopo.
+- Só faça deploy, migration remota ou outra escrita externa quando eu autorizar nesta conversa.
+- Quando eu solicitar publicação, conclua GitHub → Supabase → Vercel e apresente provas reais.
 
-Primeiro, faça um preflight curto do repositório e confirme se o ambiente continua saudável. Depois aguarde meu primeiro relato de teste.
-
+Primeiro faça um preflight curto do repositório, confirme se GitHub, Supabase e Vercel continuam saudáveis e depois aguarde meu primeiro relato de teste.

@@ -1,47 +1,78 @@
 # Handoff — Los Barberos
 
-## Estado atual
+## Estado desta entrega — 06/08/2026
 
 - Repositório: `https://github.com/losbarberoscontato/losbarberos-app`.
-- Branch publicada: `main`.
+- Branch de produção: `main`.
 - Vercel: `https://losbarberos-app.vercel.app`.
 - Supabase: projeto `Los Barberos`, ref `bwdjkhqshmppescunwer`, região `ca-central-1`.
-- Stripe: conta Display SH, modo Test, produto `Los Barberos — Plano completo`.
-- Price público de teste: `price_1U18IW0StL37D8g9quhZW9RN`, R$ 59,90/mês.
-- Trial de 14 dias nasce no Stripe Checkout; webhook confirmou o primeiro tenant como `TRIALING`.
-- Primeiro tenant real de teste: `Barbearia Central`, unidade `Unidade principal`.
+- Stripe: conta Display SH em Test mode, Price `price_1U18IW0StL37D8g9quhZW9RN`, trial de 14 dias.
+- Tenant real de teste preservado: `Barbearia Central`.
+- Commit funcional que encerrou a fase local: `001e797`.
+- O commit exato publicado deve ser confirmado com `git log -1 --oneline origin/main` no próximo preflight.
 
-## Infra validada
+## Entregas desta fase
 
-- Vercel `/` e `/entrar` respondem HTTP 200.
-- Supabase Auth por e-mail com confirmação e callback publicado.
-- Variáveis públicas Supabase configuradas na Vercel.
-- Migrations remotas `202608040001` até `202608040008` sincronizadas.
-- Edge Functions Stripe ativas:
-  - `stripe-create-checkout` — versão 5, JWT obrigatório.
-  - `stripe-create-portal` — versão 5, JWT obrigatório.
-  - `stripe-webhook` — versão 5, assinatura Stripe, sem JWT Supabase.
-- Secrets Stripe/Supabase existem no cofre remoto; valores nunca devem ser impressos, enviados em chat ou commitados.
-- Fluxo real validado: cadastro → confirmação de e-mail → tenant → Stripe Checkout Test → webhook → painel gestor `TRIALING`.
+### Serviços e pacotes
 
-## Correções importantes já publicadas
+- Campo `Público` para serviços e pacotes: Infantil, Feminino, Masculino e Outros Serviços.
+- Pacotes passam a substituir corretamente os serviços selecionados na edição, sem somar seleções antigas.
+- Inativação e reativação de pacotes por RPC tenant-safe, com confirmação.
+- Inativação e reativação de serviços por RPC tenant-safe, com confirmação.
+- Filtros Ativos/Inativos independentes dentro dos cards Serviços e Pacotes.
+- Serviços e pacotes inativos ficam preparados para não aparecer no fluxo do cliente.
 
-- Agenda demo navega por data e mostra somente dados do dia selecionado.
-- Busca/cadastro de cliente no novo agendamento.
-- Novo agendamento demo aparece na agenda correta.
-- Cadastro real de gestor via `signUp`/`signInWithPassword`.
-- SQL das migrations 003 e 004 corrigido para aplicação remota.
-- CORS das Edge Functions permite headers Supabase `x-client-info` e `apikey`.
-- Metadados locais `supabase/.temp/` ignorados pelo Git.
+### Login, mensagens e clientes
 
-## Verificação conhecida
+- Credenciais de demonstração removidas dos campos da tela de login.
+- Mensagens informativas passam a desaparecer automaticamente.
+- Campo `Telefone E.164` renomeado para `Telefone`.
+- Telefones sem DDI são gravados com `+55`; DDI informado pelo usuário é preservado.
 
+### Agenda conectada
+
+- Badge da Agenda representa o total de agendamentos do dia e mostra `0` quando vazio.
+- Filtros de status traduzidos e conectados aos status reais.
+- Seleção de data atualiza automaticamente os agendamentos exibidos.
+- Horários de criação e reagendamento usam intervalos de 15 minutos.
+- Validação de alinhamento do horário existe no cliente e no banco.
+- Layout conectado foi alinhado à agenda demo, sem copiar dados demonstrativos.
+- Visões Dia, Semana e Mês funcionam com os agendamentos carregados do Supabase.
+- Filtros por profissional e status atuam nas três visões.
+- `Novo agendamento` abre modal no padrão visual da demo e continua usando a RPC real `create_manual_appointment`.
+- Detalhes e ações existentes foram preservados: confirmar sem pagamento, iniciar, concluir, reagendar, marcar não comparecimento e cancelar.
+- O nome do serviço vem do snapshot de `appointment_items`.
+
+## Banco e migrations
+
+- Migrations incrementais desta fase:
+  - `202608050001_catalog_audiences.sql`
+  - `202608060001_package_activation_rpc.sql`
+  - `202608060002_allow_package_reactivation.sql`
+  - `202608060003_service_activation_rpc.sql`
+  - `202608060004_slot_interval_15_minutes.sql`
+- Antes do fechamento remoto, o Supabase estava sincronizado até `202608060003`; a `202608060004` era a única pendente.
+- O fechamento desta entrega deve aplicar e confirmar todas até `202608060004`.
+- Todas são incrementais; nenhum reset ou exclusão de dados foi autorizado ou executado.
+
+## Verificação local
+
+- `npm.cmd run verify` aprovado.
+- ESLint aprovado sem erros.
 - TypeScript aprovado.
-- Vitest: 20 arquivos, 79 testes aprovados.
-- Checkout Stripe Test abriu e concluiu com cartão de teste.
-- Dashboard real abriu com dados zerados do novo tenant e status `TRIALING`.
+- Vitest: 28 arquivos e 107 testes aprovados.
+- Build Next.js 16.3.0 aprovado, 22 páginas geradas.
+- QA visual das visões Dia/Semana/Mês e do modal concluído em preview local estruturado.
+- A validação visual autenticada contra o Supabase publicado continua sendo feita pelo usuário no ambiente de testes.
 
-## Escopo ainda fora
+## Infra preservada
+
+- Supabase Auth por e-mail e confirmação funcionando.
+- Fluxo real já validado: cadastro → confirmação → tenant → Stripe Checkout Test → webhook → gestor `TRIALING`.
+- Edge Functions Stripe permanecem na versão 5.
+- Stripe continua em Test mode.
+
+## Fora do escopo atual
 
 - Stripe Live mode.
 - Mercado Pago da barbearia.
@@ -49,12 +80,12 @@
 - Google Auth para clientes.
 - Publicação nas lojas Android/iOS.
 
-## Regras para próximas correções
+## Regras para continuar
 
 - Código, migrations, testes e estado remoto verificado são fonte de verdade.
-- Preservar dados já cadastrados no Supabase; migrations sempre incrementais.
-- Distinguir bug demo de bug do fluxo conectado antes de editar.
-- Não expor chaves, tokens, cookies, headers Authorization ou secrets.
-- Não aplicar nova migration, deploy ou escrita externa sem pedido explícito da conversa atual.
-- Após mudança publicada: testar localmente, push em `main`, confirmar Supabase quando aplicável e smoke-check Vercel.
-
+- Preservar todos os dados existentes; migrations sempre incrementais.
+- Diferenciar interface demo de interface conectada ao Supabase antes de corrigir.
+- Investigar a causa e criar teste de regressão quando viável.
+- Nunca exibir chaves, tokens, cookies, `Authorization` ou secrets.
+- Não executar migration remota, deploy ou outra escrita externa sem autorização explícita na conversa atual.
+- Quando houver publicação autorizada, concluir e comprovar GitHub → Supabase → Vercel.
