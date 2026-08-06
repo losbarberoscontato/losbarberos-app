@@ -13,8 +13,8 @@ export function EmptyState({ title, children, action }: { title: string; childre
   return <div className={styles.empty}><strong>{title}</strong><p>{children}</p>{action}</div>;
 }
 
-export function Panel({ title, description, action, children, className = "" }: { title: ReactNode; description?: string; action?: ReactNode; children: ReactNode; className?: string }) {
-  return <section className={`${styles.panel} ${className}`}><header className={styles.panelHead}><div><h2>{title}</h2>{description && <p>{description}</p>}</div>{action}</header>{children}</section>;
+export function Panel({ title, titleAdornment, description, action, children, className = "" }: { title: ReactNode; titleAdornment?: ReactNode; description?: string; action?: ReactNode; children: ReactNode; className?: string }) {
+  return <section className={`${styles.panel} ${className}`}><header className={styles.panelHead}><div><div className={styles.panelTitleRow}><h2>{title}</h2>{titleAdornment}</div>{description && <p>{description}</p>}</div>{action}</header>{children}</section>;
 }
 
 export function StatusChip({ active, label }: { active: boolean; label?: string }) {

@@ -56,6 +56,9 @@ describe("catálogo do gestor", () => {
     expect(screen.getByText("1 itens")).toBeInTheDocument();
     expect(screen.getByText("Infantil")).toBeInTheDocument();
     expect(screen.getByText("Masculino · Feminino")).toBeInTheDocument();
+    const packagePanel = screen.getByRole("heading", { name: "Pacotes" }).closest("section");
+    if (!packagePanel) throw new Error("Pacotes panel missing");
+    expect(within(packagePanel).getByRole("combobox", { name: "Filtro de pacotes" })).toHaveValue("ACTIVE");
   });
 
   it("confirma inativação do pacote em modal e não altera ao cancelar", async () => {

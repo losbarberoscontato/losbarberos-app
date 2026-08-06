@@ -133,7 +133,6 @@ export function CatalogManager({ organizationId, services, packages: allPackages
   return <div className={styles.stack}>
     <PageHeader title="Serviços e pacotes" description="Catálogo real, em centavos e com duração usada pela agenda." />
     <ActionMessage message={message} />
-    <label className={`${styles.field} ${styles.packageFilter}`}><span>Pacotes</span><select aria-label="Filtro de pacotes" value={packageFilter} onChange={(event) => setPackageFilter(event.target.value as "ACTIVE" | "INACTIVE")}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select></label>
     <div className={styles.grid}>
       <Panel title="Serviços" description={`${services.filter((item) => item.active).length} ativos`} className={styles.span6} action={<button className={styles.button} type="button" onClick={() => setServiceForm("new")}>Novo serviço</button>}>
         {serviceForm && <form className={styles.form} onSubmit={saveService} key={serviceForm === "new" ? "new" : serviceForm.id}>
@@ -150,7 +149,7 @@ export function CatalogManager({ organizationId, services, packages: allPackages
           <span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setServiceForm(service)}>Editar</button><button className={`${styles.button} ${styles.buttonSmall} ${service.active ? styles.buttonDanger : styles.buttonSoft}`} type="button" onClick={() => toggle("services", service)}>{service.active ? "Inativar" : "Reativar"}</button></span>
         </article>)}</div>}
       </Panel>
-      <Panel title="Pacotes" description="Uso em uma única visita" className={styles.span6} action={<button className={styles.button} type="button" disabled={!services.some((item) => item.active)} onClick={() => { setPackageForm("new"); setSelectedServices([]); }}>Novo pacote</button>}>
+      <Panel title="Pacotes" titleAdornment={<select className={styles.packageFilterSelect} aria-label="Filtro de pacotes" value={packageFilter} onChange={(event) => setPackageFilter(event.target.value as "ACTIVE" | "INACTIVE")}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select>} description="Uso em uma única visita" className={styles.span6} action={<button className={styles.button} type="button" disabled={!services.some((item) => item.active)} onClick={() => { setPackageForm("new"); setSelectedServices([]); }}>Novo pacote</button>}>
         {packageForm && <form className={styles.form} onSubmit={savePackage} key={packageForm === "new" ? "new" : packageForm.id}>
           <Field label="Nome"><input name="name" required minLength={2} defaultValue={packageForm === "new" ? "" : packageForm.name} /></Field>
           <Field label="Preço do pacote (R$)"><input name="price" required inputMode="decimal" defaultValue={packageForm === "new" ? "" : (packageForm.price_cents / 100).toFixed(2).replace(".", ",")} /></Field>
