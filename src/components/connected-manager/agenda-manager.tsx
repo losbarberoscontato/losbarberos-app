@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui";
 import type { loadAgendaData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
 import type { AppointmentRecord, AppointmentStatus } from "./types";
-import { formatCents, formatRange, isAlignedToSlot, localDateTimeToIso, parsePostgresRange } from "./format";
+import { BUSINESS_SLOT_INTERVAL_MINUTES, formatCents, formatRange, isAlignedToSlot, localDateTimeToIso, parsePostgresRange } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
@@ -66,8 +66,8 @@ export function AgendaManager(props: Props) {
       if (!type || !id) throw new Error("Escolha um serviço ou pacote.");
       if (!selectedCustomerId) throw new Error("Busque e selecione um cliente.");
       const startsAt = String(data.get("starts_at") ?? "");
-      if (!isAlignedToSlot(startsAt, props.organization.slot_interval_minutes)) {
-        throw new Error(`Escolha um horário em intervalos de ${props.organization.slot_interval_minutes} minutos.`);
+      if (!isAlignedToSlot(startsAt, BUSINESS_SLOT_INTERVAL_MINUTES)) {
+        throw new Error(`Escolha um horário em intervalos de ${BUSINESS_SLOT_INTERVAL_MINUTES} minutos.`);
       }
       await assertResult(await connectedClient().rpc("create_manual_appointment", {
         p_organization_id: props.organizationId,
@@ -141,10 +141,14 @@ export function AgendaManager(props: Props) {
     const data = new FormData(form);
     const saved = await runMutation(setMessage, async () => {
       if (blocked) throw new Error("A assinatura está bloqueada para reagendamentos.");
+      const startsAt = String(data.get("starts_at") ?? "");
+      if (!isAlignedToSlot(startsAt, BUSINESS_SLOT_INTERVAL_MINUTES)) {
+        throw new Error(`Escolha um horário em intervalos de ${BUSINESS_SLOT_INTERVAL_MINUTES} minutos.`);
+      }
       await assertResult(await connectedClient().rpc("reschedule_appointment", {
         p_appointment_id: rescheduling.id,
         p_new_barber_id: String(data.get("barber_id")),
-        p_new_starts_at: localDateTimeToIso(String(data.get("starts_at")), props.organization.timezone),
+        p_new_starts_at: localDateTimeToIso(startsAt, props.organization.timezone),
         p_selections: null,
         p_override_reason: String(data.get("override_reason") ?? "").trim() || null,
       }));
@@ -164,7 +168,7 @@ export function AgendaManager(props: Props) {
         {selectedCustomer && <div className={styles.formWide}><small className={styles.muted}>{selectedCustomer.full_name} selecionado</small></div>}
         <Field label="Profissional"><select name="barber_id" required>{props.barbers.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></Field>
         <Field label="Serviço ou pacote"><select name="selection" required><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select></Field>
-        <Field label="Início"><input name="starts_at" type="datetime-local" step={props.organization.slot_interval_minutes * 60} required /></Field>
+        <Field label="Início"><input name="starts_at" type="datetime-local" step={BUSINESS_SLOT_INTERVAL_MINUTES * 60} required /></Field>
         <Field label="Motivo fora da escala"><input name="override_reason" placeholder="Obrigatório somente fora da escala" /></Field>
         <Field label="Observações"><input name="notes" /></Field>
         <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar sem pagamento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setNewOpen(false)}>Cancelar</button></div>
@@ -172,7 +176,7 @@ export function AgendaManager(props: Props) {
       {rescheduling && <form className={styles.form} onSubmit={reschedule}>
         <div className={styles.formWide}><strong>Reagendar {customerById.get(rescheduling.customer_id)?.full_name}</strong><p className={styles.muted}>Itens e preços são preservados. O slot antigo só é liberado no commit atômico.</p></div>
         <Field label="Profissional"><select name="barber_id" defaultValue={rescheduling.barber_id}>{props.barbers.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></Field>
-        <Field label="Novo início"><input name="starts_at" type="datetime-local" required /></Field>
+        <Field label="Novo início"><input name="starts_at" type="datetime-local" step={BUSINESS_SLOT_INTERVAL_MINUTES * 60} required /></Field>
         <Field label="Motivo fora da escala" wide><input name="override_reason" /></Field>
         <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Proteger novo slot</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setRescheduling(null)}>Cancelar</button></div>
       </form>}

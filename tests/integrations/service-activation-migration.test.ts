@@ -12,4 +12,11 @@ describe("migration de ativação de serviços", () => {
     expect(sql).toContain("organization owner required");
     expect(sql).toContain("grant execute on function public.set_service_active");
   });
+
+  it("fixa o intervalo de slots da agenda em 15 minutos", () => {
+    const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/202608060004_slot_interval_15_minutes.sql"), "utf8");
+    expect(sql).toContain("update public.organizations");
+    expect(sql).toContain("set slot_interval_minutes = 15");
+    expect(sql).toContain("check (slot_interval_minutes = 15)");
+  });
 });

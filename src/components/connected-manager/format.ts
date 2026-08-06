@@ -3,6 +3,8 @@ const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
+export const BUSINESS_SLOT_INTERVAL_MINUTES = 15;
+
 export function formatCents(value: number | string | null | undefined) {
   const numeric = typeof value === "string" ? Number(value) : (value ?? 0);
   return currencyFormatter.format(Number.isFinite(numeric) ? numeric / 100 : 0);

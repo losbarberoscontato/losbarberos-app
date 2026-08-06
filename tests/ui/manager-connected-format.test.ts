@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { centsFromInput, formatCents, humanizeError, isAlignedToSlot, localDateTimeToIso, parsePostgresRange, toPostgresRange } from "@/components/connected-manager/format";
+import { BUSINESS_SLOT_INTERVAL_MINUTES, centsFromInput, formatCents, humanizeError, isAlignedToSlot, localDateTimeToIso, parsePostgresRange, toPostgresRange } from "@/components/connected-manager/format";
 
 describe("connected manager formatting contracts", () => {
   it("reads the tstzrange returned by PostgreSQL", () => {
@@ -23,9 +23,10 @@ describe("connected manager formatting contracts", () => {
     expect(localDateTimeToIso("2026-08-04T14:00", "America/Manaus")).toBe("2026-08-04T18:00:00.000Z");
   });
 
-  it("validates the configured appointment slot interval", () => {
-    expect(isAlignedToSlot("2026-08-07T11:15", 15)).toBe(true);
-    expect(isAlignedToSlot("2026-08-07T11:20", 15)).toBe(false);
+  it("uses 15-minute appointment slots", () => {
+    expect(BUSINESS_SLOT_INTERVAL_MINUTES).toBe(15);
+    expect(isAlignedToSlot("2026-08-07T11:15", BUSINESS_SLOT_INTERVAL_MINUTES)).toBe(true);
+    expect(isAlignedToSlot("2026-08-07T11:20", BUSINESS_SLOT_INTERVAL_MINUTES)).toBe(false);
   });
 
   it("translates slot interval validation errors", () => {
