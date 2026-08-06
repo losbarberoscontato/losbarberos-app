@@ -24,7 +24,7 @@ Baseline esperado após a publicação de 06/08/2026:
 - Trial: 14 dias.
 - Edge Functions Stripe na versão 5.
 - Cadastro, confirmação de e-mail, tenant `Barbearia Central`, checkout Test e status SaaS `TRIALING` já funcionavam.
-- Última validação local desta fase: ESLint e TypeScript aprovados, 28 arquivos/107 testes Vitest aprovados e build Next.js aprovado.
+- Última validação local desta fase: ESLint e TypeScript aprovados, 28 arquivos/107 testes Vitest aprovados, 36 E2E aprovados (2 ignorados) e build Next.js aprovado.
 
 Entregas recentes que devem ser preservadas:
 

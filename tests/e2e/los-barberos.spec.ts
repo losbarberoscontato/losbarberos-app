@@ -32,6 +32,7 @@ test.describe("Los Barberos · experiências principais", () => {
     await page.goto("/cliente/agendar");
 
     await expect(page.getByRole("heading", { name: /Como quer cuidar do visual/i })).toBeVisible();
+    await page.getByRole("tab", { name: "Masculino" }).click();
     await page.getByRole("button", { name: /Corte clássico/ }).first().click();
     await page.getByRole("button", { name: "Continuar" }).click();
 

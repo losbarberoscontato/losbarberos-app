@@ -61,6 +61,7 @@
 - ESLint aprovado sem erros.
 - TypeScript aprovado.
 - Vitest: 28 arquivos e 107 testes aprovados.
+- Playwright E2E em build de produção: 36 testes aprovados e 2 ignorados por escopo.
 - Build Next.js 16.3.0 aprovado, 22 páginas geradas.
 - QA visual das visões Dia/Semana/Mês e do modal concluído em preview local estruturado.
 - A validação visual autenticada contra o Supabase publicado continua sendo feita pelo usuário no ambiente de testes.
