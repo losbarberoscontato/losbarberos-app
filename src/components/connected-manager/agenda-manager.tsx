@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui";
 import type { loadAgendaData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
 import type { AppointmentRecord, AppointmentStatus } from "./types";
-import { formatCents, formatRange, localDateTimeToIso, parsePostgresRange } from "./format";
+import { formatCents, formatRange, isAlignedToSlot, localDateTimeToIso, parsePostgresRange } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
@@ -65,11 +65,15 @@ export function AgendaManager(props: Props) {
       if (blocked) throw new Error("A assinatura está bloqueada para novas reservas.");
       if (!type || !id) throw new Error("Escolha um serviço ou pacote.");
       if (!selectedCustomerId) throw new Error("Busque e selecione um cliente.");
+      const startsAt = String(data.get("starts_at") ?? "");
+      if (!isAlignedToSlot(startsAt, props.organization.slot_interval_minutes)) {
+        throw new Error(`Escolha um horário em intervalos de ${props.organization.slot_interval_minutes} minutos.`);
+      }
       await assertResult(await connectedClient().rpc("create_manual_appointment", {
         p_organization_id: props.organizationId,
         p_customer_id: selectedCustomerId,
         p_barber_id: String(data.get("barber_id")),
-        p_starts_at: localDateTimeToIso(String(data.get("starts_at")), props.organization.timezone),
+        p_starts_at: localDateTimeToIso(startsAt, props.organization.timezone),
         p_selections: [{ type, id, quantity: 1 }],
         p_override_reason: String(data.get("override_reason") ?? "").trim() || null,
         p_notes: String(data.get("notes") ?? "").trim() || null,
@@ -160,7 +164,7 @@ export function AgendaManager(props: Props) {
         {selectedCustomer && <div className={styles.formWide}><small className={styles.muted}>{selectedCustomer.full_name} selecionado</small></div>}
         <Field label="Profissional"><select name="barber_id" required>{props.barbers.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></Field>
         <Field label="Serviço ou pacote"><select name="selection" required><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select></Field>
-        <Field label="Início"><input name="starts_at" type="datetime-local" required /></Field>
+        <Field label="Início"><input name="starts_at" type="datetime-local" step={props.organization.slot_interval_minutes * 60} required /></Field>
         <Field label="Motivo fora da escala"><input name="override_reason" placeholder="Obrigatório somente fora da escala" /></Field>
         <Field label="Observações"><input name="notes" /></Field>
         <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar sem pagamento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setNewOpen(false)}>Cancelar</button></div>

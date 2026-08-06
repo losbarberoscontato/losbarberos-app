@@ -76,6 +76,12 @@ export function localDateTimeToIso(value: string, timezone: string) {
   return resolved.toISOString();
 }
 
+export function isAlignedToSlot(value: string, intervalMinutes: number) {
+  const match = /T(\d{2}):(\d{2})$/u.exec(value);
+  if (!match || !Number.isInteger(intervalMinutes) || intervalMinutes <= 0) return false;
+  return (Number(match[1]) * 60 + Number(match[2])) % intervalMinutes === 0;
+}
+
 export function toPostgresRange(start: string, end: string, timezone = "America/Sao_Paulo") {
   const startDate = new Date(localDateTimeToIso(start, timezone));
   const endDate = new Date(localDateTimeToIso(end, timezone));
@@ -88,6 +94,7 @@ export function toPostgresRange(start: string, end: string, timezone = "America/
 export function humanizeError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "Erro inesperado.");
   const dictionary: Array<[RegExp, string]> = [
+    [/start time is not aligned to slot interval/i, "Escolha um horário alinhado ao intervalo de slots da agenda."],
     [/requested slot is no longer available|exclusion constraint/i, "Esse horário acabou de ser ocupado."],
     [/duplicate key|unique constraint/i, "Já existe um cadastro igual ativo."],
     [/organization is not accepting/i, "A assinatura está bloqueada para novas reservas."],
