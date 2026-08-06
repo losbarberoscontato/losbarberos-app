@@ -1,10 +1,18 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import styles from "./connected-manager.module.css";
 
+export const ACTION_MESSAGE_TIMEOUT_MS = 5000;
+
 export function ActionMessage({ message, tone = "info" }: { message: string; tone?: "info" | "warning" | "error" }) {
-  if (!message) return null;
+  const [dismissedMessage, setDismissedMessage] = useState("");
+  useEffect(() => {
+    if (!message) return;
+    const timeoutId = window.setTimeout(() => setDismissedMessage(message), ACTION_MESSAGE_TIMEOUT_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [message]);
+  if (!message || dismissedMessage === message) return null;
   const toneClass = tone === "error" ? styles.error : tone === "warning" ? styles.warning : "";
   return <p className={`${styles.message} ${toneClass}`} role="status">{message}</p>;
 }
