@@ -100,7 +100,11 @@ export function CatalogManager({ organizationId, services, packages, packageItem
     const item = pendingPackageInactivation;
     setPendingPackageInactivation(null);
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().from("packages").update({ active: false }).eq("id", item.id).eq("organization_id", organizationId));
+      await assertResult(await connectedClient().rpc("set_package_active", {
+        p_organization_id: organizationId,
+        p_package_id: item.id,
+        p_active: false,
+      }));
     }, "Pacote inativado.");
     if (saved) router.refresh();
   }

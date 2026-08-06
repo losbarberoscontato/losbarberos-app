@@ -5,9 +5,10 @@ import { CatalogManager } from "@/components/connected-manager/catalog-manager";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const mutationMocks = vi.hoisted(() => ({
   update: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })) })),
+  rpc: vi.fn(() => Promise.resolve({ error: null })),
 }));
 vi.mock("@/components/connected-manager/mutation-utils", () => ({
-  connectedClient: () => ({ from: () => ({ update: mutationMocks.update }) }),
+  connectedClient: () => ({ from: () => ({ update: mutationMocks.update }), rpc: mutationMocks.rpc }),
   assertResult: (result: unknown) => result,
   runMutation: async (_setMessage: unknown, mutation: () => Promise<unknown>) => { await mutation(); return true; },
 }));
@@ -70,6 +71,6 @@ describe("catálogo do gestor", () => {
 
     fireEvent.click(within(packagePanel).getByRole("button", { name: "Inativar" }));
     fireEvent.click(screen.getByRole("button", { name: "Inativar pacote" }));
-    expect(mutationMocks.update).toHaveBeenCalledWith({ active: false });
+    expect(mutationMocks.rpc).toHaveBeenCalledWith("set_package_active", { p_organization_id: "org-1", p_package_id: "package-1", p_active: false });
   });
 });
