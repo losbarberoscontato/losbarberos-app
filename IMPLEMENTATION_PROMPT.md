@@ -1,54 +1,55 @@
-# Prompt inicial para a próxima conversa — Los Barberos
+# Prompt inicial — próxima conversa Los Barberos
 
 Estamos continuando o projeto **Los Barberos** em `D:\Display SH\Los Barberos`.
 
-O sistema está em fase de testes funcionais e visuais no ambiente publicado. Assuma o volante técnico para diagnosticar e implementar as correções que eu relatar, sempre preservando os dados existentes.
+Assuma o volante técnico para investigar e implementar os próximos relatos de teste funcional ou visual. Preserve todos os dados existentes e diferencie sempre fluxo demo de fluxo conectado ao Supabase.
 
-Antes de editar:
+## Preflight obrigatório antes de editar
 
 1. Leia integralmente `AGENTS.md`, `HANDOFF.md`, `README.md`, `IMPLEMENTATION_PROMPT.md` e `docs/architecture.md`.
-2. Confirme `git status --short`, branch `main`, remote `https://github.com/losbarberoscontato/losbarberos-app` e últimos commits locais/remotos.
-3. Confirme o estado remoto com `npx.cmd supabase migration list --linked` e faça smoke HTTP da Vercel.
-4. Use código, migrations, testes e estado remoto verificado como fonte de verdade.
-5. Diferencie interface demo de interface conectada ao Supabase. Se algo relatado já estiver correto no fluxo publicado, avise antes de alterar código.
+2. Confirme `git status --short`, branch, remote e os últimos commits locais/remotos.
+3. Confirme `npx.cmd supabase migration list --linked`.
+4. Faça smoke HTTP em `https://losbarberos-app.vercel.app/entrar`.
+5. Use código, migrations, testes e estado remoto verificado como fonte de verdade.
 6. Nunca mostre chaves, tokens, cookies, headers `Authorization` ou secrets.
 
-Baseline esperado após a publicação de 06/08/2026:
+## Baseline publicado
 
-- GitHub: `https://github.com/losbarberoscontato/losbarberos-app`, branch `main`; confirme o hash publicado no preflight.
+- GitHub: `https://github.com/losbarberoscontato/losbarberos-app`, branch `main`.
+- Commit publicado no preflight desta fase: `ec80d03`.
 - Vercel: `https://losbarberos-app.vercel.app`.
 - Supabase: projeto `Los Barberos`, ref `bwdjkhqshmppescunwer`.
-- Migrations esperadas: `202608040001` até `202608040008`, `202608050001` e `202608060001` até `202608060004`.
-- Stripe Display SH em Test mode.
-- Price: `price_1U18IW0StL37D8g9quhZW9RN`.
-- Trial: 14 dias.
-- Edge Functions Stripe na versão 5.
-- Cadastro, confirmação de e-mail, tenant `Barbearia Central`, checkout Test e status SaaS `TRIALING` já funcionavam.
-- Última validação local desta fase: ESLint e TypeScript aprovados, 28 arquivos/107 testes Vitest aprovados, 36 E2E aprovados (2 ignorados) e build Next.js aprovado.
+- Migrations remotas sincronizadas até `202608060005`.
+- Stripe Display SH permanece em Test mode; price `price_1U18IW0StL37D8g9quhZW9RN`; trial de 14 dias.
+- Edge Functions Stripe permanecem na versão 5.
 
-Entregas recentes que devem ser preservadas:
+## Funcionalidades recentes que devem ser preservadas
 
-- Público Infantil/Feminino/Masculino/Outros Serviços para serviços e pacotes.
-- Edição de pacote substitui serviços corretamente.
-- Inativação/reativação e filtros Ativos/Inativos para serviços e pacotes.
-- Login sem credenciais preenchidas.
-- Mensagens informativas temporárias.
-- Telefone com `+55` padrão quando não houver outro DDI.
-- Badge diário real da Agenda e filtros de status em português.
-- Data da agenda atualiza a listagem automaticamente.
-- Intervalos de agenda fixos em 15 minutos no frontend e no banco.
-- Agenda conectada no layout da demo, com dados reais e visões Dia/Semana/Mês.
-- Modal conectado de novo agendamento no padrão da demo.
+- Serviços e pacotes com públicos Infantil, Feminino, Masculino e Outros Serviços.
+- Edição de pacote substitui corretamente os serviços.
+- Ativação/inativação de serviços e pacotes com filtros Ativos/Inativos.
+- Clientes reais em modal de Novo cliente/Editar.
+- Clientes com modal de histórico e última visita.
+- Histórico de clientes mostra somente agendamentos `COMPLETED` com `net_paid_cents > 0`.
+- Inativação de cliente exige motivo: Mudança de bairro, Mudança de cidade, Insatisfação, Perda de contato ou Outro motivo com texto livre.
+- Motivo e data de inativação persistem em `customers.inactivation_reason` e `customers.inactivated_at`.
+- Filtro Ativos/Inativos na tela Clientes.
+- Clientes inativos não aparecem na busca de novo agendamento.
+- Agenda conectada ao Supabase com visões Dia/Semana/Mês, filtros reais e intervalos de 15 minutos.
+- Modal conectado de Novo agendamento no padrão da demo.
+- Login sem credenciais preenchidas, mensagens temporárias e telefone com `+55` padrão.
+- Tipografia ampliada para melhor legibilidade PWA/mobile.
 
-Regras de trabalho:
+## Regras de trabalho
 
 - Investigue a causa antes de corrigir.
 - Crie teste de regressão quando viável.
-- Preserve todos os dados cadastrados.
-- Migrations devem ser incrementais e compatíveis.
-- Stripe permanece em Test mode.
-- Mercado Pago, WhatsApp e Google Auth de clientes continuam fora do escopo.
-- Só faça deploy, migration remota ou outra escrita externa quando eu autorizar nesta conversa.
-- Quando eu solicitar publicação, conclua GitHub → Supabase → Vercel e apresente provas reais.
+- Preserve dados cadastrados; migrations sempre incrementais e compatíveis.
+- Não altere Stripe para Live mode.
+- Mercado Pago, WhatsApp/Meta e Google Auth de clientes continuam fora do escopo.
+- Não faça deploy, migration remota ou outra escrita externa sem autorização explícita nesta conversa.
+- Quando a publicação for autorizada, conclua GitHub → Supabase → Vercel e apresente provas reais.
 
-Primeiro faça um preflight curto do repositório, confirme se GitHub, Supabase e Vercel continuam saudáveis e depois aguarde meu primeiro relato de teste.
+## Primeiro passo
+
+Faça o preflight curto, informe o estado real de GitHub, Supabase e Vercel e aguarde meu primeiro relato de teste.
