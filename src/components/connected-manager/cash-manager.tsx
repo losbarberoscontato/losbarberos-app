@@ -69,6 +69,19 @@ function today() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 }
 
+function movementDate(value: string) {
+  return value.includes("T") ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(value)) : value;
+}
+
+function isDateInRange(value: string, start: string, end: string) {
+  const date = movementDate(value);
+  return (!start || date >= start) && (!end || date <= end);
+}
+
+function appointmentPaymentLabel(status: string) {
+  return ({ PAID: "Recebido", PARTIAL: "Parcial", UNPAID: "Em aberto", REFUND_PENDING: "Estorno pendente", PARTIALLY_REFUNDED: "Parcialmente estornado", REFUNDED: "Estornado" } as Record<string, string>)[status] ?? status.replaceAll("_", " ");
+}
+
 function safeText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
 }
@@ -95,6 +108,8 @@ export function CashManager(props: CashManagerProps) {
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<"ALL" | EntryKind>(props.section === "payables" ? "EXPENSE" : props.section === "receivables" ? "REVENUE" : "ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | EntryStatus>("ALL");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [entryEditor, setEntryEditor] = useState<FinancialEntryRecord | "new" | null>(null);
   const [settlementEntry, setSettlementEntry] = useState<FinancialEntryRecord | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -115,14 +130,14 @@ export function CashManager(props: CashManagerProps) {
   const visibleEntries = useMemo(() => props.entries.filter((entry) => {
     const counterparty = entry.counterparty_kind === "CUSTOMER" ? customerById.get(entry.customer_id ?? "")?.full_name : supplierById.get(entry.supplier_id ?? "")?.name;
     const haystack = [entry.description, entry.document_number, counterparty, chartById.get(entry.chart_account_id)?.name, ...(tagNamesByEntry.get(entry.id) ?? [])].join(" ").toLocaleLowerCase("pt-BR");
-    return (kindFilter === "ALL" || entry.kind === kindFilter) && (statusFilter === "ALL" || entry.status === statusFilter) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.entries, customerById, supplierById, chartById, tagNamesByEntry, kindFilter, statusFilter, query]);
+    return (kindFilter === "ALL" || entry.kind === kindFilter) && (statusFilter === "ALL" || entry.status === statusFilter) && isDateInRange(entry.due_date, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.entries, customerById, supplierById, chartById, tagNamesByEntry, kindFilter, statusFilter, startDate, endDate, query]);
 
   const visibleActivity = useMemo(() => props.appointmentActivity.filter((item) => {
     const customer = customerById.get(item.customer_id)?.full_name ?? "Cliente";
-    const haystack = `${customer} ${item.provider} ${item.payment_mode}`.toLocaleLowerCase("pt-BR");
-    return kindFilter !== "EXPENSE" && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.appointmentActivity, customerById, kindFilter, query]);
+    const haystack = `${customer} ${item.display_description} ${item.provider} ${item.payment_mode}`.toLocaleLowerCase("pt-BR");
+    return kindFilter !== "EXPENSE" && isDateInRange(item.occurred_at, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.appointmentActivity, customerById, kindFilter, startDate, endDate, query]);
 
   const capturedFromAppointments = props.appointmentActivity.reduce((total, item) => total + item.signed_cents, 0);
   const manualRevenue = props.entries.filter((item) => item.kind === "REVENUE").reduce((total, item) => total + item.settled_cents, 0);
@@ -165,6 +180,8 @@ export function CashManager(props: CashManagerProps) {
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
           <input className={styles.packageFilterSelect} aria-label="Buscar lançamentos" placeholder="Buscar descrição, documento ou contraparte" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input className={styles.packageFilterSelect} aria-label="Data inicial" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+          <input className={styles.packageFilterSelect} aria-label="Data final" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
           <select className={styles.packageFilterSelect} aria-label="Filtrar tipo" value={kindFilter} onChange={(event) => setKindFilter(event.target.value as "ALL" | EntryKind)}><option value="ALL">Todos tipos</option><option value="REVENUE">Receitas</option><option value="EXPENSE">Despesas</option></select>
           <select className={styles.packageFilterSelect} aria-label="Filtrar status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "ALL" | EntryStatus)}><option value="ALL">Todos status</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
         </div>
@@ -200,12 +217,13 @@ function CashStats({ balance, incoming, outgoing, openReceivable, openPayable }:
 
 function CashList({ entries, activity, accountById, supplierById, customerById, chartById, tagNamesByEntry, onEdit, onSettle, onCancel, onTransfer, onReverseAppointment }: { entries: FinancialEntryRecord[]; activity: AppointmentCashActivityRecord[]; accountById: Map<string, FinancialAccountRecord>; supplierById: Map<string, SupplierRecord>; customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>; chartById: Map<string, ChartAccountRecord>; tagNamesByEntry: Map<string, string[]>; onEdit: (entry: FinancialEntryRecord) => void; onSettle: (entry: FinancialEntryRecord) => void; onCancel: (entry: FinancialEntryRecord) => void; onTransfer: () => void; onReverseAppointment: (entry: AppointmentCashActivityRecord) => void }) {
   return <Panel title="Movimentações" description="Registros de agendamento são vinculados ao ledger existente e não podem ser editados aqui." action={<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onTransfer}><ArrowLeftRight size={15} /> Transferir</button>}>
-    {!entries.length && !activity.length ? <EmptyState title="Sem movimentações">Crie um lançamento ou registre um recebimento de agendamento.</EmptyState> : <div className={styles.list}>
+    {!entries.length && !activity.length ? <EmptyState title="Sem movimentações">Crie um lançamento ou registre um recebimento de agendamento.</EmptyState> : <div className={styles.cashTable} role="table" aria-label="Movimentações financeiras">
+      <div className={styles.cashHeader} role="row"><span role="columnheader">Descrição</span><span role="columnheader">Data</span><span role="columnheader">Valor</span><span role="columnheader">Conta financeira</span><span role="columnheader">Situação do pagamento</span><span role="columnheader">Ações</span></div>
       {entries.map((entry) => {
         const counterpart = entry.counterparty_kind === "CUSTOMER" ? customerById.get(entry.customer_id ?? "")?.full_name : supplierById.get(entry.supplier_id ?? "")?.name;
-        return <article key={entry.id} className={styles.row}><span className={styles.rowTitle}><strong>{entry.description}</strong><small>{entry.due_date} · {chartById.get(entry.chart_account_id)?.name ?? "Plano não encontrado"}{counterpart ? ` · ${counterpart}` : ""}{tagNamesByEntry.get(entry.id)?.filter(Boolean).length ? ` · ${tagNamesByEntry.get(entry.id)?.filter(Boolean).join(", ")}` : ""}</small></span><strong>{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span>{formatCents(entry.remaining_cents)} restante</span><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /><span className={styles.rowActions}>{!["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>Liquidar</button>}{entry.status === "OPEN" || entry.status === "OVERDUE" ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : entry.status !== "CANCELED" ? <small className={styles.muted}>Use reversal para corrigir liquidações.</small> : null}</span></article>;
+        return <article key={entry.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong>{entry.description}</strong><small>{chartById.get(entry.chart_account_id)?.name ?? "Plano não encontrado"}{counterpart ? ` · ${counterpart}` : ""}{tagNamesByEntry.get(entry.id)?.filter(Boolean).length ? ` · ${tagNamesByEntry.get(entry.id)?.filter(Boolean).join(", ")}` : ""}</small></span><span role="cell">{entry.due_date}</span><strong role="cell">{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span role="cell">{accountById.get(entry.preferred_financial_account_id ?? "")?.name ?? "Não definida"}</span><span role="cell"><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /></span><span className={styles.rowActions} role="cell">{!["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>Liquidar</button>}{entry.status === "OPEN" || entry.status === "OVERDUE" ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : entry.status !== "CANCELED" ? <small className={styles.muted}>Use reversal para corrigir liquidações.</small> : null}</span></article>;
       })}
-      {activity.map((item) => <article key={item.payment_transaction_id} className={styles.row}><span className={styles.rowTitle}><strong>Recebimento de agendamento</strong><small>{customerById.get(item.customer_id)?.full_name ?? "Cliente"} · {new Date(item.occurred_at).toLocaleDateString("pt-BR")} · {item.provider}</small></span><strong>{item.signed_cents >= 0 ? "+" : "−"}{formatCents(Math.abs(item.signed_cents))}</strong><span>{item.needs_reconciliation ? "Aguardando conciliação" : accountById.get(item.financial_account_id ?? "")?.name ?? "Conta não encontrada"}</span><StatusChip active={!item.needs_reconciliation} label={item.needs_reconciliation ? "PENDENTE" : "VINCULADO"} /><span className={styles.rowActions}>{item.kind === "CAPTURE" && item.provider === "MANUAL" && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseAppointment(item)}>Estornar recebimento</button>}</span></article>)}
+      {activity.map((item) => <article key={item.payment_transaction_id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong>{item.display_description}</strong><small>{customerById.get(item.customer_id)?.full_name ?? "Cliente"} · {item.provider}</small></span><span role="cell">{new Date(item.occurred_at).toLocaleDateString("pt-BR")}</span><strong role="cell">{item.signed_cents >= 0 ? "+" : "−"}{formatCents(Math.abs(item.signed_cents))}</strong><span role="cell">{item.needs_reconciliation ? "Não vinculada" : accountById.get(item.financial_account_id ?? "")?.name ?? "Conta não encontrada"}</span><span role="cell"><StatusChip active={item.financial_status === "PAID"} label={appointmentPaymentLabel(item.financial_status)} /></span><span className={styles.rowActions} role="cell">{item.kind === "CAPTURE" && item.provider === "MANUAL" && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseAppointment(item)}>Estornar recebimento</button>}</span></article>)}
     </div>}
   </Panel>;
 }
@@ -258,7 +276,7 @@ function TransferDialog({ accounts, demoMode, onClose, onSaved, setMessage }: { 
 
 function AccountsSection({ organizationId, accounts, mappings, demoMode, balanceById, setMessage }: Pick<CashManagerProps, "organizationId" | "accounts" | "mappings" | "demoMode"> & { balanceById: Map<string, number>; accountById: Map<string, FinancialAccountRecord>; setMessage: (value: string) => void }) {
   const router = useRouter(); const [editing, setEditing] = useState<FinancialAccountRecord | null>(null);
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_financial_account", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_kind: safeText(data.get("kind")), p_name: safeText(data.get("name")), p_opening_balance_cents: centsFromInput(data.get("opening")), p_bank_code: safeText(data.get("bank_code")) || null, p_branch: safeText(data.get("branch")) || null, p_account_number: safeText(data.get("number")) || null })); }, editing ? "Conta atualizada." : "Conta criada."); if (saved) { setEditing(null); router.refresh(); } }
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_financial_account", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_kind: safeText(data.get("kind")), p_name: safeText(data.get("name")), p_opening_balance_cents: centsFromInput(data.get("opening")), p_bank_code: safeText(data.get("bank_code")) || null, p_branch: safeText(data.get("branch")) || null, p_account_number: safeText(data.get("number")) || null, p_description: safeText(data.get("description")) || null })); }, editing ? "Conta atualizada." : "Conta criada."); if (saved) { setEditing(null); router.refresh(); } }
   async function mapAccount(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("configure_payment_account_mapping", { p_provider: safeText(data.get("provider")), p_payment_mode: safeText(data.get("payment_mode")), p_financial_account_id: safeText(data.get("account_id")) })); }, "Mapeamento de recebimento salvo."); if (saved) router.refresh(); }
   async function toggleActive(account: FinancialAccountRecord) { if (blockDemoWrite(demoMode, setMessage)) return; const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("set_financial_catalog_active", { p_catalog: "ACCOUNT", p_id: account.id, p_active: !account.active })); }, account.active ? "Conta inativada; histórico preservado." : "Conta reativada."); if (saved) router.refresh(); }
   return <div className={styles.grid}>
@@ -270,12 +288,13 @@ function AccountsSection({ organizationId, accounts, mappings, demoMode, balance
         <Field label="Código do banco"><input name="bank_code" defaultValue={editing?.bank_code ?? ""} /></Field>
         <Field label="Agência"><input name="branch" defaultValue={editing?.branch ?? ""} /></Field>
         <Field label="Conta"><input name="number" defaultValue={editing?.account_number ?? ""} /></Field>
+        <Field label="Descrição da conta" wide><textarea name="description" defaultValue={editing?.description ?? ""} /></Field>
         <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{editing ? "Salvar" : "Adicionar"}</button>{editing && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditing(null)}>Cancelar</button>}</div>
       </form>
     </Panel>
     <Panel title="Bancos e caixas" description="Inative em vez de apagar contas usadas." className={styles.span7}>
       {!accounts.length ? <EmptyState title="Sem contas">Cadastre banco ou caixa físico antes de liquidar lançamentos.</EmptyState> : <div className={styles.list}>{accounts.map((item) => <article className={styles.row} key={item.id}>
-        <span className={styles.rowTitle}><strong>{item.name}</strong><small>{item.kind === "BANK" ? "Banco" : "Caixa físico"} · saldo inicial {formatCents(item.opening_balance_cents)}</small></span>
+        <span className={styles.rowTitle}><strong>{item.name}</strong><small>{item.kind === "BANK" ? "Banco" : "Caixa físico"} · saldo inicial {formatCents(item.opening_balance_cents)}{item.description ? ` · ${item.description}` : ""}</small></span>
         <strong>{formatCents(balanceById.get(item.id) ?? item.opening_balance_cents)}</strong><StatusChip active={item.active} /><span />
         <span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setEditing(item)}>Editar</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => void toggleActive(item)}>{item.active ? "Inativar" : "Reativar"}</button></span>
       </article>)}</div>}

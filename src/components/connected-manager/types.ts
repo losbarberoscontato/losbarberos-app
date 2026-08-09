@@ -250,6 +250,7 @@ export interface FinancialAccountRecord {
   bank_code: string | null;
   branch: string | null;
   account_number: string | null;
+  description: string | null;
   opening_balance_cents: number;
   active: boolean;
 }
@@ -348,6 +349,8 @@ export interface AppointmentCashActivityRecord {
   occurred_at: string;
   financial_account_id: string | null;
   needs_reconciliation: boolean;
+  display_description: string;
+  financial_status: string;
 }
 
 export interface PaymentAccountMappingRecord {

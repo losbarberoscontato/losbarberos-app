@@ -16,7 +16,7 @@ const props = {
   section: "cash" as const,
   organizationId: "org-1",
   billingStatus: "ACTIVE" as const,
-  accounts: [{ id: "account-1", organization_id: "org-1", kind: "BANK" as const, name: "Banco Principal", bank_code: null, branch: null, account_number: null, opening_balance_cents: 5000, active: true }],
+  accounts: [{ id: "account-1", organization_id: "org-1", kind: "BANK" as const, name: "Banco Principal", bank_code: null, branch: null, account_number: null, description: null, opening_balance_cents: 5000, active: true }],
   balances: [{ financial_account_id: "account-1", balance_cents: 8000 }],
   suppliers: [{ id: "supplier-1", organization_id: "org-1", person_kind: "COMPANY" as const, name: "Imobiliária Real", document: null, phone_e164: null, email: null, address: {}, notes: null, active: true }],
   chartAccounts: [{ id: "chart-revenue", organization_id: "org-1", parent_id: null, code: "1", name: "Serviços", kind: "REVENUE" as const, active: true }, { id: "chart-expense", organization_id: "org-1", parent_id: null, code: "2", name: "Estrutura", kind: "EXPENSE" as const, active: true }],
@@ -26,7 +26,7 @@ const props = {
   entries: [{ id: "entry-1", organization_id: "org-1", kind: "EXPENSE" as const, description: "Aluguel", issue_date: "2026-08-01", due_date: "2026-08-10", total_cents: 100000, settled_cents: 0, remaining_cents: 100000, status: "OPEN" as const, chart_account_id: "chart-expense", cost_center_id: null, preferred_financial_account_id: "account-1", counterparty_kind: "SUPPLIER" as const, customer_id: null, supplier_id: "supplier-1", document_number: "ALU-01", canceled_at: null, cancellation_reason: null }],
   entryTags: [],
   settlements: [],
-  appointmentActivity: [{ payment_transaction_id: "payment-1", organization_id: "org-1", appointment_id: "appointment-1", customer_id: "customer-1", payment_mode: "COUNTER", provider: "MANUAL" as const, kind: "CAPTURE" as const, amount_cents: 8000, signed_cents: 8000, occurred_at: "2026-08-09T10:00:00.000Z", financial_account_id: "account-1", needs_reconciliation: false }],
+  appointmentActivity: [{ payment_transaction_id: "payment-1", organization_id: "org-1", appointment_id: "appointment-1", customer_id: "customer-1", payment_mode: "COUNTER", provider: "MANUAL" as const, kind: "CAPTURE" as const, amount_cents: 8000, signed_cents: 8000, occurred_at: "2026-08-09T10:00:00.000Z", financial_account_id: "account-1", needs_reconciliation: false, display_description: "Corte clássico · Profissional: Alef", financial_status: "PAID" }],
   mappings: [],
 };
 
@@ -37,11 +37,34 @@ describe("cash manager", () => {
     render(<CashManager {...props} />);
     expect(screen.getByRole("heading", { name: "Controle de caixa" })).toBeInTheDocument();
     expect(screen.getByText("Aluguel")).toBeInTheDocument();
-    expect(screen.getByText("Recebimento de agendamento")).toBeInTheDocument();
+    expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Buscar descrição, documento ou contraparte"), { target: { value: "aluguel" } });
     expect(screen.getByText("Aluguel")).toBeInTheDocument();
-    expect(screen.queryByText("Recebimento de agendamento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
+  });
+
+  it("shows a paid appointment separately from its unmapped financial account and filters movements by inclusive date", () => {
+    render(<CashManager {...props} appointmentActivity={[{
+      ...props.appointmentActivity[0],
+      needs_reconciliation: true,
+      display_description: "Corte clássico · Profissional: Alef",
+      financial_status: "PAID",
+    }]} />);
+
+    expect(screen.getByRole("columnheader", { name: "Descrição" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Situação do pagamento" })).toBeInTheDocument();
+    expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
+    expect(screen.getByText("Recebido")).toBeInTheDocument();
+    expect(screen.getByText("Não vinculada")).toBeInTheDocument();
+    expect(screen.queryByText("Aguardando conciliação")).not.toBeInTheDocument();
+    expect(screen.queryByText("PENDENTE")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-08-09" } });
+    fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-08-09" } });
+
+    expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
+    expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
   });
 
   it("opens a cash entry form without calling Supabase in advance", () => {

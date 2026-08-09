@@ -46,6 +46,11 @@
 .empty strong { color: #313832; font-size: 1rem; }
 .empty p { max-width: 500px; margin: 0; font-size: .86rem; }
 .list { display: grid; gap: .65rem; }
+.cashTable { display: grid; gap: .65rem; }
+.cashHeader, .cashRow { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(90px, .7fr) minmax(95px, .75fr) minmax(120px, .9fr) minmax(135px, .9fr) minmax(130px, auto); gap: .8rem; align-items: center; }
+.cashHeader { padding: 0 .8rem; color: #69716b; font-size: .75rem; font-weight: 800; }
+.cashRow { padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }
+.cashRow:hover { background: #fafbf9; }
 .row { display: grid; grid-template-columns: minmax(150px, 1.4fr) repeat(3, minmax(90px, 1fr)) auto; gap: .8rem; align-items: center; padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }
 .row:hover { background: #fafbf9; }
 .chartColumns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: 1rem; }
@@ -121,6 +126,9 @@
   .formWide { grid-column: auto; }
   .row { grid-template-columns: 1fr auto; }
   .row > :not(.rowTitle):not(.rowActions) { display: none; }
+  .cashHeader { display: none; }
+  .cashRow { grid-template-columns: 1fr auto; }
+  .cashRow > :not(.rowTitle):not(.rowActions) { display: none; }
   .appointment { grid-template-columns: 1fr auto; }
   .appointment > :not(.appointmentTime):not(.rowActions) { display: none; }
   .integration { align-items: flex-start; flex-direction: column; }
