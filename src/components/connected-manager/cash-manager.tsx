@@ -1,0 +1,390 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, type FormEvent } from "react";
+import { ArrowLeftRight, Building2, ChevronRight, CircleDollarSign, Landmark, Plus, ReceiptText, Tags } from "lucide-react";
+import { PageHeader } from "@/components/ui";
+import { centsFromInput, formatCents } from "./format";
+import { assertResult, connectedClient, runMutation } from "./mutation-utils";
+import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
+import type {
+  AppointmentCashActivityRecord,
+  ChartAccountRecord,
+  CostCenterRecord,
+  CustomerRecord,
+  FinancialAccountBalanceRecord,
+  FinancialAccountRecord,
+  FinancialEntryRecord,
+  FinancialEntryTagRecord,
+  FinancialSettlementRecord,
+  FinancialTagRecord,
+  FinanceSection,
+  PaymentAccountMappingRecord,
+  SupplierRecord,
+} from "./types";
+import styles from "./connected-manager.module.css";
+
+const financeSections: Array<{ id: FinanceSection; label: string; href: string }> = [
+  { id: "overview", label: "Visão geral", href: "/gestor/financeiro" },
+  { id: "cash", label: "Caixa", href: "/gestor/financeiro/caixa" },
+  { id: "payables", label: "Contas a pagar", href: "/gestor/financeiro/contas-pagar" },
+  { id: "receivables", label: "Contas a receber", href: "/gestor/financeiro/contas-receber" },
+  { id: "accounts", label: "Bancos e caixas", href: "/gestor/financeiro/bancos" },
+  { id: "suppliers", label: "Fornecedores", href: "/gestor/financeiro/fornecedores" },
+  { id: "catalogs", label: "Cadastros", href: "/gestor/financeiro/cadastros" },
+];
+
+export type CashManagerProps = {
+  section: FinanceSection;
+  organizationId: string;
+  billingStatus: string | null;
+  accounts: FinancialAccountRecord[];
+  balances: FinancialAccountBalanceRecord[];
+  suppliers: SupplierRecord[];
+  chartAccounts: ChartAccountRecord[];
+  costCenters: CostCenterRecord[];
+  tags: FinancialTagRecord[];
+  customers: Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">[];
+  entries: FinancialEntryRecord[];
+  entryTags: FinancialEntryTagRecord[];
+  settlements: FinancialSettlementRecord[];
+  appointmentActivity: AppointmentCashActivityRecord[];
+  mappings: PaymentAccountMappingRecord[];
+  demoMode?: boolean;
+};
+
+type EntryKind = FinancialEntryRecord["kind"];
+type EntryStatus = FinancialEntryRecord["status"];
+
+const statusLabel: Record<EntryStatus, string> = {
+  OPEN: "Em aberto",
+  PARTIAL: "Parcial",
+  SETTLED: "Liquidado",
+  OVERDUE: "Vencido",
+  CANCELED: "Cancelado",
+};
+
+function today() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+}
+
+function safeText(value: FormDataEntryValue | null) {
+  return String(value ?? "").trim();
+}
+
+function boolActive(status: EntryStatus) {
+  return status === "SETTLED" || status === "PARTIAL" || status === "OPEN";
+}
+
+function blockDemoWrite(demoMode: boolean | undefined, setMessage: (value: string) => void) {
+  if (!demoMode) return false;
+  setMessage("Modo demonstração: nenhuma alteração é salva.");
+  return true;
+}
+
+export function FinanceSubnav({ active }: { active: FinanceSection }) {
+  return <nav className={styles.tabs} aria-label="Seções do Financeiro">
+    {financeSections.map((item) => <Link key={item.id} href={item.href} className={`${styles.tab} ${active === item.id ? styles.tabActive : ""}`} aria-current={active === item.id ? "page" : undefined}>{item.label}</Link>)}
+  </nav>;
+}
+
+export function CashManager(props: CashManagerProps) {
+  const router = useRouter();
+  const [message, setMessage] = useState("");
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<"ALL" | EntryKind>(props.section === "payables" ? "EXPENSE" : props.section === "receivables" ? "REVENUE" : "ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | EntryStatus>("ALL");
+  const [entryEditor, setEntryEditor] = useState<FinancialEntryRecord | "new" | null>(null);
+  const [settlementEntry, setSettlementEntry] = useState<FinancialEntryRecord | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [reversePayment, setReversePayment] = useState<AppointmentCashActivityRecord | null>(null);
+
+  const accountById = useMemo(() => new Map(props.accounts.map((item) => [item.id, item])), [props.accounts]);
+  const supplierById = useMemo(() => new Map(props.suppliers.map((item) => [item.id, item])), [props.suppliers]);
+  const customerById = useMemo(() => new Map(props.customers.map((item) => [item.id, item])), [props.customers]);
+  const chartById = useMemo(() => new Map(props.chartAccounts.map((item) => [item.id, item])), [props.chartAccounts]);
+  const tagNamesByEntry = useMemo(() => {
+    const tagById = new Map(props.tags.map((item) => [item.id, item.name]));
+    const result = new Map<string, string[]>();
+    props.entryTags.forEach((item) => result.set(item.entry_id, [...(result.get(item.entry_id) ?? []), tagById.get(item.tag_id) ?? ""]));
+    return result;
+  }, [props.entryTags, props.tags]);
+  const balanceById = useMemo(() => new Map(props.balances.map((item) => [item.financial_account_id, item.balance_cents])), [props.balances]);
+
+  const visibleEntries = useMemo(() => props.entries.filter((entry) => {
+    const counterparty = entry.counterparty_kind === "CUSTOMER" ? customerById.get(entry.customer_id ?? "")?.full_name : supplierById.get(entry.supplier_id ?? "")?.name;
+    const haystack = [entry.description, entry.document_number, counterparty, chartById.get(entry.chart_account_id)?.name, ...(tagNamesByEntry.get(entry.id) ?? [])].join(" ").toLocaleLowerCase("pt-BR");
+    return (kindFilter === "ALL" || entry.kind === kindFilter) && (statusFilter === "ALL" || entry.status === statusFilter) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.entries, customerById, supplierById, chartById, tagNamesByEntry, kindFilter, statusFilter, query]);
+
+  const visibleActivity = useMemo(() => props.appointmentActivity.filter((item) => {
+    const customer = customerById.get(item.customer_id)?.full_name ?? "Cliente";
+    const haystack = `${customer} ${item.provider} ${item.payment_mode}`.toLocaleLowerCase("pt-BR");
+    return kindFilter !== "EXPENSE" && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.appointmentActivity, customerById, kindFilter, query]);
+
+  const capturedFromAppointments = props.appointmentActivity.reduce((total, item) => total + item.signed_cents, 0);
+  const manualRevenue = props.entries.filter((item) => item.kind === "REVENUE").reduce((total, item) => total + item.settled_cents, 0);
+  const manualExpense = props.entries.filter((item) => item.kind === "EXPENSE").reduce((total, item) => total + item.settled_cents, 0);
+  const balance = props.balances.reduce((total, item) => total + item.balance_cents, 0);
+  const openReceivable = props.entries.filter((item) => item.kind === "REVENUE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0);
+  const openPayable = props.entries.filter((item) => item.kind === "EXPENSE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0);
+
+  async function reverseAppointmentReceipt() {
+    if (!reversePayment) return;
+    if (blockDemoWrite(props.demoMode, setMessage)) { setReversePayment(null); return; }
+    const reference = window.prompt("Referência do estorno (comprovante ou protocolo):");
+    if (!reference?.trim()) return;
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("reverse_appointment_cash_receipt", {
+        p_payment_transaction_id: reversePayment.payment_transaction_id,
+        p_reference: reference.trim(),
+        p_idempotency_key: `manager:cash-appointment-reversal:${crypto.randomUUID()}`,
+      }));
+    }, "Estorno registrado. Serviço continua concluído e saldo foi reaberto.");
+    if (saved) { setReversePayment(null); router.refresh(); }
+  }
+
+  const title = props.section === "overview" ? "Financeiro" : props.section === "cash" ? "Controle de caixa" : financeSections.find((item) => item.id === props.section)?.label ?? "Financeiro";
+  const description = props.demoMode ? "Modo demonstração: dados locais, sem escrita no Supabase." : "Lançamentos auditáveis; valores liquidado não são apagados.";
+
+  return <div className={styles.stack}>
+    <PageHeader title={title} description={description} actions={props.section === "cash" ? <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button> : undefined} />
+    <FinanceSubnav active={props.section} />
+    <ActionMessage message={message} />
+
+    {props.section === "overview" && <>
+      <CashStats balance={balance} incoming={manualRevenue + capturedFromAppointments} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} />
+      <Panel title="Próximo passo" description="Controle despesas, recebimentos e contas bancárias sem duplicar pagamentos de agendamento.">
+        <Link className={styles.button} href="/gestor/financeiro/caixa">Abrir Caixa <ChevronRight size={16} /></Link>
+      </Panel>
+    </>}
+    {(props.section === "cash" || props.section === "payables" || props.section === "receivables") && <>
+      <CashStats balance={balance} incoming={manualRevenue + capturedFromAppointments} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} />
+      <div className={styles.toolbar}>
+        <div className={styles.toolbarGroup}>
+          <input className={styles.packageFilterSelect} aria-label="Buscar lançamentos" placeholder="Buscar descrição, documento ou contraparte" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <select className={styles.packageFilterSelect} aria-label="Filtrar tipo" value={kindFilter} onChange={(event) => setKindFilter(event.target.value as "ALL" | EntryKind)}><option value="ALL">Todos tipos</option><option value="REVENUE">Receitas</option><option value="EXPENSE">Despesas</option></select>
+          <select className={styles.packageFilterSelect} aria-label="Filtrar status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "ALL" | EntryStatus)}><option value="ALL">Todos status</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+        </div>
+        {props.section !== "cash" && <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button>}
+      </div>
+      <CashList entries={visibleEntries} activity={visibleActivity} accountById={accountById} supplierById={supplierById} customerById={customerById} chartById={chartById} tagNamesByEntry={tagNamesByEntry} onEdit={setEntryEditor} onSettle={setSettlementEntry} onCancel={async (entry) => {
+        if (blockDemoWrite(props.demoMode, setMessage)) return;
+        const reason = window.prompt("Motivo obrigatório do cancelamento:");
+        if (!reason?.trim()) return;
+        const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("cancel_financial_entry", { p_entry_id: entry.id, p_reason: reason.trim() })); }, "Lançamento cancelado sem apagar histórico.");
+        if (saved) router.refresh();
+      }} onTransfer={() => setTransferOpen(true)} onReverseAppointment={setReversePayment} />
+    </>}
+    {props.section === "accounts" && <AccountsSection {...props} balanceById={balanceById} accountById={accountById} setMessage={setMessage} />}
+    {props.section === "suppliers" && <SuppliersSection organizationId={props.organizationId} suppliers={props.suppliers} demoMode={props.demoMode} setMessage={setMessage} />}
+    {props.section === "catalogs" && <CatalogsSection organizationId={props.organizationId} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} accounts={props.accounts} mappings={props.mappings} demoMode={props.demoMode} setMessage={setMessage} />}
+
+    {entryEditor && <EntryDialog entry={entryEditor === "new" ? null : entryEditor} {...props} onClose={() => setEntryEditor(null)} onSaved={() => { setEntryEditor(null); router.refresh(); }} setMessage={setMessage} />}
+    {settlementEntry && <SettlementDialog entry={settlementEntry} accounts={props.accounts} demoMode={props.demoMode} onClose={() => setSettlementEntry(null)} onSaved={() => { setSettlementEntry(null); router.refresh(); }} setMessage={setMessage} />}
+    {transferOpen && <TransferDialog accounts={props.accounts} demoMode={props.demoMode} onClose={() => setTransferOpen(false)} onSaved={() => { setTransferOpen(false); router.refresh(); }} setMessage={setMessage} />}
+    {reversePayment && <ConfirmDialog title="Estornar recebimento do agendamento?" description="O valor será estornado ao cliente e o saldo do agendamento será reaberto. Serviço e agendamento continuam concluídos." confirmLabel="Confirmar estorno" onClose={() => setReversePayment(null)} onConfirm={() => void reverseAppointmentReceipt()} />}
+  </div>;
+}
+
+function CashStats({ balance, incoming, outgoing, openReceivable, openPayable }: { balance: number; incoming: number; outgoing: number; openReceivable: number; openPayable: number }) {
+  return <section className={styles.stats}>
+    <article className={styles.stat}><span>Saldo em contas</span><strong>{formatCents(balance)}</strong><small>saldo inicial + movimentações</small></article>
+    <article className={styles.stat}><span>Entradas realizadas</span><strong>{formatCents(incoming)}</strong><small>inclui agendamentos vinculados</small></article>
+    <article className={styles.stat}><span>Saídas realizadas</span><strong>{formatCents(outgoing)}</strong><small>despesas liquidadas</small></article>
+    <article className={styles.stat}><span>Em aberto</span><strong>{formatCents(openReceivable - openPayable)}</strong><small>{formatCents(openReceivable)} a receber · {formatCents(openPayable)} a pagar</small></article>
+  </section>;
+}
+
+function CashList({ entries, activity, accountById, supplierById, customerById, chartById, tagNamesByEntry, onEdit, onSettle, onCancel, onTransfer, onReverseAppointment }: { entries: FinancialEntryRecord[]; activity: AppointmentCashActivityRecord[]; accountById: Map<string, FinancialAccountRecord>; supplierById: Map<string, SupplierRecord>; customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>; chartById: Map<string, ChartAccountRecord>; tagNamesByEntry: Map<string, string[]>; onEdit: (entry: FinancialEntryRecord) => void; onSettle: (entry: FinancialEntryRecord) => void; onCancel: (entry: FinancialEntryRecord) => void; onTransfer: () => void; onReverseAppointment: (entry: AppointmentCashActivityRecord) => void }) {
+  return <Panel title="Movimentações" description="Registros de agendamento são vinculados ao ledger existente e não podem ser editados aqui." action={<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onTransfer}><ArrowLeftRight size={15} /> Transferir</button>}>
+    {!entries.length && !activity.length ? <EmptyState title="Sem movimentações">Crie um lançamento ou registre um recebimento de agendamento.</EmptyState> : <div className={styles.list}>
+      {entries.map((entry) => {
+        const counterpart = entry.counterparty_kind === "CUSTOMER" ? customerById.get(entry.customer_id ?? "")?.full_name : supplierById.get(entry.supplier_id ?? "")?.name;
+        return <article key={entry.id} className={styles.row}><span className={styles.rowTitle}><strong>{entry.description}</strong><small>{entry.due_date} · {chartById.get(entry.chart_account_id)?.name ?? "Plano não encontrado"}{counterpart ? ` · ${counterpart}` : ""}{tagNamesByEntry.get(entry.id)?.filter(Boolean).length ? ` · ${tagNamesByEntry.get(entry.id)?.filter(Boolean).join(", ")}` : ""}</small></span><strong>{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span>{formatCents(entry.remaining_cents)} restante</span><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /><span className={styles.rowActions}>{!["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>Liquidar</button>}{entry.status === "OPEN" || entry.status === "OVERDUE" ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : entry.status !== "CANCELED" ? <small className={styles.muted}>Use reversal para corrigir liquidações.</small> : null}</span></article>;
+      })}
+      {activity.map((item) => <article key={item.payment_transaction_id} className={styles.row}><span className={styles.rowTitle}><strong>Recebimento de agendamento</strong><small>{customerById.get(item.customer_id)?.full_name ?? "Cliente"} · {new Date(item.occurred_at).toLocaleDateString("pt-BR")} · {item.provider}</small></span><strong>{item.signed_cents >= 0 ? "+" : "−"}{formatCents(Math.abs(item.signed_cents))}</strong><span>{item.needs_reconciliation ? "Aguardando conciliação" : accountById.get(item.financial_account_id ?? "")?.name ?? "Conta não encontrada"}</span><StatusChip active={!item.needs_reconciliation} label={item.needs_reconciliation ? "PENDENTE" : "VINCULADO"} /><span className={styles.rowActions}>{item.kind === "CAPTURE" && item.provider === "MANUAL" && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseAppointment(item)}>Estornar recebimento</button>}</span></article>)}
+    </div>}
+  </Panel>;
+}
+
+function EntryDialog({ entry, organizationId, accounts, suppliers, chartAccounts, costCenters, tags, customers, entryTags, demoMode, onClose, onSaved, setMessage }: Omit<CashManagerProps, "section" | "billingStatus" | "balances" | "entries" | "settlements" | "appointmentActivity" | "mappings"> & { entry: FinancialEntryRecord | null; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+  const [counterpartyKind, setCounterpartyKind] = useState<"" | "CUSTOMER" | "SUPPLIER">(entry?.counterparty_kind ?? "");
+  const selectedTags = new Set(entry ? entryTags.filter((item) => item.entry_id === entry.id).map((item) => item.tag_id) : []);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (blockDemoWrite(demoMode, setMessage)) return;
+    const data = new FormData(event.currentTarget);
+    const params = { p_description: safeText(data.get("description")), p_issue_date: safeText(data.get("issue_date")), p_due_date: safeText(data.get("due_date")), p_total_cents: centsFromInput(data.get("amount")), p_chart_account_id: safeText(data.get("chart_account_id")), p_cost_center_id: safeText(data.get("cost_center_id")) || null, p_preferred_financial_account_id: safeText(data.get("account_id")) || null, p_counterparty_kind: counterpartyKind || null, p_customer_id: counterpartyKind === "CUSTOMER" ? safeText(data.get("customer_id")) || null : null, p_supplier_id: counterpartyKind === "SUPPLIER" ? safeText(data.get("supplier_id")) || null : null, p_document_number: safeText(data.get("document_number")) || null, p_tag_ids: data.getAll("tag_ids").map(String) };
+    const saved = await runMutation(setMessage, async () => {
+      if (entry) await assertResult(await connectedClient().rpc("update_financial_entry", { p_entry_id: entry.id, ...params }));
+      else await assertResult(await connectedClient().rpc("create_financial_entry", { p_organization_id: organizationId, p_kind: safeText(data.get("kind")), ...params }));
+    }, entry ? "Lançamento aberto atualizado." : "Lançamento criado.");
+    if (saved) onSaved();
+  }
+  return <Dialog title={entry ? "Editar lançamento" : "Novo lançamento"} onClose={onClose}><form className={styles.form} onSubmit={submit}>
+    {!entry && <Field label="Tipo"><select name="kind" defaultValue="REVENUE"><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>}
+    <Field label="Descrição"><input name="description" required defaultValue={entry?.description ?? ""} /></Field>
+    <Field label="Valor (R$)"><input name="amount" required inputMode="decimal" defaultValue={entry ? (entry.total_cents / 100).toFixed(2).replace(".", ",") : ""} /></Field>
+    <Field label="Data do lançamento"><input type="date" name="issue_date" required defaultValue={entry?.issue_date ?? today()} /></Field>
+    <Field label="Vencimento"><input type="date" name="due_date" required defaultValue={entry?.due_date ?? today()} /></Field>
+    <Field label="Plano de conta"><select name="chart_account_id" required defaultValue={entry?.chart_account_id ?? ""}><option value="" disabled>Selecione</option>{chartAccounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name} ({item.kind === "REVENUE" ? "Receita" : "Despesa"})</option>)}</select></Field>
+    <Field label="Banco ou caixa"><select name="account_id" defaultValue={entry?.preferred_financial_account_id ?? ""}><option value="">Definir na liquidação</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+    <Field label="Centro de custo"><select name="cost_center_id" defaultValue={entry?.cost_center_id ?? ""}><option value="">Não informar</option>{costCenters.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+    <Field label="Número do documento"><input name="document_number" defaultValue={entry?.document_number ?? ""} /></Field>
+    <Field label="Contraparte"><select aria-label="Tipo de contraparte" value={counterpartyKind} onChange={(event) => setCounterpartyKind(event.target.value as "" | "CUSTOMER" | "SUPPLIER")}><option value="">Não informar</option><option value="CUSTOMER">Cliente</option><option value="SUPPLIER">Fornecedor</option></select></Field>
+    {counterpartyKind === "CUSTOMER" && <Field label="Cliente"><select name="customer_id" defaultValue={entry?.customer_id ?? ""}><option value="">Selecione</option>{customers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select></Field>}
+    {counterpartyKind === "SUPPLIER" && <Field label="Fornecedor"><select name="supplier_id" defaultValue={entry?.supplier_id ?? ""}><option value="">Selecione</option>{suppliers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
+    <Field label="Tags" wide><select name="tag_ids" multiple defaultValue={[...selectedTags]}>{tags.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+    <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{entry ? "Salvar" : "Adicionar"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
+  </form></Dialog>;
+}
+
+function SettlementDialog({ entry, accounts, demoMode, onClose, onSaved, setMessage }: { entry: FinancialEntryRecord; accounts: FinancialAccountRecord[]; demoMode?: boolean; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget);
+    const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("settle_financial_entry", { p_entry_id: entry.id, p_financial_account_id: safeText(data.get("account_id")), p_amount_cents: centsFromInput(data.get("amount")), p_settled_on: safeText(data.get("settled_on")), p_payment_method: safeText(data.get("payment_method")), p_reference: safeText(data.get("reference")), p_idempotency_key: `manager:cash-settlement:${crypto.randomUUID()}` })); }, "Liquidação registrada no ledger.");
+    if (saved) onSaved();
+  }
+  return <Dialog title="Liquidar lançamento" onClose={onClose}><form className={styles.form} onSubmit={submit}><p className={styles.formWide}>Saldo restante: <strong>{formatCents(entry.remaining_cents)}</strong></p><Field label="Conta"><select name="account_id" required defaultValue={entry.preferred_financial_account_id ?? ""}><option value="" disabled>Selecione</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Valor (R$)"><input name="amount" required inputMode="decimal" defaultValue={(entry.remaining_cents / 100).toFixed(2).replace(".", ",")} /></Field><Field label="Data de pagamento/recebimento"><input type="date" name="settled_on" required defaultValue={today()} /></Field><Field label="Método"><select name="payment_method"><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="CASH">Dinheiro</option><option value="BOLETO">Boleto</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field><Field label="Referência" wide><input name="reference" required placeholder="Comprovante, NSU ou protocolo" /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar liquidação</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div></form></Dialog>;
+}
+
+function TransferDialog({ accounts, demoMode, onClose, onSaved, setMessage }: { accounts: FinancialAccountRecord[]; demoMode?: boolean; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("create_financial_transfer", { p_source_financial_account_id: safeText(data.get("source")), p_destination_financial_account_id: safeText(data.get("destination")), p_amount_cents: centsFromInput(data.get("amount")), p_transferred_on: safeText(data.get("date")), p_description: safeText(data.get("description")), p_reference: safeText(data.get("reference")), p_idempotency_key: `manager:cash-transfer:${crypto.randomUUID()}` })); }, "Transferência criada em duas pontas atômicas."); if (saved) onSaved(); }
+  return <Dialog title="Transferir entre contas" onClose={onClose}><form className={styles.form} onSubmit={submit}><Field label="Origem"><select name="source" required><option value="">Selecione</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Destino"><select name="destination" required><option value="">Selecione</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Valor (R$)"><input name="amount" required inputMode="decimal" /></Field><Field label="Data"><input name="date" type="date" required defaultValue={today()} /></Field><Field label="Descrição" wide><input name="description" required placeholder="Ex.: reforço do caixa" /></Field><Field label="Referência" wide><input name="reference" /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar transferência</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div></form></Dialog>;
+}
+
+function AccountsSection({ organizationId, accounts, mappings, demoMode, balanceById, setMessage }: Pick<CashManagerProps, "organizationId" | "accounts" | "mappings" | "demoMode"> & { balanceById: Map<string, number>; accountById: Map<string, FinancialAccountRecord>; setMessage: (value: string) => void }) {
+  const router = useRouter(); const [editing, setEditing] = useState<FinancialAccountRecord | null>(null);
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_financial_account", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_kind: safeText(data.get("kind")), p_name: safeText(data.get("name")), p_opening_balance_cents: centsFromInput(data.get("opening")), p_bank_code: safeText(data.get("bank_code")) || null, p_branch: safeText(data.get("branch")) || null, p_account_number: safeText(data.get("number")) || null })); }, editing ? "Conta atualizada." : "Conta criada."); if (saved) { setEditing(null); router.refresh(); } }
+  async function mapAccount(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("configure_payment_account_mapping", { p_provider: safeText(data.get("provider")), p_payment_mode: safeText(data.get("payment_mode")), p_financial_account_id: safeText(data.get("account_id")) })); }, "Mapeamento de recebimento salvo."); if (saved) router.refresh(); }
+  async function toggleActive(account: FinancialAccountRecord) { if (blockDemoWrite(demoMode, setMessage)) return; const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("set_financial_catalog_active", { p_catalog: "ACCOUNT", p_id: account.id, p_active: !account.active })); }, account.active ? "Conta inativada; histórico preservado." : "Conta reativada."); if (saved) router.refresh(); }
+  return <div className={styles.grid}>
+    <Panel title={editing ? "Editar conta" : "Nova conta financeira"} description="Banco ou caixa físico; saldo é derivado do ledger." className={styles.span5}>
+      <form className={styles.form} onSubmit={submit}>
+        <Field label="Tipo"><select name="kind" defaultValue={editing?.kind ?? "BANK"}><option value="BANK">Banco</option><option value="CASH">Caixa físico</option></select></Field>
+        <Field label="Nome"><input name="name" required defaultValue={editing?.name ?? ""} /></Field>
+        <Field label="Saldo inicial (R$)"><input name="opening" required inputMode="decimal" defaultValue={editing ? (editing.opening_balance_cents / 100).toFixed(2).replace(".", ",") : "0,00"} /></Field>
+        <Field label="Código do banco"><input name="bank_code" defaultValue={editing?.bank_code ?? ""} /></Field>
+        <Field label="Agência"><input name="branch" defaultValue={editing?.branch ?? ""} /></Field>
+        <Field label="Conta"><input name="number" defaultValue={editing?.account_number ?? ""} /></Field>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{editing ? "Salvar" : "Adicionar"}</button>{editing && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditing(null)}>Cancelar</button>}</div>
+      </form>
+    </Panel>
+    <Panel title="Bancos e caixas" description="Inative em vez de apagar contas usadas." className={styles.span7}>
+      {!accounts.length ? <EmptyState title="Sem contas">Cadastre banco ou caixa físico antes de liquidar lançamentos.</EmptyState> : <div className={styles.list}>{accounts.map((item) => <article className={styles.row} key={item.id}>
+        <span className={styles.rowTitle}><strong>{item.name}</strong><small>{item.kind === "BANK" ? "Banco" : "Caixa físico"} · saldo inicial {formatCents(item.opening_balance_cents)}</small></span>
+        <strong>{formatCents(balanceById.get(item.id) ?? item.opening_balance_cents)}</strong><StatusChip active={item.active} /><span />
+        <span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setEditing(item)}>Editar</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => void toggleActive(item)}>{item.active ? "Inativar" : "Reativar"}</button></span>
+      </article>)}</div>}
+    </Panel>
+    <Panel title="Recebimentos de agendamento" description="Define a conta padrão por provedor e modalidade." className={styles.span12}>
+      <form className={styles.form} onSubmit={mapAccount}>
+        <Field label="Provedor"><select name="provider"><option value="MANUAL">Manual</option><option value="MERCADO_PAGO">Mercado Pago</option></select></Field>
+        <Field label="Modalidade"><select name="payment_mode"><option value="COUNTER">Balcão</option><option value="DEPOSIT">Sinal</option><option value="FULL">Integral</option></select></Field>
+        <Field label="Conta destino" wide><select name="account_id" required><option value="">Selecione</option>{accounts.filter((item) => item.active).map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Salvar mapeamento</button></div>
+      </form>
+      {mappings.length > 0 && <p className={styles.muted}>{mappings.length} mapeamento(s) configurado(s).</p>}
+    </Panel>
+  </div>;
+}
+
+function SuppliersSection({ organizationId, suppliers, demoMode, setMessage }: { organizationId: string; suppliers: SupplierRecord[]; demoMode?: boolean; setMessage: (value: string) => void }) {
+  const router = useRouter(); const [editing, setEditing] = useState<SupplierRecord | null>(null);
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_supplier", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_person_kind: safeText(data.get("person_kind")), p_name: safeText(data.get("name")), p_document: safeText(data.get("document")) || null, p_phone_e164: safeText(data.get("phone")) || null, p_email: safeText(data.get("email")) || null, p_address: {}, p_notes: safeText(data.get("notes")) || null })); }, editing ? "Fornecedor atualizado." : "Fornecedor criado."); if (saved) { setEditing(null); router.refresh(); } }
+  async function toggleActive(supplier: SupplierRecord) { if (blockDemoWrite(demoMode, setMessage)) return; const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("set_financial_catalog_active", { p_catalog: "SUPPLIER", p_id: supplier.id, p_active: !supplier.active })); }, supplier.active ? "Fornecedor inativado; histórico preservado." : "Fornecedor reativado."); if (saved) router.refresh(); }
+  return <div className={styles.grid}>
+    <Panel title={editing ? "Editar fornecedor" : "Novo fornecedor"} className={styles.span5}>
+      <form className={styles.form} onSubmit={submit}>
+        <Field label="Tipo"><select name="person_kind" defaultValue={editing?.person_kind ?? "COMPANY"}><option value="COMPANY">Pessoa jurídica</option><option value="INDIVIDUAL">Pessoa física</option></select></Field>
+        <Field label="Nome"><input name="name" required defaultValue={editing?.name ?? ""} /></Field>
+        <Field label="CPF/CNPJ"><input name="document" defaultValue={editing?.document ?? ""} /></Field>
+        <Field label="Telefone"><input name="phone" defaultValue={editing?.phone_e164 ?? ""} placeholder="+5511999999999" /></Field>
+        <Field label="E-mail"><input name="email" type="email" defaultValue={editing?.email ?? ""} /></Field>
+        <Field label="Observações" wide><textarea name="notes" defaultValue={editing?.notes ?? ""} /></Field>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{editing ? "Salvar" : "Adicionar"}</button>{editing && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditing(null)}>Cancelar</button>}</div>
+      </form>
+    </Panel>
+    <Panel title="Fornecedores" description="Usados nas despesas e mantidos no histórico." className={styles.span7}>
+      {!suppliers.length ? <EmptyState title="Sem fornecedores">Cadastre fornecedores antes de lançar despesas vinculadas.</EmptyState> : <div className={styles.list}>{suppliers.map((supplier) => <article key={supplier.id} className={styles.row}>
+        <span className={styles.rowTitle}><strong>{supplier.name}</strong><small>{supplier.document ?? "Sem documento"} · {supplier.email ?? "Sem e-mail"}</small></span>
+        <span>{supplier.person_kind === "COMPANY" ? "PJ" : "PF"}</span><StatusChip active={supplier.active} /><span />
+        <span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => setEditing(supplier)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => void toggleActive(supplier)}>{supplier.active ? "Inativar" : "Reativar"}</button></span>
+      </article>)}</div>}
+    </Panel>
+  </div>;
+}
+
+type CatalogKind = "chart" | "cost" | "tag";
+
+function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, accounts, mappings, demoMode, setMessage }: Pick<CashManagerProps, "chartAccounts" | "costCenters" | "tags" | "accounts" | "mappings" | "demoMode"> & { organizationId: string; setMessage: (value: string) => void }) {
+  const router = useRouter();
+  const [editingChart, setEditingChart] = useState<ChartAccountRecord | null>(null);
+  const [editingCost, setEditingCost] = useState<CostCenterRecord | null>(null);
+  const [editingTag, setEditingTag] = useState<FinancialTagRecord | null>(null);
+
+  async function submitCatalog(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (blockDemoWrite(demoMode, setMessage)) return;
+    const data = new FormData(event.currentTarget);
+    const catalog = safeText(data.get("catalog")) as CatalogKind;
+    const rpc = catalog === "chart" ? "save_chart_of_account" : catalog === "cost" ? "save_cost_center" : "save_financial_tag";
+    const params = catalog === "chart"
+      ? { p_organization_id: organizationId, p_id: editingChart?.id ?? null, p_parent_id: safeText(data.get("parent_id")) || null, p_code: safeText(data.get("code")) || null, p_name: safeText(data.get("name")), p_kind: safeText(data.get("kind")) }
+      : catalog === "cost"
+        ? { p_organization_id: organizationId, p_id: editingCost?.id ?? null, p_name: safeText(data.get("name")) }
+        : { p_organization_id: organizationId, p_id: editingTag?.id ?? null, p_name: safeText(data.get("name")), p_color: safeText(data.get("color")) || null };
+    const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc(rpc, params)); }, "Cadastro financeiro salvo.");
+    if (saved) { setEditingChart(null); setEditingCost(null); setEditingTag(null); router.refresh(); }
+  }
+
+  async function toggleCatalog(catalog: CatalogKind, item: { id: string; active: boolean }) {
+    if (blockDemoWrite(demoMode, setMessage)) return;
+    const rpcCatalog = catalog === "chart" ? "CHART_ACCOUNT" : catalog === "cost" ? "COST_CENTER" : "TAG";
+    const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("set_financial_catalog_active", { p_catalog: rpcCatalog, p_id: item.id, p_active: !item.active })); }, item.active ? "Item inativado; histórico preservado." : "Item reativado.");
+    if (saved) router.refresh();
+  }
+
+  return <div className={styles.grid}>
+    <Panel title={editingChart ? "Editar plano de contas" : "Plano de contas"} description="Crie grupos e subcontas por receita ou despesa." className={styles.span6}>
+      <form className={styles.form} key={`chart-${editingChart?.id ?? "new"}`} onSubmit={submitCatalog}>
+        <input type="hidden" name="catalog" value="chart" />
+        <Field label="Código"><input name="code" defaultValue={editingChart?.code ?? ""} /></Field>
+        <Field label="Nome"><input name="name" required defaultValue={editingChart?.name ?? ""} /></Field>
+        <Field label="Natureza"><select name="kind" defaultValue={editingChart?.kind ?? "REVENUE"}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>
+        <Field label="Conta superior"><select name="parent_id" defaultValue={editingChart?.parent_id ?? ""}><option value="">Nenhuma</option>{chartAccounts.filter((item) => item.active && item.id !== editingChart?.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><ReceiptText size={15} /> {editingChart ? "Salvar" : "Adicionar conta"}</button>{editingChart && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingChart(null)}>Cancelar</button>}</div>
+      </form>
+      <CatalogRows items={chartAccounts} onEdit={setEditingChart} onToggle={(item) => void toggleCatalog("chart", item)} />
+    </Panel>
+    <Panel title={editingCost ? "Editar centro de custo" : "Centro de custo"} description="Classifique responsabilidade operacional." className={styles.span6}>
+      <form className={styles.form} key={`cost-${editingCost?.id ?? "new"}`} onSubmit={submitCatalog}>
+        <input type="hidden" name="catalog" value="cost" />
+        <Field label="Nome" wide><input name="name" required defaultValue={editingCost?.name ?? ""} /></Field>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Building2 size={15} /> {editingCost ? "Salvar" : "Adicionar centro"}</button>{editingCost && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingCost(null)}>Cancelar</button>}</div>
+      </form>
+      <CatalogRows items={costCenters} onEdit={setEditingCost} onToggle={(item) => void toggleCatalog("cost", item)} />
+    </Panel>
+    <Panel title={editingTag ? "Editar tag" : "Tags"} description="Marcadores complementares para filtros futuros." className={styles.span6}>
+      <form className={styles.form} key={`tag-${editingTag?.id ?? "new"}`} onSubmit={submitCatalog}>
+        <input type="hidden" name="catalog" value="tag" />
+        <Field label="Nome"><input name="name" required defaultValue={editingTag?.name ?? ""} /></Field>
+        <Field label="Cor"><input name="color" placeholder="#2f6b5d" defaultValue={editingTag?.color ?? ""} /></Field>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Tags size={15} /> {editingTag ? "Salvar" : "Adicionar tag"}</button>{editingTag && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingTag(null)}>Cancelar</button>}</div>
+      </form>
+      <CatalogRows items={tags} onEdit={setEditingTag} onToggle={(item) => void toggleCatalog("tag", item)} />
+    </Panel>
+    <Panel title="Estrutura financeira" description="Cadastre contas e fornecedores nas seções próprias." className={styles.span6}><div className={styles.cards}><article className={styles.card}><Landmark size={20} /><strong>{accounts.length} contas</strong><small>Banco e caixa físico</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Gerenciar</Link></article><article className={styles.card}><CircleDollarSign size={20} /><strong>{mappings.length} mapeamentos</strong><small>Recebimentos de agendamento</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Configurar</Link></article></div></Panel>
+  </div>;
+}
+
+function CatalogRows<T extends { id: string; name: string; active: boolean }>({ items, onEdit, onToggle }: { items: T[]; onEdit: (item: T) => void; onToggle: (item: T) => void }) {
+  return !items.length ? <p className={styles.muted}>Nenhum item cadastrado.</p> : <div className={styles.list}>{items.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong>{item.name}</strong></span><StatusChip active={item.active} /><span /><span /><span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onEdit(item)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onToggle(item)}>{item.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>;
+}
+
+function Dialog({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) { const titleId = `dialog-${title.replaceAll(/\s+/gu, "-").toLocaleLowerCase("pt-BR")}`; return <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar" onClick={onClose} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby={titleId}><h2 id={titleId}>{title}</h2>{children}</section></div>; }
+
+function ConfirmDialog({ title, description, confirmLabel, onClose, onConfirm }: { title: string; description: string; confirmLabel: string; onClose: () => void; onConfirm: () => void }) { return <Dialog title={title} onClose={onClose}><p>{description}</p><div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonDanger}`} type="button" onClick={onConfirm}>{confirmLabel}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div></Dialog>; }

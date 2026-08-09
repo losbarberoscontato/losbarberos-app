@@ -239,3 +239,121 @@ export interface SubscriptionRecord {
   grace_ends_at: string | null;
   retention_ends_at: string | null;
 }
+
+export type FinanceSection = "overview" | "cash" | "payables" | "receivables" | "accounts" | "suppliers" | "catalogs";
+
+export interface FinancialAccountRecord {
+  id: string;
+  organization_id: string;
+  kind: "BANK" | "CASH";
+  name: string;
+  bank_code: string | null;
+  branch: string | null;
+  account_number: string | null;
+  opening_balance_cents: number;
+  active: boolean;
+}
+
+export interface FinancialAccountBalanceRecord {
+  financial_account_id: string;
+  balance_cents: number;
+}
+
+export interface SupplierRecord {
+  id: string;
+  organization_id: string;
+  person_kind: "INDIVIDUAL" | "COMPANY";
+  name: string;
+  document: string | null;
+  phone_e164: string | null;
+  email: string | null;
+  address: Record<string, unknown>;
+  notes: string | null;
+  active: boolean;
+}
+
+export interface ChartAccountRecord {
+  id: string;
+  organization_id: string;
+  parent_id: string | null;
+  code: string | null;
+  name: string;
+  kind: "REVENUE" | "EXPENSE";
+  active: boolean;
+}
+
+export interface CostCenterRecord {
+  id: string;
+  organization_id: string;
+  name: string;
+  active: boolean;
+}
+
+export interface FinancialTagRecord {
+  id: string;
+  organization_id: string;
+  name: string;
+  color: string | null;
+  active: boolean;
+}
+
+export interface FinancialEntryRecord {
+  id: string;
+  organization_id: string;
+  kind: "REVENUE" | "EXPENSE";
+  description: string;
+  issue_date: string;
+  due_date: string;
+  total_cents: number;
+  settled_cents: number;
+  remaining_cents: number;
+  status: "OPEN" | "PARTIAL" | "SETTLED" | "OVERDUE" | "CANCELED";
+  chart_account_id: string;
+  cost_center_id: string | null;
+  preferred_financial_account_id: string | null;
+  counterparty_kind: "CUSTOMER" | "SUPPLIER" | null;
+  customer_id: string | null;
+  supplier_id: string | null;
+  document_number: string | null;
+  canceled_at: string | null;
+  cancellation_reason: string | null;
+}
+
+export interface FinancialEntryTagRecord {
+  entry_id: string;
+  tag_id: string;
+}
+
+export interface FinancialSettlementRecord {
+  id: string;
+  entry_id: string;
+  financial_account_id: string;
+  kind: "SETTLEMENT" | "REVERSAL";
+  amount_cents: number;
+  settled_on: string;
+  payment_method: string;
+  reference: string | null;
+}
+
+export interface AppointmentCashActivityRecord {
+  payment_transaction_id: string;
+  organization_id: string;
+  appointment_id: string;
+  customer_id: string;
+  payment_mode: string;
+  provider: "MERCADO_PAGO" | "MANUAL";
+  kind: "CAPTURE" | "REFUND" | "REVERSAL" | "ADJUSTMENT";
+  amount_cents: number;
+  signed_cents: number;
+  occurred_at: string;
+  financial_account_id: string | null;
+  needs_reconciliation: boolean;
+}
+
+export interface PaymentAccountMappingRecord {
+  id: string;
+  organization_id: string;
+  provider: "MERCADO_PAGO" | "MANUAL";
+  payment_mode: "DEPOSIT" | "FULL" | "COUNTER";
+  financial_account_id: string;
+}

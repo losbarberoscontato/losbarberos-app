@@ -12,7 +12,7 @@ const clientNavigation = [
 ];
 
 export function ClientShell({ children, demoMode = false }: { children: React.ReactNode; demoMode?: boolean }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
   return (
     <div className="client-shell">

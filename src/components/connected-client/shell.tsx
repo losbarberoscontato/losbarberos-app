@@ -15,7 +15,7 @@ const navigation = [
 ];
 
 function ShellContent({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { context, customer, user, slug, signOut } = useConnectedClient();
   const suffix = slug ? `?barbearia=${encodeURIComponent(slug)}` : "";
   const displayName = customer?.full_name ?? user?.user_metadata?.full_name ?? user?.email ?? "Cliente";

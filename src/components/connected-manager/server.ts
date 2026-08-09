@@ -14,6 +14,12 @@ import type {
   CommissionRuleRecord,
   CustomerRecord,
   FinancialSummaryRecord,
+  FinancialAccountBalanceRecord,
+  FinancialAccountRecord,
+  FinancialEntryRecord,
+  FinancialEntryTagRecord,
+  FinancialSettlementRecord,
+  FinancialTagRecord,
   LocationRecord,
   MerchantAccountRecord,
   OrganizationRecord,
@@ -23,6 +29,11 @@ import type {
   ServiceRecord,
   SubscriptionRecord,
   RefundJobRecord,
+  SupplierRecord,
+  ChartAccountRecord,
+  CostCenterRecord,
+  AppointmentCashActivityRecord,
+  PaymentAccountMappingRecord,
   WorkIntervalRecord,
 } from "./types";
 
@@ -161,6 +172,40 @@ export async function loadFinanceData() {
     payouts: requireData(payouts, "Lotes") as CommissionPayoutRecord[],
     refundJobs: requireData(refunds, "Reembolsos pendentes") as RefundJobRecord[],
     outboxIssues: requireData(outbox, "Mensagens pendentes") as OutboxRecord[],
+  };
+}
+
+export async function loadCashData() {
+  const { context, supabase, organizationId } = await managerClient();
+  const [accounts, balances, suppliers, chartAccounts, costCenters, tags, customers, entries, entryTags, settlements, appointmentActivity, mappings] = await Promise.all([
+    supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,opening_balance_cents,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
+    supabase.from("financial_account_balances").select("financial_account_id,balance_cents").eq("organization_id", organizationId),
+    supabase.from("suppliers").select("id,organization_id,person_kind,name,document,phone_e164,email,address,notes,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
+    supabase.from("chart_of_accounts").select("id,organization_id,parent_id,code,name,kind,active").eq("organization_id", organizationId).order("kind").order("code").order("name"),
+    supabase.from("cost_centers").select("id,organization_id,name,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
+    supabase.from("financial_tags").select("id,organization_id,name,color,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
+    supabase.from("customers").select("id,organization_id,full_name,active").eq("organization_id", organizationId).is("merged_into_customer_id", null).order("full_name").limit(MANAGER_ROW_LIMIT),
+    supabase.from("financial_entry_summary").select("id,organization_id,kind,description,issue_date,due_date,total_cents,settled_cents,remaining_cents,status,chart_account_id,cost_center_id,preferred_financial_account_id,counterparty_kind,customer_id,supplier_id,document_number,canceled_at,cancellation_reason").eq("organization_id", organizationId).order("due_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("financial_entry_tags").select("entry_id,tag_id").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("financial_settlements").select("id,entry_id,financial_account_id,kind,amount_cents,settled_on,payment_method,reference").eq("organization_id", organizationId).order("settled_on", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("appointment_cash_activity").select("payment_transaction_id,organization_id,appointment_id,customer_id,payment_mode,provider,kind,amount_cents,signed_cents,occurred_at,financial_account_id,needs_reconciliation").eq("organization_id", organizationId).order("occurred_at", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("payment_account_mappings").select("id,organization_id,provider,payment_mode,financial_account_id").eq("organization_id", organizationId),
+  ]);
+  return {
+    organizationId,
+    billingStatus: context.billingStatus,
+    accounts: requireData(accounts, "Contas financeiras") as FinancialAccountRecord[],
+    balances: requireData(balances, "Saldos das contas") as FinancialAccountBalanceRecord[],
+    suppliers: requireData(suppliers, "Fornecedores") as SupplierRecord[],
+    chartAccounts: requireData(chartAccounts, "Plano de contas") as ChartAccountRecord[],
+    costCenters: requireData(costCenters, "Centros de custo") as CostCenterRecord[],
+    tags: requireData(tags, "Tags financeiras") as FinancialTagRecord[],
+    customers: requireData(customers, "Clientes financeiros") as Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">[],
+    entries: requireData(entries, "Lançamentos financeiros") as FinancialEntryRecord[],
+    entryTags: requireData(entryTags, "Tags dos lançamentos") as FinancialEntryTagRecord[],
+    settlements: requireData(settlements, "Liquidações") as FinancialSettlementRecord[],
+    appointmentActivity: requireData(appointmentActivity, "Recebimentos de agendamento") as AppointmentCashActivityRecord[],
+    mappings: requireData(mappings, "Mapeamentos de recebimento") as PaymentAccountMappingRecord[],
   };
 }
 
