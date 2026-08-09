@@ -31,6 +31,16 @@
 - GitHub `origin/main` confirmado em `ec80d03`.
 - Vercel deployment manual `dpl_7iuPC5MEY2Mha2THeNwdR57GHg1d` ficou `Ready`; o domínio oficial respondeu HTTP 200 após o push.
 
+## Caixa financeiro — avaliação local em 09/08/2026
+
+- Implementação isolada em `D:\Display SH\Los Barberos-caixa-financeiro`, branch local `codex/caixa-financeiro`, baseada no commit local `0288023`; nenhuma alteração desta entrega foi enviada ao GitHub ou Vercel.
+- Migration incremental `202608090001_financial_cash.sql` foi aplicada ao Supabase autorizado nesta conversa. `npx.cmd supabase migration list --linked` confirmou `202608090001` igual local/remoto.
+- O schema inclui contas financeiras, fornecedores, plano de contas, centros de custo, tags, lançamentos, liquidações append-only, transferências atômicas e mapeamento de pagamentos de agendamento para conta financeira.
+- O Caixa usa `payment_transactions` como fonte de verdade para agendamentos. Estorno manual cria reversal, preserva `COMPLETED` e reabre somente o saldo financeiro; estorno de provedor online continua no fluxo do provedor.
+- Rotas locais: `/gestor/financeiro/caixa`, `/contas-pagar`, `/contas-receber`, `/bancos`, `/fornecedores` e `/cadastros`. Financeiro preserva visão geral e comissões.
+- Demo mostra dados locais e bloqueia toda escrita no Supabase. A interface foi inspecionada localmente em modo demo: submenu, Caixa, modal, vínculo de agendamento, bancos/caixas e bloqueio de persistência.
+- Validação desta entrega: Vitest `32/32` arquivos e `123/123` testes, ESLint, TypeScript e `next build` aprovados; smoke da produção `/entrar` HTTP 200. Não houve deploy.
+
 ## Regras para continuar
 
 - Código, migrations, testes e estado remoto verificado são fonte de verdade.

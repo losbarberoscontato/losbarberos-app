@@ -31,6 +31,16 @@ const navigation = [
   { href: "/gestor/financeiro", label: "Financeiro", icon: WalletCards },
 ];
 
+const financeNavigation = [
+  { href: "/gestor/financeiro", label: "Visão geral", exact: true },
+  { href: "/gestor/financeiro/caixa", label: "Caixa" },
+  { href: "/gestor/financeiro/contas-pagar", label: "Contas a pagar" },
+  { href: "/gestor/financeiro/contas-receber", label: "Contas a receber" },
+  { href: "/gestor/financeiro/bancos", label: "Bancos e caixas" },
+  { href: "/gestor/financeiro/fornecedores", label: "Fornecedores" },
+  { href: "/gestor/financeiro/cadastros", label: "Cadastros" },
+];
+
 const ManagerBillingContext = createContext(false);
 
 export function useManagerBillingBlocked() {
@@ -38,7 +48,7 @@ export function useManagerBillingBlocked() {
 }
 
 function ManagerNavigation({ onNavigate, agendaCount }: { onNavigate?: () => void; agendaCount: number }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
   return (
     <nav className="manager-nav" aria-label="Navegação do gestor">
@@ -46,6 +56,21 @@ function ManagerNavigation({ onNavigate, agendaCount }: { onNavigate?: () => voi
       {navigation.map((item) => {
         const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
         const Icon = item.icon;
+
+        if (item.href === "/gestor/financeiro") {
+          return <div className="manager-nav__group" key={item.href}>
+            <Link href={item.href} className={active ? "is-active" : ""} aria-current={active ? "page" : undefined} onClick={onNavigate}>
+              <Icon size={19} strokeWidth={1.8} />
+              <span>{item.label}</span>
+            </Link>
+            {active && <div className="manager-nav__subnav" aria-label="Submenu Financeiro">
+              {financeNavigation.map((subitem) => {
+                const subActive = pathname === subitem.href;
+                return <Link key={subitem.href} href={subitem.href} className={subActive ? "is-active" : ""} aria-current={subActive ? "page" : undefined} onClick={onNavigate}>{subitem.label}</Link>;
+              })}
+            </div>}
+          </div>;
+        }
 
         return (
           <Link
@@ -178,7 +203,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
 }
 
 function ManagerBottomLink({ item }: { item: (typeof navigation)[number] }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
   const Icon = item.icon;
 

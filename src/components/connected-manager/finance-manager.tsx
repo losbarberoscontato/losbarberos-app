@@ -8,6 +8,7 @@ import type { AwaitedReturn } from "./utility-types";
 import { centsFromInput, formatCents, formatRange } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
+import { FinanceSubnav } from "./cash-manager";
 import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadFinanceData>;
@@ -131,6 +132,7 @@ export function FinanceManager(props: Props) {
 
   return <div className={styles.stack}>
     <PageHeader title="Financeiro e comissões" description="Saldo derivado do ledger; lançamentos passados nunca são editados." actions={<button className={`${styles.button} ${styles.buttonSoft}`} onClick={exportCsv} type="button">Exportar CSV real</button>} />
+    <FinanceSubnav active="overview" />
     <ActionMessage message={message} />
     <section className={styles.stats}>
       <article className={styles.stat}><span>Capturado líquido</span><strong>{formatCents(captured)}</strong><small>todos os registros carregados</small></article>

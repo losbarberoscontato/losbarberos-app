@@ -19,7 +19,7 @@ Assuma o volante técnico para investigar e implementar os próximos relatos de 
 - Commit publicado no preflight desta fase: `ec80d03`.
 - Vercel: `https://losbarberos-app.vercel.app`.
 - Supabase: projeto `Los Barberos`, ref `bwdjkhqshmppescunwer`.
-- Migrations remotas sincronizadas até `202608060005`.
+- Migrations remotas sincronizadas até `202608090001`.
 - Stripe Display SH permanece em Test mode; price `price_1U18IW0StL37D8g9quhZW9RN`; trial de 14 dias.
 - Edge Functions Stripe permanecem na versão 5.
 
@@ -39,6 +39,9 @@ Assuma o volante técnico para investigar e implementar os próximos relatos de 
 - Modal conectado de Novo agendamento no padrão da demo.
 - Login sem credenciais preenchidas, mensagens temporárias e telefone com `+55` padrão.
 - Tipografia ampliada para melhor legibilidade PWA/mobile.
+- Caixa financeiro em avaliação local na branch `codex/caixa-financeiro`: contas, fornecedores, cadastros financeiros, lançamentos, liquidações, transferências e recebimentos vinculados a agendamentos.
+- O Supabase já recebeu a migration `202608090001_financial_cash.sql`, mas o código desta entrega ainda não foi enviado ao GitHub nem publicado na Vercel.
+- No Caixa, `payment_transactions` permanece fonte de verdade dos pagamentos de agendamento. Demo não grava no Supabase; estorno manual reabre apenas o saldo financeiro e preserva o agendamento `COMPLETED`.
 
 ## Regras de trabalho
 
