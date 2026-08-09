@@ -43,6 +43,7 @@ Assuma o volante técnico para investigar e implementar os próximos relatos de 
 - O Supabase já recebeu as migrations `202608090001_financial_cash.sql` e `202608090002_chart_account_templates.sql`, mas o código destas entregas ainda não foi enviado ao GitHub nem publicado na Vercel.
 - No Caixa, `payment_transactions` permanece fonte de verdade dos pagamentos de agendamento. Demo não grava no Supabase; estorno manual reabre apenas o saldo financeiro e preserva o agendamento `COMPLETED`.
 - Planos de conta padrão: template global com 42 contas do PDF de barbearia, copiado automaticamente para organizações criadas após `202608090002`. A substituição de um tenant só é permitida sem lançamentos financeiros vinculados.
+- Caixa local: `202608090003_cash_default_account.sql` está pendente de autorização/aplicação remota. Ela cria a conta padrão tenant-safe `Caixa Físico`, o mapeamento `MANUAL/COUNTER` sem sobrescrever configuração existente e o campo `financial_accounts.description`.
 
 ## Regras de trabalho
 

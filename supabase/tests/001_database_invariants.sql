@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_temp;
 
-select plan(91);
+select plan(97);
 
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -23,6 +23,12 @@ insert into public.organization_memberships (organization_id, user_id, role) val
 select has_table('public', 'default_chart_account_templates', 'global default chart template table exists');
 select is((select count(*) from public.default_chart_account_templates), 42::bigint, 'PDF chart template has 42 accounts');
 select is((select count(*) from public.chart_of_accounts where organization_id = '20000000-0000-4000-8000-000000000001'), 42::bigint, 'new first tenant receives complete default chart');
+select has_column('public', 'financial_accounts', 'description', 'financial accounts expose description');
+select is((select count(*) from public.financial_accounts where organization_id = '20000000-0000-4000-8000-000000000001' and name = 'Caixa Físico'), 1::bigint, 'new first tenant receives default physical cash account');
+select is((select description from public.financial_accounts where organization_id = '20000000-0000-4000-8000-000000000001' and name = 'Caixa Físico'), 'Caixa físico para recebimento à vista em dinheiro físico.', 'default cash account keeps description');
+select is((select count(*) from public.payment_account_mappings where organization_id = '20000000-0000-4000-8000-000000000001' and provider = 'MANUAL' and payment_mode = 'COUNTER'), 1::bigint, 'default cash account maps manual counter payments');
+select is(public.seed_default_financial_accounts('20000000-0000-4000-8000-000000000001'), 0, 'default account seed is idempotent');
+select ok(not has_function_privilege('authenticated', 'public.seed_default_financial_accounts(uuid)', 'EXECUTE'), 'browser cannot seed default financial accounts');
 select is((select count(*) from public.chart_of_accounts where organization_id = '20000000-0000-4000-8000-000000000002'), 42::bigint, 'new second tenant receives complete default chart');
 select is((select count(*) from public.chart_of_accounts where organization_id = '20000000-0000-4000-8000-000000000001' and kind = 'REVENUE'), 12::bigint, 'default chart keeps 12 revenue accounts');
 select is((select count(*) from public.chart_of_accounts where organization_id = '20000000-0000-4000-8000-000000000001' and kind = 'EXPENSE'), 30::bigint, 'default chart keeps 30 expense accounts');
