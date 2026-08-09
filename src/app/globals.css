@@ -1670,37 +1670,37 @@
   .manager-sidebar { position: fixed; z-index: 40; inset: 0 auto 0 0; width: 244px; display: flex; flex-direction: column; padding: 22px 15px 14px; background: var(--forest-950); color: #fff; }
   .manager-sidebar__brand { padding: 0 8px 19px; }
   .manager-sidebar__brand .brand__mark { width: 38px; height: 38px; }
-  .manager-sidebar__brand .brand__wordmark strong { font-size: 18px; }
+  .manager-sidebar__brand .brand__wordmark strong { font-size: 19.8px; }
   .organization-switcher { width: 100%; display: grid; grid-template-columns: 31px 1fr auto; align-items: center; gap: 9px; padding: 9px; border: 1px solid rgba(255,255,255,.09); border-radius: 11px; background: rgba(255,255,255,.045); color: #fff; text-align: left; }
-  .organization-switcher__mark { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 8px; background: rgba(225,180,110,.14); color: var(--amber-400); font: 700 9px var(--font-display); }
+  .organization-switcher__mark { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 8px; background: rgba(225,180,110,.14); color: var(--amber-400); font: 700 9.9px var(--font-display); }
   .organization-switcher > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; }
-  .organization-switcher strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-  .organization-switcher small { margin-top: 2px; color: rgba(255,255,255,.43); font-size: 7px; }
+  .organization-switcher strong { overflow: hidden; font-size: 9.9px; text-overflow: ellipsis; white-space: nowrap; }
+  .organization-switcher small { margin-top: 2px; color: rgba(255,255,255,.43); font-size: 7.7px; }
   .organization-switcher > svg { color: rgba(255,255,255,.45); }
   .manager-nav { display: flex; flex-direction: column; gap: 3px; margin-top: 21px; }
-  .manager-nav__label { padding: 0 10px 6px; color: rgba(255,255,255,.28); font-size: 7px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+  .manager-nav__label { padding: 0 10px 6px; color: rgba(255,255,255,.28); font-size: 7.7px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
   .manager-nav__label--second { margin-top: 13px; }
-  .manager-nav > a { position: relative; display: flex; align-items: center; gap: 10px; min-height: 39px; padding: 0 10px; border-radius: 9px; color: rgba(255,255,255,.55); font-size: 10px; font-weight: 650; }
+  .manager-nav > a { position: relative; display: flex; align-items: center; gap: 10px; min-height: 39px; padding: 0 10px; border-radius: 9px; color: rgba(255,255,255,.55); font-size: 11px; font-weight: 650; }
   .manager-nav > a:hover { background: rgba(255,255,255,.045); color: #fff; }
   .manager-nav > a.is-active { background: rgba(255,255,255,.09); color: #fff; }
   .manager-nav > a.is-active::before { content: ""; position: absolute; left: -15px; width: 3px; height: 19px; border-radius: 0 3px 3px 0; background: var(--amber-400); }
   .manager-nav > a.is-active svg { color: var(--amber-400); }
-  .manager-nav > a small { min-width: 20px; margin-left: auto; padding: 2px 5px; border-radius: 999px; background: rgba(225,180,110,.13); color: var(--amber-400); font-size: 7px; text-align: center; }
+  .manager-nav > a small { min-width: 20px; margin-left: auto; padding: 2px 5px; border-radius: 999px; background: rgba(225,180,110,.13); color: var(--amber-400); font-size: 7.7px; text-align: center; }
   .manager-nav__group { display: grid; gap: 3px; }
-  .manager-nav__group > a { position: relative; display: flex; align-items: center; gap: 10px; min-height: 39px; padding: 0 10px; border-radius: 9px; color: rgba(255,255,255,.55); font-size: 10px; font-weight: 650; }
+  .manager-nav__group > a { position: relative; display: flex; align-items: center; gap: 10px; min-height: 39px; padding: 0 10px; border-radius: 9px; color: rgba(255,255,255,.55); font-size: 11px; font-weight: 650; }
   .manager-nav__group > a:hover { background: rgba(255,255,255,.045); color: #fff; }
   .manager-nav__group > a.is-active { background: rgba(255,255,255,.09); color: #fff; }
   .manager-nav__group > a.is-active::before { content: ""; position: absolute; left: -15px; width: 3px; height: 19px; border-radius: 0 3px 3px 0; background: var(--amber-400); }
   .manager-nav__group > a.is-active svg { color: var(--amber-400); }
   .manager-nav__subnav { display: grid; gap: 2px; margin: 0 0 5px 30px; padding-left: 9px; border-left: 1px solid rgba(255,255,255,.12); }
-  .manager-nav__subnav a { padding: 5px 7px; border-radius: 7px; color: rgba(255,255,255,.48); font-size: 8px; font-weight: 700; }
+  .manager-nav__subnav a { padding: 5px 7px; border-radius: 7px; color: rgba(255,255,255,.48); font-size: 8.8px; font-weight: 700; }
   .manager-nav__subnav a:hover, .manager-nav__subnav a.is-active { background: rgba(255,255,255,.08); color: #fff; }
   .manager-sidebar__footer { margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.07); }
   .manager-profile { display: grid; grid-template-columns: 33px 1fr auto; align-items: center; gap: 8px; padding: 7px; border-radius: 10px; }
   .manager-profile:hover { background: rgba(255,255,255,.05); }
   .manager-profile > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; }
-  .manager-profile strong { overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-  .manager-profile small { margin-top: 2px; color: rgba(255,255,255,.38); font-size: 7px; }
+  .manager-profile strong { overflow: hidden; font-size: 8.8px; text-overflow: ellipsis; white-space: nowrap; }
+  .manager-profile small { margin-top: 2px; color: rgba(255,255,255,.38); font-size: 7.7px; }
   .manager-profile > svg { color: rgba(255,255,255,.35); }
   .manager-workspace { min-height: 100vh; margin-left: 244px; }
   .manager-topbar { position: sticky; z-index: 30; top: 0; height: 64px; display: flex; align-items: center; padding: 0 26px; border-bottom: 1px solid var(--border); background: rgba(250,248,243,.91); backdrop-filter: blur(15px); }
