@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CashManager } from "@/components/connected-manager/cash-manager";
+import styles from "@/components/connected-manager/connected-manager.module.css";
 
 const refresh = vi.fn();
 const rpc = vi.fn(() => Promise.resolve({ error: null }));
@@ -91,5 +92,16 @@ describe("cash manager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mostrar planos de despesas" }));
     expect(screen.getByRole("list", { name: "Planos de despesas" })).toHaveTextContent("2 · Estrutura");
     expect(screen.getByRole("list", { name: "Planos de receitas" })).toBeInTheDocument();
+  });
+
+  it("gives chart accounts and cost centers full-width stacked panels", () => {
+    render(<CashManager {...props} section="catalogs" />);
+
+    const chartPanel = screen.getByRole("heading", { name: "Plano de contas" }).closest("section");
+    const costCenterPanel = screen.getByRole("heading", { name: "Centro de custo" }).closest("section");
+
+    expect(chartPanel).toHaveClass(styles.span12);
+    expect(costCenterPanel).toHaveClass(styles.span12);
+    expect(chartPanel?.compareDocumentPosition(costCenterPanel!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 });

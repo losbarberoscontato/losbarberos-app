@@ -399,7 +399,7 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
   }
 
   return <div className={styles.grid}>
-    <Panel title={editingChart ? "Editar plano de contas" : "Plano de contas"} description="Crie grupos e subcontas por receita ou despesa." className={styles.span6}>
+    <Panel title={editingChart ? "Editar plano de contas" : "Plano de contas"} description="Crie grupos e subcontas por receita ou despesa." className={styles.span12}>
       <form className={styles.form} key={`chart-${editingChart?.id ?? "new"}`} onSubmit={submitCatalog}>
         <input type="hidden" name="catalog" value="chart" />
         <Field label="Código"><input name="code" defaultValue={editingChart?.code ?? ""} /></Field>
@@ -410,7 +410,7 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
       </form>
       <ChartAccountColumns accounts={chartAccounts} onEdit={editChart} onToggle={(item) => void toggleCatalog("chart", item)} />
     </Panel>
-    <Panel title={editingCost ? "Editar centro de custo" : "Centro de custo"} description="Classifique responsabilidade operacional." className={styles.span6}>
+    <Panel title={editingCost ? "Editar centro de custo" : "Centro de custo"} description="Classifique responsabilidade operacional." className={styles.span12}>
       <form className={styles.form} key={`cost-${editingCost?.id ?? "new"}`} onSubmit={submitCatalog}>
         <input type="hidden" name="catalog" value="cost" />
         <Field label="Nome" wide><input name="name" required defaultValue={editingCost?.name ?? ""} /></Field>
