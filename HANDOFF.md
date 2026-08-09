@@ -35,6 +35,8 @@
 
 - Implementação isolada em `D:\Display SH\Los Barberos-caixa-financeiro`, branch local `codex/caixa-financeiro`, baseada no commit local `0288023`; nenhuma alteração desta entrega foi enviada ao GitHub ou Vercel.
 - Migration incremental `202608090001_financial_cash.sql` foi aplicada ao Supabase autorizado nesta conversa. `npx.cmd supabase migration list --linked` confirmou `202608090001` igual local/remoto.
+- Migration incremental `202608090002_chart_account_templates.sql` foi aplicada ao Supabase autorizado. Ela mantém template global com 42 planos do PDF (12 receitas e 30 despesas) e provisiona o plano automaticamente para cada nova organização.
+- Tenant `Barbearia Central`: os três planos sem lançamentos foram substituídos com autorização explícita. A validação remota confirmou 42 planos, 40 vínculos hierárquicos e nenhum plano legado.
 - O schema inclui contas financeiras, fornecedores, plano de contas, centros de custo, tags, lançamentos, liquidações append-only, transferências atômicas e mapeamento de pagamentos de agendamento para conta financeira.
 - O Caixa usa `payment_transactions` como fonte de verdade para agendamentos. Estorno manual cria reversal, preserva `COMPLETED` e reabre somente o saldo financeiro; estorno de provedor online continua no fluxo do provedor.
 - Rotas locais: `/gestor/financeiro/caixa`, `/contas-pagar`, `/contas-receber`, `/bancos`, `/fornecedores` e `/cadastros`. Financeiro preserva visão geral e comissões.
