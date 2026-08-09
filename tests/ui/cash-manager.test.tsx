@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CashManager } from "@/components/connected-manager/cash-manager";
 
@@ -68,5 +68,28 @@ describe("cash manager", () => {
 
     expect(rpc).not.toHaveBeenCalled();
     expect(screen.getByText("Modo demonstração: nenhuma alteração é salva.")).toBeInTheDocument();
+  });
+
+  it("groups chart accounts by nature in collapsed code-ordered columns", () => {
+    render(<CashManager {...props} section="catalogs" chartAccounts={[
+      { id: "revenue-root", organization_id: "org-1", parent_id: null, code: "1", name: "Serviços", kind: "REVENUE", active: true },
+      { id: "revenue-barba", organization_id: "org-1", parent_id: "revenue-root", code: "1.10", name: "Barba", kind: "REVENUE", active: true },
+      { id: "revenue-corte", organization_id: "org-1", parent_id: "revenue-root", code: "1.2", name: "Corte", kind: "REVENUE", active: true },
+      { id: "expense-root", organization_id: "org-1", parent_id: null, code: "2", name: "Estrutura", kind: "EXPENSE", active: true },
+    ]} />);
+
+    expect(screen.getByRole("button", { name: "Mostrar planos de receitas" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mostrar planos de despesas" })).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Planos de receitas" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar planos de receitas" }));
+    const revenuePlans = screen.getByRole("list", { name: "Planos de receitas" });
+    expect(within(revenuePlans).getAllByRole("listitem").map((item) => item.textContent)).toEqual([expect.stringContaining("1 · Serviços"), expect.stringContaining("1.2 · Corte"), expect.stringContaining("1.10 · Barba")]);
+    expect(within(screen.getByLabelText("Conta superior")).getByRole("option", { name: "1 · Serviços" })).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Conta superior")).queryByRole("option", { name: "2 · Estrutura" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar planos de despesas" }));
+    expect(screen.getByRole("list", { name: "Planos de despesas" })).toHaveTextContent("2 · Estrutura");
+    expect(screen.getByRole("list", { name: "Planos de receitas" })).toBeInTheDocument();
   });
 });

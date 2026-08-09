@@ -320,11 +320,61 @@ function SuppliersSection({ organizationId, suppliers, demoMode, setMessage }: {
 
 type CatalogKind = "chart" | "cost" | "tag";
 
+type ChartAccountTreeItem = ChartAccountRecord & { depth: number };
+
+function chartAccountLabel(account: ChartAccountRecord) {
+  return account.code ? `${account.code} · ${account.name}` : account.name;
+}
+
+function compareChartAccounts(left: ChartAccountRecord, right: ChartAccountRecord) {
+  const leftCode = left.code?.trim() ?? "";
+  const rightCode = right.code?.trim() ?? "";
+  if (!leftCode || !rightCode) {
+    if (leftCode) return -1;
+    if (rightCode) return 1;
+    return left.name.localeCompare(right.name, "pt-BR");
+  }
+  const leftParts = leftCode.split(".").map(Number);
+  const rightParts = rightCode.split(".").map(Number);
+  if (leftParts.every(Number.isFinite) && rightParts.every(Number.isFinite)) {
+    for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+      const difference = (leftParts[index] ?? -1) - (rightParts[index] ?? -1);
+      if (difference) return difference;
+    }
+  }
+  return leftCode.localeCompare(rightCode, "pt-BR", { numeric: true }) || left.name.localeCompare(right.name, "pt-BR");
+}
+
+export function buildChartAccountTree(items: ChartAccountRecord[]): ChartAccountTreeItem[] {
+  const itemIds = new Set(items.map((item) => item.id));
+  const childrenByParent = new Map<string | null, ChartAccountRecord[]>();
+  items.forEach((item) => {
+    const parentId = item.parent_id && itemIds.has(item.parent_id) ? item.parent_id : null;
+    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), item]);
+  });
+  const visit = (parentId: string | null, depth: number, ancestors: ReadonlySet<string>): ChartAccountTreeItem[] => (childrenByParent.get(parentId) ?? [])
+    .sort(compareChartAccounts)
+    .flatMap((item) => ancestors.has(item.id) ? [] : [{ ...item, depth }, ...visit(item.id, depth + 1, new Set([...ancestors, item.id]))]);
+  return visit(null, 0, new Set());
+}
+
 function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, accounts, mappings, demoMode, setMessage }: Pick<CashManagerProps, "chartAccounts" | "costCenters" | "tags" | "accounts" | "mappings" | "demoMode"> & { organizationId: string; setMessage: (value: string) => void }) {
   const router = useRouter();
   const [editingChart, setEditingChart] = useState<ChartAccountRecord | null>(null);
+  const [chartKind, setChartKind] = useState<ChartAccountRecord["kind"]>("REVENUE");
   const [editingCost, setEditingCost] = useState<CostCenterRecord | null>(null);
   const [editingTag, setEditingTag] = useState<FinancialTagRecord | null>(null);
+  const chartParentOptions = buildChartAccountTree(chartAccounts.filter((item) => item.active && item.kind === chartKind && item.id !== editingChart?.id));
+
+  function editChart(account: ChartAccountRecord) {
+    setEditingChart(account);
+    setChartKind(account.kind);
+  }
+
+  function cancelChartEdit() {
+    setEditingChart(null);
+    setChartKind("REVENUE");
+  }
 
   async function submitCatalog(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -338,7 +388,7 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
         ? { p_organization_id: organizationId, p_id: editingCost?.id ?? null, p_name: safeText(data.get("name")) }
         : { p_organization_id: organizationId, p_id: editingTag?.id ?? null, p_name: safeText(data.get("name")), p_color: safeText(data.get("color")) || null };
     const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc(rpc, params)); }, "Cadastro financeiro salvo.");
-    if (saved) { setEditingChart(null); setEditingCost(null); setEditingTag(null); router.refresh(); }
+    if (saved) { cancelChartEdit(); setEditingCost(null); setEditingTag(null); router.refresh(); }
   }
 
   async function toggleCatalog(catalog: CatalogKind, item: { id: string; active: boolean }) {
@@ -354,11 +404,11 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
         <input type="hidden" name="catalog" value="chart" />
         <Field label="Código"><input name="code" defaultValue={editingChart?.code ?? ""} /></Field>
         <Field label="Nome"><input name="name" required defaultValue={editingChart?.name ?? ""} /></Field>
-        <Field label="Natureza"><select name="kind" defaultValue={editingChart?.kind ?? "REVENUE"}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>
-        <Field label="Conta superior"><select name="parent_id" defaultValue={editingChart?.parent_id ?? ""}><option value="">Nenhuma</option>{chartAccounts.filter((item) => item.active && item.id !== editingChart?.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><ReceiptText size={15} /> {editingChart ? "Salvar" : "Adicionar conta"}</button>{editingChart && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingChart(null)}>Cancelar</button>}</div>
+        <Field label="Natureza"><select name="kind" value={chartKind} onChange={(event) => setChartKind(event.target.value as ChartAccountRecord["kind"])}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>
+        <Field label="Conta superior"><select name="parent_id" defaultValue={editingChart?.parent_id ?? ""}><option value="">Nenhuma</option>{chartParentOptions.map((item) => <option key={item.id} value={item.id}>{`${"  ".repeat(item.depth)}${chartAccountLabel(item)}`}</option>)}</select></Field>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><ReceiptText size={15} /> {editingChart ? "Salvar" : "Adicionar conta"}</button>{editingChart && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelChartEdit}>Cancelar</button>}</div>
       </form>
-      <CatalogRows items={chartAccounts} onEdit={setEditingChart} onToggle={(item) => void toggleCatalog("chart", item)} />
+      <ChartAccountColumns accounts={chartAccounts} onEdit={editChart} onToggle={(item) => void toggleCatalog("chart", item)} />
     </Panel>
     <Panel title={editingCost ? "Editar centro de custo" : "Centro de custo"} description="Classifique responsabilidade operacional." className={styles.span6}>
       <form className={styles.form} key={`cost-${editingCost?.id ?? "new"}`} onSubmit={submitCatalog}>
@@ -379,6 +429,34 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
     </Panel>
     <Panel title="Estrutura financeira" description="Cadastre contas e fornecedores nas seções próprias." className={styles.span6}><div className={styles.cards}><article className={styles.card}><Landmark size={20} /><strong>{accounts.length} contas</strong><small>Banco e caixa físico</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Gerenciar</Link></article><article className={styles.card}><CircleDollarSign size={20} /><strong>{mappings.length} mapeamentos</strong><small>Recebimentos de agendamento</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Configurar</Link></article></div></Panel>
   </div>;
+}
+
+function ChartAccountColumns({ accounts, onEdit, onToggle }: { accounts: ChartAccountRecord[]; onEdit: (item: ChartAccountRecord) => void; onToggle: (item: ChartAccountRecord) => void }) {
+  return <div className={styles.chartColumns}>
+    <ChartAccountColumn title="Receitas" buttonLabel="receitas" accounts={buildChartAccountTree(accounts.filter((item) => item.kind === "REVENUE"))} onEdit={onEdit} onToggle={onToggle} />
+    <ChartAccountColumn title="Despesas" buttonLabel="despesas" accounts={buildChartAccountTree(accounts.filter((item) => item.kind === "EXPENSE"))} onEdit={onEdit} onToggle={onToggle} />
+  </div>;
+}
+
+function ChartAccountColumn({ title, buttonLabel, accounts, onEdit, onToggle }: { title: string; buttonLabel: string; accounts: ChartAccountTreeItem[]; onEdit: (item: ChartAccountRecord) => void; onToggle: (item: ChartAccountRecord) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const listId = `chart-accounts-${buttonLabel}`;
+  const actionLabel = `${expanded ? "Ocultar" : "Mostrar"} planos de ${buttonLabel}`;
+  return <section className={styles.chartColumn} aria-labelledby={`${listId}-title`}>
+    <div className={styles.chartColumnHeader}>
+      <div><h3 id={`${listId}-title`}>{title}</h3><small>{accounts.length} plano(s)</small></div>
+      <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded((current) => !current)}>{actionLabel}</button>
+    </div>
+    {expanded && <ul id={listId} className={styles.chartList} aria-label={`Planos de ${buttonLabel}`}>
+      {accounts.map((item) => <li key={item.id} className={styles.chartListItem} style={{ paddingLeft: `${.75 + item.depth * 1.1}rem` }}>
+        <article className={styles.chartRow}>
+          <span className={styles.rowTitle}><strong>{chartAccountLabel(item)}</strong><small>{item.depth ? "Subconta" : "Conta principal"}</small></span>
+          <StatusChip active={item.active} />
+          <span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onEdit(item)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onToggle(item)}>{item.active ? "Inativar" : "Reativar"}</button></span>
+        </article>
+      </li>)}
+    </ul>}
+  </section>;
 }
 
 function CatalogRows<T extends { id: string; name: string; active: boolean }>({ items, onEdit, onToggle }: { items: T[]; onEdit: (item: T) => void; onToggle: (item: T) => void }) {

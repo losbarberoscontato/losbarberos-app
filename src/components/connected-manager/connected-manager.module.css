@@ -48,6 +48,15 @@
 .list { display: grid; gap: .65rem; }
 .row { display: grid; grid-template-columns: minmax(150px, 1.4fr) repeat(3, minmax(90px, 1fr)) auto; gap: .8rem; align-items: center; padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }
 .row:hover { background: #fafbf9; }
+.chartColumns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: 1rem; }
+.chartColumn { min-width: 0; border: 1px solid #e4e9e2; border-radius: 15px; background: #f9faf8; padding: .85rem; }
+.chartColumnHeader { display: flex; justify-content: space-between; align-items: center; gap: .7rem; }
+.chartColumnHeader h3 { font-size: .95rem; }
+.chartColumnHeader small { color: #79817a; font-size: .76rem; }
+.chartList { display: grid; gap: .55rem; list-style: none; margin: .8rem 0 0; padding: 0; }
+.chartListItem { min-width: 0; }
+.chartRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .6rem; align-items: center; padding: .72rem; border: 1px solid #edf0eb; border-radius: 12px; background: #fff; }
+.chartRow:hover { background: #fafbf9; }
 .rowTitle { min-width: 0; display: grid; gap: .22rem; }
 .rowTitle strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #293029; }
 .rowTitle small, .muted { color: #79817a; font-size: .78rem; }
@@ -104,6 +113,11 @@
 @media (max-width: 680px) {
   .panel { padding: 1rem; border-radius: 16px; }
   .stats, .cards, .form, .definition { grid-template-columns: 1fr; }
+  .chartColumns { grid-template-columns: 1fr; }
+  .chartColumnHeader { align-items: flex-start; flex-direction: column; }
+  .chartColumnHeader .button { width: 100%; }
+  .chartRow { grid-template-columns: 1fr auto; }
+  .chartRow > :not(.rowTitle):not(.rowActions) { display: none; }
   .formWide { grid-column: auto; }
   .row { grid-template-columns: 1fr auto; }
   .row > :not(.rowTitle):not(.rowActions) { display: none; }
