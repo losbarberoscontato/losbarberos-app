@@ -8,6 +8,7 @@ test-results/
 .env.local
 .env.*.local
 .vercel/
+.worktrees/
 .supabase/
 supabase/.temp/
 *.log
