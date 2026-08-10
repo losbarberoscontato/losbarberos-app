@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ConnectedClientProvider } from "@/components/connected-client/context";
+import { ConnectedClientProvider, useConnectedClient } from "@/components/connected-client/context";
 import { ClientAuthForm, ClientPasswordResetForm } from "@/components/connected-client/auth-form";
 import ClientPasswordResetPage from "@/app/cliente/redefinir-senha/page";
+import PublicBarbershopPage from "@/app/b/[slug]/page";
 import { filterByAudience } from "@/lib/catalog-audiences";
-import { ConnectedClientGate } from "@/components/connected-client/state";
+import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/state";
 import {
   bookingSelection,
   canCustomerReschedule,
@@ -26,10 +27,14 @@ const authMocks = vi.hoisted(() => ({
       exchangeCodeForSession: ReturnType<typeof vi.fn>;
       signOut: ReturnType<typeof vi.fn>;
       updateUser: ReturnType<typeof vi.fn>;
+      getUser?: ReturnType<typeof vi.fn>;
+      onAuthStateChange?: ReturnType<typeof vi.fn>;
     };
     rpc: ReturnType<typeof vi.fn>;
+    from?: ReturnType<typeof vi.fn>;
   } | null,
   push: vi.fn(),
+  redirect: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/browser", () => ({
@@ -39,6 +44,7 @@ vi.mock("@/lib/supabase/browser", () => ({
 vi.mock("next/navigation", async (importOriginal) => ({
   ...await importOriginal<typeof import("next/navigation")>(),
   useRouter: () => ({ push: authMocks.push }),
+  redirect: authMocks.redirect,
 }));
 
 const context: PublicBookingContext = {
@@ -67,6 +73,148 @@ const context: PublicBookingContext = {
   }],
   barbers: [],
 };
+
+function queryResult(data: unknown) {
+  const query = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    is: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
+  };
+  query.select.mockReturnValue(query);
+  query.eq.mockReturnValue(query);
+  query.is.mockReturnValue(query);
+  return query;
+}
+
+function installProviderClient({
+  authenticated,
+  failFirstLink = false,
+  deferAuth = false,
+  deferLink = false,
+  initiallyLinked = false,
+  mismatchedLink = false,
+}: {
+  authenticated: boolean;
+  failFirstLink?: boolean;
+  deferAuth?: boolean;
+  deferLink?: boolean;
+  initiallyLinked?: boolean;
+  mismatchedLink?: boolean;
+}) {
+  const user = authenticated
+    ? { id: "user-1", email: "ana@example.com", user_metadata: { full_name: "Ana Souza" } }
+    : null;
+  const account = {
+    auth_user_id: "user-1",
+    full_name: "Ana Souza",
+    phone_e164: "+5511999999999",
+    phone_verified_at: null,
+    birth_date: "1990-02-10",
+    terms_policy_version: "client-access-2026-08",
+    terms_accepted_at: "2026-08-10T12:00:00Z",
+  };
+  const customer = {
+    id: "customer-1",
+    organization_id: context.organization.id,
+    auth_user_id: "user-1",
+    full_name: "Ana Souza",
+    phone_e164: "+5511999999999",
+    email: "ana@example.com",
+    birth_date: "1990-02-10",
+  };
+  const relation = {
+    organization_id: context.organization.id,
+    organization_slug: context.organization.slug,
+    organization_name: context.organization.name,
+    customer_id: customer.id,
+  };
+  const accountQuery = queryResult(account);
+  const customerQuery = queryResult(customer);
+  const from = vi.fn((table: string) => table === "client_accounts" ? accountQuery : customerQuery);
+  let linked = initiallyLinked;
+  let firstLink = failFirstLink;
+  let resolveAuth: (() => void) | null = null;
+  let resolveLink: (() => void) | null = null;
+  const authResult = { data: { user }, error: null };
+  const authPromise = deferAuth
+    ? new Promise<typeof authResult>((resolve) => {
+        resolveAuth = () => resolve(authResult);
+      })
+    : Promise.resolve(authResult);
+  const linkResult = {
+    data: {
+      status: "LINKED",
+      organization_id: mismatchedLink ? "organization-other" : relation.organization_id,
+      organization_slug: mismatchedLink ? "outra-barbearia" : relation.organization_slug,
+      customer_id: relation.customer_id,
+    },
+    error: null,
+  };
+  const linkPromise = deferLink
+    ? new Promise<typeof linkResult>((resolve) => {
+        resolveLink = () => resolve(linkResult);
+      })
+    : null;
+  const rpc = vi.fn(async (name: string) => {
+    if (name === "get_public_booking_context") return { data: context, error: null };
+    if (name === "list_my_client_organizations") return { data: linked ? [relation] : [], error: null };
+    if (name === "link_my_client_to_organization") {
+      linked = true;
+      if (linkPromise) return linkPromise;
+      if (firstLink) {
+        firstLink = false;
+        return { data: null, error: { message: "network interrupted after commit" } };
+      }
+      return linkResult;
+    }
+    throw new Error(`RPC inesperada: ${name}`);
+  });
+  authMocks.client = {
+    ...authMocks.client!,
+    auth: {
+      ...authMocks.client!.auth,
+      getUser: vi.fn().mockReturnValue(authPromise),
+      onAuthStateChange: vi.fn().mockReturnValue({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      }),
+    },
+    rpc,
+    from,
+  };
+  return {
+    from,
+    rpc,
+    resolveAuth: () => resolveAuth?.(),
+    resolveLink: () => resolveLink?.(),
+  };
+}
+
+function ConcurrentLinkProbe() {
+  const { confirmTenantLink, linkStatus } = useConnectedClient();
+  return (
+    <div>
+      <output aria-label="status do vínculo">{linkStatus}</output>
+      <button type="button" onClick={() => {
+        void Promise.all([confirmTenantLink(), confirmTenantLink()]);
+      }}>
+        Confirmar duas vezes
+      </button>
+    </div>
+  );
+}
+
+function ProviderStateProbe() {
+  const { account, organizations, customer, switchTenant } = useConnectedClient();
+  return (
+    <div>
+      <span>{account?.full_name ?? "sem conta"}</span>
+      <span>{organizations.length} barbearia vinculada</span>
+      <span>{customer?.id ?? "sem customer"}</span>
+      <button type="button" onClick={() => switchTenant("barbearia-real")}>Trocar barbearia</button>
+    </div>
+  );
+}
 
 describe("cliente conectado", () => {
   afterEach(() => {
@@ -120,6 +268,7 @@ describe("cliente conectado", () => {
   });
   beforeEach(() => {
     authMocks.push.mockReset();
+    authMocks.redirect.mockReset();
     authMocks.client = {
       auth: {
         signUp: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" }, session: null }, error: null }),
@@ -154,6 +303,123 @@ describe("cliente conectado", () => {
       },
       rpc: vi.fn().mockResolvedValue({ data: "account-1", error: null }),
     };
+  });
+
+  it("exige confirmação explícita antes de carregar cliente tenant e aceita retry idempotente", async () => {
+    const { from, rpc } = installProviderClient({ authenticated: true, failFirstLink: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate><div>conteúdo tenant</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    const enter = await screen.findByRole("button", { name: "Entrar nesta barbearia" });
+    expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
+    expect(from).not.toHaveBeenCalledWith("customers");
+
+    fireEvent.click(enter);
+    expect(await screen.findByRole("alert")).toHaveTextContent("network interrupted after commit");
+    expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Entrar nesta barbearia" }));
+    expect(await screen.findByText("conteúdo tenant")).toBeInTheDocument();
+    expect(rpc.mock.calls.filter(([name]) => name === "link_my_client_to_organization")).toHaveLength(2);
+    expect(from).toHaveBeenCalledWith("customers");
+  });
+
+  it("oferece login por e-mail com slug preservado sem criar vínculo", async () => {
+    const { from, rpc } = installProviderClient({ authenticated: false });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate>
+          <AuthPrompt description="Entre para continuar." />
+        </ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByRole("link", { name: "Entrar com e-mail" })).toHaveAttribute(
+      "href",
+      "/cliente/entrar?barbearia=barbearia-real",
+    );
+    expect(from).not.toHaveBeenCalled();
+    expect(rpc.mock.calls.filter(([name]) => name === "link_my_client_to_organization")).toHaveLength(0);
+  });
+
+  it("carrega contexto público enquanto valida sessão", async () => {
+    const { resolveAuth, rpc } = installProviderClient({ authenticated: false, deferAuth: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate><div>contexto público pronto</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByText("contexto público pronto")).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledWith("get_public_booking_context", {
+      p_organization_slug: "barbearia-real",
+    });
+    resolveAuth();
+  });
+
+  it("expõe conta, organizações e customer quando vínculo já existe", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate><ProviderStateProbe /></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByText("Ana Souza")).toBeInTheDocument();
+    expect(screen.getByText("1 barbearia vinculada")).toBeInTheDocument();
+    expect(screen.getByText("customer-1")).toBeInTheDocument();
+  });
+
+  it("deduplica confirmações concorrentes do mesmo slug", async () => {
+    const { resolveLink, rpc } = installProviderClient({ authenticated: true, deferLink: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConcurrentLinkProbe />
+      </ConnectedClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("status", { name: "status do vínculo" })).toHaveTextContent("UNLINKED");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar duas vezes" }));
+    await waitFor(() => {
+      expect(rpc.mock.calls.filter(([name]) => name === "link_my_client_to_organization")).toHaveLength(1);
+    });
+    resolveLink();
+    await waitFor(() => {
+      expect(screen.getByRole("status", { name: "status do vínculo" })).toHaveTextContent("LINKED");
+    });
+  });
+
+  it("recusa resposta de vínculo de outro tenant antes de carregar customer", async () => {
+    const { from } = installProviderClient({ authenticated: true, mismatchedLink: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate><div>conteúdo tenant</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Resposta de vínculo não corresponde à barbearia selecionada.",
+    );
+    expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
+    expect(from).not.toHaveBeenCalledWith("customers");
+  });
+
+  it("redireciona slug público para home do cliente sem criar vínculo", async () => {
+    await PublicBarbershopPage({ params: Promise.resolve({ slug: "barbearia real" }) });
+
+    expect(authMocks.redirect).toHaveBeenCalledWith("/cliente?barbearia=barbearia%20real");
   });
 
   it("separa entrar de criar conta, com campos completos e sem Google", () => {

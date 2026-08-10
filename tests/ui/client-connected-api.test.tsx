@@ -3,12 +3,94 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createMercadoPagoCheckout,
   getAvailableSlots,
+  getMyClientAccount,
   getPublicBookingContext,
+  linkMyClientToOrganization,
+  listMyClientOrganizations,
   recordWhatsappConsent,
   rescheduleAppointment,
+  upsertMyClientAccount,
 } from "@/components/connected-client/api";
 
 describe("contratos Supabase do cliente conectado", () => {
+  it("carrega somente a conta global do usuário autenticado", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        auth_user_id: "user-1",
+        full_name: "Ana Souza",
+        phone_e164: "+5511999999999",
+        phone_verified_at: null,
+        birth_date: "1990-02-10",
+        terms_policy_version: "client-access-2026-08",
+        terms_accepted_at: "2026-08-10T12:00:00Z",
+      },
+      error: null,
+    });
+    const eq = vi.fn().mockReturnValue({ maybeSingle });
+    const select = vi.fn().mockReturnValue({ eq });
+    const from = vi.fn().mockReturnValue({ select });
+    const supabase = { from } as unknown as SupabaseClient;
+
+    await expect(getMyClientAccount(supabase, "user-1")).resolves.toMatchObject({
+      auth_user_id: "user-1",
+      full_name: "Ana Souza",
+    });
+    expect(from).toHaveBeenCalledWith("client_accounts");
+    expect(eq).toHaveBeenCalledWith("auth_user_id", "user-1");
+  });
+
+  it("atualiza conta global pela RPC autenticada", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: "user-1", error: null });
+    const supabase = { rpc } as unknown as SupabaseClient;
+
+    await expect(upsertMyClientAccount(supabase, {
+      fullName: "Ana Souza",
+      phoneE164: "+5511999999999",
+      birthDate: "1990-02-10",
+      termsPolicyVersion: "client-access-2026-08",
+    })).resolves.toBe("user-1");
+    expect(rpc).toHaveBeenCalledWith("upsert_my_client_account", {
+      p_full_name: "Ana Souza",
+      p_phone_e164: "+5511999999999",
+      p_birth_date: "1990-02-10",
+      p_terms_policy_version: "client-access-2026-08",
+    });
+  });
+
+  it("lista somente organizações vinculadas à conta autenticada", async () => {
+    const organizations = [{
+      organization_id: "organization-1",
+      organization_slug: "barbearia-real",
+      organization_name: "Barbearia Real",
+      customer_id: "customer-1",
+    }];
+    const rpc = vi.fn().mockResolvedValue({ data: organizations, error: null });
+    const supabase = { rpc } as unknown as SupabaseClient;
+
+    await expect(listMyClientOrganizations(supabase)).resolves.toEqual(organizations);
+    expect(rpc).toHaveBeenCalledWith("list_my_client_organizations");
+  });
+
+  it("aceita retry idempotente do vínculo explícito pelo slug", async () => {
+    const relation = {
+      status: "LINKED",
+      organization_id: "organization-1",
+      organization_slug: "barbearia-real",
+      customer_id: "customer-1",
+    };
+    const rpc = vi.fn().mockResolvedValue({ data: relation, error: null });
+    const supabase = { rpc } as unknown as SupabaseClient;
+
+    await expect(linkMyClientToOrganization(supabase, "barbearia-real")).resolves.toEqual(relation);
+    await expect(linkMyClientToOrganization(supabase, "barbearia-real")).resolves.toEqual(relation);
+    expect(rpc).toHaveBeenNthCalledWith(1, "link_my_client_to_organization", {
+      p_organization_slug: "barbearia-real",
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "link_my_client_to_organization", {
+      p_organization_slug: "barbearia-real",
+    });
+  });
+
   it("carrega contexto somente pela projeção pública do slug", async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { organization: { slug: "tenant-a" } }, error: null });
     const supabase = { rpc } as unknown as SupabaseClient;

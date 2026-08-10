@@ -4,6 +4,9 @@ import type {
   AppointmentItem,
   Availability,
   BookingSelection,
+  ClientAccount,
+  ClientLinkResult,
+  ClientOrganization,
   Customer,
   CustomerAppointment,
   FinancialStatus,
@@ -43,6 +46,54 @@ export async function getPublicBookingContext(
   });
   if (error) throw new Error(error.message);
   return (data as PublicBookingContext | null) ?? null;
+}
+
+export async function getMyClientAccount(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<ClientAccount | null> {
+  const { data, error } = await supabase
+    .from("client_accounts")
+    .select("auth_user_id,full_name,phone_e164,phone_verified_at,birth_date,terms_policy_version,terms_accepted_at,created_at,updated_at")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as ClientAccount | null) ?? null;
+}
+
+export async function upsertMyClientAccount(
+  supabase: SupabaseClient,
+  input: {
+    fullName: string;
+    phoneE164: string;
+    birthDate: string | null;
+    termsPolicyVersion: string;
+  },
+): Promise<string> {
+  const { data, error } = await supabase.rpc("upsert_my_client_account", {
+    p_full_name: input.fullName,
+    p_phone_e164: input.phoneE164,
+    p_birth_date: input.birthDate,
+    p_terms_policy_version: input.termsPolicyVersion,
+  });
+  return assertData(data as string | null, error, "Não foi possível salvar conta do cliente.");
+}
+
+export async function listMyClientOrganizations(
+  supabase: SupabaseClient,
+): Promise<ClientOrganization[]> {
+  const { data, error } = await supabase.rpc("list_my_client_organizations");
+  return assertData(data as ClientOrganization[] | null, error, "Não foi possível carregar barbearias vinculadas.");
+}
+
+export async function linkMyClientToOrganization(
+  supabase: SupabaseClient,
+  slug: string,
+): Promise<ClientLinkResult> {
+  const { data, error } = await supabase.rpc("link_my_client_to_organization", {
+    p_organization_slug: slug,
+  });
+  return assertData(data as ClientLinkResult | null, error, "Não foi possível entrar nesta barbearia.");
 }
 
 export async function getMyCustomer(

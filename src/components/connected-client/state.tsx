@@ -1,12 +1,23 @@
 "use client";
 
+import Link from "next/link";
 import { AlertCircle, LoaderCircle, Scissors } from "lucide-react";
 import { useState } from "react";
 import { useConnectedClient } from "@/components/connected-client/context";
 import styles from "@/components/connected-client/connected-client.module.css";
 
 export function ConnectedClientGate({ children }: { children: React.ReactNode }) {
-  const { slug, context, loading, error, selectTenant } = useConnectedClient();
+  const {
+    slug,
+    context,
+    user,
+    authLoading,
+    linkStatus,
+    loading,
+    error,
+    selectTenant,
+    confirmTenantLink,
+  } = useConnectedClient();
   const [value, setValue] = useState("");
 
   if (loading) {
@@ -30,31 +41,51 @@ export function ConnectedClientGate({ children }: { children: React.ReactNode })
   if (!context) {
     return <div className={styles.state} role="alert"><AlertCircle aria-hidden="true" /><strong>{error ?? "Barbearia não encontrada."}</strong><button type="button" onClick={() => selectTenant("")}>Tentar outro slug</button></div>;
   }
+  if (user && (authLoading || linkStatus === "IDLE" || linkStatus === "LOADING")) {
+    return <div className={styles.state} role="status"><LoaderCircle className={styles.spin} aria-hidden="true" /><strong>Validando vínculo com barbearia…</strong></div>;
+  }
+  if (user && linkStatus !== "LINKED") {
+    const pendingReview = linkStatus === "REVIEW_REQUIRED";
+    const claimRequired = linkStatus === "CLAIM_REQUIRED";
+    return (
+      <section className={styles.authPrompt}>
+        <UserMark />
+        <h2>{context.organization.name}</h2>
+        <p>
+          {pendingReview
+            ? "Vínculo enviado para revisão pela barbearia."
+            : claimRequired
+              ? "Encontramos um cadastro existente. Confirmação adicional será necessária."
+              : "Confirme para criar sua relação com esta barbearia. Visitar o link não cria vínculo."}
+        </p>
+        {!pendingReview && !claimRequired && (
+          <button
+            type="button"
+            disabled={linkStatus === "LINKING"}
+            onClick={() => void confirmTenantLink().catch(() => undefined)}
+          >
+            {linkStatus === "LINKING" ? "Entrando…" : "Entrar nesta barbearia"}
+          </button>
+        )}
+        {error && <p className={styles.error} role="alert">{error}</p>}
+      </section>
+    );
+  }
   return <>{children}</>;
 }
 
 export function AuthPrompt({ description }: { description: string }) {
-  const { authLoading, signInWithGoogle } = useConnectedClient();
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { slug } = useConnectedClient();
+  const href = slug
+    ? `/cliente/entrar?barbearia=${encodeURIComponent(slug)}`
+    : "/cliente/entrar";
   return (
     <section className={styles.authPrompt}>
       <UserMark />
       <h2>Entre para continuar</h2>
       <p>{description}</p>
-      <button type="button" disabled={busy || authLoading} onClick={() => {
-        setBusy(true);
-        setError("");
-        void signInWithGoogle().catch((cause: unknown) => {
-          setBusy(false);
-          setError(cause instanceof Error ? cause.message : "Falha ao iniciar Google.");
-        });
-      }}>
-        <span className={styles.googleMark}>G</span>
-        {busy ? "Abrindo Google…" : "Continuar com Google"}
-      </button>
-      {error && <p className={styles.error} role="alert">{error}</p>}
-      <small>Autenticação protegida pelo Supabase. Nenhuma senha Google passa pelo Los Barberos.</small>
+      <Link href={href} className={styles.primaryButton}>Entrar com e-mail</Link>
+      <small>Autenticação por e-mail e senha protegida pelo Supabase.</small>
     </section>
   );
 }
