@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, CalendarPlus2, LogOut, MapPin, UserRound } from "lucide-react";
+import { CalendarDays, CalendarPlus2, ChevronRight, LogOut, MapPin, Menu, UserRound, X } from "lucide-react";
+import { useState } from "react";
 import { Brand } from "@/components/brand";
 import { ConnectedClientProvider, useConnectedClient } from "@/components/connected-client/context";
 import { initials, locationLabel } from "@/components/connected-client/format";
@@ -16,9 +17,14 @@ const navigation = [
 
 function ShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
-  const { context, customer, user, slug, signOut } = useConnectedClient();
+  const { context, customer, organizations, user, slug, signOut, switchTenant } = useConnectedClient();
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [targetSlug, setTargetSlug] = useState<string | null>(null);
   const suffix = slug ? `?barbearia=${encodeURIComponent(slug)}` : "";
   const displayName = customer?.full_name ?? user?.user_metadata?.full_name ?? user?.email ?? "Cliente";
+  const target = targetSlug
+    ? organizations.find((item) => item.organization_slug === targetSlug) ?? null
+    : null;
 
   return (
     <div className={styles.shell}>
@@ -37,6 +43,12 @@ function ShellContent({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+          {user && organizations.length > 1 && (
+            <button type="button" className={styles.tenantMenuButton} onClick={() => setSwitcherOpen((open) => !open)} aria-expanded={switcherOpen} aria-controls="client-tenant-menu">
+              {switcherOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+              <span>Barbearias</span>
+            </button>
+          )}
           {user ? (
             <button type="button" className={styles.account} onClick={() => void signOut()} aria-label="Sair da conta">
               <span>{initials(displayName)}</span>
@@ -59,6 +71,31 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         )}
       </div>
       <main className={styles.main}>{children}</main>
+      {switcherOpen && (
+        <section id="client-tenant-menu" className={styles.tenantMenu} aria-label="Trocar de barbearia">
+          <strong>Suas barbearias</strong>
+          {organizations.filter((item) => item.organization_slug !== slug).map((item) => (
+            <button key={item.organization_id} type="button" onClick={() => setTargetSlug(item.organization_slug)}>
+              <span>{item.organization_name}</span><ChevronRight size={16} aria-hidden="true" />
+            </button>
+          ))}
+        </section>
+      )}
+      {target && (
+        <section className={styles.switchConfirm} role="dialog" aria-modal="true" aria-labelledby="shell-switch-title">
+          <p>Trocar de barbearia</p>
+          <h2 id="shell-switch-title">Abrir {target.organization_name}?</h2>
+          <span>Agenda e histórico exibidos passarão a pertencer à nova barbearia.</span>
+          <div>
+            <button type="button" className={styles.secondaryButton} onClick={() => setTargetSlug(null)}>Cancelar</button>
+            <button type="button" className={styles.primaryButton} onClick={() => {
+              switchTenant(target.organization_slug);
+              setTargetSlug(null);
+              setSwitcherOpen(false);
+            }}>Confirmar troca</button>
+          </div>
+        </section>
+      )}
       <nav className={styles.bottomNav} aria-label="Navegação do cliente">
         {navigation.map((item) => {
           const Icon = item.icon;

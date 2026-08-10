@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConnectedClientProvider, useConnectedClient } from "@/components/connected-client/context";
 import { ClientAuthForm, ClientPasswordResetForm } from "@/components/connected-client/auth-form";
+import { ConnectedClientHome } from "@/components/connected-client/home";
 import ClientPasswordResetPage from "@/app/cliente/redefinir-senha/page";
 import PublicBarbershopPage from "@/app/b/[slug]/page";
 import { filterByAudience } from "@/lib/catalog-audiences";
@@ -513,6 +514,23 @@ describe("cliente conectado", () => {
     expect(await screen.findByText("Ana Souza")).toBeInTheDocument();
     expect(screen.getByText("1 barbearia vinculada")).toBeInTheDocument();
     expect(screen.getByText("customer-1")).toBeInTheDocument();
+  });
+
+  it("mostra home da barbearia vinculada sem saldo ou carteira", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientHome />
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Barbearia Real" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Agendar/u })).toHaveAttribute(
+      "href",
+      "/cliente/agendar?barbearia=barbearia-real",
+    );
+    expect(screen.queryByText(/saldo|carteira/iu)).not.toBeInTheDocument();
   });
 
   it("deduplica confirmações concorrentes do mesmo slug", async () => {
