@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConnectedClientProvider } from "@/components/connected-client/context";
-import { ClientAuthForm } from "@/components/connected-client/auth-form";
+import { ClientAuthForm, ClientPasswordResetForm } from "@/components/connected-client/auth-form";
 import { filterByAudience } from "@/lib/catalog-audiences";
 import { ConnectedClientGate } from "@/components/connected-client/state";
 import {
@@ -21,6 +21,8 @@ const authMocks = vi.hoisted(() => ({
       signInWithPassword: ReturnType<typeof vi.fn>;
       resetPasswordForEmail: ReturnType<typeof vi.fn>;
       resend: ReturnType<typeof vi.fn>;
+      getSession: ReturnType<typeof vi.fn>;
+      updateUser: ReturnType<typeof vi.fn>;
     };
     rpc: ReturnType<typeof vi.fn>;
   } | null,
@@ -133,6 +135,8 @@ describe("cliente conectado", () => {
         }),
         resetPasswordForEmail: vi.fn().mockResolvedValue({ data: {}, error: null }),
         resend: vi.fn().mockResolvedValue({ data: {}, error: null }),
+        getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: "session" } }, error: null }),
+        updateUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null }),
       },
       rpc: vi.fn().mockResolvedValue({ data: "account-1", error: null }),
     };
@@ -179,7 +183,9 @@ describe("cliente conectado", () => {
     }));
     expect(authMocks.client?.auth.signUp.mock.calls[0]?.[0].options.data).not.toHaveProperty("phone_verified");
     expect(authMocks.client?.rpc).not.toHaveBeenCalled();
-    expect(screen.getByRole("status")).toHaveTextContent("Confira seu e-mail");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Se o cadastro puder ser concluído, enviaremos instruções para seu e-mail.",
+    );
   });
 
   it("sincroniza conta global somente depois de signin confirmado", async () => {
@@ -219,7 +225,7 @@ describe("cliente conectado", () => {
     fireEvent.submit(screen.getByRole("form", { name: "Recuperar senha" }));
 
     await waitFor(() => expect(authMocks.client?.auth.resetPasswordForEmail).toHaveBeenCalledWith("ana@example.com", {
-      redirectTo: "http://localhost:3000/auth/callback?next=%2Fcliente&barbearia=barbearia-real",
+      redirectTo: "http://localhost:3000/auth/callback?next=%2Fcliente%2Fredefinir-senha&barbearia=barbearia-real",
     }));
 
     fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
@@ -239,5 +245,146 @@ describe("cliente conectado", () => {
     fireEvent.submit(screen.getByRole("form", { name: "Entrar" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Acesso online indisponível.");
+  });
+
+  it.each([
+    ["success", null],
+    ["existing-account provider error", { message: "User already registered" }],
+  ])("keeps signup result neutral for %s", async (_caseName, providerError) => {
+    authMocks.client!.auth.signUp.mockResolvedValueOnce({
+      data: { user: providerError ? null : { id: "user-1" }, session: null },
+      error: providerError,
+    });
+    render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente" />);
+    fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
+    fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Ana Souza" } });
+    fireEvent.change(screen.getByLabelText("Telefone (E.164)"), { target: { value: "+5511999999999" } });
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ana@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "Senha#123" } });
+    fireEvent.change(screen.getByLabelText("Data de nascimento"), { target: { value: "1990-02-10" } });
+    fireEvent.click(screen.getByLabelText("Aceito os termos de uso e a política de privacidade"));
+    fireEvent.submit(screen.getByRole("form", { name: "Criar conta" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Se o cadastro puder ser concluído, enviaremos instruções para seu e-mail.",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["success", null],
+    ["provider error", { message: "account not found" }],
+  ])("keeps recovery result neutral for %s", async (_caseName, providerError) => {
+    authMocks.client!.auth.resetPasswordForEmail.mockResolvedValueOnce({
+      data: {},
+      error: providerError,
+    });
+    render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente" />);
+    fireEvent.click(screen.getByRole("button", { name: "Esqueci minha senha" }));
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "nobody@example.com" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Recuperar senha" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Se houver uma conta elegível, enviaremos instruções para seu e-mail.",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["success", null],
+    ["provider error", { message: "account not found" }],
+  ])("keeps resend result neutral for %s", async (_caseName, providerError) => {
+    authMocks.client!.auth.resend.mockResolvedValueOnce({
+      data: {},
+      error: providerError,
+    });
+    render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente" />);
+    fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "nobody@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reenviar confirmação" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Se houver uma conta pendente, enviaremos nova confirmação.",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each([null, "legacy-metadata"])("handles non-object user metadata safely: %s", async (userMetadata) => {
+    authMocks.client!.auth.signInWithPassword.mockResolvedValueOnce({
+      data: {
+        user: { email: "ana@example.com", user_metadata: userMetadata },
+        session: { access_token: "session" },
+      },
+      error: null,
+    });
+    render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente" />);
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ana@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "Senha#123" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Entrar" }));
+
+    expect(await screen.findByRole("heading", { name: "Complete seu cadastro" })).toBeInTheDocument();
+    expect(authMocks.client?.rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps auth locked until account upsert finishes", async () => {
+    let resolveRpc!: (value: { data: string; error: null }) => void;
+    authMocks.client!.rpc.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveRpc = resolve;
+    }));
+    render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente" />);
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ana@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "Senha#123" } });
+    const form = screen.getByRole("form", { name: "Entrar" });
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(authMocks.client?.rpc).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Aguarde…" })).toBeDisabled();
+    fireEvent.submit(form);
+    expect(authMocks.client?.auth.signInWithPassword).toHaveBeenCalledOnce();
+    expect(authMocks.client?.rpc).toHaveBeenCalledOnce();
+
+    resolveRpc({ data: "account-1", error: null });
+    await waitFor(() => expect(authMocks.push).toHaveBeenCalledWith("/cliente?barbearia=barbearia-real"));
+  });
+
+  it("releases auth lock after a rejected provider promise", async () => {
+    authMocks.client!.auth.signInWithPassword.mockRejectedValueOnce(new Error("network"));
+    render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente" />);
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ana@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "Senha#123" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Entrar" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível concluir acesso.");
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeEnabled();
+  });
+
+  it("updates password after a valid recovery session and redirects safely", async () => {
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" />);
+    const password = await screen.findByLabelText("Nova senha");
+    fireEvent.change(password, { target: { value: "NovaSenha#123" } });
+    fireEvent.change(screen.getByLabelText("Confirmar nova senha"), { target: { value: "NovaSenha#123" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Redefinir senha" }));
+
+    await waitFor(() => expect(authMocks.client?.auth.updateUser).toHaveBeenCalledWith({ password: "NovaSenha#123" }));
+    expect(authMocks.push).toHaveBeenCalledWith("/cliente?barbearia=barbearia-real");
+  });
+
+  it("rejects weak recovery password before provider mutation", async () => {
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" />);
+    const password = await screen.findByLabelText("Nova senha");
+    fireEvent.change(password, { target: { value: "fraca" } });
+    fireEvent.change(screen.getByLabelText("Confirmar nova senha"), { target: { value: "fraca" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Redefinir senha" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Use uma senha com pelo menos 8 caracteres");
+    expect(authMocks.client?.auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it("shows invalid recovery link when no recovery session exists", async () => {
+    authMocks.client!.auth.getSession.mockResolvedValueOnce({ data: { session: null }, error: null });
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Link inválido ou sessão expirada.");
+    expect(screen.queryByRole("form", { name: "Redefinir senha" })).not.toBeInTheDocument();
   });
 });

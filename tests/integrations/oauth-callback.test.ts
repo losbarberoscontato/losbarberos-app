@@ -48,6 +48,21 @@ describe("OAuth callback return path", () => {
     );
   });
 
+  it("exchanges recovery code into the allowlisted password reset screen", async () => {
+    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+
+    const response = await GET(
+      new Request(
+        "https://app.example/auth/callback?code=recovery-code&next=%2Fcliente%2Fredefinir-senha&barbearia=Barbearia-Real",
+      ) as NextRequest,
+    );
+
+    expect(exchangeCodeForSession).toHaveBeenCalledWith("recovery-code");
+    expect(response.headers.get("location")).toBe(
+      "https://app.example/cliente/redefinir-senha?barbearia=barbearia-real",
+    );
+  });
+
   it.each([
     ["Barbearia-Real", "Barbearia-Real"],
     ["barbearia-real", "outra-barbearia"],

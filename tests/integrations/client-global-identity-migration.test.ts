@@ -72,6 +72,19 @@ describe("global client identity migration", () => {
     expect(normalizedSql).not.toContain("'^\\\\+'");
   });
 
+  it("requires confirmed auth email before creating or updating the global account", () => {
+    const upsertSql = functionSql("upsert_my_client_account");
+
+    expect(upsertSql).toContain("from auth.users");
+    expect(upsertSql).toContain("email_confirmed_at is not null");
+    expect(upsertSql).toContain("errcode = '42501'");
+    expect(upsertSql).toContain("email confirmation required");
+    expect(invariantSql).toContain("select plan(120)");
+    expect(invariantSql).toContain(
+      "unconfirmed auth email cannot upsert global client account",
+    );
+  });
+
   it("keeps reviews private and blocks manager canonical-field changes", () => {
     expect(normalizedSql).toContain("create table public.customer_link_reviews");
     expect(normalizedSql).toContain("status in ('open', 'approved', 'rejected')");

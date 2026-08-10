@@ -8,6 +8,7 @@ const clientDestinations = new Set([
   "/cliente/agendar",
   "/cliente/reservas",
   "/cliente/perfil",
+  "/cliente/redefinir-senha",
 ]);
 
 function isValidIsoDate(value: string): boolean {
@@ -15,16 +16,18 @@ function isValidIsoDate(value: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+export const clientPasswordSchema = z
+  .string()
+  .min(8)
+  .regex(/\p{L}/u)
+  .regex(/\p{N}/u)
+  .regex(/[^\p{L}\p{N}]/u);
+
 export const clientSignupSchema = z.object({
   fullName: z.string().trim().min(2).max(160),
   phoneE164: z.string().regex(/^[+][1-9][0-9]{7,14}$/u),
   email: z.string().trim().toLowerCase().pipe(z.email()),
-  password: z
-    .string()
-    .min(8)
-    .regex(/\p{L}/u)
-    .regex(/\p{N}/u)
-    .regex(/[^\p{L}\p{N}]/u),
+  password: clientPasswordSchema,
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u).refine(isValidIsoDate),
   acceptedTerms: z.literal(true),
 });

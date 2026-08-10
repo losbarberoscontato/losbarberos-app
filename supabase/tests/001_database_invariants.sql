@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_temp;
 
-select plan(119);
+select plan(120);
 
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -812,7 +812,9 @@ insert into auth.users (
   ('10000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated',
     'manager-client-test@example.test', now(), '+5511999991006', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
   ('10000000-0000-4000-8000-000000000007', 'authenticated', 'authenticated',
-    'client-c@example.test', now(), '+5511999991007', now(), '{}'::jsonb, '{}'::jsonb, now(), now());
+    'client-c@example.test', now(), '+5511999991007', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('10000000-0000-4000-8000-000000000008', 'authenticated', 'authenticated',
+    'client-unconfirmed@example.test', null, null, null, '{}'::jsonb, '{}'::jsonb, now(), now());
 
 insert into public.organizations (id, name, slug, timezone, created_by) values
   ('20000000-0000-4000-8000-000000000003', 'Barbearia Tres', 'barbearia-tres', 'America/Sao_Paulo', '10000000-0000-4000-8000-000000000006'),
@@ -838,6 +840,16 @@ select throws_ok(
 select is(
   (select full_name from public.client_accounts), 'Cliente A',
   'client A can read own account'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000008', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select throws_ok(
+  $$select public.upsert_my_client_account('Cliente Sem Confirmacao', '+5511999991008', '1993-04-05', 'v1')$$,
+  '42501', 'email confirmation required',
+  'unconfirmed auth email cannot upsert global client account'
 );
 reset role;
 

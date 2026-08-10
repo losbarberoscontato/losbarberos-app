@@ -7,6 +7,7 @@ describe("clientAuthDestination", () => {
     ["/cliente/agendar", "/cliente/agendar?barbearia=barbearia-real"],
     ["/cliente/reservas", "/cliente/reservas?barbearia=barbearia-real"],
     ["/cliente/perfil", "/cliente/perfil?barbearia=barbearia-real"],
+    ["/cliente/redefinir-senha", "/cliente/redefinir-senha?barbearia=barbearia-real"],
   ])("keeps allowed client path %s with normalized tenant context", (next, expected) => {
     expect(clientAuthDestination({ next, slug: " Barbearia-Real " })).toBe(expected);
   });

@@ -287,6 +287,14 @@ begin
   if v_user_id is null then
     raise exception using errcode = '28000', message = 'authentication required';
   end if;
+  if not exists (
+    select 1
+    from auth.users u
+    where u.id = v_user_id
+      and u.email_confirmed_at is not null
+  ) then
+    raise exception using errcode = '42501', message = 'email confirmation required';
+  end if;
   if nullif(btrim(p_full_name), '') is null
      or nullif(btrim(p_terms_policy_version), '') is null
      or p_phone_e164 !~ '^[+][1-9][0-9]{7,14}$' then
