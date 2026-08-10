@@ -16,10 +16,10 @@ Assuma o volante técnico para investigar e implementar os próximos relatos de 
 ## Baseline publicado
 
 - GitHub: `https://github.com/losbarberoscontato/losbarberos-app`, branch `main`.
-- Commit publicado no preflight desta fase: `ec80d03`.
+- Entrega funcional publicada mais recente: `acb57df` (`merge: refine local cash movement layout`). Confirme o SHA atual de `origin/main` no preflight.
 - Vercel: `https://losbarberos-app.vercel.app`.
 - Supabase: projeto `Los Barberos`, ref `bwdjkhqshmppescunwer`.
-- Migrations remotas sincronizadas até `202608090002`.
+- Migrations remotas sincronizadas até `202608090003`.
 - Stripe Display SH permanece em Test mode; price `price_1U18IW0StL37D8g9quhZW9RN`; trial de 14 dias.
 - Edge Functions Stripe permanecem na versão 5.
 
@@ -39,11 +39,11 @@ Assuma o volante técnico para investigar e implementar os próximos relatos de 
 - Modal conectado de Novo agendamento no padrão da demo.
 - Login sem credenciais preenchidas, mensagens temporárias e telefone com `+55` padrão.
 - Tipografia ampliada para melhor legibilidade PWA/mobile.
-- Caixa financeiro em avaliação local na branch `codex/caixa-financeiro`: contas, fornecedores, cadastros financeiros, lançamentos, liquidações, transferências e recebimentos vinculados a agendamentos.
-- O Supabase já recebeu as migrations `202608090001_financial_cash.sql` e `202608090002_chart_account_templates.sql`, mas o código destas entregas ainda não foi enviado ao GitHub nem publicado na Vercel.
+- Caixa financeiro publicado: contas, fornecedores, cadastros financeiros, lançamentos, liquidações, transferências e recebimentos vinculados a agendamentos.
+- Migrations `202608090001_financial_cash.sql`, `202608090002_chart_account_templates.sql` e `202608090003_cash_default_account.sql` aplicadas no Supabase. Código do Caixa publicado no GitHub/Vercel pela integração do repositório.
 - No Caixa, `payment_transactions` permanece fonte de verdade dos pagamentos de agendamento. Demo não grava no Supabase; estorno manual reabre apenas o saldo financeiro e preserva o agendamento `COMPLETED`.
 - Planos de conta padrão: template global com 42 contas do PDF de barbearia, copiado automaticamente para organizações criadas após `202608090002`. A substituição de um tenant só é permitida sem lançamentos financeiros vinculados.
-- Caixa local: `202608090003_cash_default_account.sql` está pendente de autorização/aplicação remota. Ela cria a conta padrão tenant-safe `Caixa Físico`, o mapeamento `MANUAL/COUNTER` sem sobrescrever configuração existente e o campo `financial_accounts.description`.
+- Caixa: `financial_accounts.description`; conta tenant-safe padrão `Caixa Físico`; mapeamento `MANUAL/COUNTER` sem sobrescrever configuração existente. Em Movimentações, `Cliente/Fornecedor` fica acima da descrição completa, sem truncamento.
 
 ## Regras de trabalho
 
