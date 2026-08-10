@@ -79,7 +79,7 @@ describe("global client identity migration", () => {
     expect(upsertSql).toContain("email_confirmed_at is not null");
     expect(upsertSql).toContain("errcode = '42501'");
     expect(upsertSql).toContain("email confirmation required");
-    expect(invariantSql).toContain("select plan(120)");
+    expect(invariantSql).toContain("select plan(122)");
     expect(invariantSql).toContain(
       "unconfirmed auth email cannot upsert global client account",
     );
@@ -182,6 +182,24 @@ describe("global client identity migration", () => {
       expect(firstCustomerSource).toBeGreaterThan(tenantLock);
       expect(firstCustomerLock).toBeGreaterThan(tenantLock);
     }
+  });
+
+  it("binds only the organization identity rendered to the client before any customer write", () => {
+    const linkSql = functionSql("link_my_client_to_organization");
+    const organizationLookup = linkSql.indexOf("where o.id = p_expected_organization_id");
+    const slugCheck = linkSql.indexOf("and o.slug = btrim(p_organization_slug)");
+    const firstCustomerWrite = linkSql.indexOf("insert into public.customers");
+
+    expect(linkSql).toContain("p_expected_organization_id uuid");
+    expect(organizationLookup).toBeGreaterThanOrEqual(0);
+    expect(slugCheck).toBeGreaterThan(organizationLookup);
+    expect(firstCustomerWrite).toBeGreaterThan(slugCheck);
+    expect(normalizedSql).toContain(
+      "grant execute on function public.link_my_client_to_organization(text, uuid)",
+    );
+    expect(normalizedSql).not.toContain(
+      "grant execute on function public.link_my_client_to_organization(text)",
+    );
   });
 
   it("covers exact claims, canonical sync and direct evidence spoofing in pgTAP", () => {

@@ -55,16 +55,20 @@ export function ConnectedClientGate({ children }: { children: React.ReactNode })
           {pendingReview
             ? "Vínculo enviado para revisão pela barbearia."
             : claimRequired
-              ? "Encontramos um cadastro existente. Confirmação adicional será necessária."
+              ? "Encontramos um cadastro existente. Confirme que este cadastro é seu para continuar."
               : "Confirme para criar sua relação com esta barbearia. Visitar o link não cria vínculo."}
         </p>
-        {!pendingReview && !claimRequired && (
+        {!pendingReview && (
           <button
             type="button"
             disabled={linkStatus === "LINKING"}
             onClick={() => void confirmTenantLink().catch(() => undefined)}
           >
-            {linkStatus === "LINKING" ? "Entrando…" : "Entrar nesta barbearia"}
+            {linkStatus === "LINKING"
+              ? "Entrando…"
+              : claimRequired
+                ? "Confirmar cadastro encontrado"
+                : "Entrar nesta barbearia"}
           </button>
         )}
         {error && <p className={styles.error} role="alert">{error}</p>}

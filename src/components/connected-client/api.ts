@@ -5,6 +5,7 @@ import type {
   Availability,
   BookingSelection,
   ClientAccount,
+  ClientClaimResult,
   ClientLinkResult,
   ClientOrganization,
   Customer,
@@ -89,11 +90,25 @@ export async function listMyClientOrganizations(
 export async function linkMyClientToOrganization(
   supabase: SupabaseClient,
   slug: string,
+  expectedOrganizationId: string,
 ): Promise<ClientLinkResult> {
   const { data, error } = await supabase.rpc("link_my_client_to_organization", {
     p_organization_slug: slug,
+    p_expected_organization_id: expectedOrganizationId,
   });
   return assertData(data as ClientLinkResult | null, error, "Não foi possível entrar nesta barbearia.");
+}
+
+export async function claimMyExistingCustomer(
+  supabase: SupabaseClient,
+  organizationId: string,
+  customerId: string,
+): Promise<ClientClaimResult> {
+  const { data, error } = await supabase.rpc("claim_my_existing_customer", {
+    p_organization_id: organizationId,
+    p_customer_id: customerId,
+  });
+  return assertData(data as ClientClaimResult | null, error, "Não foi possível confirmar cadastro existente.");
 }
 
 export async function getMyCustomer(

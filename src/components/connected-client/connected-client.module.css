@@ -152,7 +152,6 @@
 .userMark { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 15px; background: #e7f0e9; color: #25604f; }
 .authPrompt > button { min-height: 46px; display: flex; align-items: center; justify-content: center; gap: 9px; padding: 0 20px; border: 1px solid #d6d0c5; border-radius: 11px; background: #fff; color: #22332d; font-weight: 850; box-shadow: 0 5px 16px rgb(25 48 40 / 7%); }
 .authPrompt > button:disabled { opacity: .55; }
-.googleMark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(from -40deg,#4285f4 0 25%,#34a853 0 50%,#fbbc05 0 75%,#ea4335 0); color: #fff; font-weight: 900; }
 .authPrompt > small { max-width: 430px; color: #858981; font-size: 9px; }
 
 .authForm { width: min(500px, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 12px; margin: 34px auto; padding: 30px; border: 1px solid #ded8cc; border-radius: 20px; background: #fffefa; box-shadow: 0 14px 34px rgb(25 47 39 / 7%); }

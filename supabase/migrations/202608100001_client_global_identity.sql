@@ -325,7 +325,8 @@ end;
 $$;
 
 create or replace function public.link_my_client_to_organization(
-  p_organization_slug text
+  p_organization_slug text,
+  p_expected_organization_id uuid
 )
 returns jsonb
 language plpgsql
@@ -352,16 +353,23 @@ begin
   if nullif(btrim(p_organization_slug), '') is null then
     raise exception using errcode = '22023', message = 'organization slug required';
   end if;
+  if p_expected_organization_id is null then
+    raise exception using errcode = '22023', message = 'organization identity required';
+  end if;
 
   select * into strict v_account
   from public.client_accounts ca
   where ca.auth_user_id = v_user_id
   for update;
 
-  select * into strict v_organization
+  select * into v_organization
   from public.organizations o
-  where o.slug = btrim(p_organization_slug)
+  where o.id = p_expected_organization_id
+    and o.slug = btrim(p_organization_slug)
   for key share;
+  if not found then
+    raise exception using errcode = '22023', message = 'organization identity changed';
+  end if;
 
   if not public.organization_accepts_new_bookings(v_organization.id) then
     raise exception using errcode = '42501', message = 'organization is not accepting customer onboarding';
@@ -662,7 +670,7 @@ revoke all on function public.sync_client_account_to_linked_customers()
   from public, anon, authenticated;
 revoke all on function public.upsert_my_client_account(text, text, date, text)
   from public, anon, authenticated;
-revoke all on function public.link_my_client_to_organization(text)
+revoke all on function public.link_my_client_to_organization(text, uuid)
   from public, anon, authenticated;
 revoke all on function public.list_my_client_organizations()
   from public, anon, authenticated;
@@ -671,7 +679,7 @@ revoke all on function public.claim_my_existing_customer(uuid, uuid)
 
 grant execute on function public.upsert_my_client_account(text, text, date, text)
   to authenticated;
-grant execute on function public.link_my_client_to_organization(text)
+grant execute on function public.link_my_client_to_organization(text, uuid)
   to authenticated;
 grant execute on function public.list_my_client_organizations()
   to authenticated;

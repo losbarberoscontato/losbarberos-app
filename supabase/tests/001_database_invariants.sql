@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_temp;
 
-select plan(120);
+select plan(122);
 
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -881,19 +881,38 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 create temporary table client_link_context (first_link jsonb not null);
+select throws_ok(
+  $$select public.link_my_client_to_organization(
+    'barbearia-tres', '20000000-0000-4000-8000-000000000004'
+  )$$,
+  '22023', 'organization identity changed',
+  'stale slug and organization identity cannot create a link in another tenant'
+);
+select is(
+  (select count(*) from public.customers
+    where auth_user_id = '10000000-0000-4000-8000-000000000004'),
+  0::bigint,
+  'stale tenant identity rejection writes no customer relation'
+);
 insert into client_link_context
-select public.link_my_client_to_organization('barbearia-tres');
+select public.link_my_client_to_organization(
+  'barbearia-tres', '20000000-0000-4000-8000-000000000003'
+);
 select is(
   (select first_link ->> 'status' from client_link_context), 'LINKED',
   'explicit link creates a tenant customer when no verified candidate exists'
 );
 select is(
-  public.link_my_client_to_organization('barbearia-tres') ->> 'customer_id',
+  public.link_my_client_to_organization(
+    'barbearia-tres', '20000000-0000-4000-8000-000000000003'
+  ) ->> 'customer_id',
   (select first_link ->> 'customer_id' from client_link_context),
   'explicit link retry returns same tenant customer'
 );
 select is(
-  public.link_my_client_to_organization('barbearia-quatro') ->> 'status', 'LINKED',
+  public.link_my_client_to_organization(
+    'barbearia-quatro', '20000000-0000-4000-8000-000000000004'
+  ) ->> 'status', 'LINKED',
   'same global client can explicitly link a second organization'
 );
 select is(
@@ -952,7 +971,9 @@ select lives_ok(
 );
 create temporary table client_exact_claim_context (link_result jsonb not null);
 insert into client_exact_claim_context
-select public.link_my_client_to_organization('barbearia-quatro');
+select public.link_my_client_to_organization(
+  'barbearia-quatro', '20000000-0000-4000-8000-000000000004'
+);
 select is(
   (select link_result ->> 'status' from client_exact_claim_context),
   'CLAIM_REQUIRED', 'exact one verified candidate requires explicit claim'

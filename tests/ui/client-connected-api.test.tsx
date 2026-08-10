@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import {
   createMercadoPagoCheckout,
+  claimMyExistingCustomer,
   getAvailableSlots,
   getMyClientAccount,
   getPublicBookingContext,
@@ -81,13 +82,31 @@ describe("contratos Supabase do cliente conectado", () => {
     const rpc = vi.fn().mockResolvedValue({ data: relation, error: null });
     const supabase = { rpc } as unknown as SupabaseClient;
 
-    await expect(linkMyClientToOrganization(supabase, "barbearia-real")).resolves.toEqual(relation);
-    await expect(linkMyClientToOrganization(supabase, "barbearia-real")).resolves.toEqual(relation);
+    await expect(linkMyClientToOrganization(supabase, "barbearia-real", "organization-1")).resolves.toEqual(relation);
+    await expect(linkMyClientToOrganization(supabase, "barbearia-real", "organization-1")).resolves.toEqual(relation);
     expect(rpc).toHaveBeenNthCalledWith(1, "link_my_client_to_organization", {
       p_organization_slug: "barbearia-real",
+      p_expected_organization_id: "organization-1",
     });
     expect(rpc).toHaveBeenNthCalledWith(2, "link_my_client_to_organization", {
       p_organization_slug: "barbearia-real",
+      p_expected_organization_id: "organization-1",
+    });
+  });
+
+  it("confirma cadastro existente somente pelo par tenant e customer retornado", async () => {
+    const result = {
+      status: "LINKED",
+      organization_id: "organization-1",
+      customer_id: "customer-1",
+    };
+    const rpc = vi.fn().mockResolvedValue({ data: result, error: null });
+    const supabase = { rpc } as unknown as SupabaseClient;
+
+    await expect(claimMyExistingCustomer(supabase, "organization-1", "customer-1")).resolves.toEqual(result);
+    expect(rpc).toHaveBeenCalledWith("claim_my_existing_customer", {
+      p_organization_id: "organization-1",
+      p_customer_id: "customer-1",
     });
   });
 

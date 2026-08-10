@@ -92,14 +92,22 @@ function installProviderClient({
   failFirstLink = false,
   deferAuth = false,
   deferLink = false,
+  deferClaim = false,
   initiallyLinked = false,
+  claimRequired = false,
+  reviewAfterClaim = false,
+  mismatchedClaim = false,
   mismatchedLink = false,
 }: {
   authenticated: boolean;
   failFirstLink?: boolean;
   deferAuth?: boolean;
   deferLink?: boolean;
+  deferClaim?: boolean;
   initiallyLinked?: boolean;
+  claimRequired?: boolean;
+  reviewAfterClaim?: boolean;
+  mismatchedClaim?: boolean;
   mismatchedLink?: boolean;
 }) {
   const user = authenticated
@@ -136,6 +144,7 @@ function installProviderClient({
   let firstLink = failFirstLink;
   let resolveAuth: (() => void) | null = null;
   let resolveLink: (() => void) | null = null;
+  let resolveClaim: (() => void) | null = null;
   const authResult = { data: { user }, error: null };
   const authPromise = deferAuth
     ? new Promise<typeof authResult>((resolve) => {
@@ -153,20 +162,55 @@ function installProviderClient({
   };
   const linkPromise = deferLink
     ? new Promise<typeof linkResult>((resolve) => {
-        resolveLink = () => resolve(linkResult);
+        resolveLink = () => {
+          linked = true;
+          resolve(linkResult);
+        };
+      })
+    : null;
+  const claimResult = {
+    data: {
+      status: reviewAfterClaim ? "REVIEW_REQUIRED" : "LINKED",
+      organization_id: mismatchedClaim ? "organization-other" : relation.organization_id,
+      customer_id: mismatchedClaim ? "customer-other" : relation.customer_id,
+    },
+    error: null,
+  };
+  const claimPromise = deferClaim
+    ? new Promise<typeof claimResult>((resolve) => {
+        resolveClaim = () => {
+          if (!reviewAfterClaim && !mismatchedClaim) linked = true;
+          resolve(claimResult);
+        };
       })
     : null;
   const rpc = vi.fn(async (name: string) => {
     if (name === "get_public_booking_context") return { data: context, error: null };
     if (name === "list_my_client_organizations") return { data: linked ? [relation] : [], error: null };
     if (name === "link_my_client_to_organization") {
-      linked = true;
       if (linkPromise) return linkPromise;
       if (firstLink) {
         firstLink = false;
         return { data: null, error: { message: "network interrupted after commit" } };
       }
+      if (claimRequired) {
+        return {
+          data: {
+            status: "CLAIM_REQUIRED",
+            organization_id: relation.organization_id,
+            organization_slug: relation.organization_slug,
+            customer_id: relation.customer_id,
+          },
+          error: null,
+        };
+      }
+      linked = true;
       return linkResult;
+    }
+    if (name === "claim_my_existing_customer") {
+      if (claimPromise) return claimPromise;
+      if (!reviewAfterClaim && !mismatchedClaim) linked = true;
+      return claimResult;
     }
     throw new Error(`RPC inesperada: ${name}`);
   });
@@ -186,6 +230,7 @@ function installProviderClient({
     from,
     rpc,
     resolveAuth: () => resolveAuth?.(),
+    resolveClaim: () => resolveClaim?.(),
     resolveLink: () => resolveLink?.(),
   };
 }
@@ -319,6 +364,10 @@ describe("cliente conectado", () => {
     expect(from).not.toHaveBeenCalledWith("customers");
 
     fireEvent.click(enter);
+    expect(rpc).toHaveBeenCalledWith("link_my_client_to_organization", {
+      p_organization_slug: "barbearia-real",
+      p_expected_organization_id: context.organization.id,
+    });
     expect(await screen.findByRole("alert")).toHaveTextContent("network interrupted after commit");
     expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
 
@@ -326,6 +375,95 @@ describe("cliente conectado", () => {
     expect(await screen.findByText("conteúdo tenant")).toBeInTheDocument();
     expect(rpc.mock.calls.filter(([name]) => name === "link_my_client_to_organization")).toHaveLength(2);
     expect(from).toHaveBeenCalledWith("customers");
+  });
+
+  it("permite confirmar explicitamente um cadastro existente antes de carregar dados tenant", async () => {
+    const { from, rpc } = installProviderClient({ authenticated: true, claimRequired: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate><div>conteúdo tenant</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    expect(await screen.findByRole("button", { name: "Confirmar cadastro encontrado" })).toBeEnabled();
+    expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
+    expect(from).not.toHaveBeenCalledWith("customers");
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cadastro encontrado" }));
+    expect(await screen.findByText("conteúdo tenant")).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledWith("claim_my_existing_customer", {
+      p_organization_id: context.organization.id,
+      p_customer_id: "customer-1",
+    });
+    expect(from).toHaveBeenCalledWith("customers");
+  });
+
+  it("deduplica confirmações concorrentes do cadastro existente", async () => {
+    const { resolveClaim, rpc } = installProviderClient({
+      authenticated: true,
+      claimRequired: true,
+      deferClaim: true,
+    });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate><div>conteúdo tenant</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    const claimButton = await screen.findByRole("button", { name: "Confirmar cadastro encontrado" });
+    fireEvent.click(claimButton);
+    fireEvent.click(claimButton);
+    await waitFor(() => {
+      expect(rpc.mock.calls.filter(([name]) => name === "claim_my_existing_customer")).toHaveLength(1);
+    });
+    resolveClaim();
+    expect(await screen.findByText("conteúdo tenant")).toBeInTheDocument();
+  });
+
+  it("mantém o tenant bloqueado quando a confirmação do cadastro exige revisão", async () => {
+    const { from } = installProviderClient({
+      authenticated: true,
+      claimRequired: true,
+      reviewAfterClaim: true,
+    });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate><div>conteúdo tenant</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar cadastro encontrado" }));
+    expect(await screen.findByText("Vínculo enviado para revisão pela barbearia.")).toBeInTheDocument();
+    expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
+    expect(from).not.toHaveBeenCalledWith("customers");
+  });
+
+  it("recusa resposta de confirmação para outro cadastro antes de carregar customer", async () => {
+    const { from } = installProviderClient({
+      authenticated: true,
+      claimRequired: true,
+      mismatchedClaim: true,
+    });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate><div>conteúdo tenant</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar cadastro encontrado" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Resposta de confirmação não corresponde ao cadastro selecionado.",
+    );
+    expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
+    expect(from).not.toHaveBeenCalledWith("customers");
   });
 
   it("oferece login por e-mail com slug preservado sem criar vínculo", async () => {

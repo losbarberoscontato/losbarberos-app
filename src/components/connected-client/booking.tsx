@@ -300,7 +300,7 @@ function BookingContent() {
       {step === 3 && choice && barber && startsAt && (
         <div className={styles.reviewGrid}>
           <div className={styles.reviewMain}>
-            {!user ? <AuthPrompt description="Google identifica cliente antes de criar hold e pagamento." /> : (
+            {!user ? <AuthPrompt description="Entre com e-mail para identificar seu cadastro antes de criar hold e pagamento." /> : (
               <>
                 <section className={styles.panel}>
                   <div className={styles.sectionTitle}><UserRound aria-hidden="true" /><div><h2>Seus dados</h2><p>Telefone E.164 recebe confirmações transacionais.</p></div></div>

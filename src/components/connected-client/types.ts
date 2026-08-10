@@ -96,6 +96,12 @@ export type ClientLinkResult = {
   customer_id?: string;
 };
 
+export type ClientClaimResult = {
+  status: "LINKED" | "REVIEW_REQUIRED";
+  organization_id: string;
+  customer_id: string;
+};
+
 export type ClientLinkStatus =
   | "IDLE"
   | "LOADING"
