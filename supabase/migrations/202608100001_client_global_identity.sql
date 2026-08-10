@@ -4,7 +4,7 @@
 create table public.client_accounts (
   auth_user_id uuid primary key references auth.users(id) on delete cascade,
   full_name text not null check (char_length(btrim(full_name)) between 2 and 160),
-  phone_e164 text not null check (phone_e164 ~ '^\\+[1-9][0-9]{7,14}$'),
+  phone_e164 text not null check (phone_e164 ~ '^[+][1-9][0-9]{7,14}$'),
   phone_verified_at timestamptz,
   birth_date date,
   terms_policy_version text not null check (char_length(btrim(terms_policy_version)) between 1 and 120),
@@ -17,6 +17,22 @@ create table public.client_accounts (
 create unique index client_accounts_verified_phone_unique
   on public.client_accounts (phone_e164)
   where phone_verified_at is not null;
+
+create schema if not exists app_private;
+revoke all on schema app_private from public, anon, authenticated;
+
+-- A row exists only while a trusted SECURITY DEFINER path is performing its
+-- canonical customer write. API roles cannot create or inspect this context.
+create table app_private.client_identity_write_context (
+  backend_pid integer not null,
+  transaction_id bigint not null,
+  auth_user_id uuid not null,
+  purpose text not null check (purpose in ('SYNC', 'CLAIM')),
+  created_at timestamptz not null default clock_timestamp(),
+  primary key (backend_pid, transaction_id, auth_user_id)
+);
+
+revoke all on app_private.client_identity_write_context from public, anon, authenticated;
 
 create table public.customer_link_reviews (
   id uuid primary key default gen_random_uuid(),
@@ -79,15 +95,18 @@ as $$
 declare
   v_account public.client_accounts%rowtype;
   v_email text;
+  v_identity_user_id uuid;
+  v_trusted_write boolean := false;
 begin
-  if old.auth_user_id is null
-     or (
-       new.auth_user_id is not distinct from old.auth_user_id
-       and new.full_name is not distinct from old.full_name
-       and new.phone_e164 is not distinct from old.phone_e164
-       and new.email is not distinct from old.email
-       and new.birth_date is not distinct from old.birth_date
-     ) then
+  if new.auth_user_id is not distinct from old.auth_user_id
+     and new.full_name is not distinct from old.full_name
+     and new.phone_e164 is not distinct from old.phone_e164
+     and new.email is not distinct from old.email
+     and new.birth_date is not distinct from old.birth_date then
+    return new;
+  end if;
+
+  if old.auth_user_id is null and new.auth_user_id is null then
     return new;
   end if;
 
@@ -95,15 +114,33 @@ begin
     return new;
   end if;
 
+  v_identity_user_id := new.auth_user_id;
+  if v_identity_user_id is not null then
+    select exists (
+      select 1
+      from app_private.client_identity_write_context ctx
+      where ctx.backend_pid = pg_backend_pid()
+        and ctx.transaction_id = txid_current()
+        and ctx.auth_user_id = v_identity_user_id
+        and ctx.purpose in ('SYNC', 'CLAIM')
+    ) into v_trusted_write;
+  end if;
+
+  if not v_trusted_write then
+    raise exception using
+      errcode = '42501',
+      message = 'linked customer canonical fields are client-controlled';
+  end if;
+
   select * into strict v_account
   from public.client_accounts ca
-  where ca.auth_user_id = old.auth_user_id;
+  where ca.auth_user_id = v_identity_user_id;
 
   select nullif(btrim(u.email), '') into v_email
   from auth.users u
-  where u.id = old.auth_user_id;
+  where u.id = v_identity_user_id;
 
-  if new.auth_user_id is distinct from old.auth_user_id
+  if new.auth_user_id is distinct from v_identity_user_id
      or new.full_name is distinct from v_account.full_name
      or new.phone_e164 is distinct from v_account.phone_e164
      or new.email is distinct from v_email
@@ -113,6 +150,49 @@ begin
       message = 'linked customer canonical fields are client-controlled';
   end if;
 
+  return new;
+end;
+$$;
+
+-- Preserve the existing self-service boundary while allowing only the same
+-- private claim context to attach an unlinked tenant customer.
+create or replace function public.protect_customer_self_service_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_trusted_write boolean := false;
+begin
+  if coalesce(auth.role(), '') = 'service_role'
+     or public.is_platform_admin()
+     or public.is_organization_owner(old.organization_id) then
+    return new;
+  end if;
+
+  if new.auth_user_id is not null then
+    select exists (
+      select 1
+      from app_private.client_identity_write_context ctx
+      where ctx.backend_pid = pg_backend_pid()
+        and ctx.transaction_id = txid_current()
+        and ctx.auth_user_id = new.auth_user_id
+        and ctx.purpose in ('SYNC', 'CLAIM')
+    ) into v_trusted_write;
+  end if;
+
+  if v_trusted_write then
+    return new;
+  end if;
+
+  if old.auth_user_id is distinct from auth.uid()
+     or new.auth_user_id is distinct from old.auth_user_id
+     or (to_jsonb(new) - array['full_name', 'phone_e164', 'email', 'birth_date', 'updated_at'])
+        is distinct from
+        (to_jsonb(old) - array['full_name', 'phone_e164', 'email', 'birth_date', 'updated_at']) then
+    raise exception using errcode = '42501', message = 'customer may update only own contact fields';
+  end if;
   return new;
 end;
 $$;
@@ -130,6 +210,14 @@ begin
   from auth.users u
   where u.id = new.auth_user_id;
 
+  insert into app_private.client_identity_write_context (
+    backend_pid, transaction_id, auth_user_id, purpose
+  ) values (
+    pg_backend_pid(), txid_current(), new.auth_user_id, 'SYNC'
+  )
+  on conflict (backend_pid, transaction_id, auth_user_id)
+  do update set purpose = excluded.purpose, created_at = clock_timestamp();
+
   update public.customers c
   set full_name = new.full_name,
       phone_e164 = new.phone_e164,
@@ -142,6 +230,11 @@ begin
       or c.email is distinct from v_email
       or c.birth_date is distinct from new.birth_date
     );
+
+  delete from app_private.client_identity_write_context ctx
+  where ctx.backend_pid = pg_backend_pid()
+    and ctx.transaction_id = txid_current()
+    and ctx.auth_user_id = new.auth_user_id;
 
   return new;
 end;
@@ -175,10 +268,6 @@ alter table public.customer_link_reviews force row level security;
 create policy client_accounts_self_select on public.client_accounts
   for select to authenticated
   using (auth_user_id = auth.uid());
-create policy client_accounts_self_update on public.client_accounts
-  for update to authenticated
-  using (auth_user_id = auth.uid())
-  with check (auth_user_id = auth.uid());
 
 create or replace function public.upsert_my_client_account(
   p_full_name text,
@@ -200,7 +289,7 @@ begin
   end if;
   if nullif(btrim(p_full_name), '') is null
      or nullif(btrim(p_terms_policy_version), '') is null
-     or p_phone_e164 !~ '^\\+[1-9][0-9]{7,14}$' then
+     or p_phone_e164 !~ '^[+][1-9][0-9]{7,14}$' then
     raise exception using errcode = '22023', message = 'invalid client account profile';
   end if;
 
@@ -486,6 +575,14 @@ begin
   if cardinality(v_candidate_ids) = 1
      and v_candidate_ids[1] = p_customer_id
      and v_customer.auth_user_id is null then
+    insert into app_private.client_identity_write_context (
+      backend_pid, transaction_id, auth_user_id, purpose
+    ) values (
+      pg_backend_pid(), txid_current(), v_user_id, 'CLAIM'
+    )
+    on conflict (backend_pid, transaction_id, auth_user_id)
+    do update set purpose = excluded.purpose, created_at = clock_timestamp();
+
     update public.customers c
     set auth_user_id = v_user_id,
         full_name = v_account.full_name,
@@ -493,6 +590,11 @@ begin
         email = v_email,
         birth_date = v_account.birth_date
     where c.id = p_customer_id and c.organization_id = p_organization_id;
+
+    delete from app_private.client_identity_write_context ctx
+    where ctx.backend_pid = pg_backend_pid()
+      and ctx.transaction_id = txid_current()
+      and ctx.auth_user_id = v_user_id;
 
     return jsonb_build_object(
       'status', 'LINKED', 'organization_id', p_organization_id,
@@ -528,11 +630,13 @@ $$;
 
 revoke all on table public.client_accounts, public.customer_link_reviews
   from public, anon, authenticated;
-grant select, update on table public.client_accounts to authenticated;
+grant select on table public.client_accounts to authenticated;
 
 revoke all on function public.set_client_account_phone_verification()
   from public, anon, authenticated;
 revoke all on function public.protect_linked_customer_canonical_fields()
+  from public, anon, authenticated;
+revoke all on function public.protect_customer_self_service_fields()
   from public, anon, authenticated;
 revoke all on function public.sync_client_account_to_linked_customers()
   from public, anon, authenticated;

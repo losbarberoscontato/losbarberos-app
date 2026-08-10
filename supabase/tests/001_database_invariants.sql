@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_temp;
 
-select plan(113);
+select plan(119);
 
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -810,7 +810,9 @@ insert into auth.users (
   ('10000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated',
     'client-b@example.test', now(), '+5511999991005', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
   ('10000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated',
-    'manager-client-test@example.test', now(), '+5511999991006', now(), '{}'::jsonb, '{}'::jsonb, now(), now());
+    'manager-client-test@example.test', now(), '+5511999991006', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('10000000-0000-4000-8000-000000000007', 'authenticated', 'authenticated',
+    'client-c@example.test', now(), '+5511999991007', now(), '{}'::jsonb, '{}'::jsonb, now(), now());
 
 insert into public.organizations (id, name, slug, timezone, created_by) values
   ('20000000-0000-4000-8000-000000000003', 'Barbearia Tres', 'barbearia-tres', 'America/Sao_Paulo', '10000000-0000-4000-8000-000000000006'),
@@ -826,15 +828,15 @@ select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select lives_ok(
   $$select public.upsert_my_client_account('Cliente A', '+5511999991004', '1990-01-02', 'v1')$$,
-  'client A can create own global account through RPC'
+  'valid E.164 plus prefix creates global account through RPC'
 );
-select lives_ok(
-  $$update public.client_accounts set full_name = 'Cliente A Atualizado'
-    where auth_user_id = '10000000-0000-4000-8000-000000000004'$$,
-  'client A can update only own client account'
+select throws_ok(
+  $$select public.upsert_my_client_account('Cliente A', '5511999991004', '1990-01-02', 'v1')$$,
+  '22023', 'invalid client account profile',
+  'phone without E.164 plus prefix is rejected'
 );
 select is(
-  (select full_name from public.client_accounts), 'Cliente A Atualizado',
+  (select full_name from public.client_accounts), 'Cliente A',
   'client A can read own account'
 );
 reset role;
@@ -846,17 +848,22 @@ select is(
   (select count(*) from public.client_accounts), 0::bigint,
   'client B cannot read client A account'
 );
-select lives_ok(
-  $$update public.client_accounts set full_name = 'Tentativa B'
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select throws_ok(
+  $$update public.client_accounts set phone_verified_at = now()
     where auth_user_id = '10000000-0000-4000-8000-000000000004'$$,
-  'client B update cannot target client A account'
+  '42501', null, 'client cannot spoof verified phone evidence directly'
+);
+select throws_ok(
+  $$update public.client_accounts set terms_accepted_at = now() + interval '1 day'
+    where auth_user_id = '10000000-0000-4000-8000-000000000004'$$,
+  '42501', null, 'client cannot spoof terms acceptance evidence directly'
 );
 reset role;
-select is(
-  (select full_name from public.client_accounts
-    where auth_user_id = '10000000-0000-4000-8000-000000000004'),
-  'Cliente A Atualizado', 'client B cannot alter client A account'
-);
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004', true);
@@ -881,6 +888,19 @@ select is(
   jsonb_array_length(public.list_my_client_organizations()), 2,
   'client organization list exposes only own two tenant links'
 );
+select lives_ok(
+  $$select public.upsert_my_client_account(
+      'Cliente A Sincronizado', '+5511999991004', '1990-01-03', 'v1'
+    )$$,
+  'linked client can update global profile through trusted RPC'
+);
+select is(
+  (select concat_ws('|', full_name, phone_e164, email, birth_date::text)
+    from public.customers
+    where id = (select (first_link ->> 'customer_id')::uuid from client_link_context)),
+  'Cliente A Sincronizado|+5511999991004|client-a@example.test|1990-01-03',
+  'linked customer follows global profile update'
+);
 reset role;
 
 set local role authenticated;
@@ -904,6 +924,41 @@ select is(
   (select auth_user_id from public.customers where id = '40000000-0000-4000-8000-000000000003'),
   null::uuid, 'tenant-only customer remains valid without a global account link'
 );
+
+insert into public.customers (
+  id, organization_id, full_name, phone_e164, email, birth_date
+) values (
+  '40000000-0000-4000-8000-000000000006', '20000000-0000-4000-8000-000000000004',
+  'Cadastro Antigo C', '+5511999991007', 'client-c@example.test', '1980-01-01'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000007', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select lives_ok(
+  $$select public.upsert_my_client_account('Cliente C', '+5511999991007', '1992-03-04', 'v1')$$,
+  'client C can create global account for exact verified claim'
+);
+create temporary table client_exact_claim_context (link_result jsonb not null);
+insert into client_exact_claim_context
+select public.link_my_client_to_organization('barbearia-quatro');
+select is(
+  (select link_result ->> 'status' from client_exact_claim_context),
+  'CLAIM_REQUIRED', 'exact one verified candidate requires explicit claim'
+);
+select is(
+  public.claim_my_existing_customer(
+    '20000000-0000-4000-8000-000000000004',
+    '40000000-0000-4000-8000-000000000006'
+  ) ->> 'status',
+  'LINKED', 'exact verified candidate claim links canonical identity'
+);
+select is(
+  (select concat_ws('|', auth_user_id::text, full_name, phone_e164, email, birth_date::text)
+    from public.customers where id = '40000000-0000-4000-8000-000000000006'),
+  '10000000-0000-4000-8000-000000000007|Cliente C|+5511999991007|client-c@example.test|1992-03-04',
+  'successful claim stores global canonical fields without merging rows'
+);
+reset role;
 
 insert into public.customers (
   id, organization_id, full_name, phone_e164, email

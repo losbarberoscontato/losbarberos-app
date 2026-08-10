@@ -10,6 +10,10 @@ const sql = readFileSync(
   "utf8",
 );
 const normalizedSql = sql.toLowerCase();
+const invariantSql = readFileSync(
+  resolve(process.cwd(), "supabase/tests/001_database_invariants.sql"),
+  "utf8",
+).toLowerCase();
 
 function functionSql(name: string) {
   const marker = `create or replace function public.${name}`;
@@ -56,6 +60,18 @@ describe("global client identity migration", () => {
     expect(claimSql).not.toMatch(/c\.full_name\s*=/u);
   });
 
+  it("accepts E.164 plus prefixes without ambiguous backslash escaping", () => {
+    const upsertSql = functionSql("upsert_my_client_account");
+
+    expect(normalizedSql).toContain(
+      "phone_e164 text not null check (phone_e164 ~ '^[+][1-9][0-9]{7,14}$')",
+    );
+    expect(upsertSql).toContain(
+      "p_phone_e164 !~ '^[+][1-9][0-9]{7,14}$'",
+    );
+    expect(normalizedSql).not.toContain("'^\\\\+'");
+  });
+
   it("keeps reviews private and blocks manager canonical-field changes", () => {
     expect(normalizedSql).toContain("create table public.customer_link_reviews");
     expect(normalizedSql).toContain("status in ('open', 'approved', 'rejected')");
@@ -82,5 +98,57 @@ describe("global client identity migration", () => {
       expect(normalizedSql).toContain(`revoke all on function public.${name}`);
       expect(normalizedSql).toContain(`grant execute on function public.${name}`);
     }
+
+    expect(normalizedSql).toContain(
+      "grant select on table public.client_accounts to authenticated",
+    );
+    expect(normalizedSql).not.toContain(
+      "grant select, update on table public.client_accounts to authenticated",
+    );
+    expect(normalizedSql).not.toContain(
+      "create policy client_accounts_self_update",
+    );
+  });
+
+  it("permits canonical writes only inside transaction-scoped trusted paths", () => {
+    const protectSql = functionSql("protect_linked_customer_canonical_fields");
+    const legacyProtectSql = functionSql("protect_customer_self_service_fields");
+    const syncSql = functionSql("sync_client_account_to_linked_customers");
+    const claimSql = functionSql("claim_my_existing_customer");
+
+    expect(normalizedSql).toContain(
+      "create table app_private.client_identity_write_context",
+    );
+    expect(protectSql).toContain("app_private.client_identity_write_context");
+    expect(protectSql).toContain("pg_backend_pid()");
+    expect(protectSql).toContain("txid_current()");
+    expect(legacyProtectSql).toContain("app_private.client_identity_write_context");
+    expect(legacyProtectSql).toContain("pg_backend_pid()");
+    expect(legacyProtectSql).toContain("txid_current()");
+    expect(syncSql).toContain("insert into app_private.client_identity_write_context");
+    expect(syncSql).toContain("delete from app_private.client_identity_write_context");
+    expect(claimSql).toContain("insert into app_private.client_identity_write_context");
+    expect(claimSql).toContain("delete from app_private.client_identity_write_context");
+    expect(normalizedSql).toContain(
+      "revoke all on app_private.client_identity_write_context from public, anon, authenticated",
+    );
+  });
+
+  it("covers exact claims, canonical sync and direct evidence spoofing in pgTAP", () => {
+    expect(invariantSql).toContain(
+      "exact one verified candidate requires explicit claim",
+    );
+    expect(invariantSql).toContain(
+      "exact verified candidate claim links canonical identity",
+    );
+    expect(invariantSql).toContain(
+      "linked customer follows global profile update",
+    );
+    expect(invariantSql).toContain(
+      "client cannot spoof verified phone evidence directly",
+    );
+    expect(invariantSql).toContain(
+      "client cannot spoof terms acceptance evidence directly",
+    );
   });
 });
