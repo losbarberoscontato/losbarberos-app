@@ -52,8 +52,12 @@ describe("cash manager", () => {
       financial_status: "PAID",
     }]} />);
 
-    expect(screen.getByRole("columnheader", { name: "Descrição" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Cliente/Fornecedor" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Situação do pagamento" })).toBeInTheDocument();
+    expect(screen.getByText("Cliente Real")).toBeInTheDocument();
+    expect(screen.getByText("Imobiliária Real")).toBeInTheDocument();
+    expect(screen.getByText("Corte clássico · Profissional: Alef")).toHaveClass(styles.cashDescription);
+    expect(screen.getByText("Aluguel")).toHaveClass(styles.cashDescription);
     expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
     expect(screen.getByText("Recebido")).toBeInTheDocument();
     expect(screen.getByText("Não vinculada")).toBeInTheDocument();

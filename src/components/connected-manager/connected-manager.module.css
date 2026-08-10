@@ -65,6 +65,8 @@
 .rowTitle { min-width: 0; display: grid; gap: .22rem; }
 .rowTitle strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #293029; }
 .rowTitle small, .muted { color: #79817a; font-size: .78rem; }
+.cashCounterparty, .cashDescription { display: block; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.cashDescription { line-height: 1.35; }
 .rowActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .4rem; }
 .chip { width: fit-content; display: inline-flex; align-items: center; gap: .35rem; border-radius: 99px; padding: .36rem .58rem; background: #edf3e9; color: #466042; font-size: .72rem; font-weight: 800; }
 .chipOff { background: #f2f2ef; color: #747a75; }
