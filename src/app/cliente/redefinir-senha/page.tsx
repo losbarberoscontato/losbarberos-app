@@ -20,14 +20,18 @@ export default async function ClientPasswordResetPage({
     || Array.isArray(input.sb_flow_id)
     || Array.isArray(input.barbearia);
   const slug = typeof input.barbearia === "string" ? input.barbearia : null;
-  const recoveryCode = !hasAmbiguousRecoveryContext
+  const recoveryCodeInput = !hasAmbiguousRecoveryContext
     && typeof input.code === "string"
     && input.code.length > 0
     ? input.code
     : null;
-  const recoveryFlowId = typeof input.sb_flow_id === "string" && input.sb_flow_id.length > 0
+  const recoveryFlowIdInput = !hasAmbiguousRecoveryContext
+    && typeof input.sb_flow_id === "string"
+    && input.sb_flow_id.length > 0
     ? input.sb_flow_id
     : null;
+  const recoveryCode = recoveryCodeInput && recoveryFlowIdInput ? recoveryCodeInput : null;
+  const recoveryFlowId = recoveryCodeInput && recoveryFlowIdInput ? recoveryFlowIdInput : null;
   const destination = clientAuthDestination({ next: "/cliente", slug });
   const resolved = new URL(destination, "https://cliente.local");
 

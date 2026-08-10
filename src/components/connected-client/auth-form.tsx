@@ -396,7 +396,7 @@ export function ClientPasswordResetForm({
   } | null>(null);
 
   useEffect(() => {
-    if (!recoveryCode) {
+    if (!recoveryCode || !recoveryFlowId) {
       setSessionState("invalid");
       return;
     }
@@ -424,7 +424,7 @@ export function ClientPasswordResetForm({
         try {
           const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(
             recoveryCode,
-            recoveryFlowId ? { flowId: recoveryFlowId } : undefined,
+            { flowId: recoveryFlowId },
           );
           const isRecovery = exchangeError === null && isRuntimeRecoveryExchange(data);
           if (!isRecovery && data.session) {

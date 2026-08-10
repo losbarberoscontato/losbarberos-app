@@ -434,7 +434,7 @@ describe("cliente conectado", () => {
   });
 
   it("rejects weak recovery password before provider mutation", async () => {
-    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode="recovery-code" recoveryFlowId={null} />);
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode="recovery-code" recoveryFlowId="recovery-flow" />);
     const password = await screen.findByLabelText("Nova senha");
     fireEvent.change(password, { target: { value: "fraca" } });
     fireEvent.change(screen.getByLabelText("Confirmar nova senha"), { target: { value: "fraca" } });
@@ -462,7 +462,7 @@ describe("cliente conectado", () => {
       },
       error: null,
     });
-    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode="ordinary-code" recoveryFlowId={null} />);
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode="ordinary-code" recoveryFlowId="recovery-flow" />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Link inválido ou sessão expirada.");
     expect(authMocks.client?.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
@@ -474,7 +474,7 @@ describe("cliente conectado", () => {
       data: { user: null, session: null, redirectType: null },
       error: { message: "PKCE code expired" },
     });
-    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode="expired-code" recoveryFlowId={null} />);
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode="expired-code" recoveryFlowId="recovery-flow" />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Link inválido ou sessão expirada.");
     expect(authMocks.client?.auth.signOut).not.toHaveBeenCalled();
@@ -484,6 +484,23 @@ describe("cliente conectado", () => {
     const page = await ClientPasswordResetPage({
       searchParams: Promise.resolve({
         code: ["first-code", "second-code"],
+        barbearia: "barbearia-real",
+      }),
+    });
+    render(page);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Link inválido ou sessão expirada.");
+    expect(authMocks.client?.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["without PKCE flow context", undefined],
+    ["with empty PKCE flow context", ""],
+  ])("rejects a recovery code %s", async (_caseName, sbFlowId) => {
+    const page = await ClientPasswordResetPage({
+      searchParams: Promise.resolve({
+        code: "recovery-code",
+        sb_flow_id: sbFlowId,
         barbearia: "barbearia-real",
       }),
     });
