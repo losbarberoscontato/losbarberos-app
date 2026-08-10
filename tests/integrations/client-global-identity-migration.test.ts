@@ -134,6 +134,43 @@ describe("global client identity migration", () => {
     );
   });
 
+  it("serializes tenant identity linking before locking customer rows", () => {
+    const linkSql = functionSql("link_my_client_to_organization");
+    const claimSql = functionSql("claim_my_existing_customer");
+    const tenantLockSeed = "202608100001";
+
+    expect(linkSql).toMatch(
+      new RegExp(
+        `pg_advisory_xact_lock\\s*\\(\\s*hashtextextended\\s*\\(\\s*'client_identity:'\\s*\\|\\|\\s*v_organization\\.id::text\\s*,\\s*${tenantLockSeed}\\s*\\)\\s*\\)`,
+        "u",
+      ),
+    );
+    expect(claimSql).toMatch(
+      new RegExp(
+        `pg_advisory_xact_lock\\s*\\(\\s*hashtextextended\\s*\\(\\s*'client_identity:'\\s*\\|\\|\\s*p_organization_id::text\\s*,\\s*${tenantLockSeed}\\s*\\)\\s*\\)`,
+        "u",
+      ),
+    );
+
+    for (const body of [linkSql, claimSql]) {
+      const accountSource = body.indexOf("from public.client_accounts");
+      const accountLock = body.indexOf("for update;", accountSource);
+      const organizationValidation = body.indexOf(
+        "organization_accepts_new_bookings",
+      );
+      const tenantLock = body.indexOf("pg_advisory_xact_lock");
+      const firstCustomerSource = body.indexOf("from public.customers");
+      const firstCustomerLock = body.indexOf("for update;", firstCustomerSource);
+
+      expect(accountSource).toBeGreaterThanOrEqual(0);
+      expect(accountLock).toBeGreaterThanOrEqual(0);
+      expect(organizationValidation).toBeGreaterThan(accountLock);
+      expect(tenantLock).toBeGreaterThan(organizationValidation);
+      expect(firstCustomerSource).toBeGreaterThan(tenantLock);
+      expect(firstCustomerLock).toBeGreaterThan(tenantLock);
+    }
+  });
+
   it("covers exact claims, canonical sync and direct evidence spoofing in pgTAP", () => {
     expect(invariantSql).toContain(
       "exact one verified candidate requires explicit claim",

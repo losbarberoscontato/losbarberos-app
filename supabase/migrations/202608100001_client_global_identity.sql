@@ -359,6 +359,12 @@ begin
     raise exception using errcode = '42501', message = 'organization is not accepting customer onboarding';
   end if;
 
+  -- Both identity-link RPCs serialize the whole tenant before touching any
+  -- customer row. Lock order: account -> organization -> tenant -> customers.
+  perform pg_advisory_xact_lock(hashtextextended(
+    'client_identity:' || v_organization.id::text, 202608100001
+  ));
+
   select nullif(btrim(u.email), ''), u.email_confirmed_at,
          nullif(btrim(u.phone), ''), u.phone_confirmed_at
     into v_email, v_email_confirmed_at, v_phone, v_phone_confirmed_at
@@ -520,6 +526,12 @@ begin
   if not public.organization_accepts_new_bookings(p_organization_id) then
     raise exception using errcode = '42501', message = 'organization is not accepting customer onboarding';
   end if;
+
+  -- Same deterministic tenant key and lock order as link_my_client_to_organization:
+  -- account -> organization validation -> tenant advisory -> customer rows.
+  perform pg_advisory_xact_lock(hashtextextended(
+    'client_identity:' || p_organization_id::text, 202608100001
+  ));
 
   select * into strict v_customer
   from public.customers c
