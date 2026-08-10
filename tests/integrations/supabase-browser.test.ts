@@ -16,12 +16,17 @@ vi.mock("@/lib/env", () => ({
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 describe("getSupabaseBrowserClient", () => {
-  it("disables automatic auth code detection in browser URLs", () => {
+  it("uses explicit PKCE exchange and appends flow context to redirects", () => {
     expect(getSupabaseBrowserClient()).not.toBeNull();
     expect(createBrowserClient).toHaveBeenCalledWith(
       "https://project.supabase.co",
       "publishable-key",
-      { auth: { detectSessionInUrl: false } },
+      {
+        auth: {
+          detectSessionInUrl: false,
+          experimental: { appendPkceFlowIdToRedirects: true },
+        },
+      },
     );
   });
 });

@@ -375,9 +375,11 @@ function isRuntimeRecoveryExchange(value: unknown): value is RuntimeRecoveryExch
 export function ClientPasswordResetForm({
   initialSlug,
   recoveryCode,
+  recoveryFlowId,
 }: {
   initialSlug: string | null;
   recoveryCode: string | null;
+  recoveryFlowId: string | null;
 }) {
   const router = useRouter();
   const [sessionState, setSessionState] = useState<RecoverySessionState>("checking");
@@ -389,6 +391,7 @@ export function ClientPasswordResetForm({
   const destination = clientAuthDestination({ next: "/cliente", slug: initialSlug });
   const exchangeRef = useRef<{
     code: string;
+    flowId: string | null;
     promise: Promise<"ready" | "invalid">;
   } | null>(null);
 
@@ -404,11 +407,24 @@ export function ClientPasswordResetForm({
       return;
     }
 
-    if (!exchangeRef.current || exchangeRef.current.code !== recoveryCode) {
+    if (!exchangeRef.current
+      || exchangeRef.current.code !== recoveryCode
+      || exchangeRef.current.flowId !== recoveryFlowId) {
+      const cleanUrl = new URL(window.location.pathname, window.location.origin);
+      const safeDestination = new URL(destination, "https://cliente.local");
+      const slug = safeDestination.searchParams.get("barbearia");
+      if (slug) cleanUrl.searchParams.set("barbearia", slug);
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${cleanUrl.pathname}${cleanUrl.search}`,
+      );
+
       const promise = (async (): Promise<"ready" | "invalid"> => {
         try {
           const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(
             recoveryCode,
+            recoveryFlowId ? { flowId: recoveryFlowId } : undefined,
           );
           const isRecovery = exchangeError === null && isRuntimeRecoveryExchange(data);
           if (!isRecovery && data.session) {
@@ -423,31 +439,20 @@ export function ClientPasswordResetForm({
           return "invalid";
         }
       })();
-      exchangeRef.current = { code: recoveryCode, promise };
+      exchangeRef.current = { code: recoveryCode, flowId: recoveryFlowId, promise };
     }
 
     let active = true;
     void exchangeRef.current.promise
       .then((result) => {
         if (!active) return;
-        if (result === "ready") {
-          const cleanUrl = new URL(window.location.pathname, window.location.origin);
-          const safeDestination = new URL(destination, "https://cliente.local");
-          const slug = safeDestination.searchParams.get("barbearia");
-          if (slug) cleanUrl.searchParams.set("barbearia", slug);
-          window.history.replaceState(
-            window.history.state,
-            "",
-            `${cleanUrl.pathname}${cleanUrl.search}`,
-          );
-        }
         setSessionState(result);
       });
 
     return () => {
       active = false;
     };
-  }, [destination, recoveryCode]);
+  }, [destination, recoveryCode, recoveryFlowId]);
 
   async function submitPasswordReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
