@@ -16,8 +16,8 @@ function isValidIsoDate(value: string): boolean {
 }
 
 export const clientSignupSchema = z.object({
-  fullName: z.string().trim().min(1),
-  phoneE164: z.string().regex(/^\+[1-9]\d{1,14}$/u),
+  fullName: z.string().trim().min(2).max(160),
+  phoneE164: z.string().regex(/^[+][1-9][0-9]{7,14}$/u),
   email: z.string().trim().toLowerCase().pipe(z.email()),
   password: z
     .string()

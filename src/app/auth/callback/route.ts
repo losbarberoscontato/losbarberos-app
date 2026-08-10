@@ -13,11 +13,16 @@ const managerDestinations = new Set([
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const requestedNext = url.searchParams.get("next") ?? "/gestor";
-  const destination = requestedNext === "/cliente" || requestedNext.startsWith("/cliente/")
+  const requestedNextValues = url.searchParams.getAll("next");
+  const requestedNext = requestedNextValues.length === 1 ? requestedNextValues[0] : "/gestor";
+  const requestedSlugs = url.searchParams.getAll("barbearia");
+  const requestedSlug = requestedSlugs.length === 1 ? requestedSlugs[0] : null;
+  const destination = requestedNextValues.length !== 1
+    ? "/gestor"
+    : requestedNext === "/cliente" || requestedNext.startsWith("/cliente/")
     ? clientAuthDestination({
       next: requestedNext,
-      slug: url.searchParams.get("barbearia"),
+      slug: requestedSlug,
     })
     : managerDestinations.has(requestedNext)
       ? requestedNext

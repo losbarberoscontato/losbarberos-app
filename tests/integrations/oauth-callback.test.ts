@@ -48,6 +48,45 @@ describe("OAuth callback return path", () => {
     );
   });
 
+  it.each([
+    ["Barbearia-Real", "Barbearia-Real"],
+    ["barbearia-real", "outra-barbearia"],
+  ])("drops duplicated client tenant context %s and %s", async (firstSlug, secondSlug) => {
+    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+
+    const url = new URL("https://app.example/auth/callback");
+    url.searchParams.set("code", "code");
+    url.searchParams.set("next", "/cliente/agendar");
+    url.searchParams.append("barbearia", firstSlug);
+    url.searchParams.append("barbearia", secondSlug);
+
+    const response = await GET(new Request(url) as NextRequest);
+
+    expect(response.headers.get("location")).toBe("https://app.example/cliente/agendar");
+  });
+
+  it("defaults to manager and drops slug when callback next is missing", async () => {
+    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+    const response = await GET(
+      new Request(
+        "https://app.example/auth/callback?code=code&barbearia=barbearia-real",
+      ) as NextRequest,
+    );
+
+    expect(response.headers.get("location")).toBe("https://app.example/gestor");
+  });
+
+  it("defaults to manager and drops slug when callback next is duplicated", async () => {
+    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+    const response = await GET(
+      new Request(
+        "https://app.example/auth/callback?code=code&next=%2Fcliente%2Fagendar&next=%2Fadmin&barbearia=barbearia-real",
+      ) as NextRequest,
+    );
+
+    expect(response.headers.get("location")).toBe("https://app.example/gestor");
+  });
+
   it("keeps manager and admin callback destinations constrained", async () => {
     exchangeCodeForSession.mockResolvedValueOnce({ error: null });
     const admin = await GET(

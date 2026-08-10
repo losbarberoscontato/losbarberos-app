@@ -58,7 +58,10 @@ describe("clientSignupSchema", () => {
   });
 
   it.each([
+    ["fullName", " A "],
+    ["fullName", "A".repeat(161)],
     ["phoneE164", "5511999999999"],
+    ["phoneE164", "+5512345"],
     ["email", "ana-at-example.com"],
     ["password", "Senha123"],
     ["birthDate", "1990-02-30"],
