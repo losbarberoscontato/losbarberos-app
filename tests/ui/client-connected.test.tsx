@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConnectedClientProvider } from "@/components/connected-client/context";
 import { ClientAuthForm, ClientPasswordResetForm } from "@/components/connected-client/auth-form";
+import ClientPasswordResetPage from "@/app/cliente/redefinir-senha/page";
 import { filterByAudience } from "@/lib/catalog-audiences";
 import { ConnectedClientGate } from "@/components/connected-client/state";
 import {
@@ -22,6 +23,8 @@ const authMocks = vi.hoisted(() => ({
       resetPasswordForEmail: ReturnType<typeof vi.fn>;
       resend: ReturnType<typeof vi.fn>;
       getSession: ReturnType<typeof vi.fn>;
+      exchangeCodeForSession: ReturnType<typeof vi.fn>;
+      signOut: ReturnType<typeof vi.fn>;
       updateUser: ReturnType<typeof vi.fn>;
     };
     rpc: ReturnType<typeof vi.fn>;
@@ -70,6 +73,7 @@ describe("cliente conectado", () => {
     cleanup();
     window.localStorage.clear();
     window.sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
   });
 
   it("resolve slug seguro priorizando rota, query e storage", () => {
@@ -136,6 +140,15 @@ describe("cliente conectado", () => {
         resetPasswordForEmail: vi.fn().mockResolvedValue({ data: {}, error: null }),
         resend: vi.fn().mockResolvedValue({ data: {}, error: null }),
         getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: "session" } }, error: null }),
+        exchangeCodeForSession: vi.fn().mockResolvedValue({
+          data: {
+            user: { id: "user-1" },
+            session: { access_token: "recovery-session" },
+            redirectType: "recovery",
+          },
+          error: null,
+        }),
+        signOut: vi.fn().mockResolvedValue({ error: null }),
         updateUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null }),
       },
       rpc: vi.fn().mockResolvedValue({ data: "account-1", error: null }),
@@ -218,14 +231,14 @@ describe("cliente conectado", () => {
     expect(screen.getByLabelText("Telefone (E.164)")).toBeRequired();
   });
 
-  it("usa callback allowlisted em recuperação e reenvio", async () => {
+  it("usa recovery direto e callback allowlisted no reenvio", async () => {
     render(<ClientAuthForm initialSlug="barbearia-real" initialNext="https://evil.example" />);
     fireEvent.click(screen.getByRole("button", { name: "Esqueci minha senha" }));
     fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ana@example.com" } });
     fireEvent.submit(screen.getByRole("form", { name: "Recuperar senha" }));
 
     await waitFor(() => expect(authMocks.client?.auth.resetPasswordForEmail).toHaveBeenCalledWith("ana@example.com", {
-      redirectTo: "http://localhost:3000/auth/callback?next=%2Fcliente%2Fredefinir-senha&barbearia=barbearia-real",
+      redirectTo: "http://localhost:3000/cliente/redefinir-senha?barbearia=barbearia-real",
     }));
 
     fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
@@ -358,9 +371,24 @@ describe("cliente conectado", () => {
     expect(screen.getByRole("button", { name: "Entrar" })).toBeEnabled();
   });
 
-  it("updates password after a valid recovery session and redirects safely", async () => {
-    render(<ClientPasswordResetForm initialSlug="barbearia-real" />);
+  it("exchanges a recovery PKCE code, scrubs it, updates password and redirects", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/cliente/redefinir-senha?code=recovery-code&barbearia=barbearia-real",
+    );
+    const page = await ClientPasswordResetPage({
+      searchParams: Promise.resolve({
+        code: "recovery-code",
+        barbearia: "Barbearia-Real",
+      }),
+    });
+    render(page);
     const password = await screen.findByLabelText("Nova senha");
+    expect(authMocks.client?.auth.exchangeCodeForSession).toHaveBeenCalledWith("recovery-code");
+    expect(window.location.href).toBe(
+      "http://localhost:3000/cliente/redefinir-senha?barbearia=barbearia-real",
+    );
     fireEvent.change(password, { target: { value: "NovaSenha#123" } });
     fireEvent.change(screen.getByLabelText("Confirmar nova senha"), { target: { value: "NovaSenha#123" } });
     fireEvent.submit(screen.getByRole("form", { name: "Redefinir senha" }));
@@ -370,7 +398,7 @@ describe("cliente conectado", () => {
   });
 
   it("rejects weak recovery password before provider mutation", async () => {
-    render(<ClientPasswordResetForm initialSlug="barbearia-real" />);
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode="recovery-code" />);
     const password = await screen.findByLabelText("Nova senha");
     fireEvent.change(password, { target: { value: "fraca" } });
     fireEvent.change(screen.getByLabelText("Confirmar nova senha"), { target: { value: "fraca" } });
@@ -380,11 +408,65 @@ describe("cliente conectado", () => {
     expect(authMocks.client?.auth.updateUser).not.toHaveBeenCalled();
   });
 
-  it("shows invalid recovery link when no recovery session exists", async () => {
-    authMocks.client!.auth.getSession.mockResolvedValueOnce({ data: { session: null }, error: null });
-    render(<ClientPasswordResetForm initialSlug="barbearia-real" />);
+  it("rejects a common existing session when no recovery code exists", async () => {
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode={null} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Link inválido ou sessão expirada.");
     expect(screen.queryByRole("form", { name: "Redefinir senha" })).not.toBeInTheDocument();
+    expect(authMocks.client?.auth.getSession).not.toHaveBeenCalled();
+    expect(authMocks.client?.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-recovery exchange and removes its local session", async () => {
+    authMocks.client!.auth.exchangeCodeForSession.mockResolvedValueOnce({
+      data: {
+        user: { id: "user-1" },
+        session: { access_token: "ordinary-session" },
+        redirectType: null,
+      },
+      error: null,
+    });
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode="ordinary-code" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Link inválido ou sessão expirada.");
+    expect(authMocks.client?.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(screen.queryByRole("form", { name: "Redefinir senha" })).not.toBeInTheDocument();
+  });
+
+  it("rejects an expired or invalid recovery code", async () => {
+    authMocks.client!.auth.exchangeCodeForSession.mockResolvedValueOnce({
+      data: { user: null, session: null, redirectType: null },
+      error: { message: "PKCE code expired" },
+    });
+    render(<ClientPasswordResetForm initialSlug="barbearia-real" recoveryCode="expired-code" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Link inválido ou sessão expirada.");
+    expect(authMocks.client?.auth.signOut).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicated recovery code search params", async () => {
+    const page = await ClientPasswordResetPage({
+      searchParams: Promise.resolve({
+        code: ["first-code", "second-code"],
+        barbearia: "barbearia-real",
+      }),
+    });
+    render(page);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Link inválido ou sessão expirada.");
+    expect(authMocks.client?.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicated tenant context on the recovery page", async () => {
+    const page = await ClientPasswordResetPage({
+      searchParams: Promise.resolve({
+        code: "recovery-code",
+        barbearia: ["barbearia-real", "outra-barbearia"],
+      }),
+    });
+    render(page);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Link inválido ou sessão expirada.");
+    expect(authMocks.client?.auth.exchangeCodeForSession).not.toHaveBeenCalled();
   });
 });

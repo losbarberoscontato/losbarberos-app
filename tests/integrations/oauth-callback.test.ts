@@ -48,7 +48,7 @@ describe("OAuth callback return path", () => {
     );
   });
 
-  it("exchanges recovery code into the allowlisted password reset screen", async () => {
+  it("does not admit the password reset screen through the server callback", async () => {
     exchangeCodeForSession.mockResolvedValueOnce({ error: null });
 
     const response = await GET(
@@ -59,7 +59,7 @@ describe("OAuth callback return path", () => {
 
     expect(exchangeCodeForSession).toHaveBeenCalledWith("recovery-code");
     expect(response.headers.get("location")).toBe(
-      "https://app.example/cliente/redefinir-senha?barbearia=barbearia-real",
+      "https://app.example/cliente?barbearia=barbearia-real",
     );
   });
 

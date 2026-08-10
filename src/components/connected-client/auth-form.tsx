@@ -108,10 +108,10 @@ export function ClientAuthForm({
     setMode(nextMode);
   }
 
-  function callbackUrl(nextPath?: string): string {
+  function callbackUrl(): string {
     const currentDestination = new URL(destination, "https://cliente.local");
     const safeDestination = clientAuthDestination({
-      next: nextPath ?? currentDestination.pathname,
+      next: currentDestination.pathname,
       slug: currentDestination.searchParams.get("barbearia"),
     });
     const resolved = new URL(safeDestination, "https://cliente.local");
@@ -119,6 +119,14 @@ export function ClientAuthForm({
     const slug = resolved.searchParams.get("barbearia");
     if (slug) callbackParams.set("barbearia", slug);
     return `${window.location.origin}/auth/callback?${callbackParams.toString()}`;
+  }
+
+  function recoveryRedirectUrl(): string {
+    const currentDestination = new URL(destination, "https://cliente.local");
+    const recoveryUrl = new URL("/cliente/redefinir-senha", window.location.origin);
+    const slug = currentDestination.searchParams.get("barbearia");
+    if (slug) recoveryUrl.searchParams.set("barbearia", slug);
+    return recoveryUrl.toString();
   }
 
   function onlineClient() {
@@ -234,7 +242,7 @@ export function ClientAuthForm({
     const showNeutralRecoveryResult = () => setSuccess(neutralRecoveryMessage);
     await runMutation(async () => {
       await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: callbackUrl("/cliente/redefinir-senha"),
+        redirectTo: recoveryRedirectUrl(),
       });
       showNeutralRecoveryResult();
     }, showNeutralRecoveryResult);
@@ -349,7 +357,28 @@ export function ClientAuthForm({
 
 type RecoverySessionState = "checking" | "ready" | "invalid" | "unavailable";
 
-export function ClientPasswordResetForm({ initialSlug }: { initialSlug: string | null }) {
+type RuntimeRecoveryExchange = {
+  session: object;
+  redirectType: "recovery";
+};
+
+function isRuntimeRecoveryExchange(value: unknown): value is RuntimeRecoveryExchange {
+  return value !== null
+    && typeof value === "object"
+    && "session" in value
+    && value.session !== null
+    && typeof value.session === "object"
+    && "redirectType" in value
+    && value.redirectType === "recovery";
+}
+
+export function ClientPasswordResetForm({
+  initialSlug,
+  recoveryCode,
+}: {
+  initialSlug: string | null;
+  recoveryCode: string | null;
+}) {
   const router = useRouter();
   const [sessionState, setSessionState] = useState<RecoverySessionState>("checking");
   const [password, setPassword] = useState("");
@@ -358,28 +387,67 @@ export function ClientPasswordResetForm({ initialSlug }: { initialSlug: string |
   const [success, setSuccess] = useState("");
   const { busy, runMutation } = useExclusiveMutation();
   const destination = clientAuthDestination({ next: "/cliente", slug: initialSlug });
+  const exchangeRef = useRef<{
+    code: string;
+    promise: Promise<"ready" | "invalid">;
+  } | null>(null);
 
   useEffect(() => {
+    if (!recoveryCode) {
+      setSessionState("invalid");
+      return;
+    }
+
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
       setSessionState("unavailable");
       return;
     }
 
+    if (!exchangeRef.current || exchangeRef.current.code !== recoveryCode) {
+      const promise = (async (): Promise<"ready" | "invalid"> => {
+        try {
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(
+            recoveryCode,
+          );
+          const isRecovery = exchangeError === null && isRuntimeRecoveryExchange(data);
+          if (!isRecovery && data.session) {
+            try {
+              await supabase.auth.signOut({ scope: "local" });
+            } catch {
+              // The recovery form stays locked even when local cleanup fails.
+            }
+          }
+          return isRecovery ? "ready" : "invalid";
+        } catch {
+          return "invalid";
+        }
+      })();
+      exchangeRef.current = { code: recoveryCode, promise };
+    }
+
     let active = true;
-    void supabase.auth.getSession()
-      .then(({ data, error: sessionError }) => {
+    void exchangeRef.current.promise
+      .then((result) => {
         if (!active) return;
-        setSessionState(sessionError || !data.session ? "invalid" : "ready");
-      })
-      .catch(() => {
-        if (active) setSessionState("invalid");
+        if (result === "ready") {
+          const cleanUrl = new URL(window.location.pathname, window.location.origin);
+          const safeDestination = new URL(destination, "https://cliente.local");
+          const slug = safeDestination.searchParams.get("barbearia");
+          if (slug) cleanUrl.searchParams.set("barbearia", slug);
+          window.history.replaceState(
+            window.history.state,
+            "",
+            `${cleanUrl.pathname}${cleanUrl.search}`,
+          );
+        }
+        setSessionState(result);
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [destination, recoveryCode]);
 
   async function submitPasswordReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

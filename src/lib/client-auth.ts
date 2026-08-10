@@ -8,7 +8,6 @@ const clientDestinations = new Set([
   "/cliente/agendar",
   "/cliente/reservas",
   "/cliente/perfil",
-  "/cliente/redefinir-senha",
 ]);
 
 function isValidIsoDate(value: string): boolean {
