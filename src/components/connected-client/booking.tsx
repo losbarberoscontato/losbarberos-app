@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   createAppointmentHold,
+  getAvailableSlotsForDate,
   getAvailableSlots,
   toClientError,
 } from "@/components/connected-client/api";
@@ -20,7 +21,7 @@ import {
   serviceIdsForChoice,
 } from "@/components/connected-client/format";
 import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/state";
-import type { AvailableSlot } from "@/components/connected-client/types";
+import type { AvailableDateOption, AvailableSlot } from "@/components/connected-client/types";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { CATALOG_AUDIENCES, audienceLabel, filterByAudience, type CatalogAudience } from "@/lib/catalog-audiences";
@@ -58,6 +59,7 @@ function BookingContent() {
   const [localDate, setLocalDate] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
+  const [dateAvailableSlots, setDateAvailableSlots] = useState<AvailableDateOption[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
   const [accepted, setAccepted] = useState(false);
@@ -139,6 +141,24 @@ function BookingContent() {
     return () => { active = false; };
   }, [barberId, choice, context, localDate, slug, supabase]);
 
+  useEffect(() => {
+    if (!supabase || !context || !slug || !choice || !localDate || !context.organization.accepting_bookings) {
+      queueMicrotask(() => setDateAvailableSlots([]));
+      return;
+    }
+    let active = true;
+    void getAvailableSlotsForDate(supabase, {
+      organizationSlug: slug,
+      localDate,
+      selections: bookingSelection(choice),
+    }).then((result) => {
+      if (active) setDateAvailableSlots(result?.options ?? []);
+    }).catch(() => {
+      if (active) setDateAvailableSlots([]);
+    });
+    return () => { active = false; };
+  }, [choice, context, localDate, slug, supabase]);
+
   if (!context || !slug) return null;
   const organization = context.organization;
   const tenantSlug = slug;
@@ -219,7 +239,7 @@ function BookingContent() {
           </section>
           <section>
             <div className={styles.sectionTitle}><Clock3 aria-hidden="true" /><div><h2>Horário</h2><p>Consulta não garante reserva; constraint do banco decide no clique final.</p></div></div>
-            {!barberId ? <p className={styles.empty}>Escolha profissional primeiro.</p> : slotsLoading ? <p className={styles.loadingLine}><LoaderCircle className={styles.spin} /> Consultando agenda…</p> : slotsError ? <p className={styles.error} role="alert">{slotsError}</p> : !slots.length ? <p className={styles.empty}>Nenhum horário nesta data.</p> : <div className={styles.slots}>{slots.map((slot) => <button type="button" key={slot.starts_at} className={startsAt === slot.starts_at ? styles.selected : undefined} aria-pressed={startsAt === slot.starts_at} onClick={() => setStartsAt(slot.starts_at)}>{formatSlotTime(slot.starts_at, organization.timezone)}</button>)}</div>}
+            {!barberId ? !dateAvailableSlots.length ? <p className={styles.empty}>Nenhum horário nesta data.</p> : <><p className={styles.empty}>Disponíveis nesta data</p><div className={styles.slots}>{dateAvailableSlots.map((slot) => <button type="button" key={`${slot.barber_id}:${slot.starts_at}`} onClick={() => { setBarberId(slot.barber_id); setStartsAt(slot.starts_at); }}>{formatSlotTime(slot.starts_at, organization.timezone)} · {slot.barber_name}</button>)}</div></> : slotsLoading ? <p className={styles.loadingLine}><LoaderCircle className={styles.spin} /> Consultando agenda…</p> : slotsError ? <p className={styles.error} role="alert">{slotsError}</p> : !slots.length ? <p className={styles.empty}>Nenhum horário nesta data.</p> : <div className={styles.slots}>{slots.map((slot) => <button type="button" key={slot.starts_at} className={startsAt === slot.starts_at ? styles.selected : undefined} aria-pressed={startsAt === slot.starts_at} onClick={() => setStartsAt(slot.starts_at)}>{formatSlotTime(slot.starts_at, organization.timezone)}</button>)}</div>}
           </section>
         </div>
       )}

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { ConnectedClientProvider, useConnectedClient } from "@/components/connected-client/context";
 import { ClientAuthForm, ClientPasswordResetForm } from "@/components/connected-client/auth-form";
 import { ConnectedClientHome } from "@/components/connected-client/home";
+import { ConnectedBooking } from "@/components/connected-client/booking";
 import { ConnectedProfile } from "@/components/connected-client/profile";
 import ClientPasswordResetPage from "@/app/cliente/redefinir-senha/page";
 import PublicBarbershopPage from "@/app/b/[slug]/page";
@@ -73,7 +74,7 @@ const context: PublicBookingContext = {
       { service_id: "service-2", name: "Barba", quantity: 1, duration_minutes: 30 },
     ],
   }],
-  barbers: [],
+  barbers: [{ id: "barber-1", name: "Diego", bio: null, avatar_url: null, service_ids: ["service-1", "service-2"] }],
 };
 
 function queryResult(data: unknown) {
@@ -191,6 +192,14 @@ function installProviderClient({
     : null;
   const rpc = vi.fn(async (name: string) => {
     if (name === "get_public_booking_context") return { data: context, error: null };
+    if (name === "get_available_slots_for_date") return {
+      data: {
+        duration_minutes: 35,
+        total_cents: 6500,
+        options: [{ barber_id: "barber-1", barber_name: "Diego", starts_at: "2026-08-10T12:00:00Z", ends_at: "2026-08-10T12:35:00Z" }],
+      },
+      error: null,
+    };
     if (name === "list_my_client_organizations") return { data: linked ? [relation] : [], error: null };
     if (name === "link_my_client_to_organization") {
       if (linkPromise) return linkPromise;
@@ -536,6 +545,23 @@ describe("cliente conectado", () => {
       "/cliente/agendar?barbearia=barbearia-real",
     );
     expect(screen.queryByText(/saldo|carteira/iu)).not.toBeInTheDocument();
+  });
+
+  it("oferece o primeiro horário disponível pela data sem exigir profissional", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedBooking />
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Masculino" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Corte/u })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByRole("button", { name: /Diego/u })).toBeInTheDocument();
+    expect(screen.getByText(/Disponíveis nesta data/u)).toBeInTheDocument();
   });
 
   it("salva o perfil global e mantém o e-mail sob gestão da autenticação", async () => {
