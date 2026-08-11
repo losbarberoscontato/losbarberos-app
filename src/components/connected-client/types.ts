@@ -129,11 +129,22 @@ export type AvailableSlot = {
   ends_at: string;
 };
 
+export type AvailableDateOption = AvailableSlot & {
+  barber_id: string;
+  barber_name: string;
+};
+
 export type Availability = {
   duration_minutes: number | null;
   occupied_minutes?: number | null;
   total_cents: number | null;
   slots: AvailableSlot[];
+};
+
+export type DateAvailability = {
+  duration_minutes: number | null;
+  total_cents: number | null;
+  options: AvailableDateOption[];
 };
 
 export type AppointmentStatus =

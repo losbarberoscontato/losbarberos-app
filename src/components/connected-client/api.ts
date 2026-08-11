@@ -3,6 +3,7 @@ import { isMercadoPagoCheckoutUrl } from "@/components/connected-client/format";
 import type {
   AppointmentItem,
   Availability,
+  DateAvailability,
   BookingSelection,
   ClientAccount,
   ClientClaimResult,
@@ -167,6 +168,23 @@ export async function getAvailableSlots(
   return (data as Availability | null) ?? null;
 }
 
+export async function getAvailableSlotsForDate(
+  supabase: SupabaseClient,
+  input: {
+    organizationSlug: string;
+    localDate: string;
+    selections: BookingSelection[];
+  },
+): Promise<DateAvailability | null> {
+  const { data, error } = await supabase.rpc("get_available_slots_for_date", {
+    p_organization_slug: input.organizationSlug,
+    p_local_date: input.localDate,
+    p_selections: input.selections,
+  });
+  if (error) throw new Error(error.message);
+  return (data as DateAvailability | null) ?? null;
+}
+
 export async function createAppointmentHold(
   supabase: SupabaseClient,
   input: {
@@ -175,12 +193,12 @@ export async function createAppointmentHold(
     barberId: string;
     startsAt: string;
     selections: BookingSelection[];
-    paymentMode: "DEPOSIT" | "FULL";
+    paymentMode: "COUNTER";
   },
 ): Promise<{
   appointment_id: string;
-  status: "HELD";
-  expires_at: string;
+  status: "CONFIRMED";
+  expires_at: null;
   total_cents: number;
   amount_due_now_cents: number;
   service_period: string;
@@ -195,8 +213,8 @@ export async function createAppointmentHold(
   });
   return assertData<{
     appointment_id: string;
-    status: "HELD";
-    expires_at: string;
+    status: "CONFIRMED";
+    expires_at: null;
     total_cents: number;
     amount_due_now_cents: number;
     service_period: string;

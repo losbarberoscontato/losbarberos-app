@@ -104,7 +104,7 @@ export function addCalendarDays(isoDate: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function dateOptions(timezone: string, count = 14, now = new Date()): string[] {
+export function dateOptions(timezone: string, count = 16, now = new Date()): string[] {
   const today = localToday(timezone, now);
   return Array.from({ length: count }, (_, index) => addCalendarDays(today, index));
 }

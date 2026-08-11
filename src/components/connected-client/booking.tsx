@@ -1,16 +1,12 @@
 "use client";
 
-import { CalendarDays, Check, Clock3, CreditCard, LoaderCircle, LockKeyhole, Scissors, ShieldCheck, UserRound } from "lucide-react";
+import { CalendarDays, Check, Clock3, LoaderCircle, Scissors, ShieldCheck, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   createAppointmentHold,
-  createMercadoPagoCheckout,
-  createPaymentCheckoutOrder,
   getAvailableSlots,
-  recordWhatsappConsent,
   toClientError,
-  upsertMyCustomer,
 } from "@/components/connected-client/api";
 import { useConnectedClient } from "@/components/connected-client/context";
 import {
@@ -34,19 +30,12 @@ type Draft = {
   barberId: string;
   localDate: string;
   startsAt: string;
-  paymentMode: "DEPOSIT" | "FULL";
   step: number;
   audience?: CatalogAudience;
 };
 
-type PendingCheckout = { paymentOrderId: string; idempotencyKey: string };
-
 function draftKey(slug: string) {
   return `los-barberos:booking-draft:${slug}`;
-}
-
-function makeIdempotencyKey(scope: string): string {
-  return `${scope}:${crypto.randomUUID()}`;
 }
 
 export function ConnectedBooking() {
@@ -54,7 +43,7 @@ export function ConnectedBooking() {
 }
 
 function BookingContent() {
-  const { context, slug, user, customer, reloadCustomer } = useConnectedClient();
+  const { context, slug, user, customer } = useConnectedClient();
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [selectedAudience, setSelectedAudience] = useState<CatalogAudience | null>(null);
@@ -71,18 +60,10 @@ function BookingContent() {
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
-  const [paymentMode, setPaymentMode] = useState<"DEPOSIT" | "FULL">("DEPOSIT");
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [birthDate, setBirthDate] = useState("");
   const [accepted, setAccepted] = useState(false);
-  const [whatsappConsent, setWhatsappConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(null);
   const [restored, setRestored] = useState(false);
-  const [prefilledIdentity, setPrefilledIdentity] = useState("");
 
   const choice = choices.find((item) => item.id === choiceId) ?? null;
   const compatibleBarbers = useMemo(() => {
@@ -112,7 +93,6 @@ function BookingContent() {
           if (typeof draft.barberId === "string") setBarberId(draft.barberId);
           if (typeof draft.localDate === "string") setLocalDate(draft.localDate);
           if (typeof draft.startsAt === "string") setStartsAt(draft.startsAt);
-          if (draft.paymentMode === "DEPOSIT" || draft.paymentMode === "FULL") setPaymentMode(draft.paymentMode);
           if (typeof draft.step === "number" && draft.step >= 1 && draft.step <= 3) setStep(draft.step);
         } catch {
           window.sessionStorage.removeItem(draftKey(slug));
@@ -125,22 +105,9 @@ function BookingContent() {
 
   useEffect(() => {
     if (!slug || !restored) return;
-    const draft: Draft = { choiceId, barberId, localDate, startsAt, paymentMode, step, audience: selectedAudience ?? undefined };
+    const draft: Draft = { choiceId, barberId, localDate, startsAt, step, audience: selectedAudience ?? undefined };
     window.sessionStorage.setItem(draftKey(slug), JSON.stringify(draft));
-  }, [barberId, choiceId, localDate, paymentMode, restored, selectedAudience, slug, startsAt, step]);
-
-  useEffect(() => {
-    if (!user) return;
-    const identity = `${user.id}:${customer?.id ?? "new"}`;
-    if (prefilledIdentity === identity) return;
-    queueMicrotask(() => {
-      setFullName(customer?.full_name ?? String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? ""));
-      setPhone(customer?.phone_e164 ?? "");
-      setEmail(customer?.email ?? user.email ?? "");
-      setBirthDate(customer?.birth_date ?? "");
-      setPrefilledIdentity(identity);
-    });
-  }, [customer, prefilledIdentity, user]);
+  }, [barberId, choiceId, localDate, restored, selectedAudience, slug, startsAt, step]);
 
   useEffect(() => {
     if (!supabase || !context || !slug || !choice || !barberId || !localDate || !context.organization.accepting_bookings) {
@@ -175,67 +142,27 @@ function BookingContent() {
   if (!context || !slug) return null;
   const organization = context.organization;
   const tenantSlug = slug;
-  const depositCents = choice ? Math.round(choice.priceCents * organization.deposit_bps / 10_000) : 0;
-  const dueNow = paymentMode === "FULL" ? choice?.priceCents ?? 0 : depositCents;
   const canContinue = step === 1 ? Boolean(choice) : step === 2 ? Boolean(choice && barber && startsAt) : false;
 
-  async function redirectToCheckout(pending: PendingCheckout) {
-    if (!supabase) throw new Error("Supabase não configurado.");
-    const checkoutUrl = await createMercadoPagoCheckout(supabase, pending.paymentOrderId, pending.idempotencyKey);
-    window.localStorage.setItem("los-barberos:client-tenant", tenantSlug);
-    window.sessionStorage.removeItem(draftKey(tenantSlug));
-    window.location.assign(checkoutUrl);
-  }
-
   async function confirmBooking() {
-    if (!supabase || !choice || !barber || !startsAt || !user || !accepted || !whatsappConsent) return;
-    if (!/^\+[1-9][0-9]{7,14}$/u.test(phone.trim())) {
-      setError("Telefone deve estar em E.164. Exemplo: +5511999999999.");
-      return;
-    }
-    if (fullName.trim().length < 2) {
-      setError("Informe nome completo.");
+    if (!supabase || !choice || !barber || !startsAt || !user || !customer || !accepted) return;
+    if (customer.auth_user_id !== user.id) {
+      setError("Sua conta de cliente não corresponde a esta barbearia.");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      if (pendingCheckout) {
-        await redirectToCheckout(pendingCheckout);
-        return;
-      }
-      const customerId = await upsertMyCustomer(supabase, {
-        organizationId: organization.id,
-        fullName: fullName.trim(),
-        phoneE164: phone.trim(),
-        email: email.trim() || null,
-        birthDate: birthDate || null,
-      });
-      await recordWhatsappConsent(supabase, {
-        organizationId: organization.id,
-        customerId,
-        granted: true,
-        source: "PWA_BOOKING",
-      });
-      await reloadCustomer();
       const hold = await createAppointmentHold(supabase, {
         organizationId: organization.id,
-        customerId,
+        customerId: customer.id,
         barberId: barber.id,
         startsAt,
         selections: bookingSelection(choice),
-        paymentMode,
+        paymentMode: "COUNTER",
       });
-      const order = await createPaymentCheckoutOrder(supabase, hold.appointment_id, makeIdempotencyKey("payment-order"));
-      if (order.status === "CONFIRMED" || order.amount_cents === 0) {
-        window.sessionStorage.removeItem(draftKey(tenantSlug));
-        router.push(`/cliente/reservas?barbearia=${encodeURIComponent(tenantSlug)}&appointment_id=${hold.appointment_id}`);
-        return;
-      }
-      if (!order.payment_order_id) throw new Error("Pedido de pagamento não retornado.");
-      const pending = { paymentOrderId: order.payment_order_id, idempotencyKey: makeIdempotencyKey("mp-checkout") };
-      setPendingCheckout(pending);
-      await redirectToCheckout(pending);
+      window.sessionStorage.removeItem(draftKey(tenantSlug));
+      router.push(`/cliente/reservas?barbearia=${encodeURIComponent(tenantSlug)}&appointment_id=${hold.appointment_id}`);
     } catch (cause: unknown) {
       setError(toClientError(cause, "Não foi possível concluir reserva."));
     } finally {
@@ -258,8 +185,8 @@ function BookingContent() {
     <div className={styles.booking}>
       <header className={styles.pageHeading}>
         <span>Agendamento online · {organization.name}</span>
-        <h1>{step === 1 ? "Escolha seu cuidado" : step === 2 ? "Escolha profissional e horário" : "Revise e pague"}</h1>
-        <p>{step === 3 ? "Banco protege horário por 10 minutos. Webhook confirma pagamento." : "Valores e duração vêm do catálogo atual da barbearia."}</p>
+        <h1>{step === 1 ? "Escolha seu cuidado" : step === 2 ? "Escolha profissional e horário" : "Revise e confirme"}</h1>
+        <p>{step === 3 ? "Reserva confirmada para pagamento no atendimento." : "Valores e duração vêm do catálogo atual da barbearia."}</p>
         <ol className={styles.steps} aria-label={`Etapa ${step} de 3`}>
           {["Serviço", "Horário", "Confirmar"].map((label, index) => <li key={label} className={step === index + 1 ? styles.current : step > index + 1 ? styles.done : undefined}><span>{step > index + 1 ? <Check size={13} /> : index + 1}</span>{label}</li>)}
         </ol>
@@ -303,39 +230,29 @@ function BookingContent() {
             {!user ? <AuthPrompt description="Entre com e-mail para identificar seu cadastro antes de criar hold e pagamento." /> : (
               <>
                 <section className={styles.panel}>
-                  <div className={styles.sectionTitle}><UserRound aria-hidden="true" /><div><h2>Seus dados</h2><p>Telefone E.164 recebe confirmações transacionais.</p></div></div>
-                  <div className={styles.formGrid}>
-                    <label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" required /></label>
-                    <label>WhatsApp<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" required /></label>
-                    <label>E-mail<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
-                    <label>Nascimento <small>opcional</small><input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} /></label>
-                  </div>
+                  <div className={styles.sectionTitle}><UserRound aria-hidden="true" /><div><h2>Seus dados</h2><p>Nome e contato são gerenciados no seu perfil global.</p></div></div>
+                  <p className={styles.empty}>{customer?.full_name ?? "Cliente"} · {customer?.phone_e164 ?? "Contato não informado"}</p>
                 </section>
                 <section className={styles.panel}>
-                  <div className={styles.sectionTitle}><CreditCard aria-hidden="true" /><div><h2>Valor agora</h2><p>Pagamento seguro via Mercado Pago conectado à barbearia.</p></div></div>
-                  <div className={styles.paymentModes}>
-                    <button type="button" className={paymentMode === "DEPOSIT" ? styles.selected : undefined} aria-pressed={paymentMode === "DEPOSIT"} onClick={() => setPaymentMode("DEPOSIT")}><span><strong>Sinal · {organization.deposit_bps / 100}%</strong><small>Saldo de {formatMoney(choice.priceCents - depositCents, organization.currency)} no atendimento</small></span><b>{formatMoney(depositCents, organization.currency)}</b></button>
-                    <button type="button" className={paymentMode === "FULL" ? styles.selected : undefined} aria-pressed={paymentMode === "FULL"} onClick={() => setPaymentMode("FULL")}><span><strong>Valor integral</strong><small>Sem saldo no atendimento</small></span><b>{formatMoney(choice.priceCents, organization.currency)}</b></button>
-                  </div>
+                  <div className={styles.sectionTitle}><CalendarDays aria-hidden="true" /><div><h2>Pagamento</h2><p>Você paga o valor integral no atendimento.</p></div></div>
                 </section>
-                <label className={styles.policy}><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} /><span><ShieldCheck size={17} /> Aceito política congelada desta reserva: cancelamento até {Math.round(organization.cancellation_lead_minutes / 60)}h antes segue reembolso previsto.</span></label>
-                <label className={styles.policy}><input type="checkbox" checked={whatsappConsent} onChange={(event) => setWhatsappConsent(event.target.checked)} /><span><ShieldCheck size={17} /> Autorizo WhatsApp transacional para confirmação, lembrete e alterações desta reserva. Não autoriza marketing.</span></label>
+                <label className={styles.policy}><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} /><span><ShieldCheck size={17} /> Aceito a política desta reserva. Cancelamentos e alterações seguem o prazo informado pela barbearia.</span></label>
               </>
             )}
           </div>
           <aside className={styles.summary}>
             <span>Resumo</span><h2>{choice.name}</h2>
-            <dl><div><dt>Profissional</dt><dd>{barber.name}</dd></div><div><dt>Data e hora</dt><dd>{formatLocalDate(localDate)} · {formatSlotTime(startsAt, organization.timezone)}</dd></div><div><dt>Total</dt><dd>{formatMoney(choice.priceCents, organization.currency)}</dd></div><div className={styles.due}><dt>Pagar agora</dt><dd>{formatMoney(dueNow, organization.currency)}</dd></div></dl>
-            <p><LockKeyhole size={15} /> Redirect não confirma reserva. Somente webhook assinado.</p>
+            <dl><div><dt>Profissional</dt><dd>{barber.name}</dd></div><div><dt>Data e hora</dt><dd>{formatLocalDate(localDate)} · {formatSlotTime(startsAt, organization.timezone)}</dd></div><div><dt>Total</dt><dd>{formatMoney(choice.priceCents, organization.currency)}</dd></div><div className={styles.due}><dt>Pagar no atendimento</dt><dd>{formatMoney(choice.priceCents, organization.currency)}</dd></div></dl>
+            <p>Sem pagamento antecipado neste momento.</p>
           </aside>
         </div>
       )}
 
-      {error && <div className={styles.errorBox} role="alert"><strong>Reserva não concluída</strong><span>{error}</span>{pendingCheckout && <small>Horário já protegido. “Tentar pagamento” reutiliza mesmo pedido; não cria outra reserva.</small>}</div>}
+      {error && <div className={styles.errorBox} role="alert"><strong>Reserva não concluída</strong><span>{error}</span></div>}
       <footer className={styles.bookingFooter}>
         {step > 1 && <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => { setError(""); setStep((current) => current - 1); }}>Voltar</button>}
         <span>{choice && <><small>{choice.name}</small><strong>{formatMoney(choice.priceCents, organization.currency)}</strong></>}</span>
-        {step < 3 ? <button type="button" className={styles.primaryButton} disabled={!canContinue} onClick={() => setStep((current) => current + 1)}>Continuar</button> : user ? <button type="button" className={styles.primaryButton} disabled={busy || !accepted || !whatsappConsent} onClick={() => void confirmBooking()}>{busy ? <><LoaderCircle className={styles.spin} /> Processando…</> : pendingCheckout ? "Tentar pagamento" : `Pagar ${formatMoney(dueNow, organization.currency)}`}</button> : null}
+        {step < 3 ? <button type="button" className={styles.primaryButton} disabled={!canContinue} onClick={() => setStep((current) => current + 1)}>Continuar</button> : user ? <button type="button" className={styles.primaryButton} disabled={busy || !accepted} onClick={() => void confirmBooking()}>{busy ? <><LoaderCircle className={styles.spin} /> Processando…</> : "Confirmar reserva"}</button> : null}
       </footer>
     </div>
   );

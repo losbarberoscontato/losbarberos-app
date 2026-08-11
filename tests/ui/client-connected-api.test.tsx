@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import {
   createMercadoPagoCheckout,
+  createAppointmentHold,
   claimMyExistingCustomer,
+  getAvailableSlotsForDate,
   getAvailableSlots,
   getMyClientAccount,
   getPublicBookingContext,
@@ -12,6 +14,7 @@ import {
   rescheduleAppointment,
   upsertMyClientAccount,
 } from "@/components/connected-client/api";
+import { dateOptions } from "@/components/connected-client/format";
 
 describe("contratos Supabase do cliente conectado", () => {
   it("carrega somente a conta global do usuário autenticado", async () => {
@@ -130,6 +133,39 @@ describe("contratos Supabase do cliente conectado", () => {
       p_organization_slug: "tenant-a",
       p_local_date: "2026-08-10",
     }));
+  });
+
+  it("consulta opções de profissionais pela data e expõe dezesseis dias", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { duration_minutes: 35, total_cents: 6500, options: [] }, error: null });
+    const supabase = { rpc } as unknown as SupabaseClient;
+    await getAvailableSlotsForDate(supabase, {
+      organizationSlug: "tenant-a",
+      localDate: "2026-08-10",
+      selections: [{ service_id: "00000000-0000-4000-8000-000000000003", quantity: 1 }],
+    });
+    expect(rpc).toHaveBeenCalledWith("get_available_slots_for_date", {
+      p_organization_slug: "tenant-a",
+      p_local_date: "2026-08-10",
+      p_selections: [{ service_id: "00000000-0000-4000-8000-000000000003", quantity: 1 }],
+    });
+    expect(dateOptions("America/Sao_Paulo", undefined, new Date("2026-08-10T12:00:00Z"))).toHaveLength(16);
+  });
+
+  it("cria reserva confirmada somente para pagamento no atendimento", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { appointment_id: "appointment-1", status: "CONFIRMED", expires_at: null, total_cents: 6500, amount_due_now_cents: 0, service_period: "[a,b)" },
+      error: null,
+    });
+    const supabase = { rpc } as unknown as SupabaseClient;
+    await expect(createAppointmentHold(supabase, {
+      organizationId: "organization-1",
+      customerId: "customer-1",
+      barberId: "barber-1",
+      startsAt: "2026-08-10T12:00:00Z",
+      selections: [{ service_id: "service-1", quantity: 1 }],
+      paymentMode: "COUNTER",
+    })).resolves.toMatchObject({ status: "CONFIRMED", amount_due_now_cents: 0 });
+    expect(rpc).toHaveBeenCalledWith("create_appointment_hold", expect.objectContaining({ p_payment_mode: "COUNTER" }));
   });
 
   it("envia Idempotency-Key e aceita somente redirect Mercado Pago HTTPS", async () => {
