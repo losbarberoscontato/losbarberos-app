@@ -58,7 +58,7 @@
 
 ## Entrega de acesso, agenda e recebimento — 11/08/2026
 
-- A entrega foi integrada na `main`, com push autorizado e deploy Vercel verificado ao final desta sessão.
+- A entrega foi integrada na `main` e o push foi confirmado. O domínio Vercel respondeu HTTP 200; deploy direto pela CLI ficou `PENDENTE` por autorização Vercel recusada.
 - Ao concluir atendimento `COUNTER`, a agenda abre a boleta de recebimento; cancelar mantém o atendimento concluído e o saldo `UNPAID`.
 - `Contas a receber` projeta atendimentos `COMPLETED` com saldo aberto e oferece `Receber`; a confirmação usa exclusivamente `payment_transactions`.
 - A boleta preenche cliente, serviço/profissional, valor, datas, plano `1 · Receitas`, conta mapeada `MANUAL/COUNTER`, documento `ATD-<id>` e guarda os campos em metadados auditáveis.
