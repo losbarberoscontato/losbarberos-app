@@ -48,12 +48,23 @@
 ## Trabalho local não publicado — 11/08/2026
 
 - Branch de trabalho: `codex/client-platform`; sem push ou deploy nesta fase.
-- Migration `202608100001_client_global_identity.sql` aplicada e confirmada no Supabase remoto `bwdjkhqshmppescunwer`.
+- Migrations `202608100001_client_global_identity.sql` e `202608110001_client_counter_booking_availability.sql` aplicadas e confirmadas no Supabase remoto `bwdjkhqshmppescunwer`.
 - `client_accounts` é a identidade global do cliente. Nome, telefone e nascimento são sincronizados de forma controlada para os clientes tenant vinculados; e-mail é gerenciado pelo Supabase Auth.
 - O perfil do cliente salva apenas pela RPC `upsert_my_client_account`. A tela do gestor identifica `auth_user_id`, explica o bloqueio e permite editar somente observações de um cliente vinculado; inativação e reativação continuam tenant-local.
 - Home conectada do cliente mostra a barbearia vinculada, CTA de agendamento e troca somente entre vínculos confirmados. Não mostra carteira ou saldo.
+- Novos agendamentos de cliente usam somente `COUNTER`: ficam `CONFIRMED`, com snapshots de sinal zerados e pagamento integral no atendimento. A agenda aceita hoje até hoje + 15 dias e também lista horários disponíveis por data antes da escolha do profissional.
 - Validação local desta etapa: suíte de identidade `113/113`, lint, TypeScript, Vitest completo e build aprovados; smoke de produção local `/cliente/entrar`: HTTP 200. Verificação visual autenticada conectada fica pendente antes de qualquer publicação.
 - Mercado Pago sandbox/produção, WhatsApp/Meta e e-mail transacional ainda não foram configurados ou validados nesta etapa.
+
+## Entrega de acesso, agenda e recebimento — 11/08/2026
+
+- A entrega foi integrada na `main`, com push autorizado e deploy Vercel verificado ao final desta sessão.
+- Ao concluir atendimento `COUNTER`, a agenda abre a boleta de recebimento; cancelar mantém o atendimento concluído e o saldo `UNPAID`.
+- `Contas a receber` projeta atendimentos `COMPLETED` com saldo aberto e oferece `Receber`; a confirmação usa exclusivamente `payment_transactions`.
+- A boleta preenche cliente, serviço/profissional, valor, datas, plano `1 · Receitas`, conta mapeada `MANUAL/COUNTER`, documento `ATD-<id>` e guarda os campos em metadados auditáveis.
+- Não é criado `financial_entry` ou `financial_settlement` para pagamento de agendamento; isso evita dupla contagem no Caixa.
+- Migration `202608110003_appointment_receipt_metadata.sql` aplicada e sincronizada no Supabase remoto `bwdjkhqshmppescunwer`.
+- Validação local final: `npm.cmd run verify` aprovado; Vitest `41` arquivos / `227` testes; smoke local sem sessão autenticada respondeu `307` nas rotas protegidas.
 
 ## Regras para continuar
 

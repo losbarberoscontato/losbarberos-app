@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Scissors } from "lucide-react";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { clientAuthDestination, clientPasswordSchema, clientSignupSchema } from "@/lib/client-auth";
+import { normalizePhoneE164 } from "@/lib/phone";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const termsPolicyVersion = "client-access-2026-08";
@@ -191,9 +192,10 @@ export function ClientAuthForm({
   async function submitSignUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     clearMessages();
+    const normalizedPhone = normalizePhoneE164(phoneE164);
     const parsed = clientSignupSchema.safeParse({
       fullName,
-      phoneE164,
+      phoneE164: normalizedPhone ?? phoneE164,
       email,
       password,
       birthDate,
@@ -272,7 +274,8 @@ export function ClientAuthForm({
   async function submitCompletion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     clearMessages();
-    const parsed = clientProfileSchema.safeParse({ fullName, phoneE164, birthDate, acceptedTerms });
+    const normalizedPhone = normalizePhoneE164(phoneE164);
+    const parsed = clientProfileSchema.safeParse({ fullName, phoneE164: normalizedPhone ?? phoneE164, birthDate, acceptedTerms });
     if (!parsed.success) {
       setError("Revise os dados cadastrais e tente novamente.");
       return;
@@ -320,7 +323,7 @@ export function ClientAuthForm({
               <input id="client-full-name" value={fullName} onChange={(event) => setFullName(event.target.value)} required autoComplete="name" />
             </label>
             <label htmlFor="client-phone">Telefone (E.164)
-              <input id="client-phone" value={phoneE164} onChange={(event) => setPhoneE164(event.target.value)} required placeholder="+5511999999999" autoComplete="tel" />
+            <input id="client-phone" value={phoneE164} onChange={(event) => setPhoneE164(event.target.value)} onBlur={() => { const normalized = normalizePhoneE164(phoneE164); if (normalized) setPhoneE164(normalized); }} required placeholder="11999999999 ou +5511999999999" autoComplete="tel" />
             </label>
           </>
         )}
@@ -397,13 +400,13 @@ export function ClientPasswordResetForm({
 
   useEffect(() => {
     if (!recoveryCode || !recoveryFlowId) {
-      setSessionState("invalid");
+      queueMicrotask(() => setSessionState("invalid"));
       return;
     }
 
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
-      setSessionState("unavailable");
+      queueMicrotask(() => setSessionState("unavailable"));
       return;
     }
 

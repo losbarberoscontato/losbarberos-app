@@ -13,6 +13,7 @@ import {
   bookingSelection,
   canCustomerReschedule,
   catalogChoices,
+  filterByChoiceKind,
   parsePostgresRange,
   resolveTenantSlug,
   selectionsFromAppointmentItems,
@@ -294,8 +295,8 @@ describe("cliente conectado", () => {
   it("cria seleção RPC usando contrato do catálogo", () => {
     const choices = catalogChoices(context);
     expect(choices[1].durationMinutes).toBe(65);
-    expect(bookingSelection(choices[0])).toEqual([{ service_id: "service-1", quantity: 1 }]);
-    expect(bookingSelection(choices[1])).toEqual([{ package_id: "package-1", quantity: 1 }]);
+    expect(bookingSelection(choices[0])).toEqual([{ type: "SERVICE", service_id: "service-1", quantity: 1 }]);
+    expect(bookingSelection(choices[1])).toEqual([{ type: "PACKAGE", package_id: "package-1", quantity: 1 }]);
   });
 
   it("filtra serviços e pacotes pelo público escolhido", () => {
@@ -304,12 +305,19 @@ describe("cliente conectado", () => {
     expect(filterByAudience(choices, "INFANTIL")).toEqual([]);
   });
 
+  it("filtra escolhas por tipo de catÃ¡logo", () => {
+    const choices = catalogChoices(context);
+    expect(filterByChoiceKind(choices, "SERVICE").map((choice) => choice.name)).toEqual(["Corte"]);
+    expect(filterByChoiceKind(choices, "PACKAGE").map((choice) => choice.name)).toEqual(["Combo"]);
+    expect(filterByChoiceKind(choices, "ALL")).toHaveLength(2);
+  });
+
   it("preserva agrupamento original ao consultar reagendamento", () => {
     const items: AppointmentItem[] = [
       { id: "1", appointment_id: "a", selection_key: "selection-a", source: "PACKAGE", service_id: "service-1", package_id: "package-1", service_name_snapshot: "Corte", quantity: 1, charged_price_cents_snapshot: 5000, list_price_cents_snapshot: 6500, duration_minutes_snapshot: 35, position: 1 },
       { id: "2", appointment_id: "a", selection_key: "selection-a", source: "PACKAGE", service_id: "service-2", package_id: "package-1", service_name_snapshot: "Barba", quantity: 1, charged_price_cents_snapshot: 5500, list_price_cents_snapshot: 5500, duration_minutes_snapshot: 30, position: 2 },
     ];
-    expect(selectionsFromAppointmentItems(items)).toEqual([{ package_id: "package-1", quantity: 1 }]);
+    expect(selectionsFromAppointmentItems(items)).toEqual([{ type: "PACKAGE", package_id: "package-1", quantity: 1 }]);
   });
 
   it("interpreta tstzrange e respeita prazo de reagendamento", () => {
@@ -561,6 +569,8 @@ describe("cliente conectado", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
     expect(await screen.findByRole("button", { name: /Diego/u })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Diego/u })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: /todos os profissionais/u }));
     expect(screen.getByText(/Disponíveis nesta data/u)).toBeInTheDocument();
   });
 
@@ -675,6 +685,20 @@ describe("cliente conectado", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Se o cadastro puder ser concluído, enviaremos instruções para seu e-mail.",
     );
+  });
+
+  it("normaliza telefone brasileiro sem DDI antes de criar conta", async () => {
+    render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente" />);
+    fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
+    fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Ana Souza" } });
+    fireEvent.change(screen.getByLabelText("Telefone (E.164)"), { target: { value: "47999782545" } });
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ana@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "Senha#123" } });
+    fireEvent.change(screen.getByLabelText("Data de nascimento"), { target: { value: "1990-02-10" } });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.submit(screen.getByRole("form", { name: "Criar conta" }));
+
+    await waitFor(() => expect(authMocks.client?.auth.signUp.mock.calls[0]?.[0].options.data.phone_e164_candidate).toBe("+5547999782545"));
   });
 
   it("sincroniza conta global somente depois de signin confirmado", async () => {

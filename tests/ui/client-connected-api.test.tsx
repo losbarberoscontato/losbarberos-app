@@ -127,7 +127,7 @@ describe("contratos Supabase do cliente conectado", () => {
       organizationSlug: "tenant-a",
       barberId: "00000000-0000-4000-8000-000000000002",
       localDate: "2026-08-10",
-      selections: [{ service_id: "00000000-0000-4000-8000-000000000003", quantity: 1 }],
+      selections: [{ type: "SERVICE", service_id: "00000000-0000-4000-8000-000000000003", quantity: 1 }],
     });
     expect(rpc).toHaveBeenCalledWith("get_available_slots", expect.objectContaining({
       p_organization_slug: "tenant-a",
@@ -141,12 +141,12 @@ describe("contratos Supabase do cliente conectado", () => {
     await getAvailableSlotsForDate(supabase, {
       organizationSlug: "tenant-a",
       localDate: "2026-08-10",
-      selections: [{ service_id: "00000000-0000-4000-8000-000000000003", quantity: 1 }],
+      selections: [{ type: "SERVICE", service_id: "00000000-0000-4000-8000-000000000003", quantity: 1 }],
     });
     expect(rpc).toHaveBeenCalledWith("get_available_slots_for_date", {
       p_organization_slug: "tenant-a",
       p_local_date: "2026-08-10",
-      p_selections: [{ service_id: "00000000-0000-4000-8000-000000000003", quantity: 1 }],
+      p_selections: [{ type: "SERVICE", service_id: "00000000-0000-4000-8000-000000000003", quantity: 1 }],
     });
     expect(dateOptions("America/Sao_Paulo", undefined, new Date("2026-08-10T12:00:00Z"))).toHaveLength(16);
   });
@@ -162,7 +162,7 @@ describe("contratos Supabase do cliente conectado", () => {
       customerId: "customer-1",
       barberId: "barber-1",
       startsAt: "2026-08-10T12:00:00Z",
-      selections: [{ service_id: "service-1", quantity: 1 }],
+      selections: [{ type: "SERVICE", service_id: "service-1", quantity: 1 }],
       paymentMode: "COUNTER",
     })).resolves.toMatchObject({ status: "CONFIRMED", amount_due_now_cents: 0 });
     expect(rpc).toHaveBeenCalledWith("create_appointment_hold", expect.objectContaining({ p_payment_mode: "COUNTER" }));

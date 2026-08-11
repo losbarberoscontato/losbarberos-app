@@ -31,6 +31,7 @@ function demoData(section: FinanceSection): CashManagerProps {
     settlements: [],
     appointmentActivity: [{ payment_transaction_id: "demo-payment", organization_id: "demo", appointment_id: "demo-appointment", customer_id: "demo-customer", payment_mode: "COUNTER", provider: "MANUAL", kind: "CAPTURE", amount_cents: 8000, signed_cents: 8000, occurred_at: "2026-08-09T15:00:00.000Z", financial_account_id: "demo-cash", needs_reconciliation: false, display_description: "Corte · Profissional: Guilherme", financial_status: "PAID" }],
     mappings: [{ id: "demo-mapping", organization_id: "demo", provider: "MANUAL", payment_mode: "COUNTER", financial_account_id: "demo-cash" }],
+    appointmentReceivables: [],
   };
 }
 

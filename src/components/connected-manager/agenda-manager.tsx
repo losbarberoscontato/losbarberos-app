@@ -38,6 +38,8 @@ import {
   parsePostgresRange,
 } from "./format";
 import { ActionMessage, StatusChip } from "./shared";
+import { AppointmentReceiptDialog } from "./cash-manager";
+import { buildAppointmentReceiptDraft, type AppointmentReceiptDraft } from "./appointment-receipt";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
@@ -92,6 +94,7 @@ export function AgendaManager(props: Props) {
   const [quickCustomerPhone, setQuickCustomerPhone] = useState("");
   const [createdCustomers, setCreatedCustomers] = useState<Props["customers"]>([]);
   const [rescheduling, setRescheduling] = useState<AppointmentRecord | null>(null);
+  const [receiptTarget, setReceiptTarget] = useState<AppointmentReceiptDraft | null>(null);
   const blocked = props.billingStatus === "BLOCKED";
   const availableCustomers = useMemo(() => [...props.customers, ...createdCustomers].filter((customer) => customer.active), [createdCustomers, props.customers]);
   const customerById = useMemo(() => new Map(availableCustomers.map((item) => [item.id, item])), [availableCustomers]);
@@ -209,7 +212,18 @@ export function AgendaManager(props: Props) {
         p_reason: `manager_${next.toLowerCase()}`,
       }));
     }, next === "IN_SERVICE" ? "Atendimento iniciado." : next === "COMPLETED" ? "Atendimento concluído; comissão lançada." : "No-show registrado.");
-    if (saved) { setSelected(null); router.refresh(); }
+    if (saved) {
+      if (next === "COMPLETED" && appointment.payment_mode === "COUNTER") {
+        const customer = customerById.get(appointment.customer_id);
+        const barber = barberById.get(appointment.barber_id);
+        const outstanding = financialById.get(appointment.id)?.outstanding_cents ?? appointment.total_cents_snapshot;
+        if (outstanding > 0) {
+          setReceiptTarget(buildAppointmentReceiptDraft({ appointmentId: appointment.id, customerId: appointment.customer_id, customerName: customer?.full_name ?? "Cliente", serviceDescription: serviceLabel(appointment.id), barberName: barber?.display_name ?? "Profissional", amountCents: outstanding, reservedAt: appointment.created_at, completedAt: new Date().toISOString() }));
+        }
+      }
+      setSelected(null);
+      router.refresh();
+    }
   }
 
   async function cancel(appointment: AppointmentRecord) {
@@ -359,5 +373,6 @@ export function AgendaManager(props: Props) {
       <div className="form-modal__body"><div className="form-grid"><label>Profissional<span className="select-input"><select name="barber_id" defaultValue={rescheduling.barber_id}>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label><label>Data<span className="input-shell"><CalendarDays size={17} /><input name="date" type="date" defaultValue={appointmentDate(rescheduling)} required /></span></label></div><div className="form-grid"><label>Horário<span className="input-shell"><Clock3 size={17} /><input name="time" type="time" defaultValue={appointmentGeometry(rescheduling.service_period, timezone)?.startLabel} step={BUSINESS_SLOT_INTERVAL_MINUTES * 60} required /></span></label><label>Motivo fora da escala<input name="override_reason" /></label></div></div>
       <div className="form-modal__footer"><button type="button" className="button button--ghost" onClick={() => setRescheduling(null)}>Cancelar</button><button type="submit" className="button button--dark">Proteger novo slot</button></div>
     </form></div>}
+    {receiptTarget && <AppointmentReceiptDialog receipt={receiptTarget} onClose={() => setReceiptTarget(null)} onSaved={() => { setReceiptTarget(null); router.refresh(); }} setMessage={setMessage} />}
   </div>;
 }

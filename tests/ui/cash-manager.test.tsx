@@ -78,6 +78,31 @@ describe("cash manager", () => {
     expect(screen.getByLabelText("Descrição")).toBeInTheDocument();
   });
 
+  it("opens the appointment receipt with prefilled fields and records only the payment transaction", () => {
+    render(<CashManager {...props} section="receivables" appointmentReceivables={[{
+      appointment_id: "appointment-2",
+      organization_id: "org-1",
+      customer_id: "customer-1",
+      customer_name: "Cliente Real",
+      description: "Barba completa · Profissional: Alef",
+      amount_cents: 6500,
+      issue_date: "2026-08-09",
+      due_date: "2026-08-11",
+      document_number: "ATD-APPOINT2",
+      outstanding_cents: 6500,
+    }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Receber" }));
+    expect(screen.getByRole("dialog", { name: "Receber atendimento" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Cliente Real")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Barba completa · Profissional: Alef")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("ATD-APPOINT2")).toBeInTheDocument();
+    fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
+
+    expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt", expect.objectContaining({ p_appointment_id: "appointment-2", p_amount_cents: 6500, p_receipt: expect.objectContaining({ document_number: "ATD-APPOINT2" }) }));
+    expect(rpc).not.toHaveBeenCalledWith("create_financial_entry", expect.anything());
+  });
+
   it("does not call Supabase when a demo entry is submitted", () => {
     render(<CashManager {...props} demoMode />);
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));

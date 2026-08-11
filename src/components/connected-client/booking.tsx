@@ -14,6 +14,7 @@ import {
   bookingSelection,
   catalogChoices,
   dateOptions,
+  filterByChoiceKind,
   formatLocalDate,
   formatMoney,
   formatSlotTime,
@@ -35,6 +36,8 @@ type Draft = {
   audience?: CatalogAudience;
 };
 
+type CatalogChoiceKindFilter = "ALL" | "SERVICE" | "PACKAGE";
+
 function draftKey(slug: string) {
   return `los-barberos:booking-draft:${slug}`;
 }
@@ -48,10 +51,11 @@ function BookingContent() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [selectedAudience, setSelectedAudience] = useState<CatalogAudience | null>(null);
+  const [selectedChoiceKind, setSelectedChoiceKind] = useState<CatalogChoiceKindFilter>("ALL");
   const choices = useMemo(() => {
     if (!context || !selectedAudience) return [];
-    return filterByAudience(catalogChoices(context), selectedAudience);
-  }, [context, selectedAudience]);
+    return filterByChoiceKind(filterByAudience(catalogChoices(context), selectedAudience), selectedChoiceKind);
+  }, [context, selectedAudience, selectedChoiceKind]);
   const dates = useMemo(() => context ? dateOptions(context.organization.timezone) : [], [context]);
   const [step, setStep] = useState(1);
   const [choiceId, setChoiceId] = useState("");
@@ -218,6 +222,7 @@ function BookingContent() {
           <div className={styles.audienceFilter} role="tablist" aria-label="Público do serviço"><span>Escolha o público</span>{CATALOG_AUDIENCES.map((audience) => <button type="button" key={audience} role="tab" aria-selected={selectedAudience === audience} className={selectedAudience === audience ? styles.selected : undefined} onClick={() => { setSelectedAudience(audience); setChoiceId(""); setBarberId(""); }}>{audienceLabel(audience)}</button>)}</div>
           {!selectedAudience ? <p className={styles.empty}>Escolha um público para ver serviços e pacotes.</p> : !choices.length ? <p className={styles.empty}>Nenhum serviço disponível para este público.</p> : (
             <div className={styles.cards}>
+              <div className={styles.audienceFilter} role="tablist" aria-label="Tipo de item"><span>Filtrar por</span>{([['ALL', 'Todos'], ['SERVICE', 'Serviços'], ['PACKAGE', 'Pacotes']] as const).map(([kind, label]) => <button type="button" key={kind} role="tab" aria-selected={selectedChoiceKind === kind} className={selectedChoiceKind === kind ? styles.selected : undefined} onClick={() => { setSelectedChoiceKind(kind); setChoiceId(""); setBarberId(""); }}>{label}</button>)}</div>
               {choices.map((item) => {
                 const selected = item.id === choiceId;
                 return <button type="button" key={`${item.kind}-${item.id}`} className={selected ? styles.selected : undefined} aria-pressed={selected} onClick={() => setChoiceId(item.id)}><span className={styles.choiceKind}>{item.kind === "PACKAGE" ? "Pacote" : "Serviço"}</span><strong>{item.name}</strong><small>{item.description || "Detalhes informados pela barbearia."}</small><span className={styles.choiceMeta}><Clock3 size={14} /> {item.durationMinutes} min <b>{formatMoney(item.priceCents, organization.currency)}</b></span>{selected && <i><Check size={15} /></i>}</button>;
@@ -232,6 +237,7 @@ function BookingContent() {
           <section>
             <div className={styles.sectionTitle}><UserRound aria-hidden="true" /><div><h2>Profissional</h2><p>Escolha quem fará todos os itens.</p></div></div>
             {!compatibleBarbers.length ? <p className={styles.empty}>Nenhum profissional habilitado para esta seleção.</p> : <div className={styles.barbers}>{compatibleBarbers.map((item) => <button type="button" key={item.id} aria-pressed={barberId === item.id} className={barberId === item.id ? styles.selected : undefined} onClick={() => setBarberId(item.id)}><span>{item.name.slice(0, 2).toUpperCase()}</span><strong>{item.name}</strong><small>{item.bio || "Profissional da equipe"}</small></button>)}</div>}
+            {barberId && <button type="button" className={styles.secondaryButton} onClick={() => { setBarberId(""); setStartsAt(""); }}>Ver horarios de todos os profissionais</button>}
           </section>
           <section>
             <div className={styles.sectionTitle}><CalendarDays aria-hidden="true" /><div><h2>Data</h2><p>Horários calculados no fuso {organization.timezone}.</p></div></div>

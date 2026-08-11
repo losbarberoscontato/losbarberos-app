@@ -121,8 +121,8 @@ export type CatalogChoice = {
 };
 
 export type BookingSelection =
-  | { service_id: string; quantity: number }
-  | { package_id: string; quantity: number };
+  | { type: "SERVICE"; service_id: string; quantity: number }
+  | { type: "PACKAGE"; package_id: string; quantity: number };
 
 export type AvailableSlot = {
   starts_at: string;
