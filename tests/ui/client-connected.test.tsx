@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { ConnectedClientProvider, useConnectedClient } from "@/components/connected-client/context";
 import { ClientAuthForm, ClientPasswordResetForm } from "@/components/connected-client/auth-form";
 import { ConnectedClientHome } from "@/components/connected-client/home";
+import { ConnectedProfile } from "@/components/connected-client/profile";
 import ClientPasswordResetPage from "@/app/cliente/redefinir-senha/page";
 import PublicBarbershopPage from "@/app/b/[slug]/page";
 import { filterByAudience } from "@/lib/catalog-audiences";
@@ -80,11 +81,14 @@ function queryResult(data: unknown) {
     select: vi.fn(),
     eq: vi.fn(),
     is: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
   };
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
   query.is.mockReturnValue(query);
+  query.order.mockReturnValue(query);
   return query;
 }
 
@@ -213,6 +217,7 @@ function installProviderClient({
       if (!reviewAfterClaim && !mismatchedClaim) linked = true;
       return claimResult;
     }
+    if (name === "upsert_my_client_account") return { data: "user-1", error: null };
     throw new Error(`RPC inesperada: ${name}`);
   });
   authMocks.client = {
@@ -531,6 +536,28 @@ describe("cliente conectado", () => {
       "/cliente/agendar?barbearia=barbearia-real",
     );
     expect(screen.queryByText(/saldo|carteira/iu)).not.toBeInTheDocument();
+  });
+
+  it("salva o perfil global e mantém o e-mail sob gestão da autenticação", async () => {
+    const { rpc } = installProviderClient({ authenticated: true, initiallyLinked: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedProfile />
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByDisplayValue("ana@example.com")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Ana Atualizada" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar dados" }));
+
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("upsert_my_client_account", {
+      p_full_name: "Ana Atualizada",
+      p_phone_e164: "+5511999999999",
+      p_birth_date: "1990-02-10",
+      p_terms_policy_version: "client-access-2026-08",
+    }));
+    expect(rpc.mock.calls.some(([name]) => name === "upsert_my_customer")).toBe(false);
   });
 
   it("deduplica confirmações concorrentes do mesmo slug", async () => {

@@ -47,6 +47,7 @@ export interface LocationRecord {
 export interface CustomerRecord {
   id: string;
   organization_id: string;
+  auth_user_id: string | null;
   full_name: string;
   phone_e164: string | null;
   email: string | null;

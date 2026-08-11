@@ -45,6 +45,16 @@
 - Demo mostra dados locais e bloqueia toda escrita no Supabase. A interface foi inspecionada localmente em modo demo: submenu, Caixa, modal, vínculo de agendamento, bancos/caixas e bloqueio de persistência.
 - Validação local final do ajuste visual: ESLint, TypeScript e `next build` aprovados; teste focado de Caixa `7/7`. A pipeline GitHub do commit de publicação deve ser conferida no próximo preflight caso ainda não esteja concluída.
 
+## Trabalho local não publicado — 11/08/2026
+
+- Branch de trabalho: `codex/client-platform`; sem push ou deploy nesta fase.
+- Migration `202608100001_client_global_identity.sql` aplicada e confirmada no Supabase remoto `bwdjkhqshmppescunwer`.
+- `client_accounts` é a identidade global do cliente. Nome, telefone e nascimento são sincronizados de forma controlada para os clientes tenant vinculados; e-mail é gerenciado pelo Supabase Auth.
+- O perfil do cliente salva apenas pela RPC `upsert_my_client_account`. A tela do gestor identifica `auth_user_id`, explica o bloqueio e permite editar somente observações de um cliente vinculado; inativação e reativação continuam tenant-local.
+- Home conectada do cliente mostra a barbearia vinculada, CTA de agendamento e troca somente entre vínculos confirmados. Não mostra carteira ou saldo.
+- Validação local desta etapa: testes focados `59/59` e TypeScript aprovados. Os gates completos e a verificação visual conectada ficam pendentes antes de qualquer publicação.
+- Mercado Pago sandbox/produção, WhatsApp/Meta e e-mail transacional ainda não foram configurados ou validados nesta etapa.
+
 ## Regras para continuar
 
 - Código, migrations, testes e estado remoto verificado são fonte de verdade.
