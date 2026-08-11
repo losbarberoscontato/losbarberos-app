@@ -77,6 +77,10 @@
   font-size: 10px;
   font-weight: 750;
 }
+.tenantMenuButton { min-height: 38px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid #ddd6ca; border-radius: 10px; background: #fffefa; color: #42534b; font-size: 10px; font-weight: 800; }
+.tenantMenu { position: fixed; z-index: 70; top: 76px; right: max(16px, calc((100% - 1180px) / 2)); width: min(300px, calc(100% - 32px)); display: grid; gap: 7px; padding: 15px; border: 1px solid #ded8cc; border-radius: 14px; background: #fffefa; box-shadow: 0 18px 48px rgb(13 37 29 / 18%); }
+.tenantMenu strong { padding: 3px 4px 7px; color: #69736c; font-size: 10px; }
+.tenantMenu button { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px; border: 1px solid #e1dbd0; border-radius: 9px; background: #fff; color: #263b34; font-size: 10px; font-weight: 800; text-align: left; }
 
 .locationStrip {
   min-height: 40px;
@@ -152,8 +156,25 @@
 .userMark { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 15px; background: #e7f0e9; color: #25604f; }
 .authPrompt > button { min-height: 46px; display: flex; align-items: center; justify-content: center; gap: 9px; padding: 0 20px; border: 1px solid #d6d0c5; border-radius: 11px; background: #fff; color: #22332d; font-weight: 850; box-shadow: 0 5px 16px rgb(25 48 40 / 7%); }
 .authPrompt > button:disabled { opacity: .55; }
-.googleMark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(from -40deg,#4285f4 0 25%,#34a853 0 50%,#fbbc05 0 75%,#ea4335 0); color: #fff; font-weight: 900; }
 .authPrompt > small { max-width: 430px; color: #858981; font-size: 9px; }
+
+.authForm { width: min(500px, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 12px; margin: 34px auto; padding: 30px; border: 1px solid #ded8cc; border-radius: 20px; background: #fffefa; box-shadow: 0 14px 34px rgb(25 47 39 / 7%); }
+.authForm .userMark { align-self: center; }
+.authKicker { color: #9b6834; font-size: 9px; font-weight: 850; letter-spacing: .13em; text-align: center; text-transform: uppercase; }
+.authForm h1 { text-align: center; font-size: clamp(28px, 4vw, 38px); line-height: 1.05; }
+.authDescription { color: #6d746e; font-size: 11px; line-height: 1.55; text-align: center; }
+.authTabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px; border-radius: 11px; background: #f0ece4; }
+.authTabs button { min-height: 38px; border: 0; border-radius: 8px; background: transparent; color: #657069; font-size: 10px; font-weight: 850; }
+.authTabs button[aria-selected="true"] { background: #fff; color: #1d5749; box-shadow: 0 2px 8px rgb(22 50 42 / 9%); }
+.authFields { display: grid; gap: 11px; }
+.authFields label { display: grid; gap: 5px; color: #48564f; font-size: 10px; font-weight: 800; }
+.authFields input { width: 100%; min-height: 42px; padding: 0 11px; border: 1px solid #d9d2c7; border-radius: 9px; background: #fff; color: #24362e; font: inherit; font-size: 12px; }
+.authFields input:focus-visible { outline: 3px solid rgb(45 109 92 / 18%); border-color: #2d6d5c; }
+.authFields .authTerms { display: flex; align-items: flex-start; gap: 8px; color: #5c6861; font-size: 9px; line-height: 1.45; font-weight: 650; }
+.authFields .authTerms input { width: 16px; min-width: 16px; min-height: 16px; margin-top: 1px; accent-color: #245f50; }
+.authForm > .notice,
+.authForm > .error { margin: 0; }
+.authForm > .textButton { align-self: center; min-height: auto; padding: 4px 8px; font-size: 9px; }
 
 .pageHeading { margin-bottom: 30px; }
 .pageHeading > span { color: #9b6834; font-size: 9px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
@@ -192,6 +213,7 @@
 .audienceFilter button { border: 1px solid #d9e0d7; border-radius: 999px; padding: .55rem .85rem; background: #fff; color: #24453b; font: inherit; font-size: .85rem; cursor: pointer; }
 .audienceFilter button:hover, .audienceFilter button.selected { border-color: #1f5b4b; background: #e7f1ea; }
 .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.cards > .audienceFilter { grid-column: 1 / -1; margin: 0 0 .25rem; }
 .cards > button { position: relative; min-height: 145px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 18px; border: 1px solid #ded8cc; border-radius: 14px; background: #fff; color: inherit; text-align: left; }
 .cards > button:hover,
 .cards > button.selected { border-color: #3d7c69; box-shadow: 0 0 0 2px rgb(61 124 105 / 10%); }
@@ -383,6 +405,26 @@
 .requestList strong { padding: 3px 6px; border-radius: 999px; background: #eef1ea; color: #53695f; font-size: 7px; }
 .requestList small { color: #80857e; font-size: 8px; }
 
+.clientHome { width: min(720px, 100%); display: grid; gap: 15px; margin: 0 auto; }
+.homeHero { display: flex; flex-direction: column; align-items: flex-start; gap: 11px; padding: clamp(24px, 5vw, 42px); border: 1px solid #ded8cc; border-radius: 22px; background: #fffefa; box-shadow: 0 15px 36px rgb(25 47 39 / 7%); }
+.homeMark { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; background: #e8f0e9; color: #286450; }
+.homeHero > p, .homePanel > span, .switchConfirm > p { color: #9b6834; font-size: 9px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+.homeHero h1 { font-size: clamp(34px, 7vw, 56px); line-height: .98; letter-spacing: -.04em; }
+.homeOpen, .homeClosed, .homeAddress { display: flex; align-items: center; gap: 6px; color: #657069; font-size: 11px; line-height: 1.45; }
+.homeOpen { color: #28705b; font-weight: 800; }
+.homeClosed { color: #994a3f; font-weight: 800; }
+.homeAddress svg { flex: 0 0 auto; color: #9b6a35; }
+.homeHero .primaryButton { min-height: 47px; margin-top: 8px; padding: 0 19px; }
+.homePanel { padding: 22px; border: 1px solid #ded8cc; border-radius: 17px; background: #fffefa; }
+.homePanel > strong { display: block; margin-top: 7px; font-size: 16px; }
+.homePanel > p { margin-top: 5px; color: #727971; font-size: 11px; line-height: 1.5; }
+.organizationChoices { display: grid; gap: 7px; margin-top: 15px; }
+.organizationChoices button { min-height: 45px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; border: 1px solid #ddd6ca; border-radius: 10px; background: #fff; color: #253b33; font-size: 11px; font-weight: 800; text-align: left; }
+.switchConfirm { position: fixed; z-index: 85; right: 20px; bottom: 20px; left: 20px; width: min(500px, calc(100% - 40px)); display: grid; gap: 10px; margin: auto; padding: 22px; border: 1px solid #d9d2c7; border-radius: 17px; background: #fffefa; box-shadow: 0 22px 60px rgb(13 37 29 / 26%); }
+.switchConfirm h2 { font-size: 21px; }
+.switchConfirm > span { color: #67716a; font-size: 10px; line-height: 1.55; }
+.switchConfirm > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -392,6 +434,9 @@
   .desktopNav { display: none; }
   .account,
   .guest { margin-left: auto; }
+  .tenantMenuButton { margin-left: auto; }
+  .tenantMenuButton + .account { margin-left: 0; }
+  .tenantMenu { top: 68px; right: 12px; width: calc(100% - 24px); }
   .locationStrip { align-items: flex-start; justify-content: flex-start; text-align: left; }
   .locationStrip strong { display: none; }
   .main { padding-top: 24px; }

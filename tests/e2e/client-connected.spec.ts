@@ -1,8 +1,15 @@
 import { expect, test } from "@playwright/test";
 
-test("rota pública por slug preserva contexto no alias de agendamento", async ({ page }) => {
+test("rota pública por slug preserva contexto na home do cliente", async ({ page }) => {
   await page.goto("/b/barbearia-do-bairro");
-  await expect(page).toHaveURL(/\/cliente\/agendar\?barbearia=barbearia-do-bairro$/u);
+  const connected = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+  await expect(page).toHaveURL(
+    connected
+      ? /\/cliente\?barbearia=barbearia-do-bairro$/u
+      : /\/cliente\/agendar$/u,
+  );
 });
 
 test("cliente conectado nunca mostra dados demo", async ({ page }) => {

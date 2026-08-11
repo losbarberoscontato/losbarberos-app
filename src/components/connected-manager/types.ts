@@ -47,6 +47,7 @@ export interface LocationRecord {
 export interface CustomerRecord {
   id: string;
   organization_id: string;
+  auth_user_id: string | null;
   full_name: string;
   phone_e164: string | null;
   email: string | null;
@@ -351,6 +352,19 @@ export interface AppointmentCashActivityRecord {
   needs_reconciliation: boolean;
   display_description: string;
   financial_status: string;
+}
+
+export interface AppointmentReceivableRecord {
+  appointment_id: string;
+  organization_id: string;
+  customer_id: string;
+  customer_name: string;
+  description: string;
+  amount_cents: number;
+  issue_date: string;
+  due_date: string;
+  document_number: string;
+  outstanding_cents: number;
 }
 
 export interface PaymentAccountMappingRecord {

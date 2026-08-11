@@ -91,7 +91,7 @@ export function CustomersManager({ organizationId, customers, appointments, appo
       setMessage("Informe um telefone válido com DDD e, se necessário, DDI.");
       return;
     }
-    const payload = {
+    const canonicalPayload = {
       organization_id: organizationId,
       full_name: String(data.get("full_name") ?? "").trim(),
       phone_e164: normalizedPhone,
@@ -99,6 +99,9 @@ export function CustomersManager({ organizationId, customers, appointments, appo
       birth_date: String(data.get("birth_date") ?? "") || null,
       notes: String(data.get("notes") ?? "").trim() || null,
     };
+    const payload = editing?.auth_user_id
+      ? { notes: canonicalPayload.notes }
+      : canonicalPayload;
     const saved = await runMutation(setMessage, async () => {
       const client = connectedClient();
       const result = editing
@@ -182,10 +185,11 @@ export function CustomersManager({ organizationId, customers, appointments, appo
         <form className="form-modal" role="dialog" aria-modal="true" aria-label={editing ? "Editar cliente" : "Novo cliente"} onSubmit={submit} key={editing?.id ?? "new"}>
           <div className="form-modal__head"><span><small>{editing ? "Editar cliente" : "Novo cliente"}</small><strong>{editing ? "Atualize os dados" : "Cadastre um cliente"}</strong></span><button type="button" className="icon-button" onClick={closeForm} aria-label="Fechar"><X size={19} /></button></div>
           <div className="form-modal__body">
-        <Field label="Nome completo"><input name="full_name" required minLength={2} maxLength={160} defaultValue={editing?.full_name} /></Field>
-        <Field label="Telefone"><input name="phone_e164" inputMode="tel" placeholder="11999999999 ou +5511999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={editing?.phone_e164 ?? ""} /></Field>
-        <Field label="E-mail"><input name="email" type="email" defaultValue={editing?.email ?? ""} /></Field>
-        <Field label="Nascimento (opcional)"><input name="birth_date" type="date" defaultValue={editing?.birth_date ?? ""} /></Field>
+        {editing?.auth_user_id && <p className="customer-canonical-notice">Dados controlados pelo cliente. Nome, telefone, e-mail e nascimento são atualizados pela conta global.</p>}
+        <Field label="Nome completo"><input name="full_name" required minLength={2} maxLength={160} defaultValue={editing?.full_name} disabled={Boolean(editing?.auth_user_id)} /></Field>
+        <Field label="Telefone"><input name="phone_e164" inputMode="tel" placeholder="11999999999 ou +5511999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={editing?.phone_e164 ?? ""} disabled={Boolean(editing?.auth_user_id)} /></Field>
+        <Field label="E-mail"><input name="email" type="email" defaultValue={editing?.email ?? ""} disabled={Boolean(editing?.auth_user_id)} /></Field>
+        <Field label="Nascimento (opcional)"><input name="birth_date" type="date" defaultValue={editing?.birth_date ?? ""} disabled={Boolean(editing?.auth_user_id)} /></Field>
         <Field label="Observações" wide><textarea name="notes" maxLength={1000} defaultValue={editing?.notes ?? ""} /></Field>
           </div>
           <div className="form-modal__footer"><button className="button button--ghost" type="button" onClick={closeForm}>Cancelar</button><button className="button button--dark" type="submit">{editing ? "Salvar alterações" : "Cadastrar"}</button></div>

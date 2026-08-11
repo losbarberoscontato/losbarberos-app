@@ -15,6 +15,12 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
   client = createBrowserClient(
     publicEnv.NEXT_PUBLIC_SUPABASE_URL!,
     publicEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      auth: {
+        detectSessionInUrl: false,
+        experimental: { appendPkceFlowIdToRedirects: true },
+      },
+    },
   );
   return client;
 }

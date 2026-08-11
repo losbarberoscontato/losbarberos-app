@@ -70,6 +70,46 @@ export type Customer = {
   created_at?: string;
 };
 
+export type ClientAccount = {
+  auth_user_id: string;
+  full_name: string;
+  phone_e164: string;
+  phone_verified_at: string | null;
+  birth_date: string | null;
+  terms_policy_version: string;
+  terms_accepted_at: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ClientOrganization = {
+  organization_id: string;
+  organization_slug: string;
+  organization_name: string;
+  customer_id: string;
+};
+
+export type ClientLinkResult = {
+  status: "LINKED" | "CLAIM_REQUIRED" | "REVIEW_REQUIRED";
+  organization_id: string;
+  organization_slug: string;
+  customer_id?: string;
+};
+
+export type ClientClaimResult = {
+  status: "LINKED" | "REVIEW_REQUIRED";
+  organization_id: string;
+  customer_id: string;
+};
+
+export type ClientLinkStatus =
+  | "IDLE"
+  | "LOADING"
+  | "UNLINKED"
+  | "LINKING"
+  | ClientLinkResult["status"]
+  | "ERROR";
+
 export type CatalogChoice = {
   id: string;
   kind: "SERVICE" | "PACKAGE";
@@ -81,12 +121,17 @@ export type CatalogChoice = {
 };
 
 export type BookingSelection =
-  | { service_id: string; quantity: number }
-  | { package_id: string; quantity: number };
+  | { type: "SERVICE"; service_id: string; quantity: number }
+  | { type: "PACKAGE"; package_id: string; quantity: number };
 
 export type AvailableSlot = {
   starts_at: string;
   ends_at: string;
+};
+
+export type AvailableDateOption = AvailableSlot & {
+  barber_id: string;
+  barber_name: string;
 };
 
 export type Availability = {
@@ -94,6 +139,12 @@ export type Availability = {
   occupied_minutes?: number | null;
   total_cents: number | null;
   slots: AvailableSlot[];
+};
+
+export type DateAvailability = {
+  duration_minutes: number | null;
+  total_cents: number | null;
+  options: AvailableDateOption[];
 };
 
 export type AppointmentStatus =
@@ -165,6 +216,9 @@ export type ConnectedClientState = {
   slug: string | null;
   context: PublicBookingContext | null;
   user: User | null;
+  account: ClientAccount | null;
+  organizations: ClientOrganization[];
+  linkStatus: ClientLinkStatus;
   customer: Customer | null;
   loading: boolean;
   authLoading: boolean;

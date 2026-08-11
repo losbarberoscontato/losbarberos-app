@@ -1,16 +1,38 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { getMyCustomer, getPublicBookingContext, toClientError } from "@/components/connected-client/api";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  claimMyExistingCustomer,
+  getMyClientAccount,
+  getMyCustomer,
+  getPublicBookingContext,
+  linkMyClientToOrganization,
+  listMyClientOrganizations,
+  toClientError,
+} from "@/components/connected-client/api";
 import { normalizeTenantSlug, resolveTenantSlug, tenantStorageKey } from "@/components/connected-client/format";
-import type { ConnectedClientState, Customer } from "@/components/connected-client/types";
+import type {
+  ClientClaimResult,
+  ClientLinkResult,
+  ConnectedClientState,
+  Customer,
+} from "@/components/connected-client/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+
+type ClientTenantLinkResult = ClientLinkResult | ClientClaimResult;
+
+type PendingClaim = {
+  customerId: string;
+  organizationId: string;
+  slug: string;
+};
 
 type ConnectedClientContextValue = ConnectedClientState & {
   selectTenant: (slug: string) => void;
+  switchTenant: (slug: string) => void;
   reloadCustomer: () => Promise<Customer | null>;
-  signInWithGoogle: () => Promise<void>;
+  confirmTenantLink: () => Promise<ClientTenantLinkResult>;
   signOut: () => Promise<void>;
 };
 
@@ -38,10 +60,20 @@ export function ConnectedClientProvider({
   const [slug, setSlug] = useState<string | null>(() => normalizeTenantSlug(initialSlug));
   const [context, setContext] = useState<ConnectedClientState["context"]>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [account, setAccount] = useState<ConnectedClientState["account"]>(null);
+  const [organizations, setOrganizations] = useState<ConnectedClientState["organizations"]>([]);
+  const [linkStatus, setLinkStatus] = useState<ConnectedClientState["linkStatus"]>("IDLE");
+  const [pendingClaim, setPendingClaim] = useState<PendingClaim | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const currentSlugRef = useRef(slug);
+  const linkInFlightRef = useRef<{ slug: string; promise: Promise<ClientTenantLinkResult> } | null>(null);
+
+  useEffect(() => {
+    currentSlugRef.current = slug;
+  }, [slug]);
 
   useEffect(() => {
     if (slug) return;
@@ -69,6 +101,7 @@ export function ConnectedClientProvider({
       setLoading(true);
       setError(null);
       setCustomer(null);
+      setPendingClaim(null);
       window.localStorage.setItem(tenantStorageKey, slug);
       window.sessionStorage.setItem(tenantStorageKey, slug);
     });
@@ -116,36 +149,93 @@ export function ConnectedClientProvider({
     };
   }, [supabase]);
 
+  useEffect(() => {
+    if (!supabase || !user) {
+      queueMicrotask(() => {
+        setAccount(null);
+        setOrganizations([]);
+        setCustomer(null);
+        setPendingClaim(null);
+        setLinkStatus("IDLE");
+        if (!user) setAuthLoading(false);
+      });
+      return;
+    }
+    let active = true;
+    const expectedUserId = user.id;
+    queueMicrotask(() => {
+      if (!active) return;
+      setAuthLoading(true);
+      setLinkStatus("LOADING");
+      setCustomer(null);
+      setPendingClaim(null);
+    });
+    void (async () => {
+      const nextAccount = await getMyClientAccount(supabase, expectedUserId);
+      if (!nextAccount) throw new Error("Conta global de cliente não encontrada.");
+      const nextOrganizations = await listMyClientOrganizations(supabase);
+      if (!active) return;
+
+      const relation = context
+        ? nextOrganizations.find((item) =>
+            item.organization_id === context.organization.id
+            && item.organization_slug === context.organization.slug)
+        : null;
+      let nextCustomer: Customer | null = null;
+      if (context && relation) {
+        nextCustomer = await getMyCustomer(supabase, context.organization.id, expectedUserId);
+        if (!nextCustomer || nextCustomer.id !== relation.customer_id) {
+          throw new Error("Relação de cliente inconsistente para esta barbearia.");
+        }
+      }
+      if (!active) return;
+      setAccount(nextAccount);
+      setOrganizations(nextOrganizations);
+      setCustomer(nextCustomer);
+      setLinkStatus(context ? (relation ? "LINKED" : "UNLINKED") : "IDLE");
+    })().catch((cause: unknown) => {
+      if (!active) return;
+      setAccount(null);
+      setOrganizations([]);
+      setCustomer(null);
+      setLinkStatus("ERROR");
+      setError(toClientError(cause, "Não foi possível carregar conta do cliente."));
+    }).finally(() => {
+      if (active) setAuthLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [context, supabase, user]);
+
   const reloadCustomer = useCallback(async (): Promise<Customer | null> => {
     if (!supabase || !context || !user) {
       setCustomer(null);
       return null;
     }
+    const relation = organizations.find((item) =>
+      item.organization_id === context.organization.id
+      && item.organization_slug === context.organization.slug);
+    if (!relation) {
+      setCustomer(null);
+      return null;
+    }
     const result = await getMyCustomer(supabase, context.organization.id, user.id);
+    if (!result || result.id !== relation.customer_id) {
+      setCustomer(null);
+      throw new Error("Relação de cliente inconsistente para esta barbearia.");
+    }
     setCustomer(result);
     return result;
-  }, [context, supabase, user]);
-
-  useEffect(() => {
-    if (!context || !user) return;
-    let active = true;
-    queueMicrotask(() => {
-      if (!active) return;
-      setAuthLoading(true);
-      void reloadCustomer().catch((cause: unknown) => {
-        if (active) setError(toClientError(cause, "Não foi possível carregar perfil."));
-      }).finally(() => {
-        if (active) setAuthLoading(false);
-      });
-    });
-    return () => { active = false; };
-  }, [context, reloadCustomer, user]);
+  }, [context, organizations, supabase, user]);
 
   const selectTenant = useCallback((value: string) => {
     if (!value.trim()) {
       setSlug(null);
       setContext(null);
       setCustomer(null);
+      setPendingClaim(null);
+      setLinkStatus("IDLE");
       setError(null);
       setLoading(false);
       window.localStorage.removeItem(tenantStorageKey);
@@ -158,45 +248,144 @@ export function ConnectedClientProvider({
     if (!normalized) return;
     setContext(null);
     setCustomer(null);
+    setPendingClaim(null);
+    setLinkStatus(user ? "LOADING" : "IDLE");
     setSlug(normalized);
     const url = new URL(window.location.href);
     url.searchParams.set("barbearia", normalized);
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-  }, []);
+  }, [user]);
 
-  const signInWithGoogle = useCallback(async () => {
-    if (!supabase || !slug) return;
-    window.localStorage.setItem(tenantStorageKey, slug);
-    window.sessionStorage.setItem(tenantStorageKey, slug);
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/cliente/agendar")}`;
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-    if (oauthError) throw new Error(oauthError.message);
-  }, [slug, supabase]);
+  const switchTenant = useCallback((value: string) => {
+    selectTenant(value);
+  }, [selectTenant]);
+
+  const confirmTenantLink = useCallback((): Promise<ClientTenantLinkResult> => {
+    if (!supabase || !user || !slug || !context) {
+      return Promise.reject(new Error("Sessão e barbearia são obrigatórias para criar vínculo."));
+    }
+    if (linkInFlightRef.current?.slug === slug) return linkInFlightRef.current.promise;
+
+    const expectedSlug = slug;
+    const expectedOrganizationId = context.organization.id;
+    const claim = pendingClaim?.slug === expectedSlug
+      && pendingClaim.organizationId === expectedOrganizationId
+      ? pendingClaim
+      : null;
+    setLinkStatus("LINKING");
+    setError(null);
+    const operation = (async () => {
+      try {
+        const result = claim
+          ? await claimMyExistingCustomer(supabase, claim.organizationId, claim.customerId)
+          : await linkMyClientToOrganization(supabase, expectedSlug, expectedOrganizationId);
+
+        if (claim) {
+          if (
+            result.organization_id !== expectedOrganizationId
+            || result.customer_id !== claim.customerId
+          ) {
+            throw new Error("Resposta de confirmação não corresponde ao cadastro selecionado.");
+          }
+        } else {
+          if (
+            !("organization_slug" in result)
+            || result.organization_id !== expectedOrganizationId
+            || result.organization_slug !== expectedSlug
+          ) {
+            throw new Error("Resposta de vínculo não corresponde à barbearia selecionada.");
+          }
+        }
+        if (currentSlugRef.current !== expectedSlug) return result;
+
+        if (!claim && result.status === "CLAIM_REQUIRED") {
+          if (!result.customer_id) throw new Error("Cadastro encontrado sem identificador de cliente.");
+          setCustomer(null);
+          setPendingClaim({
+            customerId: result.customer_id,
+            organizationId: expectedOrganizationId,
+            slug: expectedSlug,
+          });
+          setLinkStatus("CLAIM_REQUIRED");
+          return result;
+        }
+        if (result.status === "REVIEW_REQUIRED") {
+          setCustomer(null);
+          setPendingClaim(null);
+          setLinkStatus("REVIEW_REQUIRED");
+          return result;
+        }
+        if (!result.customer_id) throw new Error("Vínculo confirmado sem cliente tenant.");
+
+        const nextOrganizations = await listMyClientOrganizations(supabase);
+        const relation = nextOrganizations.find((item) =>
+          item.organization_id === expectedOrganizationId
+          && item.organization_slug === expectedSlug
+          && item.customer_id === result.customer_id);
+        if (!relation) throw new Error("Vínculo confirmado não apareceu na lista de barbearias.");
+        const nextCustomer = await getMyCustomer(supabase, expectedOrganizationId, user.id);
+        if (!nextCustomer || nextCustomer.id !== relation.customer_id) {
+          throw new Error("Relação de cliente inconsistente para esta barbearia.");
+        }
+        if (currentSlugRef.current !== expectedSlug) return result;
+        setOrganizations(nextOrganizations);
+        setCustomer(nextCustomer);
+        setPendingClaim(null);
+        setLinkStatus("LINKED");
+        return result;
+      } catch (cause: unknown) {
+        if (currentSlugRef.current === expectedSlug) {
+          setCustomer(null);
+          setPendingClaim(null);
+          setLinkStatus("ERROR");
+          setError(toClientError(cause, "Não foi possível entrar nesta barbearia."));
+        }
+        throw cause;
+      }
+    })();
+    const guarded = operation.then(
+      (result) => {
+        if (linkInFlightRef.current?.promise === guarded) linkInFlightRef.current = null;
+        return result;
+      },
+      (cause: unknown) => {
+        if (linkInFlightRef.current?.promise === guarded) linkInFlightRef.current = null;
+        throw cause;
+      },
+    );
+    linkInFlightRef.current = { slug: expectedSlug, promise: guarded };
+    return guarded;
+  }, [context, pendingClaim, slug, supabase, user]);
 
   const signOut = useCallback(async () => {
     if (!supabase) return;
     const { error: signOutError } = await supabase.auth.signOut();
     if (signOutError) throw new Error(signOutError.message);
     setUser(null);
+    setAccount(null);
+    setOrganizations([]);
     setCustomer(null);
+    setPendingClaim(null);
+    setLinkStatus("IDLE");
   }, [supabase]);
 
   const value = useMemo<ConnectedClientContextValue>(() => ({
     slug,
     context,
     user,
+    account,
+    organizations,
+    linkStatus,
     customer,
     loading,
     authLoading,
     error,
     selectTenant,
+    switchTenant,
     reloadCustomer,
-    signInWithGoogle,
+    confirmTenantLink,
     signOut,
-  }), [authLoading, context, customer, error, loading, reloadCustomer, selectTenant, signInWithGoogle, signOut, slug, user]);
+  }), [account, authLoading, confirmTenantLink, context, customer, error, linkStatus, loading, organizations, reloadCustomer, selectTenant, signOut, slug, switchTenant, user]);
 
   return <ConnectedClientContext.Provider value={value}>{children}</ConnectedClientContext.Provider>;
 }

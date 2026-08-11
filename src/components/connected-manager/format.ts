@@ -102,7 +102,7 @@ export function humanizeError(error: unknown) {
     [/organization is not accepting/i, "A assinatura está bloqueada para novas reservas."],
     [/override reason required/i, "Informe o motivo para agendar fora da escala."],
     [/row-level security|permission denied|organization owner required/i, "Acesso negado para esta organização."],
-    [/phone_e164|customers_phone/i, "Use telefone no formato +5511999999999 e sem duplicidade."],
+    [/phone_e164|customers_phone/i, "Use telefone no formato +5511999999999."],
     [/no positive unpaid commission/i, "Não há comissão positiva em aberto nesse período."],
   ];
   return dictionary.find(([pattern]) => pattern.test(message))?.[1] ?? message;

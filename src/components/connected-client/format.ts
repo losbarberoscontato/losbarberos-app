@@ -46,10 +46,19 @@ export function catalogChoices(context: PublicBookingContext): CatalogChoice[] {
   ];
 }
 
+export type CatalogChoiceKindFilter = "ALL" | CatalogChoice["kind"];
+
+export function filterByChoiceKind(
+  choices: readonly CatalogChoice[],
+  filter: CatalogChoiceKindFilter,
+): CatalogChoice[] {
+  return filter === "ALL" ? [...choices] : choices.filter((choice) => choice.kind === filter);
+}
+
 export function bookingSelection(choice: CatalogChoice): BookingSelection[] {
   return choice.kind === "SERVICE"
-    ? [{ service_id: choice.id, quantity: 1 }]
-    : [{ package_id: choice.id, quantity: 1 }];
+    ? [{ type: "SERVICE", service_id: choice.id, quantity: 1 }]
+    : [{ type: "PACKAGE", package_id: choice.id, quantity: 1 }];
 }
 
 export function serviceIdsForChoice(
@@ -78,8 +87,8 @@ export function selectionsFromAppointmentItems(items: AppointmentItem[]): Bookin
   return [...groups.values()].map((group) => {
     const first = group[0];
     return first.source === "PACKAGE" && first.package_id
-      ? { package_id: first.package_id, quantity: 1 }
-      : { service_id: first.service_id, quantity: first.quantity };
+      ? { type: "PACKAGE", package_id: first.package_id, quantity: 1 }
+      : { type: "SERVICE", service_id: first.service_id, quantity: first.quantity };
   });
 }
 
@@ -104,7 +113,7 @@ export function addCalendarDays(isoDate: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function dateOptions(timezone: string, count = 14, now = new Date()): string[] {
+export function dateOptions(timezone: string, count = 16, now = new Date()): string[] {
   const today = localToday(timezone, now);
   return Array.from({ length: count }, (_, index) => addCalendarDays(today, index));
 }

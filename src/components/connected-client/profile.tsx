@@ -7,7 +7,7 @@ import {
   recordWhatsappConsent,
   submitPrivacyRequest,
   toClientError,
-  upsertMyCustomer,
+  upsertMyClientAccount,
 } from "@/components/connected-client/api";
 import { useConnectedClient } from "@/components/connected-client/context";
 import { formatInstant, initials, locationLabel } from "@/components/connected-client/format";
@@ -21,11 +21,10 @@ export function ConnectedProfile() {
 }
 
 function ProfileContent() {
-  const { context, user, customer, authLoading, reloadCustomer, signOut } = useConnectedClient();
+  const { context, user, account, customer, authLoading, reloadCustomer, signOut } = useConnectedClient();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [whatsappGranted, setWhatsappGranted] = useState(false);
   const [requests, setRequests] = useState<PrivacyRequest[]>([]);
@@ -38,16 +37,15 @@ function ProfileContent() {
 
   useEffect(() => {
     if (!user) return;
-    const identity = `${user.id}:${customer?.id ?? "new"}`;
+    const identity = `${user.id}:${account?.auth_user_id ?? "new"}`;
     if (initializedIdentity === identity) return;
     queueMicrotask(() => {
-      setFullName(customer?.full_name ?? String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? ""));
-      setPhone(customer?.phone_e164 ?? "");
-      setEmail(customer?.email ?? user.email ?? "");
-      setBirthDate(customer?.birth_date ?? "");
+      setFullName(account?.full_name ?? String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? ""));
+      setPhone(account?.phone_e164 ?? "");
+      setBirthDate(account?.birth_date ?? "");
       setInitializedIdentity(identity);
     });
-  }, [customer, initializedIdentity, user]);
+  }, [account, initializedIdentity, user]);
 
   const loadPrivacy = useCallback(async () => {
     if (!supabase || !context || !customer) {
@@ -79,7 +77,7 @@ function ProfileContent() {
   const organizationId = context.organization.id;
 
   async function saveProfile() {
-    if (!supabase) return;
+    if (!supabase || !account) return;
     if (fullName.trim().length < 2) {
       setError("Informe nome completo.");
       return;
@@ -91,12 +89,11 @@ function ProfileContent() {
     setBusy(true);
     setError("");
     try {
-      await upsertMyCustomer(supabase, {
-        organizationId,
+      await upsertMyClientAccount(supabase, {
         fullName: fullName.trim(),
         phoneE164: phone.trim(),
-        email: email.trim() || null,
         birthDate: birthDate || null,
+        termsPolicyVersion: account.terms_policy_version,
       });
       await reloadCustomer();
       setNotice("Perfil atualizado.");
@@ -163,8 +160,8 @@ function ProfileContent() {
         </aside>
         <div className={styles.profileMain}>
           <section className={styles.panel}>
-            <div className={styles.sectionTitle}><UserRound /><div><h2>Dados pessoais</h2><p>Usados para identificar reservas neste tenant.</p></div></div>
-            <div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>Telefone E.164<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label><label>Nascimento <small>opcional</small><input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} /></label></div>
+            <div className={styles.sectionTitle}><UserRound /><div><h2>Dados pessoais</h2><p>Aplicados em todas as barbearias vinculadas à sua conta.</p></div></div>
+            <div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>Telefone E.164<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Nascimento <small>opcional</small><input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} /></label></div>
             <button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void saveProfile()}><Save size={16} /> {busy ? "Salvando…" : "Salvar dados"}</button>
           </section>
           <section className={styles.panel}>

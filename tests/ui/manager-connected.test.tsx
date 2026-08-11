@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgendaManager } from "@/components/connected-manager/agenda-manager";
 import { CustomersManager } from "@/components/connected-manager/customers-manager";
@@ -26,7 +26,7 @@ const organization = {
   commission_frequency: "MONTHLY" as const,
   whatsapp_phone_number_id: null,
 };
-const customer = { id: "customer-1", organization_id: "org-1", full_name: "Cliente Real", phone_e164: "+5511999999999", email: null, birth_date: null, notes: null, active: true, inactivation_reason: null, inactivated_at: null, created_at: new Date().toISOString() };
+const customer = { id: "customer-1", organization_id: "org-1", auth_user_id: null, full_name: "Cliente Real", phone_e164: "+5511999999999", email: null, birth_date: null, notes: null, active: true, inactivation_reason: null, inactivated_at: null, created_at: new Date().toISOString() };
 const barber = { id: "barber-1", organization_id: "org-1", location_id: "location-1", display_name: "Barbeiro Real", bio: null, avatar_url: null, active: true };
 const service = { id: "service-1", organization_id: "org-1", name: "Corte Real", description: null, price_cents: 5000, duration_minutes: 30, active: true, sort_order: 0, audiences: ["MASCULINO"] as const };
 
@@ -158,6 +158,24 @@ describe("connected manager UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
     expect(screen.getByRole("dialog", { name: "Editar cliente" })).toBeInTheDocument();
     expect(screen.getByDisplayValue("Cliente Real")).toBeInTheDocument();
+  });
+
+  it("bloqueia dados canônicos de cliente vinculado e preserva observações do gestor", async () => {
+    const linkedCustomer = { ...customer, auth_user_id: "client-auth-user", notes: "Preferência antiga" };
+    render(<CustomersManager organizationId="org-1" billingStatus="ACTIVE" customers={[linkedCustomer]} appointments={[]} appointmentItems={[]} financial={[]} barbers={[]} statusEvents={[]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    expect(screen.getByText(/Dados controlados pelo cliente/u)).toBeInTheDocument();
+    expect(screen.getByLabelText("Nome completo")).toBeDisabled();
+    expect(screen.getByLabelText("Telefone")).toBeDisabled();
+    expect(screen.getByLabelText("E-mail")).toBeDisabled();
+    expect(screen.getByLabelText("Nascimento (opcional)")).toBeDisabled();
+    const notes = screen.getByLabelText("Observações");
+    expect(notes).toBeEnabled();
+    fireEvent.change(notes, { target: { value: "Prefere atendimento cedo" } });
+    fireEvent.submit(screen.getByRole("dialog", { name: "Editar cliente" }));
+
+    await waitFor(() => expect(mutationMocks.update).toHaveBeenCalledWith({ notes: "Prefere atendimento cedo" }));
   });
 
   it("exige motivo para inativar e filtra ativos e inativos", () => {

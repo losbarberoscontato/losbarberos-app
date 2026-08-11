@@ -7,9 +7,11 @@ import { ArrowLeftRight, Building2, ChevronRight, CircleDollarSign, Landmark, Pl
 import { PageHeader } from "@/components/ui";
 import { centsFromInput, formatCents } from "./format";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
+import type { AppointmentReceiptDraft } from "./appointment-receipt";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import type {
   AppointmentCashActivityRecord,
+  AppointmentReceivableRecord,
   ChartAccountRecord,
   CostCenterRecord,
   CustomerRecord,
@@ -51,6 +53,7 @@ export type CashManagerProps = {
   settlements: FinancialSettlementRecord[];
   appointmentActivity: AppointmentCashActivityRecord[];
   mappings: PaymentAccountMappingRecord[];
+  appointmentReceivables?: AppointmentReceivableRecord[];
   demoMode?: boolean;
 };
 
@@ -114,6 +117,7 @@ export function CashManager(props: CashManagerProps) {
   const [settlementEntry, setSettlementEntry] = useState<FinancialEntryRecord | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [reversePayment, setReversePayment] = useState<AppointmentCashActivityRecord | null>(null);
+  const [appointmentReceipt, setAppointmentReceipt] = useState<AppointmentReceivableRecord | AppointmentReceiptDraft | null>(null);
 
   const accountById = useMemo(() => new Map(props.accounts.map((item) => [item.id, item])), [props.accounts]);
   const supplierById = useMemo(() => new Map(props.suppliers.map((item) => [item.id, item])), [props.suppliers]);
@@ -143,7 +147,7 @@ export function CashManager(props: CashManagerProps) {
   const manualRevenue = props.entries.filter((item) => item.kind === "REVENUE").reduce((total, item) => total + item.settled_cents, 0);
   const manualExpense = props.entries.filter((item) => item.kind === "EXPENSE").reduce((total, item) => total + item.settled_cents, 0);
   const balance = props.balances.reduce((total, item) => total + item.balance_cents, 0);
-  const openReceivable = props.entries.filter((item) => item.kind === "REVENUE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0);
+  const openReceivable = props.entries.filter((item) => item.kind === "REVENUE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0) + (props.appointmentReceivables ?? []).reduce((total, item) => total + item.outstanding_cents, 0);
   const openPayable = props.entries.filter((item) => item.kind === "EXPENSE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0);
 
   async function reverseAppointmentReceipt() {
@@ -187,7 +191,7 @@ export function CashManager(props: CashManagerProps) {
         </div>
         {props.section !== "cash" && <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button>}
       </div>
-      <CashList entries={visibleEntries} activity={visibleActivity} accountById={accountById} supplierById={supplierById} customerById={customerById} onEdit={setEntryEditor} onSettle={setSettlementEntry} onCancel={async (entry) => {
+      <CashList entries={visibleEntries} activity={visibleActivity} receivables={props.section === "receivables" ? (props.appointmentReceivables ?? []) : []} accountById={accountById} supplierById={supplierById} customerById={customerById} onEdit={setEntryEditor} onSettle={setSettlementEntry} onReceive={setAppointmentReceipt} onCancel={async (entry) => {
         if (blockDemoWrite(props.demoMode, setMessage)) return;
         const reason = window.prompt("Motivo obrigatório do cancelamento:");
         if (!reason?.trim()) return;
@@ -200,6 +204,7 @@ export function CashManager(props: CashManagerProps) {
     {props.section === "catalogs" && <CatalogsSection organizationId={props.organizationId} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} accounts={props.accounts} mappings={props.mappings} demoMode={props.demoMode} setMessage={setMessage} />}
 
     {entryEditor && <EntryDialog entry={entryEditor === "new" ? null : entryEditor} {...props} onClose={() => setEntryEditor(null)} onSaved={() => { setEntryEditor(null); router.refresh(); }} setMessage={setMessage} />}
+    {appointmentReceipt && <AppointmentReceiptDialog receipt={appointmentReceipt} accounts={props.accounts} chartAccounts={props.chartAccounts} mappings={props.mappings} demoMode={props.demoMode} onClose={() => setAppointmentReceipt(null)} onSaved={() => { setAppointmentReceipt(null); router.refresh(); }} setMessage={setMessage} />}
     {settlementEntry && <SettlementDialog entry={settlementEntry} accounts={props.accounts} demoMode={props.demoMode} onClose={() => setSettlementEntry(null)} onSaved={() => { setSettlementEntry(null); router.refresh(); }} setMessage={setMessage} />}
     {transferOpen && <TransferDialog accounts={props.accounts} demoMode={props.demoMode} onClose={() => setTransferOpen(false)} onSaved={() => { setTransferOpen(false); router.refresh(); }} setMessage={setMessage} />}
     {reversePayment && <ConfirmDialog title="Estornar recebimento do agendamento?" description="O valor será estornado ao cliente e o saldo do agendamento será reaberto. Serviço e agendamento continuam concluídos." confirmLabel="Confirmar estorno" onClose={() => setReversePayment(null)} onConfirm={() => void reverseAppointmentReceipt()} />}
@@ -215,20 +220,63 @@ function CashStats({ balance, incoming, outgoing, openReceivable, openPayable }:
   </section>;
 }
 
-function CashList({ entries, activity, accountById, supplierById, customerById, onEdit, onSettle, onCancel, onTransfer, onReverseAppointment }: { entries: FinancialEntryRecord[]; activity: AppointmentCashActivityRecord[]; accountById: Map<string, FinancialAccountRecord>; supplierById: Map<string, SupplierRecord>; customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>; onEdit: (entry: FinancialEntryRecord) => void; onSettle: (entry: FinancialEntryRecord) => void; onCancel: (entry: FinancialEntryRecord) => void; onTransfer: () => void; onReverseAppointment: (entry: AppointmentCashActivityRecord) => void }) {
+function CashList({ entries, activity, receivables, accountById, supplierById, customerById, onEdit, onSettle, onReceive, onCancel, onTransfer, onReverseAppointment }: { entries: FinancialEntryRecord[]; activity: AppointmentCashActivityRecord[]; receivables: AppointmentReceivableRecord[]; accountById: Map<string, FinancialAccountRecord>; supplierById: Map<string, SupplierRecord>; customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>; onEdit: (entry: FinancialEntryRecord) => void; onSettle: (entry: FinancialEntryRecord) => void; onReceive: (entry: AppointmentReceivableRecord) => void; onCancel: (entry: FinancialEntryRecord) => void; onTransfer: () => void; onReverseAppointment: (entry: AppointmentCashActivityRecord) => void }) {
   return <Panel title="Movimentações" description="Registros de agendamento são vinculados ao ledger existente e não podem ser editados aqui." action={<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onTransfer}><ArrowLeftRight size={15} /> Transferir</button>}>
-    {!entries.length && !activity.length ? <EmptyState title="Sem movimentações">Crie um lançamento ou registre um recebimento de agendamento.</EmptyState> : <div className={styles.cashTable} role="table" aria-label="Movimentações financeiras">
+    {!entries.length && !activity.length && !receivables.length ? <EmptyState title="Sem movimentações">Crie um lançamento ou registre um recebimento de agendamento.</EmptyState> : <div className={styles.cashTable} role="table" aria-label="Movimentações financeiras">
       <div className={styles.cashHeader} role="row"><span role="columnheader">Cliente/Fornecedor</span><span role="columnheader">Data</span><span role="columnheader">Valor</span><span role="columnheader">Conta financeira</span><span role="columnheader">Situação do pagamento</span><span role="columnheader">Ações</span></div>
       {entries.map((entry) => {
         const counterpart = entry.counterparty_kind === "CUSTOMER" ? customerById.get(entry.customer_id ?? "")?.full_name : supplierById.get(entry.supplier_id ?? "")?.name;
         return <article key={entry.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpart ?? "Não informado"}</strong><small className={styles.cashDescription}>{entry.description}</small></span><span role="cell">{entry.due_date}</span><strong role="cell">{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span role="cell">{accountById.get(entry.preferred_financial_account_id ?? "")?.name ?? "Não definida"}</span><span role="cell"><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /></span><span className={styles.rowActions} role="cell">{!["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>Liquidar</button>}{entry.status === "OPEN" || entry.status === "OVERDUE" ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : entry.status !== "CANCELED" ? <small className={styles.muted}>Use reversal para corrigir liquidações.</small> : null}</span></article>;
       })}
       {activity.map((item) => <article key={item.payment_transaction_id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{customerById.get(item.customer_id)?.full_name ?? "Cliente"}</strong><small className={styles.cashDescription}>{item.display_description}</small></span><span role="cell">{new Date(item.occurred_at).toLocaleDateString("pt-BR")}</span><strong role="cell">{item.signed_cents >= 0 ? "+" : "−"}{formatCents(Math.abs(item.signed_cents))}</strong><span role="cell">{item.needs_reconciliation ? "Não vinculada" : accountById.get(item.financial_account_id ?? "")?.name ?? "Conta não encontrada"}</span><span role="cell"><StatusChip active={item.financial_status === "PAID"} label={appointmentPaymentLabel(item.financial_status)} /></span><span className={styles.rowActions} role="cell">{item.kind === "CAPTURE" && item.provider === "MANUAL" && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseAppointment(item)}>Estornar recebimento</button>}</span></article>)}
+      {receivables.map((item) => <article key={`receivable-${item.appointment_id}`} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{item.customer_name}</strong><small className={styles.cashDescription}>{item.description}</small></span><span role="cell">{item.due_date}</span><strong role="cell">+{formatCents(item.outstanding_cents)}</strong><span role="cell">Caixa Físico</span><span role="cell"><StatusChip active={false} label="A receber" /></span><span className={styles.rowActions} role="cell"><button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onReceive(item)}>Receber</button></span></article>)}
     </div>}
   </Panel>;
 }
 
-function EntryDialog({ entry, organizationId, accounts, suppliers, chartAccounts, costCenters, tags, customers, entryTags, demoMode, onClose, onSaved, setMessage }: Omit<CashManagerProps, "section" | "billingStatus" | "balances" | "entries" | "settlements" | "appointmentActivity" | "mappings"> & { entry: FinancialEntryRecord | null; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts = [], mappings = [], demoMode, onClose, onSaved, setMessage }: { receipt: AppointmentReceivableRecord | AppointmentReceiptDraft; accounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; mappings?: PaymentAccountMappingRecord[]; demoMode?: boolean; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+  const mappedAccountId = mappings.find((item) => item.provider === "MANUAL" && item.payment_mode === "COUNTER")?.financial_account_id;
+  const defaultAccount = mappedAccountId ?? accounts.find((item) => item.active && /caixa/i.test(item.name))?.id ?? "";
+  const defaultChart = chartAccounts.find((item) => item.active && (item.code === "1" || /receita/i.test(item.name)))?.id ?? "";
+  const customerName = "customer_name" in receipt ? receipt.customer_name : receipt.customerName;
+  const amountCents = "outstanding_cents" in receipt ? receipt.outstanding_cents : receipt.amountCents;
+  const issueDate = "issue_date" in receipt ? receipt.issue_date : receipt.issueDate;
+  const dueDate = "due_date" in receipt ? receipt.due_date : receipt.dueDate;
+  const documentNumber = "document_number" in receipt ? receipt.document_number : receipt.documentNumber;
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (blockDemoWrite(demoMode, setMessage)) return;
+    const data = new FormData(event.currentTarget);
+    const appointmentId = "appointment_id" in receipt ? receipt.appointment_id : receipt.appointmentId;
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("record_manual_appointment_receipt", {
+        p_appointment_id: appointmentId,
+        p_amount_cents: amountCents,
+        p_reference: `${safeText(data.get("document_number"))} · ${safeText(data.get("payment_method"))}`,
+        p_idempotency_key: `manager:appointment-receipt:${appointmentId}:${crypto.randomUUID()}`,
+        p_receipt: { customer_name: customerName, description: receipt.description, amount_cents: amountCents, issue_date: issueDate, due_date: dueDate, chart_account_id: defaultChart || null, financial_account_id: defaultAccount || null, cost_center_id: null, document_number: safeText(data.get("document_number")), tags: [] },
+      }));
+    }, "Recebimento confirmado e enviado ao Caixa.");
+    if (saved) onSaved();
+  }
+  return <Dialog title="Receber atendimento" onClose={onClose}><form className={styles.form} onSubmit={submit}>
+    <Field label="Contraparte / Cliente"><input value={customerName} readOnly /></Field>
+    <Field label="Tipo"><input value="Receita" readOnly /></Field>
+    <Field label="Descrição" wide><input name="description" defaultValue={receipt.description} required /></Field>
+    <Field label="Valor (R$)"><input value={(amountCents / 100).toFixed(2).replace(".", ",")} readOnly /></Field>
+    <Field label="Data do lançamento"><input type="date" value={issueDate} readOnly /></Field>
+    <Field label="Vencimento"><input type="date" value={dueDate} readOnly /></Field>
+    <Field label="Plano de conta"><select aria-label="Plano de conta" defaultValue={defaultChart} disabled={!defaultChart}><option value="">1 · Receitas</option>{chartAccounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select></Field>
+    <Field label="Banco ou caixa"><select aria-label="Banco ou caixa" defaultValue={defaultAccount} disabled={!defaultAccount}><option value="">Caixa Físico</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+    <Field label="Centro de custo"><input value="Não informar" readOnly /></Field>
+    <Field label="Número do documento"><input name="document_number" defaultValue={documentNumber} required /></Field>
+    <Field label="Tags"><input value="Nenhuma" readOnly /></Field>
+    <Field label="Forma de recebimento"><select name="payment_method" defaultValue="CASH"><option value="CASH">Dinheiro</option><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field>
+    <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar recebimento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
+  </form></Dialog>;
+}
+
+function EntryDialog({ entry, organizationId, accounts, suppliers, chartAccounts, costCenters, tags, customers, entryTags, demoMode, onClose, onSaved, setMessage }: Omit<CashManagerProps, "section" | "billingStatus" | "balances" | "entries" | "settlements" | "appointmentActivity" | "mappings" | "appointmentReceivables"> & { entry: FinancialEntryRecord | null; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
   const [counterpartyKind, setCounterpartyKind] = useState<"" | "CUSTOMER" | "SUPPLIER">(entry?.counterparty_kind ?? "");
   const selectedTags = new Set(entry ? entryTags.filter((item) => item.entry_id === entry.id).map((item) => item.tag_id) : []);
   async function submit(event: FormEvent<HTMLFormElement>) {

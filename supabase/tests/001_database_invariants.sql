@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_temp;
 
-select plan(97);
+select plan(122);
 
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -799,6 +799,235 @@ select throws_ok(
   'CLOSED tenant cannot export after retention window'
 );
 reset role;
+
+-- Global client identity: self-owned account, explicit tenant links and review-only ambiguity.
+insert into auth.users (
+  id, aud, role, email, email_confirmed_at, phone, phone_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) values
+  ('10000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated',
+    'client-a@example.test', now(), '+5511999991004', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('10000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated',
+    'client-b@example.test', now(), '+5511999991005', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('10000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated',
+    'manager-client-test@example.test', now(), '+5511999991006', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('10000000-0000-4000-8000-000000000007', 'authenticated', 'authenticated',
+    'client-c@example.test', now(), '+5511999991007', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('10000000-0000-4000-8000-000000000008', 'authenticated', 'authenticated',
+    'client-unconfirmed@example.test', null, null, null, '{}'::jsonb, '{}'::jsonb, now(), now());
+
+insert into public.organizations (id, name, slug, timezone, created_by) values
+  ('20000000-0000-4000-8000-000000000003', 'Barbearia Tres', 'barbearia-tres', 'America/Sao_Paulo', '10000000-0000-4000-8000-000000000006'),
+  ('20000000-0000-4000-8000-000000000004', 'Barbearia Quatro', 'barbearia-quatro', 'America/Sao_Paulo', '10000000-0000-4000-8000-000000000006');
+insert into public.organization_memberships (organization_id, user_id, role) values
+  ('20000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000006', 'OWNER');
+insert into public.saas_subscriptions (organization_id, status) values
+  ('20000000-0000-4000-8000-000000000003', 'ACTIVE'),
+  ('20000000-0000-4000-8000-000000000004', 'ACTIVE');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select lives_ok(
+  $$select public.upsert_my_client_account('Cliente A', '+5511999991004', '1990-01-02', 'v1')$$,
+  'valid E.164 plus prefix creates global account through RPC'
+);
+select throws_ok(
+  $$select public.upsert_my_client_account('Cliente A', '5511999991004', '1990-01-02', 'v1')$$,
+  '22023', 'invalid client account profile',
+  'phone without E.164 plus prefix is rejected'
+);
+select is(
+  (select full_name from public.client_accounts), 'Cliente A',
+  'client A can read own account'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000008', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select throws_ok(
+  $$select public.upsert_my_client_account('Cliente Sem Confirmacao', '+5511999991008', '1993-04-05', 'v1')$$,
+  '42501', 'email confirmation required',
+  'unconfirmed auth email cannot upsert global client account'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select is(
+  (select count(*) from public.client_accounts), 0::bigint,
+  'client B cannot read client A account'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select throws_ok(
+  $$update public.client_accounts set phone_verified_at = now()
+    where auth_user_id = '10000000-0000-4000-8000-000000000004'$$,
+  '42501', null, 'client cannot spoof verified phone evidence directly'
+);
+select throws_ok(
+  $$update public.client_accounts set terms_accepted_at = now() + interval '1 day'
+    where auth_user_id = '10000000-0000-4000-8000-000000000004'$$,
+  '42501', null, 'client cannot spoof terms acceptance evidence directly'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+create temporary table client_link_context (first_link jsonb not null);
+select throws_ok(
+  $$select public.link_my_client_to_organization(
+    'barbearia-tres', '20000000-0000-4000-8000-000000000004'
+  )$$,
+  '22023', 'organization identity changed',
+  'stale slug and organization identity cannot create a link in another tenant'
+);
+select is(
+  (select count(*) from public.customers
+    where auth_user_id = '10000000-0000-4000-8000-000000000004'),
+  0::bigint,
+  'stale tenant identity rejection writes no customer relation'
+);
+insert into client_link_context
+select public.link_my_client_to_organization(
+  'barbearia-tres', '20000000-0000-4000-8000-000000000003'
+);
+select is(
+  (select first_link ->> 'status' from client_link_context), 'LINKED',
+  'explicit link creates a tenant customer when no verified candidate exists'
+);
+select is(
+  public.link_my_client_to_organization(
+    'barbearia-tres', '20000000-0000-4000-8000-000000000003'
+  ) ->> 'customer_id',
+  (select first_link ->> 'customer_id' from client_link_context),
+  'explicit link retry returns same tenant customer'
+);
+select is(
+  public.link_my_client_to_organization(
+    'barbearia-quatro', '20000000-0000-4000-8000-000000000004'
+  ) ->> 'status', 'LINKED',
+  'same global client can explicitly link a second organization'
+);
+select is(
+  jsonb_array_length(public.list_my_client_organizations()), 2,
+  'client organization list exposes only own two tenant links'
+);
+select lives_ok(
+  $$select public.upsert_my_client_account(
+      'Cliente A Sincronizado', '+5511999991004', '1990-01-03', 'v1'
+    )$$,
+  'linked client can update global profile through trusted RPC'
+);
+select is(
+  (select concat_ws('|', full_name, phone_e164, email, birth_date::text)
+    from public.customers
+    where id = (select (first_link ->> 'customer_id')::uuid from client_link_context)),
+  'Cliente A Sincronizado|+5511999991004|client-a@example.test|1990-01-03',
+  'linked customer follows global profile update'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000006', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select throws_ok(
+  $$update public.customers set full_name = 'Nome do gestor'
+    where id = (select (first_link ->> 'customer_id')::uuid from client_link_context)$$,
+  '42501', 'linked customer canonical fields are client-controlled',
+  'manager cannot overwrite linked canonical customer fields'
+);
+reset role;
+
+insert into public.customers (
+  id, organization_id, full_name, phone_e164, email
+) values (
+  '40000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000003',
+  'Cliente Local', '+5511999991007', 'local-only@example.test'
+);
+select is(
+  (select auth_user_id from public.customers where id = '40000000-0000-4000-8000-000000000003'),
+  null::uuid, 'tenant-only customer remains valid without a global account link'
+);
+
+insert into public.customers (
+  id, organization_id, full_name, phone_e164, email, birth_date
+) values (
+  '40000000-0000-4000-8000-000000000006', '20000000-0000-4000-8000-000000000004',
+  'Cadastro Antigo C', '+5511999991007', 'client-c@example.test', '1980-01-01'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000007', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select lives_ok(
+  $$select public.upsert_my_client_account('Cliente C', '+5511999991007', '1992-03-04', 'v1')$$,
+  'client C can create global account for exact verified claim'
+);
+create temporary table client_exact_claim_context (link_result jsonb not null);
+insert into client_exact_claim_context
+select public.link_my_client_to_organization(
+  'barbearia-quatro', '20000000-0000-4000-8000-000000000004'
+);
+select is(
+  (select link_result ->> 'status' from client_exact_claim_context),
+  'CLAIM_REQUIRED', 'exact one verified candidate requires explicit claim'
+);
+select is(
+  public.claim_my_existing_customer(
+    '20000000-0000-4000-8000-000000000004',
+    '40000000-0000-4000-8000-000000000006'
+  ) ->> 'status',
+  'LINKED', 'exact verified candidate claim links canonical identity'
+);
+select is(
+  (select concat_ws('|', auth_user_id::text, full_name, phone_e164, email, birth_date::text)
+    from public.customers where id = '40000000-0000-4000-8000-000000000006'),
+  '10000000-0000-4000-8000-000000000007|Cliente C|+5511999991007|client-c@example.test|1992-03-04',
+  'successful claim stores global canonical fields without merging rows'
+);
+reset role;
+
+insert into public.customers (
+  id, organization_id, full_name, phone_e164, email
+) values
+  ('40000000-0000-4000-8000-000000000004', '20000000-0000-4000-8000-000000000003',
+    'Candidata B Um', '+5511999991011', 'client-b@example.test'),
+  ('40000000-0000-4000-8000-000000000005', '20000000-0000-4000-8000-000000000003',
+    'Candidata B Dois', '+5511999991012', 'client-b@example.test');
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select lives_ok(
+  $$select public.upsert_my_client_account('Cliente B', '+5511999991005', '1991-02-03', 'v1')$$,
+  'client B can create own global account'
+);
+select is(
+  public.claim_my_existing_customer(
+    '20000000-0000-4000-8000-000000000003',
+    '40000000-0000-4000-8000-000000000004'
+  ) ->> 'status',
+  'REVIEW_REQUIRED', 'ambiguous verified claim requires review instead of merge'
+);
+reset role;
+select is(
+  (select count(*) from public.customer_link_reviews
+    where organization_id = '20000000-0000-4000-8000-000000000003'
+      and requester_auth_user_id = '10000000-0000-4000-8000-000000000005'
+      and status = 'OPEN'),
+  2::bigint, 'ambiguous claim creates private review rows for every candidate'
+);
+select is(
+  (select count(*) from public.customers
+    where id in ('40000000-0000-4000-8000-000000000004', '40000000-0000-4000-8000-000000000005')
+      and auth_user_id is null),
+  2::bigint, 'ambiguous claim preserves both tenant customer rows'
+);
 
 select * from finish();
 rollback;

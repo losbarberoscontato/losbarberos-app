@@ -58,3 +58,9 @@ Assuma o volante técnico para investigar e implementar os próximos relatos de 
 ## Primeiro passo
 
 Faça o preflight curto, informe o estado real de GitHub, Supabase e Vercel e aguarde meu primeiro relato de teste.
+
+## Estado acrescentado em 11/08/2026
+
+- Migrations remotas sincronizadas até `202608110003`.
+- Recebimento de atendimento `COUNTER`: concluir abre boleta; cancelar preserva `UNPAID`; `Contas a receber` projeta concluídos com saldo aberto e oferece `Receber`.
+- `payment_transactions` é fonte única de verdade; `202608110003_appointment_receipt_metadata.sql` grava metadados da boleta sem criar lançamento financeiro duplicado.
