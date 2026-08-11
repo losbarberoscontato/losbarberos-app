@@ -52,7 +52,7 @@
 - `client_accounts` é a identidade global do cliente. Nome, telefone e nascimento são sincronizados de forma controlada para os clientes tenant vinculados; e-mail é gerenciado pelo Supabase Auth.
 - O perfil do cliente salva apenas pela RPC `upsert_my_client_account`. A tela do gestor identifica `auth_user_id`, explica o bloqueio e permite editar somente observações de um cliente vinculado; inativação e reativação continuam tenant-local.
 - Home conectada do cliente mostra a barbearia vinculada, CTA de agendamento e troca somente entre vínculos confirmados. Não mostra carteira ou saldo.
-- Validação local desta etapa: testes focados `59/59` e TypeScript aprovados. Os gates completos e a verificação visual conectada ficam pendentes antes de qualquer publicação.
+- Validação local desta etapa: suíte de identidade `113/113`, lint, TypeScript, Vitest completo e build aprovados; smoke de produção local `/cliente/entrar`: HTTP 200. Verificação visual autenticada conectada fica pendente antes de qualquer publicação.
 - Mercado Pago sandbox/produção, WhatsApp/Meta e e-mail transacional ainda não foram configurados ou validados nesta etapa.
 
 ## Regras para continuar
