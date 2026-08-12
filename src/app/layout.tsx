@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { publicSite } from "@/lib/public-site";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(publicSite.origin),
   title: {
     default: "Los Barberos · Gestão para barbearias",
     template: "%s · Los Barberos",

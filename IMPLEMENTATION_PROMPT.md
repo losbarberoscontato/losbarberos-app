@@ -64,3 +64,13 @@ Faça o preflight curto, informe o estado real de GitHub, Supabase e Vercel e ag
 - Migrations remotas sincronizadas até `202608110003`.
 - Recebimento de atendimento `COUNTER`: concluir abre boleta; cancelar preserva `UNPAID`; `Contas a receber` projeta concluídos com saldo aberto e oferece `Receber`.
 - `payment_transactions` é fonte única de verdade; `202608110003_appointment_receipt_metadata.sql` grava metadados da boleta sem criar lançamento financeiro duplicado.
+
+## Estado acrescentado em 12/08/2026 — páginas legais
+
+- Rotas públicas preparadas para Meta App Review: `/privacidade`, `/termos` e `/exclusao-de-dados`, versão `1.0`.
+- Responsável: `JULIO CESAR HEIDEN JUNIOR 05128841960`; e-mail LGPD: `contato@losbarberos.com.br`.
+- `NEXT_PUBLIC_SITE_URL` controla a origem canônica: use `https://losbarberos-app.vercel.app` agora e `https://losbarberos.com.br` após o corte do domínio.
+- Logo oficial 1024×1024: `public/icon-1024.png`.
+- Não houve migration nem alteração remota no Supabase nesta entrega.
+- Os textos são provisórios apenas no sentido jurídico interno: não exibem selo de revisão e deverão ser substituídos ou ajustados quando o advogado enviar a versão final.
+- Antes de considerar publicado, confirmar o SHA em `origin/main`, CI, deployment Vercel correspondente e HTTP 200 nas três rotas e no PNG.

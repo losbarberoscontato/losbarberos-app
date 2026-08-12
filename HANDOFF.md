@@ -74,3 +74,14 @@
 - Nunca exiba chaves, tokens, cookies, `Authorization` ou secrets.
 - Não execute escrita externa sem autorização explícita na conversa atual.
 - Stripe permanece em Test mode; Mercado Pago, WhatsApp/Meta e Google Auth de clientes ficam fora do escopo.
+
+## Páginas legais públicas para Meta — 12/08/2026
+
+- Implementação isolada na branch `codex/legal-meta-release`, sem migration ou escrita no Supabase.
+- Rotas públicas versão `1.0`: `/privacidade`, `/termos` e `/exclusao-de-dados`.
+- Responsável público: `JULIO CESAR HEIDEN JUNIOR 05128841960`; contato LGPD: `contato@losbarberos.com.br`.
+- Origem canônica centralizada em `NEXT_PUBLIC_SITE_URL`. Valor atual: `https://losbarberos-app.vercel.app`; no corte de DNS, alterar para `https://losbarberos.com.br`.
+- Ícone oficial exportado em `public/icon-1024.png` e referenciado no manifesto.
+- Conteúdo jurídico é uma versão genérica baseada na LGPD e ainda depende da revisão final do advogado. Não declarar aprovação jurídica ou aprovação da Meta sem prova posterior.
+- Validação local antes da publicação: testes focados `8/8`, suíte serial `43` arquivos / `235` testes, ESLint, TypeScript, build Next.js e inspeção visual desktop/mobile aprovados.
+- GitHub, CI, Vercel e URLs públicas desta entrega permanecem `PENDENTE` até o commit e a verificação remota do SHA publicado.
