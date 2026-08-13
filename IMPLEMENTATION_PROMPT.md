@@ -1,76 +1,62 @@
 # Prompt inicial — próxima conversa Los Barberos
 
-Estamos continuando o projeto **Los Barberos** em `D:\Display SH\Los Barberos`.
+Estamos continuando o projeto Los Barberos em `D:\Display SH\Los Barberos`.
 
-Assuma o volante técnico para investigar e implementar os próximos relatos de teste funcional ou visual. Preserve todos os dados existentes e diferencie sempre fluxo demo de fluxo conectado ao Supabase.
+Objetivo imediato: configurar o piloto de WhatsApp QR Web na VPS Hostinger KVM2 e, em seguida, concluir as automações pendentes de WhatsApp. Preserve dados existentes, tenant scope e a separação entre demo e fluxo conectado ao Supabase.
 
-## Preflight obrigatório antes de editar
+## Preflight obrigatório
 
-1. Leia integralmente `AGENTS.md`, `HANDOFF.md`, `README.md`, `IMPLEMENTATION_PROMPT.md` e `docs/architecture.md`.
-2. Confirme `git status --short`, branch, remote e os últimos commits locais/remotos.
+1. Leia integralmente `AGENTS.md`, `HANDOFF.md`, `README.md`, este `IMPLEMENTATION_PROMPT.md` e `docs/architecture.md`.
+2. Confirme `git status --short`, branch, remote, SHA de `origin/main` e commits locais/remotos.
 3. Confirme `npx.cmd supabase migration list --linked`.
-4. Faça smoke HTTP em `https://losbarberos-app.vercel.app/entrar`.
+4. Faça smoke em `https://losbarberos-app.vercel.app/entrar`.
 5. Use código, migrations, testes e estado remoto verificado como fonte de verdade.
-6. Nunca mostre chaves, tokens, cookies, headers `Authorization` ou secrets.
+6. Nunca exponha secrets, tokens, cookies ou headers de autorização.
 
-## Baseline publicado
+## Baseline atual
 
-- GitHub: `https://github.com/losbarberoscontato/losbarberos-app`, branch `main`.
-- Entrega funcional publicada mais recente: `acb57df` (`merge: refine local cash movement layout`). Confirme o SHA atual de `origin/main` no preflight.
+- GitHub: `https://github.com/losbarberoscontato/losbarberos-app`; confirmar branch/SHA no preflight.
 - Vercel: `https://losbarberos-app.vercel.app`.
-- Supabase: projeto `Los Barberos`, ref `bwdjkhqshmppescunwer`.
-- Migrations remotas sincronizadas até `202608090003`.
-- Stripe Display SH permanece em Test mode; price `price_1U18IW0StL37D8g9quhZW9RN`; trial de 14 dias.
-- Edge Functions Stripe permanecem na versão 5.
+- Supabase ref: `bwdjkhqshmppescunwer`; migrations remotas sincronizadas até `202608110007`.
+- Edge Functions WhatsApp ativas: `whatsapp-webhook`, `whatsapp-send-outbox`, `whatsapp-embedded-signup-start`, `whatsapp-embedded-signup-callback`, `whatsapp-qr-start` e `whatsapp-qr-webhook`.
+- `payment_transactions` é a fonte única de verdade para pagamentos de agendamento.
+- Demo nunca grava no Supabase.
 
-## Funcionalidades recentes que devem ser preservadas
+## WhatsApp híbrido já entregue
 
-- Serviços e pacotes com públicos Infantil, Feminino, Masculino e Outros Serviços.
-- Edição de pacote substitui corretamente os serviços.
-- Ativação/inativação de serviços e pacotes com filtros Ativos/Inativos.
-- Clientes reais em modal de Novo cliente/Editar.
-- Clientes com modal de histórico e última visita.
-- Histórico de clientes mostra somente agendamentos `COMPLETED` com `net_paid_cents > 0`.
-- Inativação de cliente exige motivo: Mudança de bairro, Mudança de cidade, Insatisfação, Perda de contato ou Outro motivo com texto livre.
-- Motivo e data de inativação persistem em `customers.inactivation_reason` e `customers.inactivated_at`.
-- Filtro Ativos/Inativos na tela Clientes.
-- Clientes inativos não aparecem na busca de novo agendamento.
-- Agenda conectada ao Supabase com visões Dia/Semana/Mês, filtros reais e intervalos de 15 minutos.
-- Modal conectado de Novo agendamento no padrão da demo.
-- Login sem credenciais preenchidas, mensagens temporárias e telefone com `+55` padrão.
-- Tipografia ampliada para melhor legibilidade PWA/mobile.
-- Caixa financeiro publicado: contas, fornecedores, cadastros financeiros, lançamentos, liquidações, transferências e recebimentos vinculados a agendamentos.
-- Migrations `202608090001_financial_cash.sql`, `202608090002_chart_account_templates.sql` e `202608090003_cash_default_account.sql` aplicadas no Supabase. Código do Caixa publicado no GitHub/Vercel pela integração do repositório.
-- No Caixa, `payment_transactions` permanece fonte de verdade dos pagamentos de agendamento. Demo não grava no Supabase; estorno manual reabre apenas o saldo financeiro e preserva o agendamento `COMPLETED`.
-- Planos de conta padrão: template global com 42 contas do PDF de barbearia, copiado automaticamente para organizações criadas após `202608090002`. A substituição de um tenant só é permitida sem lançamentos financeiros vinculados.
-- Caixa: `financial_accounts.description`; conta tenant-safe padrão `Caixa Físico`; mapeamento `MANUAL/COUNTER` sem sobrescrever configuração existente. Em Movimentações, `Cliente/Fornecedor` fica acima da descrição completa, sem truncamento.
+- Página exclusiva conectada: `/gestor/configuracoes/whatsapp`.
+- Meta Cloud API por Embedded Signup; token de tenant vai apenas para o Vault e há um provider ativo por organização.
+- QR Web por Evolution API: início protegido por gestor, QR de conexão, callback assinado e roteamento tenant-safe. Ainda não existe VPS/instância Evolution configurada.
+- Persistência de conexões, regras de lembrete 6h/45min, configurações de confirmação/boas-vindas, ciclo de vida de conexão, opt-out e registro de status estão modelados de forma tenant-safe.
+- Meta ainda depende de verificação/análise externa. O teste do número Meta foi rejeitado pela restrição de país; não tratar Meta como validado.
 
-## Regras de trabalho
+## Primeiro bloco: VPS Hostinger KVM2
 
-- Investigue a causa antes de corrigir.
-- Crie teste de regressão quando viável.
-- Preserve dados cadastrados; migrations sempre incrementais e compatíveis.
-- Não altere Stripe para Live mode.
-- Mercado Pago, WhatsApp/Meta e Google Auth de clientes continuam fora do escopo.
-- Não faça deploy, migration remota ou outra escrita externa sem autorização explícita nesta conversa.
-- Quando a publicação for autorizada, conclua GitHub → Supabase → Vercel e apresente provas reais.
+Assuma uma VPS KVM2 ou equivalente, dedicada inicialmente ao Los Barberos, com Ubuntu 24.04 e Docker Compose. Antes de mudar código ou segredos:
 
-## Primeiro passo
+1. Peça ao usuário somente os dados externos necessários depois que ele contratar/acessar a VPS: IP ou hostname público, método de acesso SSH, subdomínio escolhido para Evolution e domínio já apontado.
+2. Crie um plano de infraestrutura mínimo e seguro: usuário sem root para operação, atualizações, firewall restritivo, SSH por chave, Docker Engine/Compose, proxy reverso HTTPS, renovação de certificado, volumes persistentes, restart policy, logs e backup.
+3. Consulte a documentação atual da versão escolhida da Evolution API antes de escrever `docker-compose`; não invente variáveis de ambiente, banco ou fila necessários.
+4. Mantenha Evolution e dependências em rede Docker privada; somente o proxy reverso fica exposto. Nunca coloque API key, webhook secret ou token no browser, Git, logs ou chat.
+5. Depois de HTTPS e persistência validados, configure os secrets `EVOLUTION_API_BASE_URL`, `EVOLUTION_API_KEY` e `EVOLUTION_WEBHOOK_SECRET` no ambiente seguro das Edge Functions, configure o webhook QR e faça um piloto controlado com o WhatsApp Business de teste.
+6. `losbarberos.com.br` ainda será migrado no futuro. Use variáveis/configuração para URLs; não quebre a origem Vercel atual nem publique DNS sem autorização explícita.
 
-Faça o preflight curto, informe o estado real de GitHub, Supabase e Vercel e aguarde meu primeiro relato de teste.
+## Etapas pendentes após VPS
 
-## Estado acrescentado em 11/08/2026
+1. Validar QR Web real: gerar QR na página do gestor, escanear com WhatsApp Business de teste, receber `CONNECTED` por webhook, enviar uma mensagem transacional e validar reconexão/desconexão. Não chamar esse canal de oficial.
+2. Completar automações: substituir o agendamento legado `appointment_reminder_0700` por confirmação, lembretes configuráveis de 6h e 45min e regras tenant-safe de outbox.
+3. Completar mensagem de boas-vindas para primeira mensagem recebida, com variáveis permitidas e sem marketing implícito.
+4. Validar opt-out `SAIR`, bloquear novos envios e registrar consentimento/evento de forma auditável.
+5. Validar enviados, entregues, lidos e falhos, incluindo idempotência, lease, retry seguro e isolamento por `organization_id`.
+6. Criar testes de integração/UI para cada regressão relevante e rodar `npm.cmd run verify` antes de qualquer publicação.
 
-- Migrations remotas sincronizadas até `202608110003`.
-- Recebimento de atendimento `COUNTER`: concluir abre boleta; cancelar preserva `UNPAID`; `Contas a receber` projeta concluídos com saldo aberto e oferece `Receber`.
-- `payment_transactions` é fonte única de verdade; `202608110003_appointment_receipt_metadata.sql` grava metadados da boleta sem criar lançamento financeiro duplicado.
+## Regras de operação
 
-## Estado acrescentado em 12/08/2026 — páginas legais
+- Migrations são incrementais, compatíveis e só remotas com autorização explícita.
+- Não publicar, aplicar migration, deployar funções, cadastrar secrets, alterar Meta, DNS ou VPS sem autorização explícita na conversa.
+- Diferencie claramente: estrutura local, Edge Function publicada, Meta aprovada, QR conectado e mensagem entregue. HTTP 200 não prova fluxo autenticado.
+- Preserve a regra máxima de agenda: períodos completos não podem conflitar; a constraint GiST do banco continua autoridade final.
 
-- Rotas públicas preparadas para Meta App Review: `/privacidade`, `/termos` e `/exclusao-de-dados`, versão `1.0`.
-- Responsável: `JULIO CESAR HEIDEN JUNIOR 05128841960`; e-mail LGPD: `contato@losbarberos.com.br`.
-- `NEXT_PUBLIC_SITE_URL` controla a origem canônica: use `https://losbarberos-app.vercel.app` agora e `https://losbarberos.com.br` após o corte do domínio.
-- Logo oficial 1024×1024: `public/icon-1024.png`.
-- Não houve migration nem alteração remota no Supabase nesta entrega.
-- Os textos são provisórios apenas no sentido jurídico interno: não exibem selo de revisão e deverão ser substituídos ou ajustados quando o advogado enviar a versão final.
-- Antes de considerar publicado, confirmar o SHA em `origin/main`, CI, deployment Vercel correspondente e HTTP 200 nas três rotas e no PNG.
+## Primeiro passo desta próxima conversa
+
+Faça o preflight curto e informe estado real de GitHub, Supabase e Vercel. Depois peça somente o acesso/dados mínimos da VPS Hostinger KVM2 para montar o plano de Docker/HTTPS do Evolution API.

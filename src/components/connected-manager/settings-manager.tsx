@@ -34,7 +34,6 @@ export function SettingsManager(props: Props) {
         slot_interval_minutes: Number(data.get("slot_interval_minutes")),
         hold_duration_minutes: Number(data.get("hold_duration_minutes")),
         commission_frequency: String(data.get("commission_frequency")),
-        whatsapp_phone_number_id: String(data.get("whatsapp_phone_number_id") ?? "").trim() || null,
       }).eq("id", props.organizationId));
     }, "Regras da organização atualizadas.");
     if (saved) router.refresh();
@@ -109,7 +108,7 @@ export function SettingsManager(props: Props) {
   }
 
   const mpConnected = props.merchant?.status === "CONNECTED";
-  const whatsappConfigured = Boolean(props.organization.whatsapp_phone_number_id);
+  const whatsappConfigured = false;
 
   if (props.billingStatus === "CANCELED_RETENTION" || props.billingStatus === "CLOSED") {
     return <div className={styles.stack}>
@@ -136,7 +135,6 @@ export function SettingsManager(props: Props) {
           <Field label="Intervalo dos slots"><select name="slot_interval_minutes" defaultValue={15}><option value="15">15 minutos</option></select></Field>
           <Field label="Duração do hold"><input name="hold_duration_minutes" type="number" min={2} max={30} defaultValue={props.organization.hold_duration_minutes} /></Field>
           <Field label="Frequência das comissões"><select name="commission_frequency" defaultValue={props.organization.commission_frequency}><option value="DAILY">Diária</option><option value="WEEKLY">Semanal</option><option value="MONTHLY">Mensal</option></select></Field>
-          <Field label="WhatsApp Phone Number ID" wide><input name="whatsapp_phone_number_id" defaultValue={props.organization.whatsapp_phone_number_id ?? ""} placeholder="ID público do número Meta" /></Field>
           <button className={`${styles.button} ${styles.formWide}`} type="submit">Salvar regras</button>
         </form>
       </Panel>
@@ -155,7 +153,7 @@ export function SettingsManager(props: Props) {
       <div className={styles.list}>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Stripe Billing</strong><StatusChip active={["TRIALING", "ACTIVE", "GRACE"].includes(props.subscription?.status ?? "")} label={props.subscription?.status ?? "NÃO INICIADO"} /></span><p>Assinatura, trial, carência e cobrança geridos pelo Stripe.</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/regularizacao">Abrir cobrança</Link></article>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Mercado Pago</strong><StatusChip active={mpConnected} label={props.merchant?.status ?? "NÃO CONECTADO"} /></span><p>{props.merchant?.external_account_id ? `Conta ${props.merchant.external_account_id}` : "OAuth por tenant; credenciais nunca chegam ao navegador."}</p></div><button className={styles.button} type="button" onClick={connectMercadoPago} disabled={connecting}>{connecting ? "Abrindo…" : mpConnected ? "Reconectar" : "Conectar conta"}</button></article>
-        <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>WhatsApp Cloud API</strong><StatusChip active={whatsappConfigured} label={whatsappConfigured ? "CONFIGURADO" : "PENDENTE"} /></span><p>{whatsappConfigured ? `Phone Number ID ${props.organization.whatsapp_phone_number_id}` : "Cadastre o Phone Number ID após aprovar número e templates na Meta."}</p></div></article>
+        <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>WhatsApp</strong><StatusChip active={whatsappConfigured} label="PENDENTE" /></span><p>Configure Meta Cloud API ou QR Web na página exclusiva da integração.</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/configuracoes/whatsapp">Abrir integração</Link></article>
       </div>
     </Panel>
   </div>;

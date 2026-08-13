@@ -78,11 +78,12 @@ function ProfileContent() {
 
   async function saveProfile() {
     if (!supabase || !account) return;
+    const phoneE164 = phone.trim() || account.phone_e164;
     if (fullName.trim().length < 2) {
       setError("Informe nome completo.");
       return;
     }
-    if (!/^\+[1-9][0-9]{7,14}$/u.test(phone.trim())) {
+    if (!/^\+[1-9][0-9]{7,14}$/u.test(phoneE164)) {
       setError("Telefone deve estar em E.164. Exemplo: +5511999999999.");
       return;
     }
@@ -91,7 +92,7 @@ function ProfileContent() {
     try {
       await upsertMyClientAccount(supabase, {
         fullName: fullName.trim(),
-        phoneE164: phone.trim(),
+        phoneE164,
         birthDate: birthDate || null,
         termsPolicyVersion: account.terms_policy_version,
       });

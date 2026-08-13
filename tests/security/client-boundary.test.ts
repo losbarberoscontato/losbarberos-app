@@ -30,6 +30,8 @@ describe("browser secret boundary", () => {
       "MERCADO_PAGO_WEBHOOK_SECRET",
       "WHATSAPP_ACCESS_TOKEN",
       "WHATSAPP_APP_SECRET",
+      "WHATSAPP_META_APP_SECRET",
+      "EVOLUTION_API_KEY",
     ]) {
       expect(clientSurface, `${secretName} leaked into client surface`).not.toContain(secretName);
     }

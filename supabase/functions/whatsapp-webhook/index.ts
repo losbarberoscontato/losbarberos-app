@@ -156,7 +156,7 @@ Deno.serve((request) =>
       !await verifyMetaSignature(
         rawBody,
         request.headers.get("x-hub-signature-256"),
-        requiredEnv("WHATSAPP_APP_SECRET"),
+        requiredEnv("WHATSAPP_META_APP_SECRET"),
       )
     ) {
       throw new IntegrationError(401, "INVALID_SIGNATURE");
@@ -178,6 +178,8 @@ Deno.serve((request) =>
           continue;
         }
 
+        const receivingPhoneNumberId =
+          change.value?.metadata?.phone_number_id ?? "";
         for (const status of change.value?.statuses ?? []) {
           if (!status.id || !status.status) continue;
           await rpc("process_whatsapp_delivery_status", {
@@ -188,6 +190,7 @@ Deno.serve((request) =>
             p_status: deliveryStatus(status.status),
             p_occurred_at: providerTimestamp(status.timestamp),
             p_recipient_id: status.recipient_id ?? null,
+            p_phone_number_id: receivingPhoneNumberId,
             p_errors: (status.errors ?? []).map((error) => ({
               code: error.code ?? null,
               title: error.title?.slice(0, 255) ?? null,
@@ -195,8 +198,6 @@ Deno.serve((request) =>
           });
         }
 
-        const receivingPhoneNumberId =
-          change.value?.metadata?.phone_number_id ?? "";
         for (const message of change.value?.messages ?? []) {
           await processIncomingMessage(message, receivingPhoneNumberId);
         }

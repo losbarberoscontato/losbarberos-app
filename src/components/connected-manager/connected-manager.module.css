@@ -96,6 +96,29 @@
 .integration { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border: 1px solid #e5eae3; border-radius: 16px; padding: 1rem; }
 .integrationInfo { display: grid; gap: .28rem; }
 .integrationInfo p { margin: 0; color: #757d76; font-size: .82rem; }
+.whatsappHero { display: flex; justify-content: space-between; gap: 1.5rem; align-items: flex-start; padding: 1.45rem; border-radius: 22px; background: linear-gradient(135deg, #123f35, #0c2e28); color: #f7fbf5; box-shadow: 0 18px 38px rgb(14 48 40 / 16%); }
+.whatsappHero h1 { margin: .45rem 0 .35rem; color: inherit; font-family: var(--font-display, serif); font-size: clamp(1.55rem, 3vw, 2.2rem); }
+.whatsappHero p { max-width: 620px; margin: 0; color: #c7ded4; font-size: .9rem; }
+.whatsappEyebrow { color: #e6b45f; font-size: .7rem; font-weight: 900; letter-spacing: .12em; }
+.providerGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
+.providerCard { display: grid; gap: .65rem; align-content: start; padding: 1rem; border: 1px solid #e3e9e1; border-radius: 17px; background: #fbfcfa; }
+.providerCardActive { border-color: #467766; background: #f1f8f3; box-shadow: 0 0 0 2px rgb(70 119 102 / 12%); }
+.providerCardTop { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.providerIcon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #dfece4; color: #164638; font-size: .76rem; font-weight: 900; }
+.providerCard h3 { margin: 0; color: #1f2922; font-size: 1rem; }
+.providerCard p { min-height: 3.2rem; margin: 0; color: #6e786f; font-size: .8rem; line-height: 1.45; }
+.providerCard small { color: #6b756c; font-size: .72rem; overflow-wrap: anywhere; }
+.whatsappSteps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; margin-top: 1rem; }
+.whatsappSteps span { display: flex; gap: .45rem; align-items: center; padding: .65rem; border-radius: 12px; background: #f7f8f5; color: #5b665d; font-size: .76rem; }
+.whatsappSteps strong { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; background: #e4b35f; color: #fff; }
+.providerNotice { margin: 1rem 0 0; color: #7c6a46; font-size: .76rem; line-height: 1.45; }
+.qrConnection { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding: 1rem; border-radius: 15px; background: #f7f8f5; }
+.qrConnection p { margin: .25rem 0 0; color: #69746b; font-size: .78rem; }
+.qrConnection img { width: 180px; height: 180px; object-fit: contain; border-radius: 10px; background: #fff; }
+.automationList { display: grid; gap: .6rem; }
+.automationRow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem .95rem; border: 1px solid #e7e1d6; border-radius: 13px; background: #fffaf1; }
+.automationRow > div { display: grid; gap: .2rem; }
+.automationRow small { color: #817a6e; font-size: .75rem; }
 .definition { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
 .definition div { display: grid; gap: .2rem; padding: .75rem; border-radius: 12px; background: #f7f8f5; }
 .definition dt { color: #778078; font-size: .72rem; }
@@ -134,5 +157,8 @@
   .appointment { grid-template-columns: 1fr auto; }
   .appointment > :not(.appointmentTime):not(.rowActions) { display: none; }
   .integration { align-items: flex-start; flex-direction: column; }
+  .whatsappHero { flex-direction: column; }
+  .providerGrid, .whatsappSteps { grid-template-columns: 1fr; }
+  .qrConnection { align-items: flex-start; flex-direction: column; }
   .toolbarGroup, .toolbarGroup .button { width: 100%; }
 }

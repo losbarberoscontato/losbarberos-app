@@ -45,3 +45,15 @@ verify_jwt = false
 
 [functions.whatsapp-webhook]
 verify_jwt = false
+
+[functions.whatsapp-embedded-signup-start]
+verify_jwt = true
+
+[functions.whatsapp-embedded-signup-callback]
+verify_jwt = false
+
+[functions.whatsapp-qr-start]
+verify_jwt = true
+
+[functions.whatsapp-qr-webhook]
+verify_jwt = false

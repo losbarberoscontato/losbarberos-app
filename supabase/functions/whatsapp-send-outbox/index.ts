@@ -2,8 +2,9 @@ import { endpoint, json, readJson } from "../_shared/http.ts";
 import { IntegrationError } from "../_shared/security.ts";
 import { requireServiceInvocation, rpc } from "../_shared/supabase.ts";
 import {
-  defaultWhatsAppSender,
+  evolutionRequest,
   normalizeWhatsAppRecipient,
+  whatsappSenderForOrganization,
   whatsappRequest,
 } from "../_shared/whatsapp.ts";
 
@@ -87,6 +88,23 @@ function buildMessage(job: OutboxJob): Record<string, unknown> {
   throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
 }
 
+function buildEvolutionText(job: OutboxJob): string {
+  if (job.text_body?.trim()) return job.text_body.slice(0, 4_096);
+  const label = job.appointment_label?.trim() || "o seu horário";
+  switch (job.template_name) {
+    case "appointment_reminder_6h":
+      return `Lembrete: seu atendimento será em ${label}.`;
+    case "appointment_reminder_45m":
+      return `Lembrete: seu atendimento começa em ${label}.`;
+    case "appointment_confirmation":
+      return `Seu agendamento foi confirmado para ${label}.`;
+    case "appointment_cancellation_confirmed":
+      return "Seu cancelamento foi confirmado.";
+    default:
+      return `Atualização do seu agendamento: ${label}.`;
+  }
+}
+
 Deno.serve((request) =>
   endpoint(request, async () => {
     if (request.method !== "POST") {
@@ -100,7 +118,6 @@ Deno.serve((request) =>
       ? Math.min(Math.max(requestedLimit, 1), 50)
       : 20;
     const workerId = crypto.randomUUID();
-    const sender = defaultWhatsAppSender();
     let claimed = 0;
     let sent = 0;
     let failed = 0;
@@ -134,11 +151,10 @@ Deno.serve((request) =>
 
       let messageId: string;
       try {
-        const result = await whatsappRequest(
-          sender.phoneNumberId,
-          sender.accessToken,
-          buildMessage(job),
-        );
+        const sender = await whatsappSenderForOrganization(job.organization_id);
+        const result = sender.provider === "META_CLOUD"
+          ? await whatsappRequest(sender.phoneNumberId, sender.accessToken, buildMessage(job))
+          : await evolutionRequest(sender, job.recipient_e164, buildEvolutionText(job));
         messageId = result.messages?.[0]?.id ?? "";
         if (!messageId) {
           throw new IntegrationError(502, "INVALID_PROVIDER_RESPONSE", true);

@@ -1,5 +1,17 @@
 # Handoff — Los Barberos
 
+## Fechamento WhatsApp híbrido — 13/08/2026
+
+- Branch de entrega: `codex/whatsapp-local-finalization`; sempre conferir SHA e relação com `origin/main` no próximo preflight.
+- Supabase `bwdjkhqshmppescunwer`: migrations remotas conferidas até `202608110007`. `supabase db push --linked --skip-vault --yes` confirmou banco atualizado; não houve nova mutation de schema nesta data.
+- Edge Functions publicadas e `ACTIVE`: `whatsapp-webhook`, `whatsapp-send-outbox`, `whatsapp-embedded-signup-start`, `whatsapp-embedded-signup-callback`, `whatsapp-qr-start` e `whatsapp-qr-webhook`.
+- O gestor tem a página conectada `/gestor/configuracoes/whatsapp`: Meta Cloud API por Embedded Signup e QR Web por Evolution API, estado, ativação, reconexão, desconexão e regras de comunicação. Segredos permanecem em Vault/Edge Functions; cada organização resolve somente o provider ativo.
+- Meta: a verificação de negócio/análise ainda é externa e o número de teste apresentou restrição de país. Não declarar envio Meta validado antes de a Meta liberar e de o teste receber a mensagem no WhatsApp.
+- QR Web: código e endpoints estão publicados, mas o piloto está bloqueado até existir VPS com Evolution API, Docker, HTTPS, persistência, chave do gateway e webhook assinado. Não há VPS nem conexão QR real validada.
+- Automações: estrutura tenant-safe para confirmação, lembretes de 6h/45min, mensagem de boas-vindas, opt-out e status de entrega existe. Ainda falta substituir a regra legada `appointment_reminder_0700` pelas regras configuráveis e validar outbox end-to-end para ambos providers.
+- Validação local anterior ao fechamento: ESLint sem erros (1 aviso `img`), TypeScript aprovado, Vitest `46/46` arquivos e `238/238` testes, `next build` aprovado. A falha herdada do perfil conectado foi corrigida para preservar o E.164 já salvo enquanto a inicialização assíncrona preenche o formulário.
+- Rascunho `cloudflare-pages/` permanece fora desta entrega e sem deploy/DNS: não remover nem publicar sem autorização explícita.
+
 ## Estado publicado — 09/08/2026
 
 - Repositório: `https://github.com/losbarberoscontato/losbarberos-app`.

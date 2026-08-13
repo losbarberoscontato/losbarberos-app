@@ -37,6 +37,7 @@ import type {
   PaymentAccountMappingRecord,
   WorkIntervalRecord,
 } from "./types";
+import type { WhatsAppSettingsStatus } from "./whatsapp-settings";
 
 const MANAGER_ROW_LIMIT = 1_000;
 
@@ -267,6 +268,34 @@ export async function loadSettingsData() {
     merchant: requireData(merchant, "Mercado Pago") as MerchantAccountRecord | null,
     subscription: requireData(subscription, "Assinatura") as SubscriptionRecord | null,
   };
+}
+
+export async function loadWhatsAppSettingsData() {
+  const { context, supabase, organizationId } = await managerClient();
+  const organization = requireData(
+    await supabase.from("organizations").select("id,name").eq("id", organizationId).single(),
+    "Organização",
+  ) as { id: string; name: string };
+  const result = await supabase.rpc("get_whatsapp_connection_status", {
+    p_organization_id: organizationId,
+  });
+  const status: WhatsAppSettingsStatus = result.error
+    ? {
+      connections: [],
+      reminders: [
+        { id: "default-6h", position: 1, enabled: true, offset_minutes: 360, template_key: "appointment_reminder_6h", language_code: "pt_BR" },
+        { id: "default-45m", position: 2, enabled: true, offset_minutes: 45, template_key: "appointment_reminder_45m", language_code: "pt_BR" },
+      ],
+      automation: {
+        confirmation_enabled: true,
+        confirmation_template_key: "appointment_confirmation",
+        welcome_enabled: true,
+        welcome_message: "*{barbearia}* agradece seu contato.\nPara agendar seu horário, acesse {link}.",
+      },
+    }
+    : result.data as WhatsAppSettingsStatus;
+
+  return { organizationId, billingStatus: context.billingStatus, organization, status, schemaReady: !result.error };
 }
 
 export async function loadDashboardData() {
