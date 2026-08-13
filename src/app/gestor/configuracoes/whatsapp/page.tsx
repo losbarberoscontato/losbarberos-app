@@ -3,6 +3,7 @@ import { WhatsAppSettings } from "@/components/connected-manager/whatsapp-settin
 import { loadWhatsAppSettingsData } from "@/components/connected-manager/server";
 
 export const metadata: Metadata = { title: "WhatsApp | Configurações" };
+export const dynamic = "force-dynamic";
 
 export default async function WhatsAppSettingsPage() {
   const data = await loadWhatsAppSettingsData();
