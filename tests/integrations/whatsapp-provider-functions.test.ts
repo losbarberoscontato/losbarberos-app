@@ -20,6 +20,9 @@ describe("WhatsApp provider functions", () => {
     expect(metaCallback).not.toContain("return json(request, { accessToken");
     expect(qrStart).toContain("EVOLUTION_API_BASE_URL");
     expect(qrStart).toContain("EVOLUTION_API_KEY");
+    expect(qrStart).toContain("EVOLUTION_WEBHOOK_SECRET");
+    expect(qrStart).toContain("x-evolution-webhook-secret");
+    expect(qrStart).toContain("whatsapp-qr-webhook");
     expect(metaStart).not.toContain("console.log");
     expect(metaCallback).not.toContain("console.log");
     expect(qrStart).not.toContain("console.log");

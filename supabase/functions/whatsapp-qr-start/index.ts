@@ -1,4 +1,4 @@
-import { requiredEnv } from "../_shared/env.ts";
+import { functionUrl, requiredEnv } from "../_shared/env.ts";
 import { endpoint, json, preflight, readJson } from "../_shared/http.ts";
 import { providerFetch } from "../_shared/provider-http.ts";
 import { IntegrationError } from "../_shared/security.ts";
@@ -21,11 +21,24 @@ Deno.serve((request) => {
     const baseUrl = requiredEnv("EVOLUTION_API_BASE_URL").replace(/\/$/u, "");
     if (!/^https:\/\//u.test(baseUrl)) throw new IntegrationError(500, "SERVER_CONFIGURATION_ERROR");
     const apiKey = requiredEnv("EVOLUTION_API_KEY");
+    const webhookSecret = requiredEnv("EVOLUTION_WEBHOOK_SECRET");
     const instanceName = `lb-${organizationId.slice(0, 8)}`;
     await providerFetch(`${baseUrl}/instance/create`, {
       method: "POST",
       headers: { apikey: apiKey, "content-type": "application/json" },
-      body: JSON.stringify({ instanceName, integration: "WHATSAPP-BAILEYS", qrcode: true }),
+      body: JSON.stringify({
+        instanceName,
+        integration: "WHATSAPP-BAILEYS",
+        qrcode: true,
+        webhook: {
+          enabled: true,
+          url: functionUrl("whatsapp-qr-webhook"),
+          byEvents: false,
+          base64: false,
+          headers: { "x-evolution-webhook-secret": webhookSecret },
+          events: ["CONNECTION_UPDATE"],
+        },
+      }),
     });
     const connection = await rpc<{ id: string }>("store_whatsapp_qr_connection", {
       p_organization_id: organizationId,

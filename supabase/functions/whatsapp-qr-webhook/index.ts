@@ -1,6 +1,6 @@
 import { requiredEnv } from "../_shared/env.ts";
 import { endpoint, json } from "../_shared/http.ts";
-import { IntegrationError, verifyMetaSignature } from "../_shared/security.ts";
+import { IntegrationError, verifySharedSecretHeader } from "../_shared/security.ts";
 import { rpc } from "../_shared/supabase.ts";
 
 type EvolutionPayload = {
@@ -12,7 +12,7 @@ type EvolutionPayload = {
 Deno.serve((request) => endpoint(request, async () => {
   if (request.method !== "POST") throw new IntegrationError(405, "METHOD_NOT_ALLOWED");
   const rawBody = await request.text();
-  if (!await verifyMetaSignature(rawBody, request.headers.get("x-evolution-signature"), requiredEnv("EVOLUTION_WEBHOOK_SECRET"))) {
+  if (!verifySharedSecretHeader(request.headers.get("x-evolution-webhook-secret"), requiredEnv("EVOLUTION_WEBHOOK_SECRET"))) {
     throw new IntegrationError(401, "INVALID_SIGNATURE");
   }
   let payload: EvolutionPayload;

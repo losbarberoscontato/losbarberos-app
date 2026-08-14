@@ -59,6 +59,13 @@ export async function verifyMetaSignature(
   return timingSafeEqual(header.slice(7).toLowerCase(), expected);
 }
 
+export function verifySharedSecretHeader(
+  header: string | null,
+  secret: string,
+): boolean {
+  return timingSafeEqual(header?.trim() ?? "", secret);
+}
+
 export function safeReturnPath(value: unknown, fallback: string): string {
   if (
     typeof value !== "string" ||
