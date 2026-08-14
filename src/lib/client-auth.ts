@@ -36,10 +36,21 @@ export function clientAuthDestination(input: {
   slug?: string | null;
 }): string {
   const normalizedPath = normalizeSafeReturnPath(input.next, defaultClientDestination);
-  const destination = clientDestinations.has(normalizedPath)
-    ? normalizedPath
+  const nextUrl = new URL(normalizedPath, "https://cliente.local");
+  const destination = clientDestinations.has(nextUrl.pathname)
+    ? nextUrl.pathname
     : defaultClientDestination;
   const slug = normalizeTenantSlug(input.slug);
-
-  return slug ? `${destination}?barbearia=${encodeURIComponent(slug)}` : destination;
+  const params = new URLSearchParams();
+  if (slug) params.set("barbearia", slug);
+  if (destination === "/cliente/agendar") {
+    const barberId = nextUrl.searchParams.get("barbeiro");
+    const startsAt = nextUrl.searchParams.get("horario");
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(barberId ?? "")) {
+      params.set("barbeiro", barberId!);
+    }
+    if (startsAt && !Number.isNaN(new Date(startsAt).getTime())) params.set("horario", startsAt);
+  }
+  const query = params.toString();
+  return query ? `${destination}?${query}` : destination;
 }

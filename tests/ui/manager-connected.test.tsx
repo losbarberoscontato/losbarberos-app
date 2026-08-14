@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgendaManager } from "@/components/connected-manager/agenda-manager";
 import { CustomersManager } from "@/components/connected-manager/customers-manager";
 import { ManagerDashboard } from "@/components/connected-manager/manager-dashboard";
+import { SettingsManager } from "@/components/connected-manager/settings-manager";
 
 const refresh = vi.fn();
 const mutationMocks = vi.hoisted(() => ({ update: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })) })) }));
@@ -25,6 +26,7 @@ const organization = {
   hold_duration_minutes: 10,
   commission_frequency: "MONTHLY" as const,
   whatsapp_phone_number_id: null,
+  queue_public_id: "00000000-0000-4000-8000-000000000001",
 };
 const customer = { id: "customer-1", organization_id: "org-1", auth_user_id: null, full_name: "Cliente Real", phone_e164: "+5511999999999", email: null, birth_date: null, notes: null, active: true, inactivation_reason: null, inactivated_at: null, created_at: new Date().toISOString() };
 const barber = { id: "barber-1", organization_id: "org-1", location_id: "location-1", display_name: "Barbeiro Real", bio: null, avatar_url: null, active: true };
@@ -39,6 +41,24 @@ describe("connected manager UI", () => {
     expect(screen.getByText("Dia livre")).toBeInTheDocument();
     expect(screen.queryByText("Guilherme")).not.toBeInTheDocument();
     expect(screen.queryByText("R$ 1.845")).not.toBeInTheDocument();
+  });
+
+  it("prepares an isolated A4 sheet to print the queue QR", () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+    />);
+
+    const sheet = screen.getByLabelText("Folha de impressão da fila presencial");
+    expect(within(sheet).getByRole("heading", { name: "Barbearia Real" })).toBeInTheDocument();
+    expect(within(sheet).getByText("Chegou agora? Verifique a fila de espera e faça sua reserva")).toBeInTheDocument();
+    expect(within(sheet).getByText("Agradecemos sua preferência")).toBeInTheDocument();
+    expect(within(sheet).getByLabelText("Logo Los Barberos")).toBeInTheDocument();
+    expect(within(sheet).getByTestId("queue-print-qr")).toHaveAttribute("width", "520");
   });
 
   it("blocks only new booking and rescheduling while existing operations stay visible", () => {

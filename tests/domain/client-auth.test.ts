@@ -33,6 +33,15 @@ describe("clientAuthDestination", () => {
       "/cliente/agendar",
     );
   });
+
+  it("preserves only validated walk-in booking context after authentication", () => {
+    expect(clientAuthDestination({
+      next: "/cliente/agendar?barbeiro=00000000-0000-4000-8000-000000000002&horario=2026-08-11T13%3A15%3A00.000Z&admin=true",
+      slug: "barbearia-real",
+    })).toBe(
+      "/cliente/agendar?barbearia=barbearia-real&barbeiro=00000000-0000-4000-8000-000000000002&horario=2026-08-11T13%3A15%3A00.000Z",
+    );
+  });
 });
 
 describe("clientSignupSchema", () => {

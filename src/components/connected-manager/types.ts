@@ -23,6 +23,7 @@ export interface ManagerScope {
 }
 
 export interface OrganizationRecord {
+  queue_public_id?: string | null;
   id: string;
   name: string;
   slug: string;

@@ -10,6 +10,7 @@ import {
   toClientError,
 } from "@/components/connected-client/api";
 import { useConnectedClient } from "@/components/connected-client/context";
+import { holdStorageKey } from "@/components/walkin-queue";
 import {
   bookingSelection,
   catalogChoices,
@@ -62,6 +63,7 @@ function BookingContent() {
   const [barberId, setBarberId] = useState("");
   const [localDate, setLocalDate] = useState("");
   const [startsAt, setStartsAt] = useState("");
+  const [walkinQueueHoldId, setWalkinQueueHoldId] = useState<string | null>(null);
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [dateAvailableSlots, setDateAvailableSlots] = useState<AvailableDateOption[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -72,6 +74,28 @@ function BookingContent() {
   const [restored, setRestored] = useState(false);
 
   const choice = choices.find((item) => item.id === choiceId) ?? null;
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const barber = query.get("barbeiro");
+    const starts = query.get("horario");
+    const stored = window.sessionStorage.getItem(holdStorageKey);
+    queueMicrotask(() => {
+      if (barber) setBarberId(barber);
+      if (starts && !Number.isNaN(new Date(starts).getTime())) {
+        setStartsAt(starts);
+        setLocalDate(starts.slice(0, 10));
+      }
+      if (stored) {
+        try {
+          const hold = JSON.parse(stored) as { id?: string; expiresAt?: string };
+          if (hold.id && hold.expiresAt && new Date(hold.expiresAt) > new Date()) setWalkinQueueHoldId(hold.id);
+        } catch {
+          window.sessionStorage.removeItem(holdStorageKey);
+        }
+      }
+    });
+  }, []);
   const compatibleBarbers = useMemo(() => {
     if (!context || !choice) return context?.barbers ?? [];
     const requiredServices = serviceIdsForChoice(context, choice);
@@ -125,7 +149,7 @@ function BookingContent() {
       if (!active) return;
       setSlotsLoading(true);
       setSlotsError("");
-      setStartsAt("");
+      if (!walkinQueueHoldId) setStartsAt("");
     });
     void getAvailableSlots(supabase, {
       organizationSlug: slug,
@@ -143,7 +167,7 @@ function BookingContent() {
       if (active) setSlotsLoading(false);
     });
     return () => { active = false; };
-  }, [barberId, choice, context, localDate, slug, supabase]);
+  }, [barberId, choice, context, localDate, slug, supabase, walkinQueueHoldId]);
 
   useEffect(() => {
     if (!supabase || !context || !slug || !choice || !localDate || !context.organization.accepting_bookings) {
@@ -184,7 +208,9 @@ function BookingContent() {
         startsAt,
         selections: bookingSelection(choice),
         paymentMode: "COUNTER",
+        walkinQueueHoldId,
       });
+      window.sessionStorage.removeItem(holdStorageKey);
       window.sessionStorage.removeItem(draftKey(tenantSlug));
       router.push(`/cliente/reservas?barbearia=${encodeURIComponent(tenantSlug)}&appointment_id=${hold.appointment_id}`);
     } catch (cause: unknown) {

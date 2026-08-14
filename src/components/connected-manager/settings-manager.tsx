@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import type { loadSettingsData } from "./server";
@@ -17,6 +18,7 @@ export function SettingsManager(props: Props) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [connecting, setConnecting] = useState(false);
+  const queueUrl = typeof window === "undefined" ? "" : `${window.location.origin}/fila/${props.organization.queue_public_id}`;
   const [exporting, setExporting] = useState(false);
   const location = props.locations.find((item) => item.active) ?? props.locations[0];
   const address = (location?.address ?? {}) as Record<string, string>;
@@ -121,10 +123,18 @@ export function SettingsManager(props: Props) {
     </div>;
   }
 
-  return <div className={styles.stack}>
+  return <div className={`${styles.stack} queue-print-root`}>
     <PageHeader title="Configurações" description="Regras, unidade e estados reais das integrações." />
     <ActionMessage message={message} />
     <div className={styles.grid}>
+      {props.organization.queue_public_id &&
+        <Panel title="Fila presencial" description="Imprima este QR e fixe na entrada." className={styles.span7}>
+          <div className="qr-print">
+            <QRCodeSVG value={queueUrl} size={180} />
+            <p>{queueUrl}</p>
+            <button type="button" className="button button--soft" onClick={() => window.print()}>Imprimir QR code</button>
+          </div>
+        </Panel>}
       <Panel title="Regras da barbearia" description="Valores usados para novos agendamentos" className={styles.span7}>
         <form className={styles.form} onSubmit={saveOrganization}>
           <Field label="Nome"><input name="name" required minLength={2} defaultValue={props.organization.name} /></Field>
@@ -149,6 +159,13 @@ export function SettingsManager(props: Props) {
         </form>
       </Panel>
     </div>
+    {props.organization.queue_public_id && <section className="queue-print-sheet" aria-label="Folha de impressão da fila presencial">
+      <div className="queue-print-sheet__logo" aria-label="Logo Los Barberos">LB</div>
+      <h1>{props.organization.name}</h1>
+      <QRCodeSVG data-testid="queue-print-qr" value={queueUrl} size={520} level="M" includeMargin />
+      <p className="queue-print-sheet__instruction">Chegou agora? Verifique a fila de espera e faça sua reserva</p>
+      <p className="queue-print-sheet__thanks">Agradecemos sua preferência</p>
+    </section>}
     <Panel title="Integrações" description="Apenas IDs e estados públicos são exibidos; tokens ficam no Vault.">
       <div className={styles.list}>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Stripe Billing</strong><StatusChip active={["TRIALING", "ACTIVE", "GRACE"].includes(props.subscription?.status ?? "")} label={props.subscription?.status ?? "NÃO INICIADO"} /></span><p>Assinatura, trial, carência e cobrança geridos pelo Stripe.</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/regularizacao">Abrir cobrança</Link></article>

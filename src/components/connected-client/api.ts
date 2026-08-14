@@ -168,6 +168,33 @@ export async function getAvailableSlots(
   return (data as Availability | null) ?? null;
 }
 
+export type WalkinQueueAvailability = {
+  organization: { name: string; slug: string; timezone: string };
+  slots: Array<{ barber_id: string; barber_name: string; starts_at: string; ends_at: string }>;
+};
+
+export async function getWalkinQueueAvailability(
+  supabase: SupabaseClient,
+  queuePublicId: string,
+): Promise<WalkinQueueAvailability | null> {
+  const { data, error } = await supabase.rpc("get_walkin_queue_availability", {
+    p_queue_public_id: queuePublicId,
+  });
+  return assertData(data as WalkinQueueAvailability | null, error, "Não foi possível consultar a fila.");
+}
+
+export async function createWalkinQueueHold(
+  supabase: SupabaseClient,
+  input: { queuePublicId: string; barberId: string; startsAt: string },
+): Promise<{ hold_id: string; expires_at: string }> {
+  const { data, error } = await supabase.rpc("create_walkin_queue_hold", {
+    p_queue_public_id: input.queuePublicId,
+    p_barber_id: input.barberId,
+    p_starts_at: input.startsAt,
+  });
+  return assertData(data as { hold_id: string; expires_at: string } | null, error, "Esse horário acabou de ser ocupado.");
+}
+
 export async function getAvailableSlotsForDate(
   supabase: SupabaseClient,
   input: {
@@ -194,6 +221,7 @@ export async function createAppointmentHold(
     startsAt: string;
     selections: BookingSelection[];
     paymentMode: "COUNTER";
+    walkinQueueHoldId?: string | null;
   },
 ): Promise<{
   appointment_id: string;
@@ -210,6 +238,7 @@ export async function createAppointmentHold(
     p_starts_at: input.startsAt,
     p_selections: input.selections,
     p_payment_mode: input.paymentMode,
+    p_walkin_queue_hold_id: input.walkinQueueHoldId ?? null,
   });
   return assertData<{
     appointment_id: string;

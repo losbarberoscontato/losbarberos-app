@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createMercadoPagoCheckout,
   createAppointmentHold,
+  createWalkinQueueHold,
+  getWalkinQueueAvailability,
   claimMyExistingCustomer,
   getAvailableSlotsForDate,
   getAvailableSlots,
@@ -166,6 +168,32 @@ describe("contratos Supabase do cliente conectado", () => {
       paymentMode: "COUNTER",
     })).resolves.toMatchObject({ status: "CONFIRMED", amount_due_now_cents: 0 });
     expect(rpc).toHaveBeenCalledWith("create_appointment_hold", expect.objectContaining({ p_payment_mode: "COUNTER" }));
+  });
+
+  it("consulta somente vagas públicas da fila pelo identificador impresso", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { organization: { name: "Barbearia Real" }, slots: [] }, error: null });
+    const supabase = { rpc } as unknown as SupabaseClient;
+
+    await expect(getWalkinQueueAvailability(supabase, "00000000-0000-4000-8000-000000000001")).resolves.toMatchObject({ slots: [] });
+    expect(rpc).toHaveBeenCalledWith("get_walkin_queue_availability", {
+      p_queue_public_id: "00000000-0000-4000-8000-000000000001",
+    });
+  });
+
+  it("cria hold de fila somente para slot público selecionado", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { hold_id: "hold-1", expires_at: "2026-08-11T13:10:00Z" }, error: null });
+    const supabase = { rpc } as unknown as SupabaseClient;
+
+    await expect(createWalkinQueueHold(supabase, {
+      queuePublicId: "00000000-0000-4000-8000-000000000001",
+      barberId: "00000000-0000-4000-8000-000000000002",
+      startsAt: "2026-08-11T13:00:00.000Z",
+    })).resolves.toMatchObject({ hold_id: "hold-1" });
+    expect(rpc).toHaveBeenCalledWith("create_walkin_queue_hold", {
+      p_queue_public_id: "00000000-0000-4000-8000-000000000001",
+      p_barber_id: "00000000-0000-4000-8000-000000000002",
+      p_starts_at: "2026-08-11T13:00:00.000Z",
+    });
   });
 
   it("envia Idempotency-Key e aceita somente redirect Mercado Pago HTTPS", async () => {
