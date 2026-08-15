@@ -13,6 +13,7 @@ export function ConnectedClientGate({ children }: { children: React.ReactNode })
     user,
     authLoading,
     linkStatus,
+    organizations,
     loading,
     error,
     selectTenant,
@@ -56,7 +57,9 @@ export function ConnectedClientGate({ children }: { children: React.ReactNode })
             ? "Vínculo enviado para revisão pela barbearia."
             : claimRequired
               ? "Encontramos um cadastro existente. Confirme que este cadastro é seu para continuar."
-              : "Confirme para criar sua relação com esta barbearia. Visitar o link não cria vínculo."}
+              : organizations.length
+                ? `Você está conectado a ${organizations[0].organization_name}. Confirme para trocar para ${context.organization.name}.`
+                : "Confirme para criar sua relação com esta barbearia. Visitar o link não cria vínculo."}
         </p>
         {!pendingReview && (
           <button

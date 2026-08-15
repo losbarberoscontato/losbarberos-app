@@ -8,6 +8,7 @@ import { Brand } from "@/components/brand";
 import { ConnectedClientProvider, useConnectedClient } from "@/components/connected-client/context";
 import { initials, locationLabel } from "@/components/connected-client/format";
 import styles from "@/components/connected-client/connected-client.module.css";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const navigation = [
   { href: "/cliente/agendar", label: "Agendar", icon: CalendarPlus2 },
@@ -24,6 +25,10 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   const displayName = customer?.full_name ?? user?.user_metadata?.full_name ?? user?.email ?? "Cliente";
   const target = targetSlug
     ? organizations.find((item) => item.organization_slug === targetSlug) ?? null
+    : null;
+  const supabase = getSupabaseBrowserClient();
+  const logoUrl = context?.organization.logo_path && supabase
+    ? supabase.storage.from("organization-logos").getPublicUrl(context.organization.logo_path).data.publicUrl
     : null;
 
   return (
@@ -58,6 +63,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <div className={styles.locationStrip}>
+        {logoUrl && <img className={styles.locationLogo} src={logoUrl} alt="" />}
         <MapPin size={15} aria-hidden="true" />
         <span>
           {context

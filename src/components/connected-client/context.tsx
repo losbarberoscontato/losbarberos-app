@@ -6,6 +6,7 @@ import {
   claimMyExistingCustomer,
   getMyClientAccount,
   getMyCustomer,
+  getPublicBookingOrganization,
   getPublicBookingContext,
   linkMyClientToOrganization,
   listMyClientOrganizations,
@@ -49,6 +50,13 @@ function queryTenant(): string | null {
   return query.get("barbearia") ?? query.get("tenant") ?? query.get("slug");
 }
 
+function queryBookingId(): string | null {
+  if (typeof window === "undefined") return null;
+  const value = new URLSearchParams(window.location.search).get("booking")
+    ?? window.sessionStorage.getItem("los-barberos:pending-booking");
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value) ? value : null;
+}
+
 export function ConnectedClientProvider({
   children,
   initialSlug = null,
@@ -70,6 +78,7 @@ export function ConnectedClientProvider({
   const [error, setError] = useState<string | null>(null);
   const currentSlugRef = useRef(slug);
   const linkInFlightRef = useRef<{ slug: string; promise: Promise<ClientTenantLinkResult> } | null>(null);
+  const bookingAutoLinkRef = useRef<string | null>(null);
 
   useEffect(() => {
     currentSlugRef.current = slug;
@@ -77,12 +86,32 @@ export function ConnectedClientProvider({
 
   useEffect(() => {
     if (slug) return;
-    queueMicrotask(() => {
-      const resolved = resolveTenantSlug(queryTenant(), readStoredTenant(), initialSlug);
-      setSlug(resolved);
-      if (!resolved) setLoading(false);
-    });
-  }, [initialSlug, slug]);
+    let active = true;
+    const resolve = async () => {
+      const bookingId = queryBookingId();
+      const direct = bookingId
+        ? resolveTenantSlug(queryTenant(), null, initialSlug)
+        : resolveTenantSlug(queryTenant(), readStoredTenant(), initialSlug);
+      if (direct) {
+        if (active) setSlug(direct);
+        return;
+      }
+      if (bookingId && supabase) {
+        window.sessionStorage.setItem("los-barberos:pending-booking", bookingId);
+        try {
+          const organization = await getPublicBookingOrganization(supabase, bookingId);
+          if (active && organization) setSlug(organization.slug);
+          else if (active) setLoading(false);
+        } catch {
+          if (active) setLoading(false);
+        }
+        return;
+      }
+      if (active) setLoading(false);
+    };
+    void resolve();
+    return () => { active = false; };
+  }, [initialSlug, slug, supabase]);
 
   useEffect(() => {
     if (!slug || !supabase) {
@@ -367,7 +396,20 @@ export function ConnectedClientProvider({
     setCustomer(null);
     setPendingClaim(null);
     setLinkStatus("IDLE");
+    window.sessionStorage.removeItem("los-barberos:pending-booking");
   }, [supabase]);
+
+  useEffect(() => {
+    const bookingId = queryBookingId();
+    if (!bookingId || !user || !context || organizations.length > 0 || linkStatus !== "UNLINKED") return;
+    if (bookingAutoLinkRef.current === context.organization.slug) return;
+    bookingAutoLinkRef.current = context.organization.slug;
+    void confirmTenantLink().then(() => {
+      window.sessionStorage.removeItem("los-barberos:pending-booking");
+    }).catch(() => {
+      bookingAutoLinkRef.current = null;
+    });
+  }, [confirmTenantLink, context, linkStatus, organizations.length, user]);
 
   const value = useMemo<ConnectedClientContextValue>(() => ({
     slug,

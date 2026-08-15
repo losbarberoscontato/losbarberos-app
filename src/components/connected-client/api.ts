@@ -168,6 +168,17 @@ export async function getAvailableSlots(
   return (data as Availability | null) ?? null;
 }
 
+export async function getPublicBookingOrganization(
+  supabase: SupabaseClient,
+  bookingPublicId: string,
+): Promise<{ id: string; slug: string; name: string } | null> {
+  const { data, error } = await supabase.rpc("get_public_booking_organization", {
+    p_booking_public_id: bookingPublicId,
+  });
+  if (error) throw new Error(error.message);
+  return (data as { id: string; slug: string; name: string } | null) ?? null;
+}
+
 export type WalkinQueueAvailability = {
   organization: { name: string; slug: string; timezone: string };
   slots: Array<{ barber_id: string; barber_name: string; starts_at: string; ends_at: string }>;

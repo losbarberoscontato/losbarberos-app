@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Download, LoaderCircle, LogOut, MessageCircle, Save, ShieldCheck, Trash2, UserRound, X } from "lucide-react";
+import { Check, Download, LoaderCircle, LogOut, MessageCircle, Save, Search, ShieldCheck, Trash2, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getCustomerPrivacy,
@@ -21,7 +21,7 @@ export function ConnectedProfile() {
 }
 
 function ProfileContent() {
-  const { context, user, account, customer, authLoading, reloadCustomer, signOut } = useConnectedClient();
+  const { context, user, account, customer, organizations, authLoading, reloadCustomer, selectTenant, signOut } = useConnectedClient();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -34,6 +34,7 @@ function ProfileContent() {
   const [notice, setNotice] = useState("");
   const [initializedIdentity, setInitializedIdentity] = useState("");
   const [confirmDeletion, setConfirmDeletion] = useState(false);
+  const [searchSlug, setSearchSlug] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -146,6 +147,9 @@ function ProfileContent() {
   const displayName = (customer?.full_name ?? fullName) || "Cliente";
   const exportPending = requests.some((request) => request.kind === "EXPORT" && ["OPEN", "IN_PROGRESS"].includes(request.status));
   const deletionPending = requests.some((request) => request.kind === "DELETION" && ["OPEN", "IN_PROGRESS"].includes(request.status));
+  const logoUrl = (path: string | null | undefined) => path
+    ? supabase?.storage.from("organization-logos").getPublicUrl(path).data.publicUrl ?? null
+    : null;
   return (
     <div className={styles.profile}>
       <header className={styles.pageHeading}><span>Sua conta · {context.organization.name}</span><h1>Perfil e privacidade</h1><p>Dados ficam isolados neste tenant. Marketing não nasce de data de nascimento.</p></header>
@@ -164,6 +168,21 @@ function ProfileContent() {
             <div className={styles.sectionTitle}><UserRound /><div><h2>Dados pessoais</h2><p>Aplicados em todas as barbearias vinculadas à sua conta.</p></div></div>
             <div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>Telefone E.164<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Nascimento <small>opcional</small><input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} /></label></div>
             <button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void saveProfile()}><Save size={16} /> {busy ? "Salvando…" : "Salvar dados"}</button>
+          </section>
+          <section className={styles.panel} aria-labelledby="linked-organizations-title">
+            <div className={styles.sectionTitle}><Search /><div><h2 id="linked-organizations-title">Minhas barbearias</h2><p>Conecte-se às barbearias que você já usa no Los Barberos.</p></div></div>
+            <form className={styles.formGrid} onSubmit={(event) => { event.preventDefault(); if (searchSlug.trim()) selectTenant(searchSlug); }}>
+              <label>Conectar a outra barbearia<input value={searchSlug} onChange={(event) => setSearchSlug(event.target.value)} placeholder="slug-da-barbearia" autoComplete="off" /></label>
+              <button type="submit" className={styles.primaryButton}>Pesquisar por slug</button>
+            </form>
+            <div className={styles.organizationList}>
+              {organizations.map((item) => <article className={styles.organizationCard} key={item.organization_id}>
+                {logoUrl(item.logo_path) ? <img src={logoUrl(item.logo_path)!} alt="" /> : <span className={styles.organizationLogoFallback}>{initials(item.organization_name)}</span>}
+                <div><strong>{item.organization_name}</strong><small>{item.location?.name ?? "Unidade"}</small><small>{locationLabel(item.location?.address)}</small>{item.public_contact_phone_e164 && <small>WhatsApp: {item.public_contact_phone_e164}</small>}</div>
+                <button type="button" className={styles.secondaryButton} disabled={item.organization_slug === context.organization.slug} onClick={() => selectTenant(item.organization_slug)}>{item.organization_slug === context.organization.slug ? "Conectado" : "Conectar"}</button>
+              </article>)}
+              {!organizations.length && <p className={styles.empty}>Nenhuma barbearia conectada ainda.</p>}
+            </div>
           </section>
           <section className={styles.panel}>
             <div className={styles.sectionTitle}><MessageCircle /><div><h2>Comunicação</h2><p>Somente mensagens transacionais sobre reserva.</p></div></div>

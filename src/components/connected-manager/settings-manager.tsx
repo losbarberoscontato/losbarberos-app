@@ -18,10 +18,26 @@ export function SettingsManager(props: Props) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [connecting, setConnecting] = useState(false);
-  const queueUrl = typeof window === "undefined" ? "" : `${window.location.origin}/fila/${props.organization.queue_public_id}`;
+  const publicOrigin = typeof window === "undefined"
+    ? ""
+    : (process.env.NEXT_PUBLIC_PUBLIC_APP_URL || window.location.origin).replace(/\/$/u, "");
+  const queueUrl = props.organization.queue_public_id ? `${publicOrigin}/fila/${props.organization.queue_public_id}` : "";
+  const bookingUrl = props.organization.booking_public_id
+    ? `${publicOrigin}/b/${props.organization.booking_public_id}`
+    : `${publicOrigin}/b/${props.organization.slug}`;
   const [exporting, setExporting] = useState(false);
+  const [logoPath, setLogoPath] = useState(props.organization.logo_path ?? "");
   const location = props.locations.find((item) => item.active) ?? props.locations[0];
   const address = (location?.address ?? {}) as Record<string, string>;
+
+  async function copyLink(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setMessage("Link copiado.");
+    } catch {
+      setMessage("Não foi possível copiar automaticamente. Selecione e copie o link manualmente.");
+    }
+  }
 
   async function saveOrganization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,9 +52,24 @@ export function SettingsManager(props: Props) {
         slot_interval_minutes: Number(data.get("slot_interval_minutes")),
         hold_duration_minutes: Number(data.get("hold_duration_minutes")),
         commission_frequency: String(data.get("commission_frequency")),
+        public_contact_phone_e164: String(data.get("public_contact_phone_e164") ?? "").trim() || null,
+        logo_path: logoPath || null,
       }).eq("id", props.organizationId));
     }, "Regras da organização atualizadas.");
     if (saved) router.refresh();
+  }
+
+  async function uploadLogo(file: File | undefined) {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/u.test(file.type) || file.size > 2 * 1024 * 1024) {
+      setMessage("Logo deve ser PNG, JPEG ou WebP de até 2 MB.");
+      return;
+    }
+    const path = `${props.organizationId}/logo`;
+    const { error } = await connectedClient().storage.from("organization-logos").upload(path, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
+    if (error) { setMessage(error.message); return; }
+    setLogoPath(path);
+    setMessage("Logo enviada. Clique em Salvar regras para concluir.");
   }
 
   async function saveLocation(event: FormEvent<HTMLFormElement>) {
@@ -128,17 +159,26 @@ export function SettingsManager(props: Props) {
     <ActionMessage message={message} />
     <div className={styles.grid}>
       {props.organization.queue_public_id &&
-        <Panel title="Fila presencial" description="Imprima este QR e fixe na entrada." className={styles.span7}>
-          <div className="qr-print">
-            <QRCodeSVG value={queueUrl} size={180} />
-            <p>{queueUrl}</p>
-            <button type="button" className="button button--soft" onClick={() => window.print()}>Imprimir QR code</button>
+        <Panel title="Links úteis" description="Acesse, compartilhe e imprima os links públicos da sua barbearia." className={styles.span7}>
+          <div className="useful-links">
+            <article className="useful-link-row">
+              <div><strong>Link do gerenciador de fila</strong><p>Você pode imprimir o QRcode do gerenciador de fila para seus clientes escanearem.</p></div>
+              <button type="button" className="useful-link-value" onClick={() => void copyLink(queueUrl)} title="Copiar link da fila">{queueUrl}</button>
+              <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(queueUrl)}>Copiar link</button><button type="button" className="button button--soft" onClick={() => window.print()}>Imprimir QR code</button></div>
+            </article>
+            <article className="useful-link-row">
+              <div><strong>Link de agendamento</strong><p>Envie este link para clientes novos e antigos, eles poderão fazer cadastro/login e acessar a Agenda da sua barbearia.</p></div>
+              <button type="button" className="useful-link-value" onClick={() => void copyLink(bookingUrl)} title="Copiar link de agendamento">{bookingUrl}</button>
+              <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(bookingUrl)}>Copiar link</button></div>
+            </article>
           </div>
         </Panel>}
       <Panel title="Regras da barbearia" description="Valores usados para novos agendamentos" className={styles.span7}>
         <form className={styles.form} onSubmit={saveOrganization}>
           <Field label="Nome"><input name="name" required minLength={2} defaultValue={props.organization.name} /></Field>
           <Field label="Slug público"><input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" defaultValue={props.organization.slug} /></Field>
+          <Field label="WhatsApp público"><input name="public_contact_phone_e164" inputMode="tel" placeholder="+5511999999999" defaultValue={props.organization.public_contact_phone_e164 ?? ""} /></Field>
+          <Field label="Logomarca"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void uploadLogo(event.target.files?.[0])} /><small>{logoPath ? "Logo cadastrada" : "PNG, JPEG ou WebP até 2 MB"}</small></Field>
           <Field label="Timezone"><select name="timezone" defaultValue={props.organization.timezone}><option value="America/Sao_Paulo">America/Sao_Paulo</option><option value="America/Manaus">America/Manaus</option><option value="America/Fortaleza">America/Fortaleza</option><option value="America/Recife">America/Recife</option><option value="America/Bahia">America/Bahia</option><option value="America/Cuiaba">America/Cuiaba</option><option value="America/Rio_Branco">America/Rio_Branco</option></select></Field>
           <Field label="Sinal (%)"><input name="deposit_percent" type="number" min={0} max={100} step="0.01" defaultValue={props.organization.deposit_bps / 100} /></Field>
           <Field label="Prazo de cancelamento (horas)"><input name="cancellation_hours" type="number" min={0} step="1" defaultValue={props.organization.cancellation_lead_minutes / 60} /></Field>

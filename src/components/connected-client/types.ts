@@ -10,6 +10,9 @@ export type PublicOrganization = {
   deposit_bps: number;
   cancellation_lead_minutes: number;
   accepting_bookings: boolean;
+  booking_public_id?: string | null;
+  logo_path?: string | null;
+  public_contact_phone_e164?: string | null;
 };
 
 export type PublicLocation = {
@@ -87,6 +90,10 @@ export type ClientOrganization = {
   organization_slug: string;
   organization_name: string;
   customer_id: string;
+  booking_public_id?: string | null;
+  logo_path?: string | null;
+  public_contact_phone_e164?: string | null;
+  location?: { name: string; address: Record<string, unknown> } | null;
 };
 
 export type ClientLinkResult = {

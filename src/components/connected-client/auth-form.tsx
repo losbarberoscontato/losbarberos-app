@@ -4,6 +4,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation";
 import { Scissors } from "lucide-react";
 import styles from "@/components/connected-client/connected-client.module.css";
+import { getMyClientAccount } from "@/components/connected-client/api";
 import { clientAuthDestination, clientPasswordSchema, clientSignupSchema } from "@/lib/client-auth";
 import { normalizePhoneE164 } from "@/lib/phone";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -173,6 +174,14 @@ export function ClientAuthForm({
       });
       if (authError || !data.session || !data.user) {
         setError("Não foi possível concluir acesso. Verifique seus dados ou tente novamente.");
+        return;
+      }
+
+      const existingAccount = typeof (supabase as unknown as { from?: unknown }).from === "function"
+        ? await getMyClientAccount(supabase, data.user.id)
+        : null;
+      if (existingAccount) {
+        router.push(destination);
         return;
       }
 

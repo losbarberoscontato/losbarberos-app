@@ -24,6 +24,9 @@ export interface ManagerScope {
 
 export interface OrganizationRecord {
   queue_public_id?: string | null;
+  booking_public_id?: string | null;
+  public_contact_phone_e164?: string | null;
+  logo_path?: string | null;
   id: string;
   name: string;
   slug: string;

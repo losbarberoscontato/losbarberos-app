@@ -490,3 +490,12 @@
   .switch span,
   .switch span::after { transition: none; }
 }
+.organizationList { display: grid; gap: 10px; margin-top: 15px; }
+.organizationCard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid #ddd6ca; border-radius: 12px; background: #fff; }
+.organizationCard img, .organizationLogoFallback { width: 42px; height: 42px; border-radius: 10px; object-fit: cover; }
+.organizationLogoFallback { display: grid; place-items: center; background: #e9f0eb; color: #24604f; font-weight: 800; }
+.organizationCard > div { display: grid; gap: 3px; min-width: 0; }
+.organizationCard strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.organizationCard small { color: #68736d; font-size: 10px; }
+@media (max-width: 600px) { .organizationCard { grid-template-columns: auto minmax(0, 1fr); } .organizationCard button { grid-column: 1 / -1; width: 100%; } }
+.locationLogo { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; }
