@@ -56,18 +56,24 @@ function requireData<T>(result: { data: T | null; error: { message: string } | n
 
 export async function loadCustomersData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [result, appointments, appointmentItems, financial, barbers, statusEvents] = await Promise.all([
+  const [result, appointments, appointmentItems, financial, barbers, statusEvents, consents] = await Promise.all([
     supabase.from("customers").select("id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).is("merged_into_customer_id", null).order("active", { ascending: false }).order("full_name").limit(MANAGER_ROW_LIMIT),
     supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at").eq("organization_id", organizationId).order("service_period", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_items").select("id,organization_id,appointment_id,service_name_snapshot,position").eq("organization_id", organizationId).order("position").limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_financial_summary").select("appointment_id,captured_cents,refunded_cents,net_paid_cents,outstanding_cents,financial_status").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("id,organization_id,location_id,display_name,bio,avatar_url,active").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_status_events").select("id,organization_id,appointment_id,reason,created_at").eq("organization_id", organizationId).eq("reason", "appointment_rescheduled").limit(MANAGER_ROW_LIMIT),
+    supabase.from("consent_events").select("customer_id,action,occurred_at").eq("organization_id", organizationId).eq("kind", "WHATSAPP_TRANSACTIONAL").order("occurred_at", { ascending: false }).limit(MANAGER_ROW_LIMIT * 10),
   ]);
+  const latestConsentByCustomer = new Map<string, "GRANTED" | "REVOKED">();
+  for (const event of requireData(consents, "Consentimentos WhatsApp") as { customer_id: string; action: "GRANTED" | "REVOKED" }[]) {
+    if (!latestConsentByCustomer.has(event.customer_id)) latestConsentByCustomer.set(event.customer_id, event.action);
+  }
+  const customerRows = requireData(result, "Clientes") as CustomerRecord[];
   return {
     organizationId,
     billingStatus: context.billingStatus,
-    customers: requireData(result, "Clientes") as CustomerRecord[],
+    customers: customerRows.map((customer) => ({ ...customer, whatsapp_transactional_opted_out: latestConsentByCustomer.get(customer.id) === "REVOKED" })) as CustomerRecord[],
     appointments: requireData(appointments, "Agendamentos") as AppointmentRecord[],
     appointmentItems: requireData(appointmentItems, "Itens da agenda") as AppointmentItemRecord[],
     financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],
@@ -302,13 +308,14 @@ export async function loadDashboardData() {
   const { context, supabase, organizationId } = await managerClient();
   const from = new Date(Date.now() - 31 * 86_400_000).toISOString();
   const to = new Date(Date.now() + 93 * 86_400_000).toISOString();
-  const [organization, appointments, customers, barbers, financial, payouts] = await Promise.all([
+  const [organization, appointments, customers, barbers, financial, payouts, whatsappResult] = await Promise.all([
     supabase.from("organizations").select("*").eq("id", organizationId).single(),
     supabase.from("appointments").select("*").eq("organization_id", organizationId).overlaps("service_period", `[${from},${to})`).order("service_period").limit(500),
     supabase.from("customers").select("id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("*").eq("organization_id", organizationId).eq("active", true).order("display_name"),
     supabase.from("appointment_financial_summary").select("*").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("commission_payouts").select("*").eq("organization_id", organizationId).eq("status", "OPEN"),
+    supabase.rpc("get_whatsapp_connection_status", { p_organization_id: organizationId }),
   ]);
   return {
     organizationId,
@@ -319,5 +326,6 @@ export async function loadDashboardData() {
     barbers: requireData(barbers, "Equipe") as BarberRecord[],
     financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],
     openPayouts: requireData(payouts, "Comissões") as CommissionPayoutRecord[],
+    whatsapp: whatsappResult.error ? null : whatsappResult.data as WhatsAppSettingsStatus,
   };
 }

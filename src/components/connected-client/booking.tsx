@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   createAppointmentHold,
+  getCustomerPrivacy,
   getAvailableSlotsForDate,
   getAvailableSlots,
   toClientError,
@@ -69,6 +70,7 @@ function BookingContent() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
   const [accepted, setAccepted] = useState(false);
+  const [whatsappAccepted, setWhatsappAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [restored, setRestored] = useState(false);
@@ -104,6 +106,22 @@ function BookingContent() {
     );
   }, [choice, context]);
   const barber = compatibleBarbers.find((item) => item.id === barberId) ?? null;
+
+  useEffect(() => {
+    if (!supabase || !context || !customer) {
+      queueMicrotask(() => setWhatsappAccepted(false));
+      return;
+    }
+    let active = true;
+    void getCustomerPrivacy(supabase, context.organization.id, customer.id)
+      .then((privacy) => {
+        if (active) setWhatsappAccepted(privacy.whatsappGranted);
+      })
+      .catch(() => {
+        if (active) setWhatsappAccepted(false);
+      });
+    return () => { active = false; };
+  }, [context, customer, supabase]);
 
   useEffect(() => {
     if (barberId && !compatibleBarbers.some((item) => item.id === barberId)) {
@@ -289,6 +307,7 @@ function BookingContent() {
                   <div className={styles.sectionTitle}><CalendarDays aria-hidden="true" /><div><h2>Pagamento</h2><p>Você paga o valor integral no atendimento.</p></div></div>
                 </section>
                 <label className={styles.policy}><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} /><span><ShieldCheck size={17} /> Aceito a política desta reserva. Cancelamentos e alterações seguem o prazo informado pela barbearia.</span></label>
+                <p className={`${styles.whatsappPreference} ${whatsappAccepted ? "" : styles.whatsappPreferenceOff}`}><ShieldCheck size={17} /> {whatsappAccepted ? "Mensagens de confirmação e lembrete pelo WhatsApp estão ativas. Você pode desativá-las no Perfil." : "Mensagens automáticas pelo WhatsApp estão desativadas no seu Perfil. A reserva continua disponível."}</p>
               </>
             )}
           </div>

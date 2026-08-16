@@ -2,9 +2,10 @@
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Scissors } from "lucide-react";
+import { Eye, EyeOff, Scissors } from "lucide-react";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getMyClientAccount } from "@/components/connected-client/api";
+import { formatBirthDateInput, normalizeBirthDateInput, parseBirthDateInput } from "@/lib/birth-date";
 import { clientAuthDestination, clientPasswordSchema, clientSignupSchema } from "@/lib/client-auth";
 import { normalizePhoneE164 } from "@/lib/phone";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -90,6 +91,7 @@ export function ClientAuthForm({
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phoneE164, setPhoneE164] = useState("");
   const [birthDate, setBirthDate] = useState("");
@@ -189,6 +191,7 @@ export function ClientAuthForm({
       if (!profile) {
         setEmail(typeof data.user.email === "string" ? data.user.email : normalizedEmail);
         setFullName(metadataString(data.user.user_metadata, "full_name"));
+        setBirthDate(formatBirthDateInput(metadataString(data.user.user_metadata, "birth_date")));
         setMode("complete");
         setSuccess("Confirme seus dados para concluir o cadastro.");
         return;
@@ -202,12 +205,13 @@ export function ClientAuthForm({
     event.preventDefault();
     clearMessages();
     const normalizedPhone = normalizePhoneE164(phoneE164);
+    const parsedBirthDate = parseBirthDateInput(birthDate);
     const parsed = clientSignupSchema.safeParse({
       fullName,
       phoneE164: normalizedPhone ?? phoneE164,
       email,
       password,
-      birthDate,
+      birthDate: parsedBirthDate ?? birthDate,
       acceptedTerms,
     });
     if (!parsed.success) {
@@ -284,7 +288,8 @@ export function ClientAuthForm({
     event.preventDefault();
     clearMessages();
     const normalizedPhone = normalizePhoneE164(phoneE164);
-    const parsed = clientProfileSchema.safeParse({ fullName, phoneE164: normalizedPhone ?? phoneE164, birthDate, acceptedTerms });
+    const parsedBirthDate = parseBirthDateInput(birthDate);
+    const parsed = clientProfileSchema.safeParse({ fullName, phoneE164: normalizedPhone ?? phoneE164, birthDate: parsedBirthDate ?? birthDate, acceptedTerms });
     if (!parsed.success) {
       setError("Revise os dados cadastrais e tente novamente.");
       return;
@@ -343,13 +348,13 @@ export function ClientAuthForm({
         )}
         {!isRecovery && !isComplete && (
           <label htmlFor="client-password">Senha
-            <input id="client-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={isSignUp ? "new-password" : "current-password"} />
+            <span className={styles.passwordControl}><input id="client-password" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete={isSignUp ? "new-password" : "current-password"} /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPassword}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>
           </label>
         )}
         {(isSignUp || isComplete) && (
           <>
             <label htmlFor="client-birth-date">Data de nascimento
-              <input id="client-birth-date" type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} required autoComplete="bday" />
+              <input id="client-birth-date" type="text" value={birthDate} onChange={(event) => setBirthDate(normalizeBirthDateInput(event.target.value))} required placeholder="DD/MM/AAAA" inputMode="numeric" autoComplete="bday" maxLength={10} />
             </label>
             <label className={styles.authTerms} htmlFor="client-terms">
               <input id="client-terms" type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} required />

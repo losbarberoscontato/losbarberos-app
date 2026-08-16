@@ -14,6 +14,7 @@ import { formatInstant, initials, locationLabel } from "@/components/connected-c
 import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/state";
 import type { PrivacyRequest } from "@/components/connected-client/types";
 import styles from "@/components/connected-client/connected-client.module.css";
+import { formatBirthDateInput, normalizeBirthDateInput, parseBirthDateInput } from "@/lib/birth-date";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function ConnectedProfile() {
@@ -43,7 +44,7 @@ function ProfileContent() {
     queueMicrotask(() => {
       setFullName(account?.full_name ?? String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? ""));
       setPhone(account?.phone_e164 ?? "");
-      setBirthDate(account?.birth_date ?? "");
+      setBirthDate(formatBirthDateInput(account?.birth_date));
       setInitializedIdentity(identity);
     });
   }, [account, initializedIdentity, user]);
@@ -80,6 +81,7 @@ function ProfileContent() {
   async function saveProfile() {
     if (!supabase || !account) return;
     const phoneE164 = phone.trim() || account.phone_e164;
+    const parsedBirthDate = birthDate ? parseBirthDateInput(birthDate) : null;
     if (fullName.trim().length < 2) {
       setError("Informe nome completo.");
       return;
@@ -88,13 +90,17 @@ function ProfileContent() {
       setError("Telefone deve estar em E.164. Exemplo: +5511999999999.");
       return;
     }
+    if (birthDate && !parsedBirthDate) {
+      setError("Informe a data de nascimento no formato DD/MM/AAAA.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       await upsertMyClientAccount(supabase, {
         fullName: fullName.trim(),
         phoneE164,
-        birthDate: birthDate || null,
+        birthDate: parsedBirthDate,
         termsPolicyVersion: account.terms_policy_version,
       });
       await reloadCustomer();
@@ -166,7 +172,7 @@ function ProfileContent() {
         <div className={styles.profileMain}>
           <section className={styles.panel}>
             <div className={styles.sectionTitle}><UserRound /><div><h2>Dados pessoais</h2><p>Aplicados em todas as barbearias vinculadas à sua conta.</p></div></div>
-            <div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>Telefone E.164<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Nascimento <small>opcional</small><input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} /></label></div>
+            <div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>Telefone E.164<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Data de nascimento <small>opcional · DD/MM/AAAA</small><input type="text" value={birthDate} onChange={(event) => setBirthDate(normalizeBirthDateInput(event.target.value))} placeholder="DD/MM/AAAA" inputMode="numeric" autoComplete="bday" maxLength={10} /></label></div>
             <button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void saveProfile()}><Save size={16} /> {busy ? "Salvando…" : "Salvar dados"}</button>
           </section>
           <section className={styles.panel} aria-labelledby="linked-organizations-title">

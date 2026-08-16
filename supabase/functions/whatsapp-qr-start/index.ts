@@ -5,7 +5,25 @@ import { IntegrationError } from "../_shared/security.ts";
 import { requireOrganizationOwner, requireUser, rpc } from "../_shared/supabase.ts";
 
 type RequestBody = { organizationId?: unknown };
+type EvolutionQrPayload = {
+  base64?: unknown;
+  qrcode?: { base64?: unknown };
+  data?: { base64?: unknown; qrcode?: { base64?: unknown } };
+};
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+function extractQrCode(payload: EvolutionQrPayload | null): string | null {
+  const candidates = [
+    payload?.base64,
+    payload?.qrcode?.base64,
+    payload?.data?.base64,
+    payload?.data?.qrcode?.base64,
+  ];
+  const qrCode = candidates.find((value): value is string =>
+    typeof value === "string" && value.length > 100 && value.length < 300_000
+  );
+  return qrCode ?? null;
+}
 
 Deno.serve((request) => {
   const options = preflight(request);
@@ -23,23 +41,31 @@ Deno.serve((request) => {
     const apiKey = requiredEnv("EVOLUTION_API_KEY");
     const webhookSecret = requiredEnv("EVOLUTION_WEBHOOK_SECRET");
     const instanceName = `lb-${organizationId.slice(0, 8)}`;
-    await providerFetch(`${baseUrl}/instance/create`, {
-      method: "POST",
-      headers: { apikey: apiKey, "content-type": "application/json" },
-      body: JSON.stringify({
-        instanceName,
-        integration: "WHATSAPP-BAILEYS",
-        qrcode: true,
-        webhook: {
-          enabled: true,
-          url: functionUrl("whatsapp-qr-webhook"),
-          byEvents: false,
-          base64: false,
-          headers: { "x-evolution-webhook-secret": webhookSecret },
-          events: ["CONNECTION_UPDATE"],
-        },
-      }),
-    });
+    let created: EvolutionQrPayload | null = null;
+    try {
+      created = await providerFetch<EvolutionQrPayload>(`${baseUrl}/instance/create`, {
+        method: "POST",
+        headers: { apikey: apiKey, "content-type": "application/json" },
+        body: JSON.stringify({
+          instanceName,
+          integration: "WHATSAPP-BAILEYS",
+          qrcode: true,
+          webhook: {
+            enabled: true,
+            url: functionUrl("whatsapp-qr-webhook"),
+            byEvents: false,
+            base64: true,
+            headers: { "x-evolution-webhook-secret": webhookSecret },
+            events: ["QRCODE_UPDATED", "CONNECTION_UPDATE", "MESSAGES_UPSERT"],
+          },
+        }),
+      });
+    } catch (error) {
+      // Reconnect calls create with the stable instance name. Evolution returns
+      // 4xx when that instance already exists; connect below is the idempotent
+      // continuation for this expected case.
+      if (!(error instanceof IntegrationError) || error.status !== 422) throw error;
+    }
     const connection = await rpc<{ id: string }>("store_whatsapp_qr_connection", {
       p_organization_id: organizationId,
       p_gateway_base_url: baseUrl,
@@ -47,11 +73,23 @@ Deno.serve((request) => {
       p_gateway_api_key: apiKey,
       p_requested_by_user_id: user.id,
     });
-    const qr = await providerFetch<Record<string, unknown>>(`${baseUrl}/instance/connect/${encodeURIComponent(instanceName)}`, {
+    const qr = await providerFetch<EvolutionQrPayload>(`${baseUrl}/instance/connect/${encodeURIComponent(instanceName)}`, {
       method: "GET",
       headers: { apikey: apiKey },
     });
-    const qrCode = typeof qr.base64 === "string" && qr.base64.length < 200_000 ? qr.base64 : null;
-    return json(request, { connectionId: connection.id, instanceName, qrCode }, 201);
+    const qrCode = extractQrCode(qr) ?? extractQrCode(created);
+    if (qrCode) {
+      await rpc("store_whatsapp_qr_code", {
+        p_gateway_instance_id: instanceName,
+        p_qr_code: qrCode,
+        p_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      });
+    }
+    return json(request, {
+      connectionId: connection.id,
+      instanceName,
+      qrCode,
+      qrAvailable: Boolean(qrCode),
+    }, 201);
   });
 });

@@ -13,7 +13,7 @@ type OutboxJob = {
   id: string;
   organization_id: string;
   recipient_e164: string;
-  message_kind: "TEMPLATE" | "CANCEL_CONFIRM_PROMPT" | "TEXT";
+  message_kind: "TEMPLATE" | "CANCEL_CONFIRM_PROMPT" | "TEXT" | "EVOLUTION_REMINDER_BUTTONS";
   template_name?: string;
   language_code?: string;
   template_components?: unknown[];
@@ -88,21 +88,72 @@ function buildMessage(job: OutboxJob): Record<string, unknown> {
   throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
 }
 
-function buildEvolutionText(job: OutboxJob): string {
-  if (job.text_body?.trim()) return job.text_body.slice(0, 4_096);
+function buildEvolutionMessage(job: OutboxJob): Record<string, unknown> {
+  if (job.message_kind === "EVOLUTION_REMINDER_BUTTONS") {
+    let buttons: unknown;
+    try {
+      buttons = JSON.parse(job.action_token ?? "").buttons;
+    } catch {
+      throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
+    }
+    if (!Array.isArray(buttons) || buttons.length < 2 || buttons.length > 3) {
+      throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
+    }
+    const normalizedButtons = buttons.map((button) => {
+      if (!button || typeof button !== "object") {
+        throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
+      }
+      const id = "id" in button && typeof button.id === "string" ? button.id : "";
+      const label = "label" in button && typeof button.label === "string" ? button.label : "";
+      if (id.length < 22 || id.length > 512 || label.length < 1 || label.length > 20) {
+        throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
+      }
+      return { buttonId: id, buttonText: { displayText: label } };
+    });
+    if (!job.text_body?.trim()) throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
+    return {
+      text: job.text_body.slice(0, 4_096),
+      footerText: "Los Barberos",
+      buttons: normalizedButtons,
+    };
+  }
+
+  if (job.message_kind === "CANCEL_CONFIRM_PROMPT") {
+    if (!job.action_token || job.action_token.length < 22 || job.action_token.length > 512) {
+      throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
+    }
+    return {
+      text: `Confirma o cancelamento de ${job.appointment_label ?? "seu horário"}?`,
+      footerText: "Los Barberos",
+      buttons: [
+        { buttonId: job.action_token, buttonText: { displayText: "Confirmar" } },
+        { buttonId: "keep_appointment", buttonText: { displayText: "Manter horário" } },
+      ],
+    };
+  }
+
+  if (job.text_body?.trim()) {
+    return { text: job.text_body.slice(0, 4_096) };
+  }
   const label = job.appointment_label?.trim() || "o seu horário";
+  let text: string;
   switch (job.template_name) {
     case "appointment_reminder_6h":
-      return `Lembrete: seu atendimento será em ${label}.`;
+      text = `Lembrete: seu atendimento será em ${label}.`;
+      break;
     case "appointment_reminder_45m":
-      return `Lembrete: seu atendimento começa em ${label}.`;
+      text = `Lembrete: seu atendimento começa em ${label}.`;
+      break;
     case "appointment_confirmation":
-      return `Seu agendamento foi confirmado para ${label}.`;
+      text = `Seu agendamento foi confirmado para ${label}.`;
+      break;
     case "appointment_cancellation_confirmed":
-      return "Seu cancelamento foi confirmado.";
+      text = "Seu cancelamento foi confirmado.";
+      break;
     default:
-      return `Atualização do seu agendamento: ${label}.`;
+      text = `Atualização do seu agendamento: ${label}.`;
   }
+  return { text };
 }
 
 Deno.serve((request) =>
@@ -154,8 +205,8 @@ Deno.serve((request) =>
         const sender = await whatsappSenderForOrganization(job.organization_id);
         const result = sender.provider === "META_CLOUD"
           ? await whatsappRequest(sender.phoneNumberId, sender.accessToken, buildMessage(job))
-          : await evolutionRequest(sender, job.recipient_e164, buildEvolutionText(job));
-        messageId = result.messages?.[0]?.id ?? "";
+          : await evolutionRequest(sender, job.recipient_e164, buildEvolutionMessage(job));
+        messageId = result.messages?.[0]?.id ?? result.key?.id ?? "";
         if (!messageId) {
           throw new IntegrationError(502, "INVALID_PROVIDER_RESPONSE", true);
         }

@@ -1,8 +1,10 @@
 .shell {
   min-height: 100vh;
-  padding-bottom: 74px;
+  min-width: 0;
+  padding-bottom: max(74px, env(safe-area-inset-bottom));
   background: #f7f4ed;
   color: #152620;
+  overflow-x: clip;
 }
 
 .topbar {
@@ -170,6 +172,11 @@
 .authFields label { display: grid; gap: 5px; color: #48564f; font-size: 10px; font-weight: 800; }
 .authFields input { width: 100%; min-height: 42px; padding: 0 11px; border: 1px solid #d9d2c7; border-radius: 9px; background: #fff; color: #24362e; font: inherit; font-size: 12px; }
 .authFields input:focus-visible { outline: 3px solid rgb(45 109 92 / 18%); border-color: #2d6d5c; }
+.passwordControl { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border: 1px solid #d9d2c7; border-radius: 9px; background: #fff; }
+.authFields .passwordControl input { border: 0; }
+.passwordControl:focus-within { outline: 3px solid rgb(45 109 92 / 18%); border-color: #2d6d5c; }
+.passwordControl button { width: 42px; min-height: 40px; display: grid; place-items: center; border: 0; background: transparent; color: #496158; }
+.passwordControl button:focus-visible { outline: 2px solid #2d6d5c; outline-offset: -4px; border-radius: 7px; }
 .authFields .authTerms { display: flex; align-items: flex-start; gap: 8px; color: #5c6861; font-size: 9px; line-height: 1.45; font-weight: 650; }
 .authFields .authTerms input { width: 16px; min-width: 16px; min-height: 16px; margin-top: 1px; accent-color: #245f50; }
 .authForm > .notice,
@@ -268,6 +275,10 @@
 .policy input { margin-top: 2px; accent-color: #245f50; }
 .policy span { display: flex; align-items: flex-start; gap: 7px; }
 .policy svg { flex: 0 0 auto; color: #286955; }
+.whatsappPreference { display: flex; align-items: flex-start; gap: 9px; padding: 14px; border: 1px solid #cfe0d4; border-radius: 12px; background: #f2f8f3; color: #356452; font-size: 10px; line-height: 1.5; }
+.whatsappPreference svg { flex: 0 0 auto; color: #286955; }
+.whatsappPreferenceOff { border-color: #e2bcb5; background: #fff1ee; color: #8d4036; }
+.whatsappPreferenceOff svg { color: #9a4338; }
 .summary { position: sticky; top: 124px; padding: 22px; border-radius: 18px; background: #143a31; color: #fff; box-shadow: 0 18px 40px rgb(15 45 37 / 18%); }
 .summary > span { color: #e1b46e; font-size: 8px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
 .summary h2 { margin-top: 7px; font-size: 22px; }
@@ -439,8 +450,8 @@
   .tenantMenu { top: 68px; right: 12px; width: calc(100% - 24px); }
   .locationStrip { align-items: flex-start; justify-content: flex-start; text-align: left; }
   .locationStrip strong { display: none; }
-  .main { padding-top: 24px; }
-  .bottomNav { position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; min-height: 66px; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #d9d2c7; background: rgb(255 254 250 / 97%); box-shadow: 0 -8px 22px rgb(24 46 38 / 8%); backdrop-filter: blur(14px); }
+  .main { width: min(100% - 24px, 560px); padding-top: 24px; }
+  .bottomNav { position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; min-height: 66px; display: grid; grid-template-columns: repeat(3, 1fr); padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid #d9d2c7; background: rgb(255 254 250 / 97%); box-shadow: 0 -8px 22px rgb(24 46 38 / 8%); backdrop-filter: blur(14px); }
   .bottomNav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #7a8079; font-size: 8px; font-weight: 750; }
   .bottomNav a.active { color: #23604f; }
   .bottomNav a.active svg { stroke-width: 2.5; }
@@ -461,6 +472,16 @@
   .cards,
   .barbers,
   .formGrid { grid-template-columns: 1fr; }
+  .schedule,
+  .schedule > section,
+  .dates,
+  .slots { min-width: 0; }
+  .dates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; }
+  .dates button { min-width: 0; }
+  .slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .slots button { min-width: 0; padding: 0 6px; overflow-wrap: anywhere; }
+  .rescheduleCatalog { display: grid; grid-template-columns: 1fr; overflow: visible; }
+  .rescheduleCatalog button { min-width: 0; }
   .cards > button { min-height: 130px; }
   .barbers > button { min-height: 85px; }
   .reviewGrid,
@@ -471,6 +492,7 @@
   .reservationBody { grid-template-columns: 58px minmax(0, 1fr); gap: 12px; padding: 14px; }
   .dateBox { width: 55px; }
   .reservationBody dl { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); padding: 12px 0 0; border-top: 1px solid #e4ded3; border-left: 0; }
+  .reservationBody dl { min-width: 0; }
   .reservationBody dl > div { flex-direction: column; gap: 2px; }
   .reservationCard > footer { justify-content: stretch; }
   .reservationCard > footer button { flex: 1; }
@@ -481,6 +503,7 @@
   .modal > footer { flex-direction: column-reverse; }
   .modal > footer button { width: 100%; }
   .profileAside { position: static; }
+  .bookingFooter { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   .requestList article { grid-template-columns: 1fr auto; padding: 7px 0; }
   .requestList small { grid-column: 1 / -1; }
 }

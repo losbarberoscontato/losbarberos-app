@@ -1,15 +1,21 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WhatsAppSettings, type WhatsAppSettingsStatus } from "@/components/connected-manager/whatsapp-settings";
+
+const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/components/connected-manager/mutation-utils", () => ({
-  connectedClient: () => ({ rpc: vi.fn(() => Promise.resolve({ data: null, error: null })) }),
+  connectedClient: () => ({
+    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    functions: { invoke: invokeMock },
+  }),
   assertResult: (result: unknown) => result,
   runMutation: async (_setMessage: unknown, mutation: () => Promise<unknown>) => { await mutation(); return true; },
 }));
 
-afterEach(() => cleanup());
+beforeEach(() => invokeMock.mockResolvedValue({ data: { state: "open" }, error: null }));
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const status: WhatsAppSettingsStatus = {
   connections: [],
@@ -50,13 +56,13 @@ describe("WhatsApp settings", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={{
       ...status,
       connections: [{
-        id: "meta-1",
-        provider: "META_CLOUD",
+        id: "qr-1",
+        provider: "QR_WEB",
         status: "CONNECTED",
         is_active: false,
-        waba_id: "waba-1",
-        phone_number_id: "phone-1",
-        gateway_instance_id: null,
+        waba_id: null,
+        phone_number_id: null,
+        gateway_instance_id: "lb-test",
         connected_at: "2026-08-13T10:00:00Z",
         disconnected_at: null,
         last_error_code: null,
@@ -67,5 +73,32 @@ describe("WhatsApp settings", () => {
     expect(screen.getByRole("button", { name: /atualizar status/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /desconectar/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ativar|ativo/i })).toBeInTheDocument();
+  });
+
+  it("inicia verificação automática depois que um QR está disponível", async () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={{
+      ...status,
+      connections: [{
+        id: "qr-1",
+        provider: "QR_WEB",
+        status: "WAITING_FOR_QR",
+        is_active: true,
+        waba_id: null,
+        phone_number_id: null,
+        gateway_instance_id: "lb-test",
+        connected_at: null,
+        disconnected_at: null,
+        last_error_code: null,
+        last_status_at: "2026-08-16T19:00:00Z",
+        health_status: "WAITING_FOR_QR",
+        health_checked_at: "2026-08-16T19:00:00Z",
+        health_error_code: null,
+        qr_code: "x".repeat(120),
+        qr_expires_at: "2026-08-16T19:05:00Z",
+      }],
+    }} />);
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("whatsapp-qr-status", { body: { organizationId: "org-1" } }));
+    expect(await screen.findByText(/Evolution confirmou WhatsApp conectado/i)).toBeInTheDocument();
   });
 });

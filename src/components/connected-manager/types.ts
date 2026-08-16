@@ -61,6 +61,7 @@ export interface CustomerRecord {
   inactivation_reason: string | null;
   inactivated_at: string | null;
   created_at: string;
+  whatsapp_transactional_opted_out?: boolean;
 }
 
 export interface BarberRecord {

@@ -5,6 +5,8 @@ import { rpc } from "./supabase.ts";
 
 type WhatsAppResponse = {
   messages?: Array<{ id: string }>;
+  key?: { id?: string };
+  status?: string;
 };
 
 export type WhatsAppSender =
@@ -91,13 +93,17 @@ export async function whatsappSenderForOrganization(
 export function evolutionRequest(
   sender: Extract<WhatsAppSender, { provider: "QR_WEB" }>,
   recipient: string,
-  text: string,
+  message: Record<string, unknown>,
 ): Promise<WhatsAppResponse> {
-  if (!text.trim() || text.length > 4_096) {
+  const textBody = typeof message.text === "object" && message.text !== null &&
+    "body" in message.text && typeof message.text.body === "string"
+    ? message.text.body
+    : null;
+  if (textBody !== null && (!textBody.trim() || textBody.length > 4_096)) {
     throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
   }
   return providerFetch<WhatsAppResponse>(
-    `${sender.gatewayBaseUrl}/message/sendText/${encodeURIComponent(sender.gatewayInstanceId)}`,
+    `${sender.gatewayBaseUrl}/message/${Array.isArray(message.buttons) ? "sendButtons" : "sendText"}/${encodeURIComponent(sender.gatewayInstanceId)}`,
     {
       method: "POST",
       headers: {
@@ -105,7 +111,7 @@ export function evolutionRequest(
         apikey: sender.gatewayApiKey,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ number: normalizeWhatsAppRecipient(recipient), text }),
+      body: JSON.stringify({ number: normalizeWhatsAppRecipient(recipient), ...message }),
     },
   );
 }

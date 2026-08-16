@@ -40,6 +40,9 @@
 .check { display: inline-flex; gap: .5rem; align-items: center; color: #515a53; font-size: .85rem; }
 .check input { width: 17px; height: 17px; accent-color: #52674e; }
 .message { border-radius: 12px; padding: .75rem .9rem; margin: 0 0 1rem; background: #eef4ea; color: #365033; font-size: .84rem; }
+.statusProgress { display: inline-flex; align-items: center; gap: .42rem; margin-top: .55rem; font-weight: 800; }
+.spinner { width: .85rem; height: .85rem; display: inline-block; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: whatsappSpin .8s linear infinite; }
+@keyframes whatsappSpin { to { transform: rotate(360deg); } }
 .warning { background: #fff4dc; color: #765510; }
 .error { background: #fff0ed; color: #8b352a; }
 .empty { display: grid; justify-items: center; text-align: center; gap: .45rem; border: 1px dashed #cdd5cb; border-radius: 16px; padding: 2.25rem 1rem; color: #6e776f; }
@@ -65,6 +68,8 @@
 .rowTitle { min-width: 0; display: grid; gap: .22rem; }
 .rowTitle strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #293029; }
 .rowTitle small, .muted { color: #79817a; font-size: .78rem; }
+.customerPhone { display: grid; gap: .22rem; min-width: 0; }
+.customerWhatsappOptOut { color: #b23c35; font-size: .72rem; font-weight: 750; line-height: 1.25; }
 .cashCounterparty, .cashDescription { display: block; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .cashDescription { line-height: 1.35; }
 .rowActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .4rem; }

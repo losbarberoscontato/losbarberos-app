@@ -653,7 +653,22 @@ describe("cliente conectado", () => {
     expect(screen.getByLabelText("Nome completo")).toBeRequired();
     expect(screen.getByLabelText("Telefone (E.164)")).toBeRequired();
     expect(screen.getByLabelText("Data de nascimento")).toBeRequired();
+    expect(screen.getByLabelText("Data de nascimento")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("Data de nascimento")).toHaveAttribute("inputmode", "numeric");
     expect(screen.getByLabelText("Aceito os termos de uso e a política de privacidade")).toBeRequired();
+  });
+
+  it("permite visualizar a senha digitada sem alterar o valor", () => {
+    render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente/agendar" />);
+    const password = screen.getByLabelText("Senha");
+    fireEvent.change(password, { target: { value: "Senha#123" } });
+
+    expect(password).toHaveAttribute("type", "password");
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar senha" }));
+    expect(password).toHaveAttribute("type", "text");
+    expect(password).toHaveValue("Senha#123");
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar senha" }));
+    expect(password).toHaveAttribute("type", "password");
   });
 
   it("valida signup e envia callback allowlisted sem declarar telefone verificado", async () => {
