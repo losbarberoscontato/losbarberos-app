@@ -21,7 +21,14 @@ import {
 import { Avatar, PageHeader } from "@/components/ui";
 import type { loadAgendaData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
-import type { AppointmentRecord, AppointmentStatus } from "./types";
+import type { AppointmentRecord } from "./types";
+import {
+  agendaStatusFilterLabels,
+  agendaStatusFilters,
+  appointmentDisplayStatus,
+  matchesAgendaStatusFilter,
+  type AgendaStatusFilter,
+} from "./appointment-display-status";
 import {
   appointmentGeometry,
   dateKeyInTimezone,
@@ -48,19 +55,6 @@ type Props = Omit<AgendaData, "appointmentItems"> & { appointmentItems?: AgendaD
 type View = "day" | "week" | "month";
 
 const hours = Array.from({ length: 12 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
-const statuses: Array<AppointmentStatus | "ALL"> = ["ALL", "HELD", "PENDING_PAYMENT", "CONFIRMED", "IN_SERVICE", "COMPLETED", "CANCELED", "NO_SHOW", "EXPIRED"];
-const statusLabels: Record<AppointmentStatus | "ALL", string> = {
-  ALL: "Todos os status",
-  HELD: "Aguardando pagamento",
-  PENDING_PAYMENT: "Pendente de pagamento",
-  CONFIRMED: "Confirmado",
-  IN_SERVICE: "Em serviço",
-  COMPLETED: "Concluído",
-  CANCELED: "Cancelado",
-  NO_SHOW: "Não compareceu",
-  EXPIRED: "Expirado",
-};
-
 function formatDate(dateKey: string, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" }) {
   return new Intl.DateTimeFormat("pt-BR", { ...options, timeZone: "UTC" }).format(new Date(`${dateKey}T12:00:00.000Z`));
 }
@@ -84,7 +78,7 @@ export function AgendaManager(props: Props) {
   const [date, setDate] = useState(todayKey);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [barberFilter, setBarberFilter] = useState("ALL");
-  const [status, setStatus] = useState<AppointmentStatus | "ALL">("ALL");
+  const [status, setStatus] = useState<AgendaStatusFilter>("ALL");
   const [selected, setSelected] = useState<AppointmentRecord | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -115,7 +109,7 @@ export function AgendaManager(props: Props) {
   }, [availableCustomers, customerQuery]);
   const selectedCustomer = availableCustomers.find((customer) => customer.id === selectedCustomerId) ?? null;
   const filteredAppointments = useMemo(() => props.appointments.filter((appointment) => {
-    if (status !== "ALL" && appointment.status !== status) return false;
+    if (!matchesAgendaStatusFilter(appointment, status)) return false;
     return barberFilter === "ALL" || appointment.barber_id === barberFilter;
   }), [barberFilter, props.appointments, status]);
   const displayedBarbers = barberFilter === "ALL" ? props.barbers : props.barbers.filter((barber) => barber.id === barberFilter);
@@ -288,7 +282,7 @@ export function AgendaManager(props: Props) {
       </div>
       <div className={`agenda-toolbar__controls ${styles.connectedControls}`}>
         <label className="select-shell"><Filter size={16} /><select aria-label="Filtrar por profissional" value={barberFilter} onChange={(event) => setBarberFilter(event.target.value)}><option value="ALL">Todos</option>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={14} /></label>
-        <label className="select-shell"><select aria-label="Filtrar por status" value={status} onChange={(event) => setStatus(event.target.value as AppointmentStatus | "ALL")} >{statuses.map((item) => <option key={item} value={item}>{statusLabels[item]}</option>)}</select><ChevronDown size={14} /></label>
+        <label className="select-shell"><select aria-label="Filtrar por status" value={status} onChange={(event) => setStatus(event.target.value as AgendaStatusFilter)} >{agendaStatusFilters.map((item) => <option key={item} value={item}>{agendaStatusFilterLabels[item]}</option>)}</select><ChevronDown size={14} /></label>
         <div className="segmented-control" aria-label="Visualização da agenda">
           <button type="button" className={view === "day" ? "is-active" : ""} onClick={() => setView("day")}>Dia</button>
           <button type="button" className={view === "week" ? "is-active" : ""} onClick={() => setView("week")}>Semana</button>
@@ -311,7 +305,8 @@ export function AgendaManager(props: Props) {
           {appointmentsOn(date).filter((appointment) => appointment.barber_id === barber.id).map((appointment, itemIndex) => {
             const geometry = appointmentGeometry(appointment.service_period, timezone);
             if (!geometry) return null;
-            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3}`} style={{ top: geometry.top, height: geometry.height }} onClick={() => setSelected(appointment)}><span className="agenda-event__time">{geometry.startLabel} — {geometry.endLabel}</span><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{serviceLabel(appointment.id)}</small><i>{statusLabels[appointment.status]}</i></button>;
+            const displayStatus = appointmentDisplayStatus(appointment);
+            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}`} style={{ top: geometry.top, height: geometry.height }} onClick={() => setSelected(appointment)}><span className="agenda-event__time">{geometry.startLabel} — {geometry.endLabel}</span><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i></button>;
           })}
         </div>)}
       </div>
@@ -333,7 +328,7 @@ export function AgendaManager(props: Props) {
     {selected && <><button className="mobile-overlay mobile-overlay--detail" type="button" aria-label="Fechar detalhes" onClick={() => setSelected(null)} /><aside className="appointment-detail" aria-label="Detalhes do agendamento">
       <div className="appointment-detail__head"><span><small>Agendamento {selected.id.slice(0, 8)}</small><strong>Detalhes do atendimento</strong></span><button type="button" className="icon-button" onClick={() => setSelected(null)} aria-label="Fechar"><X size={19} /></button></div>
       <div className="appointment-detail__customer"><Avatar initials={(selectedCustomerRecord?.full_name ?? "CL").slice(0, 2).toUpperCase()} size="lg" tone="sage" /><span><strong>{selectedCustomerRecord?.full_name ?? "Cliente"}</strong><small>{selectedCustomerRecord?.phone_e164 ?? "Sem telefone"}</small></span></div>
-      <StatusChip active={!['CANCELED', 'NO_SHOW', 'EXPIRED'].includes(selected.status)} label={statusLabels[selected.status]} />
+      <StatusChip active={!['CANCELED', 'NO_SHOW', 'EXPIRED'].includes(selected.status)} label={appointmentDisplayStatus(selected).label} tone={appointmentDisplayStatus(selected).tone} />
       <div className="appointment-detail__info">
         <span><CalendarDays size={17} /><div><small>Data e horário</small><strong>{formatRange(selected.service_period, timezone)}</strong></div></span>
         <span><Scissors size={17} /><div><small>Serviço ou pacote</small><strong>{serviceLabel(selected.id)}</strong></div></span>

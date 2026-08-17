@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui";
+import { normalizePhoneE164 } from "@/lib/phone";
 import type { loadTeamData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
 import type { BarberRecord } from "./types";
@@ -29,14 +30,18 @@ export function TeamManager(props: Props) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const editing = barberForm !== "new" && barberForm;
+    const rawWhatsapp = String(data.get("whatsapp_e164") ?? "").trim();
+    const whatsappE164 = normalizePhoneE164(rawWhatsapp);
     const payload = {
       organization_id: props.organizationId,
       location_id: String(data.get("location_id") || activeLocation?.id || ""),
       display_name: String(data.get("display_name") ?? "").trim(),
       bio: String(data.get("bio") ?? "").trim() || null,
+      whatsapp_e164: whatsappE164,
     };
     const saved = await runMutation(setMessage, async () => {
       if (!payload.location_id) throw new Error("Cadastre uma unidade ativa antes da equipe.");
+      if (rawWhatsapp && !whatsappE164) throw new Error("Informe um WhatsApp válido para o profissional.");
       const client = connectedClient();
       await assertResult(editing
         ? await client.from("barbers").update(payload).eq("id", editing.id).eq("organization_id", props.organizationId)
@@ -140,12 +145,13 @@ export function TeamManager(props: Props) {
       {barberForm && <form className={styles.form} onSubmit={saveBarber} key={barberForm === "new" ? "new" : barberForm.id}>
         <Field label="Nome"><input name="display_name" required minLength={2} defaultValue={barberForm === "new" ? "" : barberForm.display_name} /></Field>
         <Field label="Unidade"><select name="location_id" required defaultValue={barberForm === "new" ? activeLocation?.id : barberForm.location_id}>{props.locations.filter((item) => item.active).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></Field>
+        <Field label="WhatsApp do profissional"><><input name="whatsapp_e164" inputMode="tel" required placeholder="47999999999 ou +5547999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={barberForm === "new" ? "" : barberForm.whatsapp_e164 ?? ""} onBlur={(event) => { const normalized = normalizePhoneE164(event.currentTarget.value); if (normalized) event.currentTarget.value = normalized; }} /><small className={styles.muted}>Usado somente para avisos transacionais dos próprios agendamentos.</small></></Field>
         <Field label="Apresentação" wide><textarea name="bio" defaultValue={barberForm === "new" ? "" : barberForm.bio ?? ""} /></Field>
         <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button} type="submit">Salvar</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setBarberForm(null)}>Cancelar</button></div>
       </form>}
       {props.barbers.length === 0 ? <EmptyState title="Cadastre a equipe">A unidade precisa de pelo menos um profissional para abrir a agenda.</EmptyState> : <div className={styles.cards}>{props.barbers.map((barber) => {
         const skills = props.barberServices.filter((link) => link.barber_id === barber.id && link.active);
-        return <article className={styles.card} key={barber.id}><div className={styles.cardTop}><span className={styles.toolbarGroup}><i className={styles.avatar}>{initials(barber.display_name)}</i><span className={styles.rowTitle}><strong>{barber.display_name}</strong><small>{barber.bio ?? "Sem apresentação"}</small></span></span><StatusChip active={barber.active} /></div>
+        return <article className={styles.card} key={barber.id}><div className={styles.cardTop}><span className={styles.toolbarGroup}><i className={styles.avatar}>{initials(barber.display_name)}</i><span className={styles.rowTitle}><strong>{barber.display_name}</strong><small>{barber.bio ?? "Sem apresentação"}</small><small>{barber.whatsapp_e164 ? `WhatsApp: ${barber.whatsapp_e164}` : "WhatsApp não cadastrado"}</small></span></span><StatusChip active={barber.active} /></div>
           <div><span className={styles.muted}>Competências</span><div className={styles.inlineMeta}>{props.services.map((service) => { const checked = skills.some((link) => link.service_id === service.id); return <label className={styles.check} key={service.id}><input type="checkbox" checked={checked} onChange={(event) => toggleSkill(barber.id, service.id, event.target.checked)} />{service.name}</label>; })}</div></div>
           <div className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => { setScheduleBarber(barber.id); document.getElementById("team-operation")?.scrollIntoView({ behavior: "smooth" }); }}>Escala e comissão</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setBarberForm(barber)}>Editar</button><button className={`${styles.button} ${barber.active ? styles.buttonDanger : styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => toggleBarber(barber)}>{barber.active ? "Inativar" : "Reativar"}</button></div>
         </article>;

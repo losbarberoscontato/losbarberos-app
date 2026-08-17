@@ -61,7 +61,7 @@ export async function loadCustomersData() {
     supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at").eq("organization_id", organizationId).order("service_period", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_items").select("id,organization_id,appointment_id,service_name_snapshot,position").eq("organization_id", organizationId).order("position").limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_financial_summary").select("appointment_id,captured_cents,refunded_cents,net_paid_cents,outstanding_cents,financial_status").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
-    supabase.from("barbers").select("id,organization_id,location_id,display_name,bio,avatar_url,active").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("barbers").select("id,organization_id,location_id,display_name,bio,avatar_url,whatsapp_e164,active").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_status_events").select("id,organization_id,appointment_id,reason,created_at").eq("organization_id", organizationId).eq("reason", "appointment_rescheduled").limit(MANAGER_ROW_LIMIT),
     supabase.from("consent_events").select("customer_id,action,occurred_at").eq("organization_id", organizationId).eq("kind", "WHATSAPP_TRANSACTIONAL").order("occurred_at", { ascending: false }).limit(MANAGER_ROW_LIMIT * 10),
   ]);

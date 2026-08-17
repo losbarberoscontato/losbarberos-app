@@ -75,6 +75,7 @@
 .rowActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .4rem; }
 .chip { width: fit-content; display: inline-flex; align-items: center; gap: .35rem; border-radius: 99px; padding: .36rem .58rem; background: #edf3e9; color: #466042; font-size: .72rem; font-weight: 800; }
 .chipOff { background: #f2f2ef; color: #747a75; }
+.chipInfo { background: #e7f0fa; color: #2f668f; }
 .chipWarn { background: #fff1d6; color: #78560f; }
 .chipDanger { background: #ffe9e5; color: #913b2e; }
 .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }

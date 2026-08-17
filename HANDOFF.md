@@ -1,5 +1,17 @@
 # Handoff — Los Barberos
 
+## Respostas numéricas e avisos operacionais do WhatsApp — 17/08/2026
+
+- QR Web/Evolution permanece como o canal ativo deste escopo; Evolution API não é iniciada localmente e nenhuma alteração de VPS foi necessária.
+- Lembretes de 6 horas e 45 minutos usam texto: `1` confirma, `2` inicia cancelamento com segunda confirmação e `3` solicita reagendamento.
+- Confirmação de presença e cancelamento confirmado geram aviso para o WhatsApp do profissional responsável. Reagendamento gera aviso para o próprio WhatsApp Business conectado pelo gestor, com cliente, telefone, data/hora, serviço e profissional.
+- A tela `/gestor/equipe` possui `WhatsApp do profissional`; números nacionais sem DDI recebem `+55` e o banco também normaliza/valida E.164.
+- Mensagem não numérica recebida pelo webhook é encaminhada ao WhatsApp conectado do gestor para retorno manual. Mensagens enviadas pela própria conta são ignoradas pelo webhook para impedir loop.
+- Migration remota aplicada e sincronizada: `20260817184337_barber_whatsapp_operational_notifications.sql`.
+- Edge Function `whatsapp-qr-webhook` publicada `ACTIVE`, versão 15. `whatsapp-send-outbox` permanece `ACTIVE`, versão 13.
+- Validação local: ESLint sem erros e com 4 warnings conhecidos, TypeScript aprovado, Vitest `56/56` arquivos e `277/277` testes, build Next.js aprovado.
+- Recebimento real dos lembretes e dos avisos operacionais ainda exige teste E2E em produção; deploy e HTTP smoke não substituem essa prova.
+
 ## Fechamento WhatsApp híbrido — 13/08/2026
 
 - Branch de entrega: `codex/whatsapp-local-finalization`; sempre conferir SHA e relação com `origin/main` no próximo preflight.

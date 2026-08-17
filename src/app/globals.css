@@ -986,11 +986,18 @@
   .agenda-event { position: absolute; z-index: 2; right: 6px; left: 6px; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; padding: 7px 8px; border: 1px solid #c8ded4; border-left: 3px solid var(--forest-600); border-radius: 8px; background: #e8f1ed; text-align: left; box-shadow: 0 2px 5px rgba(24,55,46,.05); }
   .agenda-event--1 { border-color: #ead6b7; border-left-color: var(--amber-600); background: #fbf1e1; }
   .agenda-event--2 { border-color: #cddce2; border-left-color: var(--blue); background: #ebf1f4; }
+  .agenda-event--response-info { border-color: #cddce2; border-left-color: var(--blue); background: #ebf1f4; }
+  .agenda-event--response-success { border-color: #c8ded4; border-left-color: var(--forest-600); background: #e8f1ed; }
+  .agenda-event--response-warning { border-color: #ead6b7; border-left-color: var(--amber-600); background: #fbf1e1; }
+  .agenda-event--response-danger { border-color: #efc6be; border-left-color: #b74a3f; background: #fcedea; }
   .agenda-event:hover { filter: brightness(.98); box-shadow: 0 5px 14px rgba(20,45,38,.11); }
   .agenda-event__time { color: var(--muted); font-size: 7px; font-weight: 750; }
   .agenda-event strong { max-width: 100%; margin-top: 2px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
   .agenda-event small { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
   .agenda-event i { margin-top: auto; color: var(--success); font-size: 6px; font-style: normal; font-weight: 800; }
+  .agenda-event--response-info i { color: var(--blue); }
+  .agenda-event--response-warning i { color: #8a5a11; }
+  .agenda-event--response-danger i { color: #a64338; }
   .agenda-empty-slot { position: absolute; z-index: 1; right: 9px; left: 9px; min-height: 27px; border: 1px dashed #cbd3cf; border-radius: 7px; background: rgba(255,255,255,.7); color: var(--muted); font-size: 7px; }
   .agenda-empty-slot span { margin-right: 3px; color: var(--forest-600); font-weight: 900; }
   .agenda-now-line { position: absolute; z-index: 3; left: 48px; right: 0; display: flex; align-items: center; pointer-events: none; }

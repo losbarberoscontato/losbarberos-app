@@ -5,6 +5,7 @@ import { EmptyState, Panel, StatusChip } from "./shared";
 import styles from "./connected-manager.module.css";
 import type { AwaitedReturn } from "./utility-types";
 import type { loadDashboardData } from "./server";
+import { appointmentDisplayStatus } from "./appointment-display-status";
 
 type DashboardData = AwaitedReturn<typeof loadDashboardData>;
 type Props = Omit<DashboardData, "whatsapp"> & { whatsapp?: DashboardData["whatsapp"] };
@@ -81,12 +82,15 @@ export function ManagerDashboard(props: Props) {
     </section>
     <div className={styles.grid}>
       <Panel title="Agenda de hoje" description="Próximos atendimentos" className={styles.span8} action={<Link href="/gestor/agenda" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`}>Ver agenda</Link>}>
-        {activeToday.length === 0 ? <EmptyState title="Dia livre">Nenhum agendamento real para hoje.</EmptyState> : <div className={styles.timeline}>{activeToday.slice(0, 8).map((appointment) => <article className={styles.appointment} key={appointment.id}>
+        {activeToday.length === 0 ? <EmptyState title="Dia livre">Nenhum agendamento real para hoje.</EmptyState> : <div className={styles.timeline}>{activeToday.slice(0, 8).map((appointment) => {
+          const displayStatus = appointmentDisplayStatus(appointment);
+          return <article className={styles.appointment} key={appointment.id}>
           <span className={styles.appointmentTime}>{formatRange(appointment.service_period, props.organization.timezone)}</span>
           <span className={styles.rowTitle}><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente removido"}</strong><small>{barberById.get(appointment.barber_id)?.display_name ?? "Profissional"}</small></span>
-          <StatusChip active={["CONFIRMED", "IN_SERVICE", "COMPLETED"].includes(appointment.status)} label={appointment.status} />
+          <StatusChip active={["CONFIRMED", "IN_SERVICE", "COMPLETED"].includes(appointment.status)} label={displayStatus.label} tone={displayStatus.tone} />
           <strong className={styles.appointmentValue}>{formatCents(appointment.total_cents_snapshot)}</strong>
-        </article>)}</div>}
+        </article>;
+        })}</div>}
       </Panel>
       <Panel title="Operação" description="Pendências reais" className={styles.span4}>
         <dl className={styles.definition}>

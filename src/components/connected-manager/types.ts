@@ -17,6 +17,12 @@ export type AppointmentStatus =
   | "NO_SHOW"
   | "EXPIRED";
 
+export type AppointmentWhatsAppResponseStatus =
+  | "PENDING"
+  | "CONFIRMED_BY_WHATSAPP"
+  | "CANCELED_BY_WHATSAPP"
+  | "RESCHEDULE_REQUESTED_BY_WHATSAPP";
+
 export interface ManagerScope {
   organizationId: string;
   billingStatus: BillingStatus | null;
@@ -71,6 +77,7 @@ export interface BarberRecord {
   display_name: string;
   bio: string | null;
   avatar_url: string | null;
+  whatsapp_e164: string | null;
   active: boolean;
 }
 
@@ -151,6 +158,7 @@ export interface AppointmentRecord {
   customer_id: string;
   barber_id: string;
   status: AppointmentStatus;
+  whatsapp_response_status?: AppointmentWhatsAppResponseStatus | null;
   source: string;
   service_period: string;
   payment_mode: string;

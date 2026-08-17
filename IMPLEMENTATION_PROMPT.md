@@ -2,7 +2,7 @@
 
 Estamos continuando o projeto Los Barberos em `D:\Display SH\Los Barberos`.
 
-Objetivo imediato: configurar o piloto de WhatsApp QR Web na VPS Hostinger KVM2 e, em seguida, concluir as automações pendentes de WhatsApp. Preserve dados existentes, tenant scope e a separação entre demo e fluxo conectado ao Supabase.
+Objetivo imediato: validar em produção o fluxo QR Web/Evolution de confirmação, lembretes de 6 horas e 45 minutos e respostas numéricas. Preserve dados existentes, tenant scope e a separação entre demo e fluxo conectado ao Supabase.
 
 ## Preflight obrigatório
 
@@ -17,38 +17,31 @@ Objetivo imediato: configurar o piloto de WhatsApp QR Web na VPS Hostinger KVM2 
 
 - GitHub: `https://github.com/losbarberoscontato/losbarberos-app`; confirmar branch/SHA no preflight.
 - Vercel: `https://losbarberos-app.vercel.app`.
-- Supabase ref: `bwdjkhqshmppescunwer`; migrations remotas sincronizadas até `202608110007`.
-- Edge Functions WhatsApp ativas: `whatsapp-webhook`, `whatsapp-send-outbox`, `whatsapp-embedded-signup-start`, `whatsapp-embedded-signup-callback`, `whatsapp-qr-start` e `whatsapp-qr-webhook`.
+- Supabase ref: `bwdjkhqshmppescunwer`; migrations remotas sincronizadas até `20260817184337`.
+- Edge Functions do fluxo QR ativas: `whatsapp-send-outbox` versão 13 e `whatsapp-qr-webhook` versão 15; confirmar novamente no preflight.
 - `payment_transactions` é a fonte única de verdade para pagamentos de agendamento.
 - Demo nunca grava no Supabase.
 
-## WhatsApp híbrido já entregue
+## WhatsApp QR Web já entregue
 
 - Página exclusiva conectada: `/gestor/configuracoes/whatsapp`.
 - Meta Cloud API por Embedded Signup; token de tenant vai apenas para o Vault e há um provider ativo por organização.
-- QR Web por Evolution API: início protegido por gestor, QR de conexão, callback assinado e roteamento tenant-safe. Ainda não existe VPS/instância Evolution configurada.
-- Persistência de conexões, regras de lembrete 6h/45min, configurações de confirmação/boas-vindas, ciclo de vida de conexão, opt-out e registro de status estão modelados de forma tenant-safe.
+- QR Web por Evolution API: VPS e instância em produção, início protegido por gestor, QR de conexão, callback assinado e roteamento tenant-safe.
+- Confirmação inicial de agendamento já teve recebimento real validado. Lembretes de 6h/45min e respostas numéricas ainda precisam do teste E2E final.
+- Respostas: `1` confirma presença e avisa o profissional; `2` pede segunda confirmação e, após confirmar, cancela e avisa o profissional; `3` registra solicitação e avisa o WhatsApp conectado do gestor com os dados do atendimento.
+- O WhatsApp do profissional é cadastrado em `/gestor/equipe` e normalizado para E.164 com `+55` quando o DDI não é informado.
+- Texto não numérico é encaminhado ao WhatsApp conectado do gestor para retorno manual.
+- Persistência de conexões, regras de lembrete 6h/45min, ciclo de vida, opt-out e status de resposta estão modelados de forma tenant-safe.
 - Meta ainda depende de verificação/análise externa. O teste do número Meta foi rejeitado pela restrição de país; não tratar Meta como validado.
 
-## Primeiro bloco: VPS Hostinger KVM2
+## Teste E2E pendente
 
-Assuma uma VPS KVM2 ou equivalente, dedicada inicialmente ao Los Barberos, com Ubuntu 24.04 e Docker Compose. Antes de mudar código ou segredos:
-
-1. Peça ao usuário somente os dados externos necessários depois que ele contratar/acessar a VPS: IP ou hostname público, método de acesso SSH, subdomínio escolhido para Evolution e domínio já apontado.
-2. Crie um plano de infraestrutura mínimo e seguro: usuário sem root para operação, atualizações, firewall restritivo, SSH por chave, Docker Engine/Compose, proxy reverso HTTPS, renovação de certificado, volumes persistentes, restart policy, logs e backup.
-3. Consulte a documentação atual da versão escolhida da Evolution API antes de escrever `docker-compose`; não invente variáveis de ambiente, banco ou fila necessários.
-4. Mantenha Evolution e dependências em rede Docker privada; somente o proxy reverso fica exposto. Nunca coloque API key, webhook secret ou token no browser, Git, logs ou chat.
-5. Depois de HTTPS e persistência validados, configure os secrets `EVOLUTION_API_BASE_URL`, `EVOLUTION_API_KEY` e `EVOLUTION_WEBHOOK_SECRET` no ambiente seguro das Edge Functions, configure o webhook QR e faça um piloto controlado com o WhatsApp Business de teste.
-6. `losbarberos.com.br` ainda será migrado no futuro. Use variáveis/configuração para URLs; não quebre a origem Vercel atual nem publique DNS sem autorização explícita.
-
-## Etapas pendentes após VPS
-
-1. Validar QR Web real: gerar QR na página do gestor, escanear com WhatsApp Business de teste, receber `CONNECTED` por webhook, enviar uma mensagem transacional e validar reconexão/desconexão. Não chamar esse canal de oficial.
-2. Completar automações: substituir o agendamento legado `appointment_reminder_0700` por confirmação, lembretes configuráveis de 6h e 45min e regras tenant-safe de outbox.
-3. Completar mensagem de boas-vindas para primeira mensagem recebida, com variáveis permitidas e sem marketing implícito.
-4. Validar opt-out `SAIR`, bloquear novos envios e registrar consentimento/evento de forma auditável.
-5. Validar enviados, entregues, lidos e falhos, incluindo idempotência, lease, retry seguro e isolamento por `organization_id`.
-6. Criar testes de integração/UI para cada regressão relevante e rodar `npm.cmd run verify` antes de qualquer publicação.
+1. Preencher o WhatsApp do profissional usado no agendamento de teste.
+2. Manter consentimento transacional ativo no cliente.
+3. Criar agendamento futuro dentro das janelas e confirmar recebimento dos lembretes de 6h e 45min.
+4. Testar separadamente `1`, `2` com segunda confirmação, `3` e uma resposta textual não numérica.
+5. Confirmar mudança do status visual na agenda, destinatário operacional correto e ciclo `PENDING/PROCESSING/SENT` no outbox.
+6. Tratar recebimento no aparelho como única prova E2E; HTTP 200/201, função `ACTIVE` e outbox `SENT` são evidências parciais.
 
 ## Regras de operação
 
@@ -59,4 +52,4 @@ Assuma uma VPS KVM2 ou equivalente, dedicada inicialmente ao Los Barberos, com U
 
 ## Primeiro passo desta próxima conversa
 
-Faça o preflight curto e informe estado real de GitHub, Supabase e Vercel. Depois peça somente o acesso/dados mínimos da VPS Hostinger KVM2 para montar o plano de Docker/HTTPS do Evolution API.
+Faça o preflight curto e acompanhe o teste E2E em produção. Não altere VPS, Evolution, secrets ou Meta sem nova autorização explícita.

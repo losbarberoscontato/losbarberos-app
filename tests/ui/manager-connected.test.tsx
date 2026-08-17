@@ -4,6 +4,7 @@ import { AgendaManager } from "@/components/connected-manager/agenda-manager";
 import { CustomersManager } from "@/components/connected-manager/customers-manager";
 import { ManagerDashboard } from "@/components/connected-manager/manager-dashboard";
 import { SettingsManager } from "@/components/connected-manager/settings-manager";
+import { TeamManager } from "@/components/connected-manager/team-manager";
 
 const refresh = vi.fn();
 const mutationMocks = vi.hoisted(() => ({ update: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })) })) }));
@@ -29,7 +30,7 @@ const organization = {
   queue_public_id: "00000000-0000-4000-8000-000000000001",
 };
 const customer = { id: "customer-1", organization_id: "org-1", auth_user_id: null, full_name: "Cliente Real", phone_e164: "+5511999999999", email: null, birth_date: null, notes: null, active: true, inactivation_reason: null, inactivated_at: null, created_at: new Date().toISOString() };
-const barber = { id: "barber-1", organization_id: "org-1", location_id: "location-1", display_name: "Barbeiro Real", bio: null, avatar_url: null, active: true };
+const barber = { id: "barber-1", organization_id: "org-1", location_id: "location-1", display_name: "Barbeiro Real", bio: null, avatar_url: null, whatsapp_e164: null, active: true };
 const service = { id: "service-1", organization_id: "org-1", name: "Corte Real", description: null, price_cents: 5000, duration_minutes: 30, active: true, sort_order: 0, audiences: ["MASCULINO"] as const };
 
 describe("connected manager UI", () => {
@@ -41,6 +42,42 @@ describe("connected manager UI", () => {
     expect(screen.getByText("Dia livre")).toBeInTheDocument();
     expect(screen.queryByText("Guilherme")).not.toBeInTheDocument();
     expect(screen.queryByText("R$ 1.845")).not.toBeInTheDocument();
+  });
+
+  it("normaliza e salva o WhatsApp do profissional", async () => {
+    render(<TeamManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      timezone="America/Sao_Paulo"
+      locations={[{ id: "location-1", organization_id: "org-1", name: "Unidade principal", address: {}, active: true }]}
+      barbers={[barber]}
+      services={[]}
+      barberServices={[]}
+      workIntervals={[]}
+      exceptions={[]}
+      commissionRules={[]}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    fireEvent.change(screen.getByLabelText(/WhatsApp do profissional/), { target: { value: "47 99978-2545" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(mutationMocks.update).toHaveBeenCalledWith(expect.objectContaining({
+      whatsapp_e164: "+5547999782545",
+    })));
+  });
+
+  it("exibe a resposta do cliente pelo WhatsApp na agenda do gestor", () => {
+    const start = new Date(Date.now() + 60 * 60_000);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    render(<ManagerDashboard organizationId="org-1" billingStatus="ACTIVE" organization={organization} customers={[customer]} barbers={[barber]} financial={[]} openPayouts={[]} appointments={[{
+      id: "appointment-whatsapp", organization_id: "org-1", customer_id: customer.id, barber_id: barber.id,
+      status: "CONFIRMED", whatsapp_response_status: "CONFIRMED_BY_WHATSAPP", source: "CUSTOMER",
+      service_period: `[${start.toISOString()},${end.toISOString()})`, payment_mode: "COUNTER", currency: "BRL",
+      total_cents_snapshot: 5000, notes: null, schedule_override_reason: null, created_at: new Date().toISOString(),
+    }]} />);
+
+    expect(screen.getByText("Confirmado pelo WhatsApp")).toBeInTheDocument();
   });
 
   it("prepares an isolated A4 sheet to print the queue QR", () => {

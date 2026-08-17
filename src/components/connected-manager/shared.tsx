@@ -25,8 +25,9 @@ export function Panel({ title, titleAdornment, description, action, children, cl
   return <section className={`${styles.panel} ${className}`}><header className={styles.panelHead}><div><div className={styles.panelTitleRow}><h2>{title}</h2>{titleAdornment}</div>{description && <p>{description}</p>}</div>{action}</header>{children}</section>;
 }
 
-export function StatusChip({ active, label }: { active: boolean; label?: string }) {
-  return <span className={`${styles.chip} ${active ? "" : styles.chipOff}`}>{label ?? (active ? "Ativo" : "Inativo")}</span>;
+export function StatusChip({ active, label, tone }: { active: boolean; label?: string; tone?: "info" | "success" | "warning" | "danger" | "neutral" }) {
+  const toneClass = tone === "info" ? styles.chipInfo : tone === "warning" ? styles.chipWarn : tone === "danger" ? styles.chipDanger : tone === "neutral" ? styles.chipOff : "";
+  return <span className={`${styles.chip} ${toneClass || (active ? "" : styles.chipOff)}`}>{label ?? (active ? "Ativo" : "Inativo")}</span>;
 }
 
 export function Field({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) {
