@@ -1,4 +1,8 @@
-import { functionUrl, requiredEnv } from "../_shared/env.ts";
+import { requiredEnv } from "../_shared/env.ts";
+import {
+  configureEvolutionQrWebhook,
+  evolutionQrWebhookConfig,
+} from "../_shared/evolution-qr-webhook.ts";
 import { endpoint, json, preflight, readJson } from "../_shared/http.ts";
 import { providerFetch } from "../_shared/provider-http.ts";
 import { IntegrationError } from "../_shared/security.ts";
@@ -39,7 +43,6 @@ Deno.serve((request) => {
     const baseUrl = requiredEnv("EVOLUTION_API_BASE_URL").replace(/\/$/u, "");
     if (!/^https:\/\//u.test(baseUrl)) throw new IntegrationError(500, "SERVER_CONFIGURATION_ERROR");
     const apiKey = requiredEnv("EVOLUTION_API_KEY");
-    const webhookSecret = requiredEnv("EVOLUTION_WEBHOOK_SECRET");
     const instanceName = `lb-${organizationId.slice(0, 8)}`;
     let created: EvolutionQrPayload | null = null;
     try {
@@ -50,14 +53,7 @@ Deno.serve((request) => {
           instanceName,
           integration: "WHATSAPP-BAILEYS",
           qrcode: true,
-          webhook: {
-            enabled: true,
-            url: functionUrl("whatsapp-qr-webhook"),
-            byEvents: false,
-            base64: true,
-            headers: { "x-evolution-webhook-secret": webhookSecret },
-            events: ["QRCODE_UPDATED", "CONNECTION_UPDATE", "MESSAGES_UPSERT"],
-          },
+          webhook: evolutionQrWebhookConfig(),
         }),
       });
     } catch (error) {
@@ -66,6 +62,10 @@ Deno.serve((request) => {
       // continuation for this expected case.
       if (!(error instanceof IntegrationError) || error.status !== 422) throw error;
     }
+    // Existing stable instances keep the webhook configuration from the day
+    // they were created. Reapply it so reconnecting also enables inbound
+    // MESSAGES_UPSERT replies.
+    await configureEvolutionQrWebhook(baseUrl, instanceName, apiKey);
     const connection = await rpc<{ id: string }>("store_whatsapp_qr_connection", {
       p_organization_id: organizationId,
       p_gateway_base_url: baseUrl,

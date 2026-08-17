@@ -12,6 +12,7 @@ describe("WhatsApp provider functions", () => {
     const metaCallback = read("supabase/functions/whatsapp-embedded-signup-callback/index.ts");
     const metaShared = read("supabase/functions/_shared/whatsapp-meta.ts");
     const qrStart = read("supabase/functions/whatsapp-qr-start/index.ts");
+    const qrWebhookConfig = read("supabase/functions/_shared/evolution-qr-webhook.ts");
 
     expect(metaStart).toContain("WHATSAPP_META_APP_ID");
     expect(metaStart).toContain("WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID");
@@ -20,9 +21,9 @@ describe("WhatsApp provider functions", () => {
     expect(metaCallback).not.toContain("return json(request, { accessToken");
     expect(qrStart).toContain("EVOLUTION_API_BASE_URL");
     expect(qrStart).toContain("EVOLUTION_API_KEY");
-    expect(qrStart).toContain("EVOLUTION_WEBHOOK_SECRET");
-    expect(qrStart).toContain("x-evolution-webhook-secret");
-    expect(qrStart).toContain("whatsapp-qr-webhook");
+    expect(qrWebhookConfig).toContain("EVOLUTION_WEBHOOK_SECRET");
+    expect(qrWebhookConfig).toContain("x-evolution-webhook-secret");
+    expect(qrWebhookConfig).toContain("whatsapp-qr-webhook");
     expect(metaStart).not.toContain("console.log");
     expect(metaCallback).not.toContain("console.log");
     expect(qrStart).not.toContain("console.log");

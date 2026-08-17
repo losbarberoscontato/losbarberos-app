@@ -1,5 +1,16 @@
 # Handoff — Los Barberos
 
+## Correção do recebimento de respostas Evolution — 17/08/2026
+
+- Causa confirmada no remoto: o lembrete de 45 minutos ficou `SENT`, os três tokens permaneceram sem consumo e nenhum `MESSAGES_UPSERT` chegou ao webhook após as respostas `1`, `2` e `3`.
+- A instância QR estável havia sido criada quando somente `CONNECTION_UPDATE` era configurado. Nas reconexões seguintes, a Evolution devolvia `422` por a instância já existir e a configuração de webhook mais nova não era reaplicada.
+- `whatsapp-qr-start` agora executa `/webhook/set/{instance}` também para instâncias existentes, habilitando `QRCODE_UPDATED`, `CONNECTION_UPDATE` e `MESSAGES_UPSERT` com o header assinado.
+- `whatsapp-qr-health` reaplica a mesma configuração a cada verificação de 15 minutos. Falha passa a ser registrada como `WEBHOOK_CONFIGURATION_FAILED`, visível pelo estado operacional da integração.
+- Não foi necessária migration nova: o dry-run remoto confirmou migrations sincronizadas até `20260817184337`.
+- Edge Functions publicadas e `ACTIVE`: `whatsapp-qr-start` versão 12 e `whatsapp-qr-health` versão 4. A execução remota após o deploy registrou `CONNECTED`, saúde `OK` e nenhum erro.
+- Validação local: ESLint sem erros e com 4 warnings conhecidos, TypeScript aprovado, Vitest `56/56` arquivos e `278/278` testes, build Next.js aprovado.
+- O defeito era comum aos lembretes de 6 horas e 45 minutos, pois ambos dependem do mesmo webhook de entrada. A prova E2E da resposta e dos avisos ainda depende de novo agendamento em produção.
+
 ## Respostas numéricas e avisos operacionais do WhatsApp — 17/08/2026
 
 - QR Web/Evolution permanece como o canal ativo deste escopo; Evolution API não é iniciada localmente e nenhuma alteração de VPS foi necessária.

@@ -18,7 +18,7 @@ Objetivo imediato: validar em produção o fluxo QR Web/Evolution de confirmaç�
 - GitHub: `https://github.com/losbarberoscontato/losbarberos-app`; confirmar branch/SHA no preflight.
 - Vercel: `https://losbarberos-app.vercel.app`.
 - Supabase ref: `bwdjkhqshmppescunwer`; migrations remotas sincronizadas até `20260817184337`.
-- Edge Functions do fluxo QR ativas: `whatsapp-send-outbox` versão 13 e `whatsapp-qr-webhook` versão 15; confirmar novamente no preflight.
+- Edge Functions do fluxo QR ativas: `whatsapp-send-outbox` versão 13, `whatsapp-qr-webhook` versão 15, `whatsapp-qr-start` versão 12 e `whatsapp-qr-health` versão 4; confirmar novamente no preflight.
 - `payment_transactions` é a fonte única de verdade para pagamentos de agendamento.
 - Demo nunca grava no Supabase.
 
@@ -32,6 +32,7 @@ Objetivo imediato: validar em produção o fluxo QR Web/Evolution de confirmaç�
 - O WhatsApp do profissional é cadastrado em `/gestor/equipe` e normalizado para E.164 com `+55` quando o DDI não é informado.
 - Texto não numérico é encaminhado ao WhatsApp conectado do gestor para retorno manual.
 - Persistência de conexões, regras de lembrete 6h/45min, ciclo de vida, opt-out e status de resposta estão modelados de forma tenant-safe.
+- Instâncias Evolution existentes recebem novamente a configuração de webhook no fluxo de conexão e na checagem periódica de 15 minutos. O evento `MESSAGES_UPSERT` é obrigatório para processar respostas numéricas; falha de configuração é registrada como `WEBHOOK_CONFIGURATION_FAILED`.
 - Meta ainda depende de verificação/análise externa. O teste do número Meta foi rejeitado pela restrição de país; não tratar Meta como validado.
 
 ## Teste E2E pendente

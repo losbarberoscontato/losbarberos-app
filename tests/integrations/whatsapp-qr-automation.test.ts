@@ -15,6 +15,8 @@ describe("automação WhatsApp QR Web", () => {
   const sender = read("supabase/functions/whatsapp-send-outbox/index.ts");
   const shared = read("supabase/functions/_shared/whatsapp.ts");
   const qrStart = read("supabase/functions/whatsapp-qr-start/index.ts");
+  const qrHealth = read("supabase/functions/whatsapp-qr-health/index.ts");
+  const qrWebhookConfig = read("supabase/functions/_shared/evolution-qr-webhook.ts");
   const qrWebhook = read("supabase/functions/whatsapp-qr-webhook/index.ts");
   const teamManager = read("src/components/connected-manager/team-manager.tsx");
   const booking = read("src/components/connected-client/booking.tsx");
@@ -43,7 +45,7 @@ describe("automação WhatsApp QR Web", () => {
       sender.indexOf("function buildEvolutionMessage"),
       sender.indexOf("Deno.serve"),
     );
-    expect(qrStart).toContain('"MESSAGES_UPSERT"');
+    expect(qrWebhookConfig).toContain('"MESSAGES_UPSERT"');
     expect(qrWebhook).toContain("buttonsResponseMessage");
     expect(qrWebhook).toContain("process_whatsapp_action_token");
     expect(sender).toContain("EVOLUTION_REMINDER_BUTTONS");
@@ -52,6 +54,17 @@ describe("automação WhatsApp QR Web", () => {
     expect(evolutionBuilder).not.toContain("displayText");
     expect(sender).toContain("result.key?.id");
     expect(shared).toContain("sendText");
+  });
+
+  it("reaplica MESSAGES_UPSERT em instâncias Evolution já existentes", () => {
+    expect(qrWebhookConfig).toContain("/webhook/set/");
+    expect(qrWebhookConfig).toContain('"MESSAGES_UPSERT"');
+    expect(qrWebhookConfig).toContain('"CONNECTION_UPDATE"');
+    expect(qrWebhookConfig).toContain('"QRCODE_UPDATED"');
+    expect(qrWebhookConfig).toContain('"x-evolution-webhook-secret"');
+    expect(qrStart).toContain("configureEvolutionQrWebhook");
+    expect(qrHealth).toContain("configureEvolutionQrWebhook");
+    expect(qrHealth).toContain("WEBHOOK_CONFIGURATION_FAILED");
   });
 
   it("qualifica pgcrypto e não envia lembretes anteriores à conexão QR", () => {

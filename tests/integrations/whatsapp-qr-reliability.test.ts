@@ -9,11 +9,12 @@ function read(path: string) {
 describe("confiabilidade da conexão WhatsApp QR", () => {
   it("aceita QR nas formas de resposta documentadas e habilita QRCODE_UPDATED", () => {
     const start = read("supabase/functions/whatsapp-qr-start/index.ts");
+    const config = read("supabase/functions/_shared/evolution-qr-webhook.ts");
     const webhook = read("supabase/functions/whatsapp-qr-webhook/index.ts");
     expect(start).toContain("payload?.qrcode?.base64");
     expect(start).toContain("payload?.data?.qrcode?.base64");
-    expect(start).toContain('"QRCODE_UPDATED"');
-    expect(start).toContain("base64: true");
+    expect(config).toContain('"QRCODE_UPDATED"');
+    expect(config).toContain("base64: true");
     expect(webhook).toContain('event === "QRCODE_UPDATED"');
     expect(webhook).toContain("store_whatsapp_qr_code");
   });
