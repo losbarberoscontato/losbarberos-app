@@ -5,6 +5,7 @@ export const whatsappQrWebhookEvents = [
   "QRCODE_UPDATED",
   "CONNECTION_UPDATE",
   "MESSAGES_UPSERT",
+  "MESSAGES_UPDATE",
 ] as const;
 
 export function evolutionQrWebhookConfig() {

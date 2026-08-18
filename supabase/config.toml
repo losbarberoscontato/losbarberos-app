@@ -63,3 +63,6 @@ verify_jwt = false
 
 [functions.whatsapp-qr-status]
 verify_jwt = true
+
+[functions.whatsapp-v2-dispatcher]
+verify_jwt = true
