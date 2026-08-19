@@ -288,6 +288,7 @@ export async function loadWhatsAppSettingsData() {
   const status: WhatsAppSettingsStatus = result.error
     ? {
       connections: [],
+      managerNotification: { phoneE164: null, matchesQrPhone: false },
       reminders: [
         { id: "default-6h", position: 1, enabled: true, offset_minutes: 360, template_key: "appointment_reminder_6h", language_code: "pt_BR" },
         { id: "default-45m", position: 2, enabled: true, offset_minutes: 45, template_key: "appointment_reminder_45m", language_code: "pt_BR" },
@@ -299,7 +300,18 @@ export async function loadWhatsAppSettingsData() {
         welcome_message: "*{barbearia}* agradece seu contato.\nPara agendar seu horário, acesse {link}.",
       },
     }
-    : result.data as WhatsAppSettingsStatus;
+    : (() => {
+      const raw = result.data as WhatsAppSettingsStatus & {
+        manager_notification?: { phone_e164?: string | null; matches_qr_phone?: boolean };
+      };
+      return {
+        ...raw,
+        managerNotification: {
+          phoneE164: raw.manager_notification?.phone_e164 ?? null,
+          matchesQrPhone: raw.manager_notification?.matches_qr_phone === true,
+        },
+      };
+    })();
 
   return { organizationId, billingStatus: context.billingStatus, organization, status, schemaReady: !result.error };
 }

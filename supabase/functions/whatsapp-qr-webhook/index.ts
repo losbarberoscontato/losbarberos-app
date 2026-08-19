@@ -28,6 +28,25 @@ async function syncConnectedPhone(instanceName: string, input?: unknown): Promis
 
 function text(data: EvolutionPayload["data"]): string | null { return data?.message?.conversation?.trim() || data?.message?.extendedTextMessage?.text?.trim() || null; }
 
+async function triggerV2Dispatcher(): Promise<void> {
+  try {
+    const baseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/u, "");
+    const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+    const response = await fetch(`${baseUrl}/functions/v1/whatsapp-v2-dispatcher`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ limit: 25 }),
+    });
+    if (!response.ok) console.error("whatsapp_v2_dispatch_trigger_failed", { status: response.status });
+  } catch (error) {
+    console.error("whatsapp_v2_dispatch_trigger_failed", { errorCode: error instanceof IntegrationError ? error.code : "UNKNOWN_ERROR" });
+  }
+}
+
 Deno.serve((request) => endpoint(request, async () => {
   if (request.method !== "POST") throw new IntegrationError(405, "METHOD_NOT_ALLOWED");
   const raw = await request.text();
@@ -51,6 +70,8 @@ Deno.serve((request) => endpoint(request, async () => {
   const externalId = key?.id ?? null;
   const normalized = { gateway_instance_id: payload.instance, sender_e164: senderPhoneFromMessageKey(key), text: text(payload.data), from_me: Boolean(key?.fromMe) };
   const fingerprint = await sha256Hex(`${event}:${payload.instance}:${externalId ?? raw}`);
-  await rpc("record_whatsapp_v2_webhook_event", { p_gateway_instance_id: payload.instance, p_event_name: event, p_provider_event_id: externalId, p_fingerprint: fingerprint, p_payload: normalized });
+  const eventId = await rpc<string | null>("record_whatsapp_v2_webhook_event", { p_gateway_instance_id: payload.instance, p_event_name: event, p_provider_event_id: externalId, p_fingerprint: fingerprint, p_payload: normalized });
+  // Low-latency path. The minute cron remains the durable fallback.
+  if (eventId) EdgeRuntime.waitUntil(triggerV2Dispatcher());
   return json(request, { received: true, queued: true });
 }));

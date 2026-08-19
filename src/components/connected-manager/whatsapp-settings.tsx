@@ -3,8 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/ui";
+import { normalizePhoneE164 } from "@/lib/phone";
 import { ActionMessage, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
+import { humanizeError } from "./format";
 import styles from "./connected-manager.module.css";
 
 export type WhatsAppConnection = {
@@ -30,6 +32,10 @@ export type WhatsAppConnection = {
 
 export type WhatsAppSettingsStatus = {
   connections: WhatsAppConnection[];
+  managerNotification: {
+    phoneE164: string | null;
+    matchesQrPhone: boolean;
+  };
   reminders: Array<{
     id: string;
     position: number;
@@ -127,6 +133,13 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [qrCodeOverride, setQrCodeOverride] = useState<string | null | undefined>(undefined);
   const [reminders, setReminders] = useState(status.reminders);
   const [welcomeMessage, setWelcomeMessage] = useState(status.automation.welcome_message);
+  const managerNotification = status.managerNotification ?? { phoneE164: null, matchesQrPhone: false };
+  const [managerNotificationPhone, setManagerNotificationPhone] = useState(managerNotification.phoneE164 ?? "");
+  const [managerNotificationMatchesQr, setManagerNotificationMatchesQr] = useState(managerNotification.matchesQrPhone);
+  const [managerNotificationFeedback, setManagerNotificationFeedback] = useState<{ tone: "error" | "success"; message: string } | null>(
+    managerNotification.phoneE164 ? { tone: "success", message: `Número salvo: ${managerNotification.phoneE164}` } : null,
+  );
+  const [savingManagerNotification, setSavingManagerNotification] = useState(false);
   const refreshInFlight = useRef(false);
 
   const connectionByProvider = new Map(status.connections.map((connection) => [connection.provider, connection]));
@@ -208,6 +221,34 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     if (saved) {
       setMessage("Integração desconectada no sistema. Agora remova manualmente a sessão Los Barberos no WhatsApp Business do celular: Aparelhos conectados → remova o dispositivo. Depois clique em Gerar QR e leia o novo código.");
       router.refresh();
+    }
+  }
+
+  async function saveManagerNotification(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedPhone = managerNotificationPhone.trim() ? normalizePhoneE164(managerNotificationPhone) : null;
+    if (!normalizedPhone) {
+      setManagerNotificationFeedback({ tone: "error", message: "Informe um WhatsApp válido para receber avisos do gestor." });
+      return;
+    }
+    setSavingManagerNotification(true);
+    setManagerNotificationFeedback(null);
+    try {
+      const result = await connectedClient().rpc("save_whatsapp_v2_manager_notification_phone", {
+        p_organization_id: organizationId,
+        p_phone: normalizedPhone,
+      });
+      await assertResult(result);
+      const value = result.data as { phone_e164?: string | null; matches_qr_phone?: boolean } | null;
+      if (!value?.phone_e164) throw new Error("O servidor não confirmou o número salvo. Tente novamente.");
+      setManagerNotificationPhone(value.phone_e164);
+      setManagerNotificationMatchesQr(value?.matches_qr_phone === true);
+      setManagerNotificationFeedback({ tone: "success", message: `Número salvo: ${value.phone_e164}` });
+      router.refresh();
+    } catch (error) {
+      setManagerNotificationFeedback({ tone: "error", message: `Não foi possível salvar o número. ${humanizeError(error)}` });
+    } finally {
+      setSavingManagerNotification(false);
     }
   }
 
@@ -312,6 +353,30 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
         <img src={visibleQrCode.startsWith("data:") ? visibleQrCode : `data:image/png;base64,${visibleQrCode}`} alt="QR Code temporário para conectar o WhatsApp" />
       </div>}
       <p className={styles.providerNotice}>O QR Web exige VPS e manutenção do gateway. A Meta Cloud API exige configuração de aplicativo, WABA, templates e credenciais server-side.</p>
+    </Panel>
+
+    <Panel title="Avisos do gestor" description="Receba solicitações de atendimento do cliente em um WhatsApp separado da conta conectada ao QR.">
+      <form onSubmit={saveManagerNotification} className={styles.stack}>
+        <Field label="WhatsApp para avisos do gestor">
+          <input
+            aria-label="WhatsApp para avisos do gestor"
+            inputMode="tel"
+            required
+            placeholder="47999999999 ou +5547999999999"
+            value={managerNotificationPhone}
+            disabled={!schemaReady}
+            onChange={(event) => setManagerNotificationPhone(event.target.value)}
+            onBlur={(event) => {
+              const normalized = normalizePhoneE164(event.currentTarget.value);
+              if (normalized) setManagerNotificationPhone(normalized);
+            }}
+          />
+        </Field>
+        <small className={styles.muted}>Usado somente quando o cliente escolher 3 — Falar com atendente ou após três respostas inválidas.</small>
+        {managerNotificationFeedback && <p className={`${styles.message} ${managerNotificationFeedback.tone === "error" ? styles.error : ""}`} role="status">{managerNotificationFeedback.message}</p>}
+        {managerNotificationMatchesQr && <p className={`${styles.message} ${styles.warning}`}>Número igual ao da API, poderá ter problemas de envio/recebimento de mensagens no futuro.</p>}
+        <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady || savingManagerNotification}>{savingManagerNotification ? "Salvando…" : "Salvar número de avisos"}</button></div>
+      </form>
     </Panel>
 
     <Panel title="Mensagens automáticas" description="Confirmação, lembretes e boas-vindas com textos controlados por barbearia.">

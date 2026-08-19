@@ -6,6 +6,11 @@ const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 
 describe("automação WhatsApp QR v2", () => {
   const migration = read("supabase/migrations/20260818023139_whatsapp_automation_v2_rebuild.sql");
+  const repairMigration = read("supabase/migrations/20260818195010_repair_whatsapp_v2_webhook_completion_and_leases.sql");
+  const claimRepairMigration = read("supabase/migrations/20260818212552_fix_whatsapp_v2_claim_rpc_ambiguity.sql");
+  const simpleReplyMigration = read("supabase/migrations/20260818221505_simplify_whatsapp_v2_reminder_replies.sql");
+  const managerNotificationMigration = read("supabase/migrations/20260819143928_whatsapp_v2_manager_notification_phone.sql");
+  const managerPhoneValidationMigration = read("supabase/migrations/20260819163816_fix_whatsapp_v2_manager_notification_phone_validation.sql");
   const dispatcher = read("supabase/functions/whatsapp-v2-dispatcher/index.ts");
   const webhook = read("supabase/functions/whatsapp-qr-webhook/index.ts");
   const config = read("supabase/functions/_shared/evolution-qr-webhook.ts");
@@ -27,13 +32,52 @@ describe("automação WhatsApp QR v2", () => {
     expect(migration).toContain("v_confirmed_transition");
   });
 
-  it("exige código por resposta e altera agenda atomicamente", () => {
-    expect(dispatcher).toContain("1 ${shortCode} — Confirmar");
-    expect(dispatcher).toContain("2 ${shortCode} — Cancelar");
+  it("aceita resposta numérica e altera agenda atomicamente", () => {
+    expect(dispatcher).toContain("Responda somente com um número");
+    expect(dispatcher).toContain("1 — Confirmar");
+    expect(dispatcher).toContain("2 — Cancelar");
+    expect(dispatcher).toContain("3 — Falar com atendente");
+    expect(dispatcher).toContain("ATTENDANT_REQUEST_MANAGER");
+    expect(dispatcher).toContain("INVALID_REPLY_PROMPT");
+    expect(dispatcher).not.toContain("Responda somente com código");
     expect(dispatcher).toContain("parseResponse");
-    expect(migration).toContain("short_code_hash");
+    expect(simpleReplyMigration).toContain("AMBIGUOUS_ACTIVE_REQUEST");
+    expect(simpleReplyMigration).toContain("whatsapp_v2_phone_matches(c.phone_e164,p_sender_e164)");
+    expect(simpleReplyMigration).toContain("invalid_reply_count");
+    expect(simpleReplyMigration).toContain("ATTENDANT_REQUEST_MANAGER");
     expect(migration).toContain("whatsapp_presence_status='CONFIRMED'");
     expect(migration).toContain("perform public.cancel_appointment");
+  });
+
+  it("entrega atendimento a um número do gestor separado e sinaliza coincidência com o QR", () => {
+    expect(managerNotificationMigration).toContain("manager_notification_phone_e164");
+    expect(managerNotificationMigration).toContain("save_whatsapp_v2_manager_notification_phone");
+    expect(managerNotificationMigration).toContain("MANAGER_NOTIFICATION_PHONE_UNAVAILABLE");
+    expect(managerNotificationMigration).toContain("public.whatsapp_v2_phone_matches(c.connected_phone_e164, v_phone)");
+    expect(managerNotificationMigration).toContain("'manager_notification'");
+  });
+
+  it("aceita E.164 válido no número de avisos sem escape incorreto de regex", () => {
+    expect(managerPhoneValidationMigration).toContain("'^[+][1-9][0-9]{7,14}$'");
+    expect(managerPhoneValidationMigration).toContain("regexp_replace(v_input, '[^0-9]', '', 'g')");
+    expect(managerPhoneValidationMigration).not.toContain("^\\\\\\\\+");
+  });
+
+  it("não trata rejeição de resposta como webhook concluído", () => {
+    expect(dispatcher).toContain("ProcessResult");
+    expect(dispatcher).toContain("ACTION_NOT_APPLIED");
+    expect(dispatcher).toContain("reason !== \"UNKNOWN_CONNECTION\"");
+    expect(dispatcher).toContain("GATEWAY_INSTANCE_MISSING");
+  });
+
+  it("finaliza webhooks por uma assinatura RPC e recupera leases vencidos", () => {
+    expect(dispatcher).toContain("p_terminal: terminal");
+    expect(repairMigration).toContain("drop function if exists public.complete_whatsapp_v2_webhook_event(uuid, boolean, text)");
+    expect(repairMigration).toContain("lock_expires_at < now()");
+    expect(repairMigration).toContain("notify pgrst, 'reload schema'");
+    expect(claimRepairMigration).toContain("drop function if exists public.claim_whatsapp_v2_webhook_events(integer, text)");
+    expect(claimRepairMigration).toContain("drop function if exists public.claim_whatsapp_v2_webhook_events(integer, text, integer)");
+    expect(dispatcher).toContain("p_lease_seconds: 90");
   });
 
   it("persiste webhook antes de processar e mantém QR", () => {
@@ -43,6 +87,7 @@ describe("automação WhatsApp QR v2", () => {
     expect(config).toContain('"MESSAGES_UPSERT"');
     expect(config).toContain('"MESSAGES_UPDATE"');
     expect(webhook).toContain("x-evolution-webhook-secret");
+    expect(webhook).toContain("EdgeRuntime.waitUntil(triggerV2Dispatcher())");
   });
 
   it("mantém identidade LID e credencial no Vault", () => {
@@ -51,5 +96,12 @@ describe("automação WhatsApp QR v2", () => {
     expect(migration).toContain("gateway_secret_id");
     expect(migration).toContain("vault.decrypted_secrets");
     expect(migration).toContain("get_whatsapp_v2_qr_sender_context");
+  });
+
+  it("aceita somente equivalência móvel BR após código válido", () => {
+    const phoneMigration = read("supabase/migrations/20260818171344_match_whatsapp_brazilian_mobile_ninth_digit.sql");
+    expect(phoneMigration).toContain("whatsapp_v2_phone_matches");
+    expect(phoneMigration).toContain("substr(expected_digits,5,1) = '9'");
+    expect(phoneMigration).toContain("public.whatsapp_v2_phone_matches(phone_e164,p_sender_e164)");
   });
 });
