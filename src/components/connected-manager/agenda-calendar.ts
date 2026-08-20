@@ -65,9 +65,34 @@ export function appointmentGeometry(range: string, timezone: string, startHour =
   const endMinutes = Number(end.hour) * 60 + Number(end.minute);
   const durationMinutes = Math.max(15, endMinutes - startMinutes);
   return {
-    top: Math.round(8 + (startMinutes - startHour * 60) * (rowHeight / 60)),
+    top: (startMinutes - startHour * 60) * (rowHeight / 60),
     height: Math.max(58, Math.round(durationMinutes * (rowHeight / 60) - 7)),
     startLabel: `${start.hour}:${start.minute}`,
     endLabel: `${end.hour}:${end.minute}`,
+  };
+}
+
+export function currentTimeGeometry(
+  dateKey: string,
+  now: Date,
+  timezone: string,
+  startHour = 8,
+  rowHeight = 78,
+  updateIntervalMinutes = 5,
+) {
+  const current = zonedDateTimeParts(now, timezone);
+  const currentDateKey = `${current.year}-${current.month}-${current.day}`;
+  if (currentDateKey !== dateKey) return null;
+
+  const hour = Number(current.hour);
+  const minute = Math.floor(Number(current.minute) / updateIntervalMinutes) * updateIntervalMinutes;
+  const currentMinutes = hour * 60 + minute;
+  const startMinutes = startHour * 60;
+  const endMinutes = startMinutes + 12 * 60;
+  if (currentMinutes < startMinutes || currentMinutes > endMinutes) return null;
+
+  return {
+    top: (currentMinutes - startMinutes) * (rowHeight / 60),
+    label: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
   };
 }

@@ -2,9 +2,10 @@ import { z } from "zod";
 import { normalizeTenantSlug } from "@/components/connected-client/format";
 import { normalizeSafeReturnPath } from "@/lib/integrations/state";
 
-const defaultClientDestination = "/cliente";
+const defaultClientDestination = "/cliente/agendar";
 const clientDestinations = new Set([
   defaultClientDestination,
+  "/cliente",
   "/cliente/agendar",
   "/cliente/reservas",
   "/cliente/perfil",

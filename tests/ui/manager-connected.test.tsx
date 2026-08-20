@@ -187,6 +187,30 @@ describe("connected manager UI", () => {
     expect(screen.getByText("1 reserva")).toBeInTheDocument();
   });
 
+  it("mostra linha da hora atual somente no dia atual e alinhada a cinco minutos", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-07T12:47:00.000Z"));
+    try {
+      render(<AgendaManager
+        organizationId="org-1"
+        billingStatus="ACTIVE"
+        organization={organization}
+        customers={[customer]}
+        barbers={[barber]}
+        services={[service]}
+        packages={[]}
+        barberServices={[]}
+        financial={[]}
+        appointments={[]}
+        appointmentItems={[]}
+      />);
+
+      expect(screen.getByLabelText("Hora atual: 09:45")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("alterna entre calendário diário, semanal e mensal", () => {
     render(<AgendaManager organizationId="org-1" billingStatus="ACTIVE" organization={organization} customers={[customer]} barbers={[barber]} services={[service]} packages={[]} barberServices={[]} financial={[]} appointments={[]} appointmentItems={[]} />);
 
@@ -208,6 +232,8 @@ describe("connected manager UI", () => {
   it("abre cadastro e edição de cliente em modal", () => {
     render(<CustomersManager organizationId="org-1" billingStatus="ACTIVE" customers={[customer]} appointments={[]} appointmentItems={[]} financial={[]} barbers={[]} statusEvents={[]} />);
 
+    expect(screen.getByText("Recebe Whats Aut.")).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Novo cliente" }));
     expect(screen.getByRole("dialog", { name: "Novo cliente" })).toBeInTheDocument();
     fireEvent.click(within(screen.getByRole("dialog", { name: "Novo cliente" })).getByRole("button", { name: "Fechar" }));
@@ -215,6 +241,14 @@ describe("connected manager UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
     expect(screen.getByRole("dialog", { name: "Editar cliente" })).toBeInTheDocument();
     expect(screen.getByDisplayValue("Cliente Real")).toBeInTheDocument();
+  });
+
+  it("informa quando cliente desativou WhatsApp automático", () => {
+    const optedOutCustomer = { ...customer, whatsapp_transactional_opted_out: true };
+    render(<CustomersManager organizationId="org-1" billingStatus="ACTIVE" customers={[optedOutCustomer]} appointments={[]} appointmentItems={[]} financial={[]} barbers={[]} statusEvents={[]} />);
+
+    expect(screen.getByText("Não Recebe Whats Aut.")).toBeInTheDocument();
+    expect(screen.queryByText("Recebe Whats Aut.")).not.toBeInTheDocument();
   });
 
   it("bloqueia dados canônicos de cliente vinculado e preserva observações do gestor", async () => {

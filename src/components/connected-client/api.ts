@@ -88,6 +88,16 @@ export async function listMyClientOrganizations(
   return assertData(data as ClientOrganization[] | null, error, "Não foi possível carregar barbearias vinculadas.");
 }
 
+export async function setMyLastClientOrganization(
+  supabase: SupabaseClient,
+  organizationSlug: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("set_my_last_client_organization", {
+    p_organization_slug: organizationSlug,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function linkMyClientToOrganization(
   supabase: SupabaseClient,
   slug: string,

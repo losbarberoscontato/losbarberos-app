@@ -17,8 +17,9 @@ Objetivo imediato: validar em produção o fluxo QR Web/Evolution de confirmaç�
 
 - GitHub: `https://github.com/losbarberoscontato/losbarberos-app`; confirmar branch/SHA no preflight.
 - Vercel: `https://losbarberos-app.vercel.app`.
-- Supabase ref: `bwdjkhqshmppescunwer`; migrations remotas sincronizadas até `20260817184337`.
-- Edge Functions do fluxo QR ativas: `whatsapp-send-outbox` versão 13, `whatsapp-qr-webhook` versão 15, `whatsapp-qr-start` versão 12 e `whatsapp-qr-health` versão 4; confirmar novamente no preflight.
+- Supabase ref: `bwdjkhqshmppescunwer`; migrations remotas sincronizadas até `20260817205028`.
+- Edge Functions do fluxo QR ativas: `whatsapp-send-outbox` versão 13, `whatsapp-qr-webhook` versão 16, `whatsapp-qr-start` versão 12 e `whatsapp-qr-health` versão 4; confirmar novamente no preflight.
+- Vercel produção: deployment direto `dpl_ES7U2dCyTSHdVDY2QfcQZNsgp9iF` `READY`, alias oficial atualizado. GitHub não foi alterado: `HEAD` e `origin/main` permaneciam em `2ca10ba` ao publicar.
 - `payment_transactions` é a fonte única de verdade para pagamentos de agendamento.
 - Demo nunca grava no Supabase.
 
@@ -33,15 +34,16 @@ Objetivo imediato: validar em produção o fluxo QR Web/Evolution de confirmaç�
 - Texto não numérico é encaminhado ao WhatsApp conectado do gestor para retorno manual.
 - Persistência de conexões, regras de lembrete 6h/45min, ciclo de vida, opt-out e status de resposta estão modelados de forma tenant-safe.
 - Instâncias Evolution existentes recebem novamente a configuração de webhook no fluxo de conexão e na checagem periódica de 15 minutos. O evento `MESSAGES_UPSERT` é obrigatório para processar respostas numéricas; falha de configuração é registrada como `WEBHOOK_CONFIGURATION_FAILED`.
+- Respostas Evolution com `remoteJid=@lid` usam `remoteJidAlt` para recuperar o JID telefônico. LID, grupos e broadcasts nunca são convertidos em telefone. Respostas não associadas geram `messages.reply_rejected` sem telefone ou texto no diagnóstico.
 - Meta ainda depende de verificação/análise externa. O teste do número Meta foi rejeitado pela restrição de país; não tratar Meta como validado.
 
 ## Teste E2E pendente
 
 1. Preencher o WhatsApp do profissional usado no agendamento de teste.
 2. Manter consentimento transacional ativo no cliente.
-3. Criar agendamento futuro dentro das janelas e confirmar recebimento dos lembretes de 6h e 45min.
-4. Testar separadamente `1`, `2` com segunda confirmação, `3` e uma resposta textual não numérica.
-5. Confirmar mudança do status visual na agenda, destinatário operacional correto e ciclo `PENDING/PROCESSING/SENT` no outbox.
+3. Criar agendamento futuro para o lembrete de 45 minutos e responder somente `1`.
+4. Confirmar status `Confirmado pelo WhatsApp`, agradecimento no WhatsApp do cliente, aviso no WhatsApp do profissional e ciclo `PENDING/PROCESSING/SENT` no outbox.
+5. Somente após validar `1`, testar separadamente `2` com segunda confirmação, `3`, texto não numérico e depois o lembrete de 6 horas.
 6. Tratar recebimento no aparelho como única prova E2E; HTTP 200/201, função `ACTIVE` e outbox `SENT` são evidências parciais.
 
 ## Regras de operação

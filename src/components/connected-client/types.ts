@@ -93,6 +93,7 @@ export type ClientOrganization = {
   booking_public_id?: string | null;
   logo_path?: string | null;
   public_contact_phone_e164?: string | null;
+  is_last?: boolean;
   location?: { name: string; address: Record<string, unknown> } | null;
 };
 

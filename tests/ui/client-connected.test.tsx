@@ -101,6 +101,7 @@ function installProviderClient({
   deferLink = false,
   deferClaim = false,
   initiallyLinked = false,
+  isLast = false,
   claimRequired = false,
   reviewAfterClaim = false,
   mismatchedClaim = false,
@@ -112,6 +113,7 @@ function installProviderClient({
   deferLink?: boolean;
   deferClaim?: boolean;
   initiallyLinked?: boolean;
+  isLast?: boolean;
   claimRequired?: boolean;
   reviewAfterClaim?: boolean;
   mismatchedClaim?: boolean;
@@ -143,6 +145,7 @@ function installProviderClient({
     organization_slug: context.organization.slug,
     organization_name: context.organization.name,
     customer_id: customer.id,
+    is_last: isLast,
   };
   const accountQuery = queryResult(account);
   const customerQuery = queryResult(customer);
@@ -658,6 +661,18 @@ describe("cliente conectado", () => {
     expect(screen.getByLabelText("Aceito os termos de uso e a política de privacidade")).toBeRequired();
   });
 
+  it("restaura última barbearia vinculada ao entrar sem slug", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true, isLast: true });
+
+    render(
+      <ConnectedClientProvider>
+        <ConnectedClientGate><div>agenda da última barbearia</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByText("agenda da última barbearia")).toBeInTheDocument();
+  });
+
   it("permite visualizar a senha digitada sem alterar o valor", () => {
     render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente/agendar" />);
     const password = screen.getByLabelText("Senha");
@@ -761,7 +776,7 @@ describe("cliente conectado", () => {
     await waitFor(() => expect(authMocks.client?.auth.resend).toHaveBeenCalledWith({
       type: "signup",
       email: "ana@example.com",
-      options: { emailRedirectTo: "http://localhost:3000/auth/callback?next=%2Fcliente&barbearia=barbearia-real" },
+      options: { emailRedirectTo: "http://localhost:3000/auth/callback?next=%2Fcliente%2Fagendar&barbearia=barbearia-real" },
     }));
   });
 

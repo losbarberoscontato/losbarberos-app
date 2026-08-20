@@ -170,10 +170,12 @@ export function AgendaBoard() {
                   const duration = (parseInt(appointment.endTime.split(":")[0], 10) * 60 + parseInt(appointment.endTime.split(":")[1], 10)) - (parseInt(appointment.time.split(":")[0], 10) * 60 + parseInt(appointment.time.split(":")[1], 10));
                   return (
                     <button key={appointment.id} type="button" className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3}`} style={{ top, height: Math.max(58, duration * 1.3 - 7) }} onClick={() => setSelected(appointment)}>
-                      <span className="agenda-event__time">{appointment.time} — {appointment.endTime}</span>
-                      <strong>{appointment.customer}</strong>
-                      <small>{appointment.service}</small>
-                      <i>{appointment.status === "IN_SERVICE" ? "Em atendimento" : appointment.status === "PENDING_PAYMENT" ? "Pendente" : "Confirmado"}</i>
+                      <span className="agenda-event__time"><span className="sr-only">{appointment.time} — {appointment.endTime}</span><span aria-hidden="true">{appointment.time}</span><span aria-hidden="true">{appointment.endTime}</span></span>
+                      <span className="agenda-event__details">
+                        <strong>{appointment.customer}</strong>
+                        <small>{appointment.service}</small>
+                        <i>{appointment.status === "IN_SERVICE" ? "Em atendimento" : appointment.status === "PENDING_PAYMENT" ? "Pendente" : "Confirmado"}</i>
+                      </span>
                     </button>
                   );
                 })}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appointmentGeometry,
+  currentTimeGeometry,
   dateKeyInTimezone,
   monthCells,
   shiftDateKey,
@@ -37,6 +38,23 @@ describe("connected agenda calendar projections", () => {
     expect(appointmentGeometry(
       '["2026-08-07 14:00:00+00","2026-08-07 15:30:00+00")',
       "America/Sao_Paulo",
-    )).toEqual({ top: 242, height: 110, startLabel: "11:00", endLabel: "12:30" });
+    )).toEqual({ top: 234, height: 110, startLabel: "11:00", endLabel: "12:30" });
+  });
+
+  it("encaixa horário fracionado na linha exata e atualiza marcador atual a cada cinco minutos", () => {
+    expect(appointmentGeometry(
+      '["2026-08-07 12:45:00+00","2026-08-07 13:00:00+00")',
+      "America/Sao_Paulo",
+    )?.top).toBe(136.5);
+    expect(currentTimeGeometry(
+      "2026-08-07",
+      new Date("2026-08-07T12:47:00.000Z"),
+      "America/Sao_Paulo",
+    )).toEqual({ top: 136.5, label: "09:45" });
+    expect(currentTimeGeometry(
+      "2026-08-08",
+      new Date("2026-08-07T12:47:00.000Z"),
+      "America/Sao_Paulo",
+    )).toBeNull();
   });
 });

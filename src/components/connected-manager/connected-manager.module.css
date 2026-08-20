@@ -69,7 +69,8 @@
 .rowTitle strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #293029; }
 .rowTitle small, .muted { color: #79817a; font-size: .78rem; }
 .customerPhone { display: grid; gap: .22rem; min-width: 0; }
-.customerWhatsappOptOut { color: #b23c35; font-size: .72rem; font-weight: 750; line-height: 1.25; }
+.customerWhatsappAutomatic { width: fit-content; color: #466042; font-size: .72rem; font-weight: 800; line-height: 1.25; }
+.customerWhatsappAutomaticOff { color: #b23c35; }
 .cashCounterparty, .cashDescription { display: block; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .cashDescription { line-height: 1.35; }
 .rowActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .4rem; }

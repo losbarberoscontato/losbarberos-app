@@ -1,5 +1,17 @@
 # Handoff — Los Barberos
 
+## Correção de identidade LID nas respostas Evolution — 17/08/2026
+
+- Causa confirmada: mensagens recebidas pela Evolution podiam chegar com `key.remoteJid` no formato `@lid`. O webhook removia caracteres não numéricos e tratava o identificador LID como telefone; a RPC não encontrava o cliente e retornava `NO_ACTIVE_ACTION`.
+- O webhook agora prefere `key.remoteJidAlt` quando ele contém o JID telefônico, aceita JID telefônico direto e nunca converte `@lid`, grupos ou broadcasts em E.164.
+- O resultado das RPCs de resposta passou a ser verificado. Falhas como `SENDER_PHONE_UNRESOLVED`, `NO_ACTIVE_ACTION` e `AMBIGUOUS_ACTION` retornam `action: false` e geram evento seguro `messages.reply_rejected`, sem persistir telefone ou texto recebido.
+- Migration remota aplicada e pós-dry-run sincronizado: `20260817205028_whatsapp_reply_identity_diagnostics.sql`. A RPC de diagnóstico revoga `public`, `anon` e `authenticated`; somente `service_role` recebe execução.
+- Edge Function `whatsapp-qr-webhook` publicada `ACTIVE`, versão 16. Nenhuma alteração foi feita na VPS, Evolution API, secrets ou configuração da instância.
+- Validação local: ESLint com 0 erros e 4 warnings conhecidos, TypeScript aprovado, Vitest `57/57` arquivos e `284/284` testes, build Next.js aprovado.
+- Vercel produção: deployment `dpl_ES7U2dCyTSHdVDY2QfcQZNsgp9iF` `READY`, alias `https://losbarberos-app.vercel.app`; smoke `/` 200, `/b/barbearia-central` 307, fila pública 200 e rota protegida 307.
+- GitHub não foi alterado nesta entrega: branch local `codex/whatsapp-qr-automation-fix`, `HEAD` e `origin/main` permanecem em `2ca10ba`. A publicação Vercel foi feita diretamente do working tree autorizado.
+- Prova E2E ainda pendente: novo agendamento, lembrete de 45 minutos e resposta `1`; confirmar status `Confirmado pelo WhatsApp`, agradecimento ao cliente e aviso ao profissional. Só depois repetir `2`, `3`, texto não numérico e lembrete de 6 horas.
+
 ## Correção do recebimento de respostas Evolution — 17/08/2026
 
 - Causa confirmada no remoto: o lembrete de 45 minutos ficou `SENT`, os três tokens permaneceram sem consumo e nenhum `MESSAGES_UPSERT` chegou ao webhook após as respostas `1`, `2` e `3`.

@@ -30,7 +30,7 @@ describe("OAuth callback return path", () => {
       "/cliente/agendar?barbearia=barbearia-real",
     );
     expect(clientAuthDestination({ next: "https://evil.example", slug: "barbearia-real" })).toBe(
-      "/cliente?barbearia=barbearia-real",
+      "/cliente/agendar?barbearia=barbearia-real",
     );
   });
 
@@ -59,7 +59,7 @@ describe("OAuth callback return path", () => {
 
     expect(exchangeCodeForSession).toHaveBeenCalledWith("recovery-code");
     expect(response.headers.get("location")).toBe(
-      "https://app.example/cliente?barbearia=barbearia-real",
+      "https://app.example/cliente/agendar?barbearia=barbearia-real",
     );
   });
 

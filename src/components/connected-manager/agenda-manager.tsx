@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -31,6 +31,7 @@ import {
 } from "./appointment-display-status";
 import {
   appointmentGeometry,
+  currentTimeGeometry,
   dateKeyInTimezone,
   monthCells,
   shiftDateKey,
@@ -89,6 +90,7 @@ export function AgendaManager(props: Props) {
   const [createdCustomers, setCreatedCustomers] = useState<Props["customers"]>([]);
   const [rescheduling, setRescheduling] = useState<AppointmentRecord | null>(null);
   const [receiptTarget, setReceiptTarget] = useState<AppointmentReceiptDraft | null>(null);
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const blocked = props.billingStatus === "BLOCKED";
   const availableCustomers = useMemo(() => [...props.customers, ...createdCustomers].filter((customer) => customer.active), [createdCustomers, props.customers]);
   const customerById = useMemo(() => new Map(availableCustomers.map((item) => [item.id, item])), [availableCustomers]);
@@ -115,6 +117,22 @@ export function AgendaManager(props: Props) {
   const displayedBarbers = barberFilter === "ALL" ? props.barbers : props.barbers.filter((barber) => barber.id === barberFilter);
   const weekDates = weekDateKeys(date);
   const month = monthCells(date);
+  const nowLine = currentTime ? currentTimeGeometry(date, currentTime, timezone) : null;
+
+  useEffect(() => {
+    const updateCurrentTime = () => setCurrentTime(new Date());
+    updateCurrentTime();
+    const millisecondsUntilNextFiveMinutes = 300_000 - (Date.now() % 300_000);
+    let intervalId: number | undefined;
+    const timeoutId = window.setTimeout(() => {
+      updateCurrentTime();
+      intervalId = window.setInterval(updateCurrentTime, 300_000);
+    }, millisecondsUntilNextFiveMinutes);
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+    };
+  }, []);
 
   function appointmentDate(appointment: AppointmentRecord) {
     const period = parsePostgresRange(appointment.service_period);
@@ -306,9 +324,10 @@ export function AgendaManager(props: Props) {
             const geometry = appointmentGeometry(appointment.service_period, timezone);
             if (!geometry) return null;
             const displayStatus = appointmentDisplayStatus(appointment);
-            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}`} style={{ top: geometry.top, height: geometry.height }} onClick={() => setSelected(appointment)}><span className="agenda-event__time">{geometry.startLabel} — {geometry.endLabel}</span><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i></button>;
+            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}`} style={{ top: geometry.top, height: geometry.height }} onClick={() => setSelected(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i></span></button>;
           })}
         </div>)}
+        {nowLine && <div className="agenda-now-line" style={{ top: nowLine.top }} aria-label={`Hora atual: ${nowLine.label}`}><span>{nowLine.label}</span><i /></div>}
       </div>
     </section>}
 

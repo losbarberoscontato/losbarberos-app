@@ -198,7 +198,12 @@ export function CustomersManager({ organizationId, customers, appointments, appo
       <div className={styles.toolbar}><label className={styles.field}><span>Buscar</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, telefone ou e-mail" /></label></div>
       {filtered.length === 0 ? <EmptyState title={customers.length ? "Nenhum resultado" : "Cadastre o primeiro cliente"}>{customers.length ? "Ajuste a busca ou altere o filtro." : "Clientes manuais podem ser criados sem login e vinculados depois."}</EmptyState> : <div className={styles.list}>{filtered.map((customer) => <article className={styles.row} key={customer.id}>
         <span className={styles.rowTitle}><strong>{customer.full_name}</strong><small>{lastVisitLabel(customer.id)}</small><small>{customer.email ?? "Sem e-mail"}</small></span>
-        <span className={styles.customerPhone}>{customer.phone_e164 ?? "Sem telefone"}{customer.whatsapp_transactional_opted_out && <small className={styles.customerWhatsappOptOut}>Este cliente optou por não receber msgs automáticas</small>}</span>
+        <span className={styles.customerPhone}>
+          {customer.phone_e164 ?? "Sem telefone"}
+          <small className={`${styles.customerWhatsappAutomatic} ${customer.whatsapp_transactional_opted_out ? styles.customerWhatsappAutomaticOff : ""}`}>
+            {customer.whatsapp_transactional_opted_out ? "Não Recebe Whats Aut." : "Recebe Whats Aut."}
+          </small>
+        </span>
         <span>{customer.birth_date ? new Date(`${customer.birth_date}T12:00:00`).toLocaleDateString("pt-BR") : "Nascimento não informado"}</span>
         <StatusChip active={customer.active} />
         <span className={styles.rowActions}>

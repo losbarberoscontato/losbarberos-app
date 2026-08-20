@@ -12,19 +12,23 @@ describe("clientAuthDestination", () => {
   });
 
   it.each([
-    "https://evil.example",
-    "//evil.example",
-    "/cliente\\evil",
-    "/cliente%5Cevil",
-    "/cliente/%2e%2e/gestor",
-    "/cliente?barbearia=other",
-    "/cliente?barbearia=barbearia-real&barbearia=other",
-    "/cliente#unsafe",
-    "/cliente/redefinir-senha",
-    "/gestor",
-  ])("rejects unsafe or non-allowlisted next %s", (next) => {
-    expect(clientAuthDestination({ next, slug: "barbearia-real" })).toBe(
-      "/cliente?barbearia=barbearia-real",
+    ["https://evil.example", "/cliente/agendar?barbearia=barbearia-real"],
+    ["//evil.example", "/cliente/agendar?barbearia=barbearia-real"],
+    ["/cliente\\evil", "/cliente/agendar?barbearia=barbearia-real"],
+    ["/cliente%5Cevil", "/cliente/agendar?barbearia=barbearia-real"],
+    ["/cliente/%2e%2e/gestor", "/cliente/agendar?barbearia=barbearia-real"],
+    ["/cliente?barbearia=other", "/cliente?barbearia=barbearia-real"],
+    ["/cliente?barbearia=barbearia-real&barbearia=other", "/cliente?barbearia=barbearia-real"],
+    ["/cliente#unsafe", "/cliente?barbearia=barbearia-real"],
+    ["/cliente/redefinir-senha", "/cliente/agendar?barbearia=barbearia-real"],
+    ["/gestor", "/cliente/agendar?barbearia=barbearia-real"],
+  ])("rejects unsafe or non-allowlisted next %s", (next, expected) => {
+    expect(clientAuthDestination({ next, slug: "barbearia-real" })).toBe(expected);
+  });
+
+  it("opens booking when client login has no explicit destination", () => {
+    expect(clientAuthDestination({ slug: "barbearia-real" })).toBe(
+      "/cliente/agendar?barbearia=barbearia-real",
     );
   });
 

@@ -10,6 +10,7 @@ import {
   getPublicBookingContext,
   linkMyClientToOrganization,
   listMyClientOrganizations,
+  setMyLastClientOrganization,
   toClientError,
 } from "@/components/connected-client/api";
 import { normalizeTenantSlug, resolveTenantSlug, tenantStorageKey } from "@/components/connected-client/format";
@@ -79,6 +80,8 @@ export function ConnectedClientProvider({
   const currentSlugRef = useRef(slug);
   const linkInFlightRef = useRef<{ slug: string; promise: Promise<ClientTenantLinkResult> } | null>(null);
   const bookingAutoLinkRef = useRef<string | null>(null);
+  const autoTenantResolvedRef = useRef(false);
+  const lastTenantSyncRef = useRef<string | null>(null);
 
   useEffect(() => {
     currentSlugRef.current = slug;
@@ -89,9 +92,7 @@ export function ConnectedClientProvider({
     let active = true;
     const resolve = async () => {
       const bookingId = queryBookingId();
-      const direct = bookingId
-        ? resolveTenantSlug(queryTenant(), null, initialSlug)
-        : resolveTenantSlug(queryTenant(), readStoredTenant(), initialSlug);
+      const direct = resolveTenantSlug(queryTenant(), null, initialSlug);
       if (direct) {
         if (active) setSlug(direct);
         return;
@@ -236,6 +237,47 @@ export function ConnectedClientProvider({
       active = false;
     };
   }, [context, supabase, user]);
+
+  useEffect(() => {
+    if (
+      slug
+      || !user
+      || authLoading
+      || organizations.length === 0
+      || autoTenantResolvedRef.current
+      || queryTenant()
+      || normalizeTenantSlug(initialSlug)
+    ) return;
+
+    const stored = readStoredTenant();
+    const target = organizations.find((item) => item.is_last)
+      ?? organizations.find((item) => item.organization_slug === stored)
+      ?? organizations[0];
+    if (!target) return;
+
+    autoTenantResolvedRef.current = true;
+    let active = true;
+    queueMicrotask(() => {
+      if (active) setSlug(target.organization_slug);
+    });
+    return () => {
+      active = false;
+    };
+  }, [authLoading, initialSlug, organizations, slug, user]);
+
+  useEffect(() => {
+    if (!supabase || !user || !context) return;
+    const relation = organizations.find((item) =>
+      item.organization_id === context.organization.id
+      && item.organization_slug === context.organization.slug,
+    );
+    if (!relation || relation.is_last || lastTenantSyncRef.current === relation.organization_slug) return;
+
+    lastTenantSyncRef.current = relation.organization_slug;
+    void setMyLastClientOrganization(supabase, relation.organization_slug).catch(() => {
+      // Older deployments may not yet contain the additive preference RPC.
+    });
+  }, [context, organizations, supabase, user]);
 
   const reloadCustomer = useCallback(async (): Promise<Customer | null> => {
     if (!supabase || !context || !user) {
