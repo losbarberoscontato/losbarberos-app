@@ -21,7 +21,9 @@ export type AppointmentWhatsAppResponseStatus =
   | "PENDING"
   | "CONFIRMED_BY_WHATSAPP"
   | "CANCELED_BY_WHATSAPP"
-  | "RESCHEDULE_REQUESTED_BY_WHATSAPP";
+  | "RESCHEDULE_REQUESTED_BY_WHATSAPP"
+  | "CONTACT_REQUESTED_BY_WHATSAPP"
+  | "CONFIRMED_MANUALLY";
 
 export interface ManagerScope {
   organizationId: string;

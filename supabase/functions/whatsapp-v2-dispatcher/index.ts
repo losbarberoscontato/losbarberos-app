@@ -42,6 +42,8 @@ function textFor(job: Job): string {
     case "MANUAL_OUTBOUND_TEXT":
       if (messageKind === "INVALID_REPLY_PROMPT") return "Não entendi sua resposta.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente";
       if (messageKind === "ATTENDANT_REQUEST_MANAGER") return `Cliente deseja falar com atendente.\n\nCliente: ${name}\nWhatsApp: ${phone}\nData e hora: ${when}\nBarbeiro: ${barber}\nServiço: ${service}`;
+      if (messageKind === "MANUAL_CONFIRMATION_CLIENT") return `${name}, seu agendamento foi confirmado pela barbearia para ${when}.`;
+      if (messageKind === "MANUAL_CONFIRMATION_STAFF") return `Agendamento confirmado manualmente: ${name}, ${when}.`;
       return `Atualização do agendamento de ${name} com ${barber}.`;
     default: return `Atualização do agendamento de ${name} com ${barber}.`;
   }
@@ -59,9 +61,12 @@ function providerMessageId(value: unknown): string | null {
   return typeof row.key?.id === "string" ? row.key.id : typeof row.messages?.[0]?.id === "string" ? row.messages[0].id : null;
 }
 
+type ConfirmationRequestResult = { skipped?: boolean };
+
 async function dispatchJob(job: Job): Promise<void> {
   if (job.job_type === "REMINDER_MORNING_CLIENT" || job.job_type === "REMINDER_T45_CLIENT") {
-    await rpc("create_whatsapp_v2_confirmation_request", { p_job_id: job.id, p_worker_id: workerId });
+    const request = await rpc<ConfirmationRequestResult>("create_whatsapp_v2_confirmation_request", { p_job_id: job.id, p_worker_id: workerId });
+    if (request?.skipped) return;
   }
   const body = textFor(job);
   try {

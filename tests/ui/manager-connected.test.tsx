@@ -77,7 +77,7 @@ describe("connected manager UI", () => {
       total_cents_snapshot: 5000, notes: null, schedule_override_reason: null, created_at: new Date().toISOString(),
     }]} />);
 
-    expect(screen.getByText("Confirmado pelo WhatsApp")).toBeInTheDocument();
+    expect(screen.getByText("Confirmado")).toBeInTheDocument();
   });
 
   it("prepares an isolated A4 sheet to print the queue QR", () => {
@@ -118,7 +118,10 @@ describe("connected manager UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abrir Cliente Real" }));
     expect(screen.getByRole("button", { name: "Reagendar" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Iniciar" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "No-show" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Não compareceu" })).toBeEnabled();
+    expect(screen.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("href", "https://web.whatsapp.com/send?phone=5511999999999");
+    expect(screen.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("Pgto Pendente")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeEnabled();
   });
 
@@ -249,6 +252,17 @@ describe("connected manager UI", () => {
 
     expect(screen.getByText("Não Recebe Whats Aut.")).toBeInTheDocument();
     expect(screen.queryByText("Recebe Whats Aut.")).not.toBeInTheDocument();
+  });
+
+  it("abre WhatsApp do cliente e exibe alerta de aniversário próximo", () => {
+    const birthday = new Date();
+    birthday.setDate(birthday.getDate() + 7);
+    const birthdayCustomer = { ...customer, birth_date: `${birthday.getFullYear()}-${String(birthday.getMonth() + 1).padStart(2, "0")}-${String(birthday.getDate()).padStart(2, "0")}` };
+    render(<CustomersManager organizationId="org-1" billingStatus="ACTIVE" customers={[birthdayCustomer]} appointments={[]} appointmentItems={[]} financial={[]} barbers={[]} statusEvents={[]} />);
+
+    expect(screen.getByRole("link", { name: "Abrir WhatsApp de Cliente Real" })).toHaveAttribute("href", "https://web.whatsapp.com/send?phone=5511999999999");
+    expect(screen.getByRole("link", { name: "Abrir WhatsApp de Cliente Real" })).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("Cliente faz aniversário em 7 dias")).toBeInTheDocument();
   });
 
   it("bloqueia dados canônicos de cliente vinculado e preserva observações do gestor", async () => {

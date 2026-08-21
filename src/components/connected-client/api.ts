@@ -325,7 +325,7 @@ export async function getMyAppointments(
 ): Promise<CustomerAppointment[]> {
   const { data: appointments, error } = await supabase
     .from("appointments")
-    .select("id,organization_id,customer_id,barber_id,status,service_period,payment_mode,currency,total_cents_snapshot,deposit_required_cents_snapshot,cancellation_lead_minutes_snapshot,created_at")
+    .select("id,organization_id,customer_id,barber_id,status,whatsapp_response_status,service_period,payment_mode,currency,total_cents_snapshot,deposit_required_cents_snapshot,cancellation_lead_minutes_snapshot,created_at")
     .eq("organization_id", organizationId)
     .eq("customer_id", customerId)
     .order("created_at", { ascending: false });

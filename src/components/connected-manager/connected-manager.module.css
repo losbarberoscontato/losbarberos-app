@@ -69,8 +69,22 @@
 .rowTitle strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #293029; }
 .rowTitle small, .muted { color: #79817a; font-size: .78rem; }
 .customerPhone { display: grid; gap: .22rem; min-width: 0; }
+.customerPhone a { width: fit-content; color: #293029; text-decoration: underline; text-decoration-color: #90b8a8; text-underline-offset: 3px; }
+.customerPhone a:hover { color: #1d6b55; }
 .customerWhatsappAutomatic { width: fit-content; color: #466042; font-size: .72rem; font-weight: 800; line-height: 1.25; }
 .customerWhatsappAutomaticOff { color: #b23c35; }
+.customerBirthDate { display: grid; gap: .22rem; }
+.customerBirthdayReminder { color: #a85a0a; font-size: .72rem; font-weight: 800; line-height: 1.25; }
+.professionalFilter { min-width: 7rem; border: 1px solid #d9dfd7; border-radius: 999px; padding: .5rem 1.8rem .5rem .7rem; background: #eef4ee; color: #173b31; font: inherit; font-size: .82rem; font-weight: 800; }
+.professionalFilter:focus { outline: 3px solid rgba(106, 133, 98, .18); border-color: #789070; }
+.professionalRow { grid-template-columns: minmax(180px, 1.25fr) minmax(145px, .85fr) minmax(240px, 1.45fr) auto auto; }
+.professionalTitle { display: flex; align-items: center; gap: .65rem; min-width: 0; }
+.professionalWhatsapp { color: #3d493e; font-size: .82rem; font-weight: 700; overflow-wrap: anywhere; }
+.professionalSkills { display: flex; gap: .4rem .55rem; flex-wrap: wrap; align-items: center; }
+.professionalSkills .check { font-size: .76rem; }
+.professionalSkills .check input { width: 15px; height: 15px; }
+.teamOperationModal { width: min(100%, 1040px); }
+.operationDescription { margin: 0; color: #647067; font-size: .88rem; font-weight: 800; }
 .cashCounterparty, .cashDescription { display: block; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .cashDescription { line-height: 1.35; }
 .rowActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .4rem; }
@@ -79,6 +93,7 @@
 .chipInfo { background: #e7f0fa; color: #2f668f; }
 .chipWarn { background: #fff1d6; color: #78560f; }
 .chipDanger { background: #ffe9e5; color: #913b2e; }
+.chipContact { background: #f0e8f8; color: #6d3f91; }
 .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
 .card { display: grid; gap: .8rem; align-content: start; padding: 1rem; border: 1px solid #e7ebe5; border-radius: 16px; }
 .cardTop { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; }

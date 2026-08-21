@@ -165,6 +165,14 @@ export type AppointmentStatus =
   | "NO_SHOW"
   | "EXPIRED";
 
+export type AppointmentWhatsAppResponseStatus =
+  | "PENDING"
+  | "CONFIRMED_BY_WHATSAPP"
+  | "CANCELED_BY_WHATSAPP"
+  | "RESCHEDULE_REQUESTED_BY_WHATSAPP"
+  | "CONTACT_REQUESTED_BY_WHATSAPP"
+  | "CONFIRMED_MANUALLY";
+
 export type FinancialStatus =
   | "UNPAID"
   | "PARTIAL"
@@ -194,6 +202,7 @@ export type CustomerAppointment = {
   customer_id: string;
   barber_id: string;
   status: AppointmentStatus;
+  whatsapp_response_status: AppointmentWhatsAppResponseStatus;
   service_period: string;
   payment_mode: "DEPOSIT" | "FULL" | "COUNTER";
   currency: string;

@@ -24,6 +24,28 @@ const inactivationReasons = [
   ["OTHER", "Outro motivo"],
 ] as const;
 
+function birthdayReminder(birthDate: string | null): string | null {
+  if (!birthDate) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(birthDate);
+  if (!match) return null;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const today = new Date();
+  const currentDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const birthdayForYear = (year: number) => {
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return Date.UTC(year, month - 1, Math.min(day, lastDay));
+  };
+  let nextBirthday = birthdayForYear(today.getFullYear());
+  if (nextBirthday < currentDay) nextBirthday = birthdayForYear(today.getFullYear() + 1);
+  const days = Math.round((nextBirthday - currentDay) / 86_400_000);
+  if (days > 7) return null;
+  if (days === 0) return "Cliente faz aniversário hoje";
+  return `Cliente faz aniversário em ${days} ${days === 1 ? "dia" : "dias"}`;
+}
+
 export function CustomersManager({ organizationId, customers, appointments, appointmentItems, financial, barbers, statusEvents }: Props) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(customers.length === 0);
@@ -199,12 +221,12 @@ export function CustomersManager({ organizationId, customers, appointments, appo
       {filtered.length === 0 ? <EmptyState title={customers.length ? "Nenhum resultado" : "Cadastre o primeiro cliente"}>{customers.length ? "Ajuste a busca ou altere o filtro." : "Clientes manuais podem ser criados sem login e vinculados depois."}</EmptyState> : <div className={styles.list}>{filtered.map((customer) => <article className={styles.row} key={customer.id}>
         <span className={styles.rowTitle}><strong>{customer.full_name}</strong><small>{lastVisitLabel(customer.id)}</small><small>{customer.email ?? "Sem e-mail"}</small></span>
         <span className={styles.customerPhone}>
-          {customer.phone_e164 ?? "Sem telefone"}
+          {customer.phone_e164 ? <a href={`https://web.whatsapp.com/send?phone=${customer.phone_e164.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" aria-label={`Abrir WhatsApp de ${customer.full_name}`}>{customer.phone_e164}</a> : "Sem telefone"}
           <small className={`${styles.customerWhatsappAutomatic} ${customer.whatsapp_transactional_opted_out ? styles.customerWhatsappAutomaticOff : ""}`}>
             {customer.whatsapp_transactional_opted_out ? "Não Recebe Whats Aut." : "Recebe Whats Aut."}
           </small>
         </span>
-        <span>{customer.birth_date ? new Date(`${customer.birth_date}T12:00:00`).toLocaleDateString("pt-BR") : "Nascimento não informado"}</span>
+        <span className={styles.customerBirthDate}>{customer.birth_date ? <>{new Date(`${customer.birth_date}T12:00:00`).toLocaleDateString("pt-BR")}<small className={styles.customerBirthdayReminder}>{birthdayReminder(customer.birth_date)}</small></> : "Nascimento não informado"}</span>
         <StatusChip active={customer.active} />
         <span className={styles.rowActions}>
           <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setHistoryCustomer(customer)}>Ver Agendamentos</button>

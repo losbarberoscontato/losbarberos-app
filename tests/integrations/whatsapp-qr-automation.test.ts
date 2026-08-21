@@ -11,6 +11,8 @@ describe("automação WhatsApp QR v2", () => {
   const simpleReplyMigration = read("supabase/migrations/20260818221505_simplify_whatsapp_v2_reminder_replies.sql");
   const managerNotificationMigration = read("supabase/migrations/20260819143928_whatsapp_v2_manager_notification_phone.sql");
   const managerPhoneValidationMigration = read("supabase/migrations/20260819163816_fix_whatsapp_v2_manager_notification_phone_validation.sql");
+  const agendaStatusMigration = read("supabase/migrations/20260821115548_whatsapp_agenda_response_statuses.sql");
+  const dailyConfirmationMigration = read("supabase/migrations/20260821145726_whatsapp_evolution_single_daily_confirmation.sql");
   const dispatcher = read("supabase/functions/whatsapp-v2-dispatcher/index.ts");
   const webhook = read("supabase/functions/whatsapp-qr-webhook/index.ts");
   const config = read("supabase/functions/_shared/evolution-qr-webhook.ts");
@@ -47,6 +49,27 @@ describe("automação WhatsApp QR v2", () => {
     expect(simpleReplyMigration).toContain("ATTENDANT_REQUEST_MANAGER");
     expect(migration).toContain("whatsapp_presence_status='CONFIRMED'");
     expect(migration).toContain("perform public.cancel_appointment");
+    expect(agendaStatusMigration).toContain("'CONFIRMED_BY_WHATSAPP'");
+    expect(agendaStatusMigration).toContain("'CANCELED_BY_WHATSAPP'");
+    expect(agendaStatusMigration).toContain("'CONTACT_REQUESTED_BY_WHATSAPP'");
+  });
+
+  it("mantém uma confirmação interativa por cliente, tenant e dia", () => {
+    expect(dailyConfirmationMigration).toContain("SAME_DAY_CUSTOMER_REMINDER_SUPPRESSED");
+    expect(dailyConfirmationMigration).toContain("a.customer_id=v_customer_id");
+    expect(dailyConfirmationMigration).toContain("a.organization_id=v_job.organization_id");
+    expect(dailyConfirmationMigration).toContain("order by lower(a.service_period), a.id");
+    expect(agendaStatusMigration).toContain("set status='SUPERSEDED'");
+    expect(agendaStatusMigration).not.toContain("reason','AMBIGUOUS_ACTIVE_REQUEST");
+    expect(dispatcher).toContain("if (request?.skipped) return");
+  });
+
+  it("enfileira confirmação manual para cliente e profissional", () => {
+    expect(agendaStatusMigration).toContain("confirm_appointment_manually_by_whatsapp");
+    expect(agendaStatusMigration).toContain("MANUAL_CONFIRMATION_CLIENT");
+    expect(agendaStatusMigration).toContain("MANUAL_CONFIRMATION_STAFF");
+    expect(dispatcher).toContain("MANUAL_CONFIRMATION_CLIENT");
+    expect(dispatcher).toContain("MANUAL_CONFIRMATION_STAFF");
   });
 
   it("entrega atendimento a um número do gestor separado e sinaliza coincidência com o QR", () => {

@@ -63,4 +63,9 @@ npx supabase db reset
 - Dinheiro usa centavos inteiros; ledgers são append-only.
 - Service worker não cacheia navegação, APIs, auth ou dados privados.
 
-Detalhes: [arquitetura](docs/architecture.md), [segurança](docs/security.md) e [QA](docs/qa.md).
+Detalhes: [arquitetura](docs/architecture.md), [segurança](docs/security.md), [QA](docs/qa.md) e [Módulo WhatsApp Evolution](docs/whatsapp-evolution-module.md).
+
+## Módulos de integração
+
+- Para qualquer manutenção do fluxo WhatsApp via QR/Evolution API, trate-o como **Módulo WhatsApp Evolution** e leia [sua documentação técnica](docs/whatsapp-evolution-module.md) antes de mudar código, migrations, jobs, webhooks ou infraestrutura.
+- O **Módulo WhatsApp Meta** é distinto. Não reutilize contratos, filas, segredos ou comportamentos do Evolution nele.

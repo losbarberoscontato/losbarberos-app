@@ -13,7 +13,7 @@ import {
   Clock3,
   Filter,
   MapPin,
-  Phone,
+  MessageCircle,
   Scissors,
   UserRound,
   X,
@@ -223,7 +223,7 @@ export function AgendaManager(props: Props) {
         p_new_status: next,
         p_reason: `manager_${next.toLowerCase()}`,
       }));
-    }, next === "IN_SERVICE" ? "Atendimento iniciado." : next === "COMPLETED" ? "Atendimento concluído; comissão lançada." : "No-show registrado.");
+    }, next === "IN_SERVICE" ? "Atendimento iniciado." : next === "COMPLETED" ? "Atendimento concluído; comissão lançada." : "Não compareceu registrado.");
     if (saved) {
       if (next === "COMPLETED" && appointment.payment_mode === "COUNTER") {
         const customer = customerById.get(appointment.customer_id);
@@ -256,6 +256,15 @@ export function AgendaManager(props: Props) {
         p_reason: reason.trim(),
       }));
     }, "Agendamento confirmado; saldo continua pendente.");
+    if (saved) { setSelected(null); router.refresh(); }
+  }
+
+  async function confirmManuallyByWhatsApp(appointment: AppointmentRecord) {
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("confirm_appointment_manually_by_whatsapp", {
+        p_appointment_id: appointment.id,
+      }));
+    }, "Confirmação manual registrada; mensagens para cliente e profissional foram enfileiradas.");
     if (saved) { setSelected(null); router.refresh(); }
   }
 
@@ -344,27 +353,30 @@ export function AgendaManager(props: Props) {
       })}</div>
     </section>}
 
-    {selected && <><button className="mobile-overlay mobile-overlay--detail" type="button" aria-label="Fechar detalhes" onClick={() => setSelected(null)} /><aside className="appointment-detail" aria-label="Detalhes do agendamento">
+    {selected && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar detalhes" onClick={() => setSelected(null)} /><section className="form-modal appointment-detail" role="dialog" aria-modal="true" aria-label="Detalhes do agendamento">
       <div className="appointment-detail__head"><span><small>Agendamento {selected.id.slice(0, 8)}</small><strong>Detalhes do atendimento</strong></span><button type="button" className="icon-button" onClick={() => setSelected(null)} aria-label="Fechar"><X size={19} /></button></div>
-      <div className="appointment-detail__customer"><Avatar initials={(selectedCustomerRecord?.full_name ?? "CL").slice(0, 2).toUpperCase()} size="lg" tone="sage" /><span><strong>{selectedCustomerRecord?.full_name ?? "Cliente"}</strong><small>{selectedCustomerRecord?.phone_e164 ?? "Sem telefone"}</small></span></div>
-      <StatusChip active={!['CANCELED', 'NO_SHOW', 'EXPIRED'].includes(selected.status)} label={appointmentDisplayStatus(selected).label} tone={appointmentDisplayStatus(selected).tone} />
-      <div className="appointment-detail__info">
-        <span><CalendarDays size={17} /><div><small>Data e horário</small><strong>{formatRange(selected.service_period, timezone)}</strong></div></span>
-        <span><Scissors size={17} /><div><small>Serviço ou pacote</small><strong>{serviceLabel(selected.id)}</strong></div></span>
-        <span><UserRound size={17} /><div><small>Profissional</small><strong>{selectedBarberRecord?.display_name ?? "Profissional"}</strong></div></span>
-        <span><MapPin size={17} /><div><small>Origem</small><strong>{selected.source}</strong></div></span>
+      <div className="appointment-detail__body">
+        <div className="appointment-detail__customer"><Avatar initials={(selectedCustomerRecord?.full_name ?? "CL").slice(0, 2).toUpperCase()} size="lg" tone="sage" /><span><strong>{selectedCustomerRecord?.full_name ?? "Cliente"}</strong><small>{selectedCustomerRecord?.phone_e164 ?? "Sem telefone"}</small></span></div>
+        <StatusChip active={!['CANCELED', 'NO_SHOW', 'EXPIRED'].includes(selected.status)} label={appointmentDisplayStatus(selected).label} tone={appointmentDisplayStatus(selected).tone} />
+        <div className="appointment-detail__info">
+          <span><CalendarDays size={17} /><div><small>Data e horário</small><strong>{formatRange(selected.service_period, timezone)}</strong></div></span>
+          <span><Scissors size={17} /><div><small>Serviço ou pacote</small><strong>{serviceLabel(selected.id)}</strong></div></span>
+          <span><UserRound size={17} /><div><small>Profissional</small><strong>{selectedBarberRecord?.display_name ?? "Profissional"}</strong></div></span>
+          <span><MapPin size={17} /><div><small>Origem</small><strong>{selected.source}</strong></div></span>
+        </div>
+        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span><small>{selectedFinancial?.financial_status === "UNPAID" ? "Pgto Pendente" : selectedFinancial?.financial_status ?? "Pgto Pendente"}</small></div><strong>{formatCents(selected.total_cents_snapshot)}</strong><span>Saldo: {formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}</span></div>
+        {selectedCustomerRecord?.phone_e164 && <div className="appointment-detail__contact"><a href={`https://web.whatsapp.com/send?phone=${selectedCustomerRecord.phone_e164.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a></div>}
       </div>
-      <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span><small>{selectedFinancial?.financial_status ?? "Pendente"}</small></div><strong>{formatCents(selected.total_cents_snapshot)}</strong><span>Saldo: {formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}</span></div>
-      {selectedCustomerRecord?.phone_e164 && <div className="appointment-detail__contact"><a href={`tel:${selectedCustomerRecord.phone_e164}`}><Phone size={17} /> Ligar</a></div>}
       <div className="appointment-detail__actions">
         {["HELD", "PENDING_PAYMENT"].includes(selected.status) && <button type="button" className="button button--soft" onClick={() => confirmWithoutPayment(selected)}>Confirmar sem pagamento</button>}
+        {selected.status === "CONFIRMED" && !["CONFIRMED_BY_WHATSAPP", "CONFIRMED_MANUALLY"].includes(selected.whatsapp_response_status ?? "PENDING") && <button type="button" className="button button--soft" onClick={() => confirmManuallyByWhatsApp(selected)}>Confirmar manualmente</button>}
         {selected.status === "CONFIRMED" && <button type="button" className="button button--dark" onClick={() => transition(selected, "IN_SERVICE")}><Check size={17} /> Iniciar</button>}
         {selected.status === "IN_SERVICE" && <button type="button" className="button button--dark" onClick={() => transition(selected, "COMPLETED")}><Check size={17} /> Concluir</button>}
         {["HELD", "PENDING_PAYMENT", "CONFIRMED"].includes(selected.status) && <button type="button" className="button button--soft" disabled={blocked} onClick={() => setRescheduling(selected)}>Reagendar</button>}
-        {selected.status === "CONFIRMED" && <button type="button" className="button button--soft" onClick={() => transition(selected, "NO_SHOW")}>No-show</button>}
+        {selected.status === "CONFIRMED" && <button type="button" className="button button--soft" onClick={() => transition(selected, "NO_SHOW")}>Não compareceu</button>}
         {["HELD", "PENDING_PAYMENT", "CONFIRMED"].includes(selected.status) && <button type="button" className="button button--soft" onClick={() => cancel(selected)}>Cancelar</button>}
       </div>
-    </aside></>}
+    </section></div>}
 
     {newOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar" onClick={closeCreate} /><form className="form-modal" role="dialog" aria-modal="true" aria-label="Novo agendamento" onSubmit={createAppointment}>
       <div className="form-modal__head"><span><small>Novo agendamento</small><strong>Reserve um horário</strong></span><button type="button" className="icon-button" onClick={closeCreate} aria-label="Fechar"><X size={19} /></button></div>

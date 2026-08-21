@@ -42,6 +42,16 @@ const statusLabels: Record<CustomerAppointment["status"], string> = {
   EXPIRED: "Expirado",
 };
 
+function appointmentStatusLabel(appointment: CustomerAppointment): string {
+  if (appointment.status === "CANCELED" && appointment.whatsapp_response_status === "CANCELED_BY_WHATSAPP") return "Cancelado";
+  if (appointment.status === "CONFIRMED") {
+    if (appointment.whatsapp_response_status === "CONFIRMED_MANUALLY") return "Confirmado Manualmente";
+    if (appointment.whatsapp_response_status === "CONFIRMED_BY_WHATSAPP") return "Confirmado";
+    return "Agendado";
+  }
+  return statusLabels[appointment.status];
+}
+
 export function ConnectedReservations() {
   return <ConnectedClientGate><ReservationsContent /></ConnectedClientGate>;
 }
@@ -256,7 +266,7 @@ function ReservationsContent() {
             <div className={styles.sectionTitle}><Scissors /><div><h2>Histórico</h2><p>Atendimentos e reservas encerradas</p></div></div>
             {!history.length ? <p className={styles.empty}>Histórico vazio.</p> : <div className={styles.history}>{history.map((appointment) => {
               const { startsAt: start } = parsePostgresRange(appointment.service_period);
-              return <article key={appointment.id}><span>{formatInstant(start, timezone, { dateStyle: "medium", timeStyle: undefined })}</span><div><strong>{appointment.items.map((item) => item.service_name_snapshot).join(" + ") || "Reserva"}</strong><small>{context.barbers.find((item) => item.id === appointment.barber_id)?.name ?? "Profissional"}</small></div><b data-status={appointment.status}>{statusLabels[appointment.status]}</b><em>{formatMoney(appointment.total_cents_snapshot, appointment.currency)}</em></article>;
+              return <article key={appointment.id}><span>{formatInstant(start, timezone, { dateStyle: "medium", timeStyle: undefined })}</span><div><strong>{appointment.items.map((item) => item.service_name_snapshot).join(" + ") || "Reserva"}</strong><small>{context.barbers.find((item) => item.id === appointment.barber_id)?.name ?? "Profissional"}</small></div><b data-status={appointment.status}>{appointmentStatusLabel(appointment)}</b><em>{formatMoney(appointment.total_cents_snapshot, appointment.currency)}</em></article>;
             })}</div>}
           </section>
         </>
@@ -274,5 +284,5 @@ function ReservationCard({ appointment, timezone, barberName, onCancel, onResche
   const canCancel = ["HELD", "PENDING_PAYMENT", "CONFIRMED"].includes(appointment.status);
   const canReschedule = canCustomerReschedule(appointment.status, startsAt, appointment.cancellation_lead_minutes_snapshot, acceptingBookings);
   const canResumePayment = appointment.status === "PENDING_PAYMENT" && Boolean(appointment.pending_payment_order_id);
-  return <article className={styles.reservationCard}><header><span data-status={appointment.status}><Check size={13} /> {statusLabels[appointment.status]}</span><small>{appointment.financial.financial_status.replaceAll("_", " ")}</small></header><div className={styles.reservationBody}><div className={styles.dateBox}><strong>{new Intl.DateTimeFormat("pt-BR", { timeZone: timezone, day: "2-digit" }).format(new Date(startsAt))}</strong><span>{new Intl.DateTimeFormat("pt-BR", { timeZone: timezone, month: "short" }).format(new Date(startsAt))}</span></div><div><h2>{appointment.items.map((item) => item.service_name_snapshot).join(" + ") || "Reserva"}</h2><p><Clock3 size={15} /> {formatSlotTime(startsAt, timezone)}–{formatSlotTime(endsAt, timezone)} · {barberName}</p><small>{formatInstant(startsAt, timezone, { dateStyle: "full", timeStyle: undefined })}</small></div><dl><div><dt>Total</dt><dd>{formatMoney(appointment.total_cents_snapshot, appointment.currency)}</dd></div><div><dt>Pago líquido</dt><dd>{formatMoney(appointment.financial.net_paid_cents, appointment.currency)}</dd></div><div><dt>Saldo</dt><dd>{formatMoney(appointment.financial.outstanding_cents, appointment.currency)}</dd></div></dl></div>{(canCancel || canReschedule || canResumePayment) && <footer>{canCancel && <button type="button" className={styles.textButton} onClick={onCancel}>Cancelar</button>}{canReschedule && <button type="button" className={styles.secondaryButton} onClick={onReschedule}><RotateCcw size={15} /> Reagendar</button>}{canResumePayment && <button type="button" className={styles.primaryButton} disabled={paymentBusy} onClick={onResumePayment}>{paymentBusy ? "Abrindo…" : "Retomar pagamento"}</button>}</footer>}</article>;
+  return <article className={styles.reservationCard}><header><span data-status={appointment.status}><Check size={13} /> {appointmentStatusLabel(appointment)}</span><small>{appointment.financial.financial_status.replaceAll("_", " ")}</small></header><div className={styles.reservationBody}><div className={styles.dateBox}><strong>{new Intl.DateTimeFormat("pt-BR", { timeZone: timezone, day: "2-digit" }).format(new Date(startsAt))}</strong><span>{new Intl.DateTimeFormat("pt-BR", { timeZone: timezone, month: "short" }).format(new Date(startsAt))}</span></div><div><h2>{appointment.items.map((item) => item.service_name_snapshot).join(" + ") || "Reserva"}</h2><p><Clock3 size={15} /> {formatSlotTime(startsAt, timezone)}–{formatSlotTime(endsAt, timezone)} · {barberName}</p><small>{formatInstant(startsAt, timezone, { dateStyle: "full", timeStyle: undefined })}</small></div><dl><div><dt>Total</dt><dd>{formatMoney(appointment.total_cents_snapshot, appointment.currency)}</dd></div><div><dt>Pago líquido</dt><dd>{formatMoney(appointment.financial.net_paid_cents, appointment.currency)}</dd></div><div><dt>Saldo</dt><dd>{formatMoney(appointment.financial.outstanding_cents, appointment.currency)}</dd></div></dl></div>{(canCancel || canReschedule || canResumePayment) && <footer>{canCancel && <button type="button" className={styles.textButton} onClick={onCancel}>Cancelar</button>}{canReschedule && <button type="button" className={styles.secondaryButton} onClick={onReschedule}><RotateCcw size={15} /> Reagendar</button>}{canResumePayment && <button type="button" className={styles.primaryButton} disabled={paymentBusy} onClick={onResumePayment}>{paymentBusy ? "Abrindo…" : "Retomar pagamento"}</button>}</footer>}</article>;
 }
