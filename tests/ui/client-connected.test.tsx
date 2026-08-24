@@ -571,10 +571,20 @@ describe("cliente conectado", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Corte/u })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
 
-    expect(await screen.findByRole("button", { name: /Diego/u })).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: /Diego/u })[0]);
-    fireEvent.click(await screen.findByRole("button", { name: /todos os profissionais/u }));
-    expect(screen.getByText(/Disponíveis nesta data/u)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Quem vai cuidar de você?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Primeiro horário livre/u }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByRole("heading", { name: "Quando fica melhor?" })).toBeInTheDocument();
+    const availableSlot = await screen.findByRole("button", { name: /09:00.*Diego/u });
+    fireEvent.click(availableSlot);
+    expect(screen.getByRole("status")).toHaveTextContent("Seu atendimento será com Diego");
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByRole("heading", { name: "Revise e agende" })).toBeInTheDocument();
+    expect(screen.getByText("Resumo do agendamento")).toBeInTheDocument();
+    expect(screen.getAllByText("Diego").length).toBeGreaterThan(0);
+    expect(screen.getByRole("list", { name: "Etapa 4 de 4" })).toBeInTheDocument();
   });
 
   it("salva o perfil global e mantém o e-mail sob gestão da autenticação", async () => {
