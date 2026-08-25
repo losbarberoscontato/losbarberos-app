@@ -55,3 +55,20 @@ export function clientAuthDestination(input: {
   const query = params.toString();
   return query ? `${destination}?${query}` : destination;
 }
+
+export function clientOAuthCompletionDestination(input: {
+  next?: string | null;
+  slug?: string | null;
+}): string {
+  const destination = new URL(clientAuthDestination(input), "https://cliente.local");
+  const nextParams = new URLSearchParams(destination.searchParams);
+  nextParams.delete("barbearia");
+  const nextQuery = nextParams.toString();
+  const params = new URLSearchParams({
+    oauth: "complete",
+    next: nextQuery ? `${destination.pathname}?${nextQuery}` : destination.pathname,
+  });
+  const slug = destination.searchParams.get("barbearia");
+  if (slug) params.set("barbearia", slug);
+  return `/cliente/entrar?${params.toString()}`;
+}

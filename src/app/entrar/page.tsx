@@ -1,36 +1,55 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, CalendarCheck2, CircleCheck, MessageCircle, ShieldCheck } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { DemoLogin } from "@/components/demo-login";
 import { hasSupabaseConfig } from "@/lib/env";
+import {
+  resolveSystemAuthDestination,
+  resolveSystemAuthMode,
+} from "@/lib/system-auth";
 
 export const metadata: Metadata = { title: "Entrar" };
 
-export default function LoginPage() {
+type LoginSearchParams = Promise<{
+  modo?: string | string[];
+  next?: string | string[];
+}>;
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: LoginSearchParams;
+}) {
+  const params = await searchParams;
+  const initialMode = resolveSystemAuthMode(params.modo);
+  const nextPath = resolveSystemAuthDestination(params.next);
+
   return (
-    <main className="login-page">
-      <section className="login-story">
-        <div className="login-story__pattern" />
+    <main className="system-login-page">
+      <header className="system-login-page__header">
         <Brand light />
-        <div className="login-story__content">
-          <span className="hero-pill"><CircleCheck size={15} /> ambiente demonstrativo</span>
-          <h2>Um dia organizado começa antes da primeira tesourada.</h2>
-          <p>Veja sua agenda, antecipe recebimentos e mantenha cada cliente por perto.</p>
-          <div className="login-story__cards">
-            <div><span><CalendarCheck2 size={18} /></span><strong>12 agendamentos</strong><small>9 já confirmados hoje</small></div>
-            <div><span><MessageCircle size={18} /></span><strong>Lembretes automáticos</strong><small>Menos faltas, mais previsibilidade</small></div>
-            <div><span><ShieldCheck size={18} /></span><strong>Operação protegida</strong><small>Dados isolados por barbearia</small></div>
-          </div>
+        <Link className="system-login-page__back" href="/">
+          <ArrowLeft size={17} /> Voltar ao início
+        </Link>
+      </header>
+
+      <section className="system-login-page__main" aria-label="Acesso ao sistema">
+        <div className="system-login-panel">
+          <DemoLogin
+            demoMode={!hasSupabaseConfig}
+            initialMode={initialMode}
+            nextPath={nextPath}
+          />
         </div>
-        <small className="login-story__quote">“Simples de usar. Difícil imaginar a barbearia sem.”</small>
       </section>
-      <section className="login-form-side">
-        <div className="login-mobile-head"><Brand /><Link href="/"><ArrowLeft size={16} /> Início</Link></div>
-        <Link className="login-back" href="/"><ArrowLeft size={16} /> Voltar para o início</Link>
-        <DemoLogin demoMode={!hasSupabaseConfig} />
-        <small className="login-legal">Ao continuar, você concorda com os Termos de Uso e a Política de Privacidade.</small>
-      </section>
+
+      <footer className="system-login-page__footer">
+        <span>© Los Barberos</span>
+        <span>
+          Ao continuar, você concorda com os <Link href="/termos">Termos de Uso</Link> e a <Link href="/privacidade">Política de Privacidade</Link>.
+        </span>
+      </footer>
     </main>
   );
 }

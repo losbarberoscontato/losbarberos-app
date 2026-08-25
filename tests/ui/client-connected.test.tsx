@@ -6,6 +6,7 @@ import { ConnectedClientHome } from "@/components/connected-client/home";
 import { ConnectedBooking } from "@/components/connected-client/booking";
 import { ConnectedProfile } from "@/components/connected-client/profile";
 import ClientPasswordResetPage from "@/app/cliente/redefinir-senha/page";
+import ClientEntryPage from "@/app/cliente/entrar/page";
 import PublicBarbershopPage from "@/app/b/[slug]/page";
 import { filterByAudience } from "@/lib/catalog-audiences";
 import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/state";
@@ -24,6 +25,7 @@ const authMocks = vi.hoisted(() => ({
   client: null as {
     auth: {
       signUp: ReturnType<typeof vi.fn>;
+      signInWithOAuth: ReturnType<typeof vi.fn>;
       signInWithPassword: ReturnType<typeof vi.fn>;
       resetPasswordForEmail: ReturnType<typeof vi.fn>;
       resend: ReturnType<typeof vi.fn>;
@@ -31,7 +33,7 @@ const authMocks = vi.hoisted(() => ({
       exchangeCodeForSession: ReturnType<typeof vi.fn>;
       signOut: ReturnType<typeof vi.fn>;
       updateUser: ReturnType<typeof vi.fn>;
-      getUser?: ReturnType<typeof vi.fn>;
+      getUser: ReturnType<typeof vi.fn>;
       onAuthStateChange?: ReturnType<typeof vi.fn>;
     };
     rpc: ReturnType<typeof vi.fn>;
@@ -343,6 +345,7 @@ describe("cliente conectado", () => {
     authMocks.client = {
       auth: {
         signUp: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" }, session: null }, error: null }),
+        signInWithOAuth: vi.fn().mockResolvedValue({ data: { provider: "google", url: "https://accounts.google.test" }, error: null }),
         signInWithPassword: vi.fn().mockResolvedValue({
           data: {
             user: {
@@ -371,6 +374,16 @@ describe("cliente conectado", () => {
         }),
         signOut: vi.fn().mockResolvedValue({ error: null }),
         updateUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null }),
+        getUser: vi.fn().mockResolvedValue({
+          data: {
+            user: {
+              id: "user-1",
+              email: "ana@example.com",
+              user_metadata: { full_name: "Ana Souza" },
+            },
+          },
+          error: null,
+        }),
       },
       rpc: vi.fn().mockResolvedValue({ data: "account-1", error: null }),
     };
@@ -492,7 +505,7 @@ describe("cliente conectado", () => {
     expect(from).not.toHaveBeenCalledWith("customers");
   });
 
-  it("oferece login por e-mail com slug preservado sem criar vínculo", async () => {
+  it("oferece Google ou e-mail com slug preservado sem criar vínculo", async () => {
     const { from, rpc } = installProviderClient({ authenticated: false });
 
     render(
@@ -503,10 +516,11 @@ describe("cliente conectado", () => {
       </ConnectedClientProvider>,
     );
 
-    expect(await screen.findByRole("link", { name: "Entrar com e-mail" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Entrar ou criar conta" })).toHaveAttribute(
       "href",
       "/cliente/entrar?barbearia=barbearia-real",
     );
+    expect(screen.getByText("Use Google ou e-mail. Sua sessão é protegida pelo Supabase.")).toBeVisible();
     expect(from).not.toHaveBeenCalled();
     expect(rpc.mock.calls.filter(([name]) => name === "link_my_client_to_organization")).toHaveLength(0);
   });
@@ -654,12 +668,12 @@ describe("cliente conectado", () => {
     expect(authMocks.redirect).toHaveBeenCalledWith("/cliente?barbearia=barbearia%20real");
   });
 
-  it("separa entrar de criar conta, com campos completos e sem Google", () => {
+  it("separa entrar de criar conta e oferece Google nos dois modos", () => {
     render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente/agendar" />);
 
     expect(screen.getByRole("heading", { name: "Acesse sua barbearia" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Entrar" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryByText("Continuar com Google")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continuar com Google" })).toBeEnabled();
 
     fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
 
@@ -669,6 +683,69 @@ describe("cliente conectado", () => {
     expect(screen.getByLabelText("Data de nascimento")).toHaveAttribute("type", "text");
     expect(screen.getByLabelText("Data de nascimento")).toHaveAttribute("inputmode", "numeric");
     expect(screen.getByLabelText("Aceito os termos de uso e a política de privacidade")).toBeRequired();
+    expect(screen.getByText("Avisos no WhatsApp começam ativos.")).toBeInTheDocument();
+  });
+
+  it("inicia Google com callback allowlisted e contexto da barbearia", async () => {
+    render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente/agendar" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuar com Google" }));
+
+    await waitFor(() => expect(authMocks.client?.auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: {
+        redirectTo: "http://localhost:3000/auth/callback?next=%2Fcliente%2Fagendar&barbearia=barbearia-real&provider=google",
+      },
+    }));
+  });
+
+  it("preserva o contexto validado do horário ao iniciar Google", async () => {
+    render(await ClientEntryPage({
+      searchParams: Promise.resolve({
+        barbearia: "barbearia-real",
+        next: "/cliente/agendar?barbeiro=00000000-0000-4000-8000-000000000002&horario=2026-08-11T13%3A15%3A00.000Z&admin=true",
+      }),
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuar com Google" }));
+
+    await waitFor(() => expect(authMocks.client?.auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: {
+        redirectTo: "http://localhost:3000/auth/callback?next=%2Fcliente%2Fagendar%3Fbarbeiro%3D00000000-0000-4000-8000-000000000002%26horario%3D2026-08-11T13%253A15%253A00.000Z&barbearia=barbearia-real&provider=google",
+      },
+    }));
+  });
+
+  it("exige WhatsApp, nascimento e termos no primeiro acesso Google", async () => {
+    authMocks.client!.from = vi.fn(() => queryResult(null));
+    render(
+      <ClientAuthForm
+        initialSlug="barbearia-real"
+        initialNext="/cliente/agendar"
+        oauthCompletion
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Validando sua conta Google");
+    expect(await screen.findByRole("heading", { name: "Complete seu cadastro" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Nome completo")).toHaveValue("Ana Souza");
+    expect(screen.getByLabelText("Telefone (E.164)")).toBeRequired();
+    expect(screen.getByLabelText("Data de nascimento")).toBeRequired();
+    expect(screen.queryByLabelText("E-mail")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Telefone (E.164)"), { target: { value: "47999782545" } });
+    fireEvent.change(screen.getByLabelText("Data de nascimento"), { target: { value: "10/02/1990" } });
+    fireEvent.click(screen.getByLabelText("Aceito os termos de uso e a política de privacidade"));
+    fireEvent.submit(screen.getByRole("form", { name: "Completar cadastro" }));
+
+    await waitFor(() => expect(authMocks.client?.rpc).toHaveBeenCalledWith("upsert_my_client_account", {
+      p_full_name: "Ana Souza",
+      p_phone_e164: "+5547999782545",
+      p_birth_date: "1990-02-10",
+      p_terms_policy_version: "client-access-2026-08",
+    }));
+    expect(authMocks.push).toHaveBeenCalledWith("/cliente/agendar?barbearia=barbearia-real");
   });
 
   it("restaura última barbearia vinculada ao entrar sem slug", async () => {

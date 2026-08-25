@@ -18,7 +18,11 @@ port = 54323
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://127.0.0.1:3000/auth/callback"]
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback**",
+  "http://127.0.0.1:3000/auth/callback**",
+  "https://losbarberos-app.vercel.app/auth/callback**",
+]
 jwt_expiry = 3600
 enable_signup = true
 

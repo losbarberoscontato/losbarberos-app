@@ -142,7 +142,7 @@ O botão da agenda usa a RPC `confirm_appointment_manually_by_whatsapp` quando d
 - marcar resposta `CONFIRMED_MANUALLY`;
 - enfileirar texto para cliente e profissional.
 
-**Estado de publicação atual:** a migration local `20260821115548_whatsapp_agenda_response_statuses.sql` ainda precisa ser aplicada e o `whatsapp-v2-dispatcher` publicado antes de considerar este fluxo disponível em produção.
+**Estado de publicação verificado em 25/08/2026:** as migrations estão sincronizadas até `20260821145726` e o `whatsapp-v2-dispatcher` está `ACTIVE` na versão 13. Isso prova estrutura publicada, não entrega real no aparelho; a validação E2E de recebimento continua pendente.
 
 ## Estados e regras de agenda
 

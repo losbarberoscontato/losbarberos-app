@@ -3,15 +3,27 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { GoogleMark } from "@/components/google-mark";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  resolveSystemAuthDestination,
+  systemLoginHref,
+  type SystemAuthMode,
+} from "@/lib/system-auth";
 
-type DemoRole = "manager" | "customer" | "admin";
-
-export function DemoLogin({ demoMode = false }: { demoMode?: boolean }) {
+export function DemoLogin({
+  demoMode = false,
+  initialMode = "signin",
+  nextPath = "/gestor",
+}: {
+  demoMode?: boolean;
+  initialMode?: SystemAuthMode;
+  nextPath?: string;
+}) {
   const router = useRouter();
-  const [role, setRole] = useState<DemoRole>("manager");
+  const destination = resolveSystemAuthDestination(nextPath);
   const [showPassword, setShowPassword] = useState(false);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authMode, setAuthMode] = useState<SystemAuthMode>(initialMode);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [authNotice, setAuthNotice] = useState("");
@@ -22,14 +34,11 @@ export function DemoLogin({ demoMode = false }: { demoMode?: boolean }) {
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const supabase = getSupabaseBrowserClient();
+    const postAuthDestination = authMode === "signup" ? "/onboarding" : destination;
     setLoading(true);
-    const routes: Record<DemoRole, string> = {
-      manager: "/onboarding",
-      customer: "/cliente/agendar",
-      admin: "/admin",
-    };
+
     if (!supabase) {
-      window.setTimeout(() => router.push(routes[role]), 350);
+      window.setTimeout(() => router.push(postAuthDestination), 350);
       return;
     }
 
@@ -37,7 +46,9 @@ export function DemoLogin({ demoMode = false }: { demoMode?: boolean }) {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/onboarding")}` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/onboarding")}`,
+        },
       });
       setLoading(false);
       if (error) {
@@ -54,25 +65,25 @@ export function DemoLogin({ demoMode = false }: { demoMode?: boolean }) {
       setAuthNotice("E-mail ou senha inválidos. Confirme o e-mail da conta e tente novamente.");
       return;
     }
-    router.push(routes[role]);
+    router.push(destination);
   }
 
   async function continueWithGoogle() {
-    const routes: Record<DemoRole, string> = {
-      manager: "/onboarding",
-      customer: "/cliente/agendar",
-      admin: "/admin",
-    };
+    const postAuthDestination = authMode === "signup" ? "/onboarding" : destination;
     const supabase = getSupabaseBrowserClient();
 
     if (!supabase) {
       setAuthNotice("Supabase não configurado. Abrindo a demonstração local.");
-      window.setTimeout(() => router.push(routes[role]), 450);
+      window.setTimeout(() => router.push(postAuthDestination), 450);
       return;
     }
 
     setOauthLoading(true);
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(routes[role])}`;
+    const params = new URLSearchParams({
+      next: postAuthDestination,
+      provider: "google",
+    });
+    const redirectTo = `${window.location.origin}/auth/callback?${params.toString()}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },
@@ -84,42 +95,82 @@ export function DemoLogin({ demoMode = false }: { demoMode?: boolean }) {
     }
   }
 
+  function toggleAuthMode() {
+    const nextMode = authMode === "signin" ? "signup" : "signin";
+    setAuthMode(nextMode);
+    setAuthNotice("");
+    router.replace(systemLoginHref(nextMode, destination), { scroll: false });
+  }
+
+  const isSignup = authMode === "signup";
+
   return (
     <div className="login-card">
-      <div className="login-role-switch" role="tablist" aria-label="Perfil de demonstração">
-        <button type="button" role="tab" aria-selected={role === "manager"} onClick={() => setRole("manager")}>Gestor</button>
-        <button type="button" role="tab" aria-selected={role === "customer"} onClick={() => setRole("customer")}>Cliente</button>
-        <button type="button" role="tab" aria-selected={role === "admin"} onClick={() => setRole("admin")}>Admin</button>
-      </div>
       <div className="login-card__heading">
-        <span className="login-card__welcome">Que bom ter você aqui</span>
-        <h1>{role === "manager" ? "Entre na sua barbearia" : role === "customer" ? "Cuide do seu horário" : "Acesse o control plane"}</h1>
-        <p>{role === "manager" ? "Acompanhe sua operação em tempo real." : role === "customer" ? "Agende, acompanhe e gerencie suas reservas." : "Ambiente restrito aos administradores Los Barberos."}</p>
+        <h1>{isSignup ? "Crie sua barbearia" : "Entre na sua barbearia"}</h1>
+        <p>
+          {isSignup
+            ? "Configure sua operação e comece seus 14 dias grátis."
+            : "Acompanhe sua operação em tempo real."}
+        </p>
       </div>
 
       <button className="google-button" type="button" onClick={continueWithGoogle} disabled={oauthLoading}>
-        <span className="google-mark">G</span>
+        <GoogleMark />
         {oauthLoading ? "Abrindo Google..." : "Continuar com Google"}
       </button>
-      {authNotice && <p className="login-notice" role="status">{authNotice}</p>}
-      <>{demoMode && <div className="login-divider"><span>ou use os dados demo</span></div>}
 
-      <form onSubmit={submit}>
-        <label>
+      {authNotice && <p className="login-notice" role="status">{authNotice}</p>}
+      {demoMode && <div className="login-divider"><span>ou use os dados demo</span></div>}
+
+      <form onSubmit={submit} aria-label={isSignup ? "Criar conta" : "Entrar"}>
+        <label htmlFor="system-auth-email">
           E-mail
-          <span className="input-shell"><Mail size={18} /><input name="email" type="email" defaultValue="" required autoComplete="email" /></span>
+          <span className="input-shell">
+            <Mail size={19} />
+            <input
+              id="system-auth-email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+            />
+          </span>
         </label>
-        <label>
-          <span className="label-row"><span>Senha</span><button type="button">Esqueci minha senha</button></span>
-          <span className="input-shell"><LockKeyhole size={18} /><input name="password" type={showPassword ? "text" : "password"} defaultValue="" required minLength={4} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>
+        <label htmlFor="system-auth-password">
+          Senha
+          <span className="input-shell">
+            <LockKeyhole size={19} />
+            <input
+              id="system-auth-password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              minLength={4}
+              autoComplete={isSignup ? "new-password" : "current-password"}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+            >
+              {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+            </button>
+          </span>
         </label>
         <button className="button button--dark button--block login-submit" type="submit" disabled={loading}>
-          {loading ? "Aguarde..." : authMode === "signup" ? "Criar conta" : demoMode ? "Entrar na demonstração" : "Entrar"}<ArrowRight size={17} />
+          {loading ? "Aguarde..." : isSignup ? "Criar conta" : demoMode ? "Entrar na demonstração" : "Entrar"}
+          <ArrowRight size={18} />
         </button>
       </form>
-      {!demoMode && <><p className="login-real-mode"><ShieldCheck size={16} /><span><strong>{authMode === "signup" ? "Crie sua conta de gestor" : "Acesso seguro por e-mail"}</strong><small>Você receberá um link de confirmação no primeiro cadastro.</small></span></p>{role === "manager" && <button type="button" className="login-mode-switch" onClick={() => { setAuthMode((mode) => mode === "signin" ? "signup" : "signin"); setAuthNotice(""); }}>{authMode === "signup" ? "Já tenho conta. Entrar" : "Ainda não tenho conta. Criar conta"}</button>}</>}
-      </>
-      <p className="login-security"><ShieldCheck size={15} /> Seus dados protegidos com criptografia e isolamento por barbearia.</p>
+
+      <button type="button" className="login-mode-switch" onClick={toggleAuthMode}>
+        {isSignup ? "Já tenho conta. Entrar" : "Ainda não tenho conta. Criar conta"}
+      </button>
+
+      <p className="login-security">
+        <ShieldCheck size={16} /> Seus dados protegidos com criptografia e isolamento por barbearia.
+      </p>
     </div>
   );
 }

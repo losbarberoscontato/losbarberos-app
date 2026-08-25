@@ -48,6 +48,49 @@ describe("OAuth callback return path", () => {
     );
   });
 
+  it("routes Google client access through required profile completion", async () => {
+    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+
+    const response = await GET(
+      new Request(
+        "https://app.example/auth/callback?code=code&next=%2Fcliente%2Fagendar&barbearia=Barbearia-Real&provider=google",
+      ) as NextRequest,
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.example/cliente/entrar?oauth=complete&next=%2Fcliente%2Fagendar&barbearia=barbearia-real",
+    );
+  });
+
+  it("preserves validated booking context through Google profile completion", async () => {
+    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+    const next = "/cliente/agendar?barbeiro=00000000-0000-4000-8000-000000000002&horario=2026-08-11T13%3A15%3A00.000Z";
+    const url = new URL("https://app.example/auth/callback");
+    url.searchParams.set("code", "code");
+    url.searchParams.set("next", next);
+    url.searchParams.set("barbearia", "barbearia-real");
+    url.searchParams.set("provider", "google");
+
+    const response = await GET(new Request(url) as NextRequest);
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.example/cliente/entrar?oauth=complete&next=%2Fcliente%2Fagendar%3Fbarbeiro%3D00000000-0000-4000-8000-000000000002%26horario%3D2026-08-11T13%253A15%253A00.000Z&barbearia=barbearia-real",
+    );
+  });
+
+  it("ignores duplicated provider context", async () => {
+    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+    const url = new URL("https://app.example/auth/callback");
+    url.searchParams.set("code", "code");
+    url.searchParams.set("next", "/cliente/agendar");
+    url.searchParams.append("provider", "google");
+    url.searchParams.append("provider", "google");
+
+    const response = await GET(new Request(url) as NextRequest);
+
+    expect(response.headers.get("location")).toBe("https://app.example/cliente/agendar");
+  });
+
   it("does not admit the password reset screen through the server callback", async () => {
     exchangeCodeForSession.mockResolvedValueOnce({ error: null });
 

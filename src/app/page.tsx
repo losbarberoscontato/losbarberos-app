@@ -57,8 +57,8 @@ export default function HomePage() {
             <a href="#preco">Preço</a>
           </nav>
           <div className="landing-nav__actions">
-            <Link href="/entrar" className="button button--ghost">Entrar</Link>
-            <Link href="/entrar" className="button button--dark">Começar grátis <ArrowRight size={16} /></Link>
+            <Link href="/entrar?modo=login" className="button button--ghost">Entrar</Link>
+            <Link href="/entrar?modo=cadastro" className="button button--dark">Começar grátis <ArrowRight size={16} /></Link>
           </div>
         </div>
       </header>
@@ -72,7 +72,7 @@ export default function HomePage() {
               <h1>Sua barbearia cheia.<br /><em>Sua rotina leve.</em></h1>
               <p>Agenda, clientes, pagamentos e equipe em um sistema que parece feito sob medida para sua barbearia.</p>
               <div className="landing-hero__actions">
-                <Link href="/entrar" className="button button--accent button--lg">
+                <Link href="/entrar?modo=cadastro" className="button button--accent button--lg">
                   Testar agora <ArrowRight size={18} />
                 </Link>
                 <Link href="/cliente/agendar" className="button button--hero-ghost button--lg">
@@ -145,7 +145,7 @@ export default function HomePage() {
                     <span className="feature-card__icon"><Icon size={23} /></span>
                     <h3>{feature.title}</h3>
                     <p>{feature.text}</p>
-                    <Link href="/entrar">Explorar recurso <ChevronRight size={15} /></Link>
+                    <Link href="/entrar?modo=cadastro">Explorar recurso <ChevronRight size={15} /></Link>
                   </article>
                 );
               })}
@@ -219,7 +219,7 @@ export default function HomePage() {
               <ul>
                 {["Agenda online e painel completo", "PWA personalizada para clientes", "Pagamentos e sinal online", "WhatsApp transacional", "Comissões e relatórios", "Suporte humano em português"].map((item) => <li key={item}><CircleCheck size={17} />{item}</li>)}
               </ul>
-              <Link href="/entrar" className="button button--accent button--block">Começar 14 dias grátis <ArrowRight size={17} /></Link>
+              <Link href="/entrar?modo=cadastro" className="button button--accent button--block">Começar 14 dias grátis <ArrowRight size={17} /></Link>
               <small>Não pedimos compromisso. Cancele quando quiser.</small>
             </article>
           </div>
@@ -230,7 +230,7 @@ export default function HomePage() {
           <div className="landing-container">
             <span><Zap size={17} /> Pronto para organizar a casa?</span>
             <h2>Sua melhor semana na barbearia pode começar hoje.</h2>
-            <Link href="/entrar" className="button button--accent button--lg">Criar minha barbearia <ArrowRight size={18} /></Link>
+            <Link href="/entrar?modo=cadastro" className="button button--accent button--lg">Criar minha barbearia <ArrowRight size={18} /></Link>
           </div>
         </section>
       </main>

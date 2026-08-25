@@ -91,8 +91,8 @@ export function AuthPrompt({ description }: { description: string }) {
       <UserMark />
       <h2>Entre para continuar</h2>
       <p>{description}</p>
-      <Link href={href} className={styles.primaryButton}>Entrar com e-mail</Link>
-      <small>Autenticação por e-mail e senha protegida pelo Supabase.</small>
+      <Link href={href} className={styles.primaryButton}>Entrar ou criar conta</Link>
+      <small>Use Google ou e-mail. Sua sessão é protegida pelo Supabase.</small>
     </section>
   );
 }

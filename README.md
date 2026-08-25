@@ -63,7 +63,7 @@ npx supabase db reset
 - Dinheiro usa centavos inteiros; ledgers são append-only.
 - Service worker não cacheia navegação, APIs, auth ou dados privados.
 
-Detalhes: [arquitetura](docs/architecture.md), [segurança](docs/security.md), [QA](docs/qa.md) e [Módulo WhatsApp Evolution](docs/whatsapp-evolution-module.md).
+Detalhes: [arquitetura](docs/architecture.md), [segurança](docs/security.md), [QA](docs/qa.md), [Google OAuth](docs/google-oauth-setup.md) e [Módulo WhatsApp Evolution](docs/whatsapp-evolution-module.md).
 
 ## Módulos de integração
 

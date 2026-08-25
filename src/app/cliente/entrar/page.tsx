@@ -7,6 +7,7 @@ export const metadata: Metadata = { title: "Entrar" };
 type ClientEntrySearchParams = Promise<{
   barbearia?: string | string[];
   next?: string | string[];
+  oauth?: string | string[];
 }>;
 
 function singleValue(value: string | string[] | undefined): string | null {
@@ -27,8 +28,9 @@ export default async function ClientEntryPage({
 
   return (
     <ClientAuthForm
-      initialNext={resolved.pathname}
+      initialNext={`${resolved.pathname}${resolved.search}`}
       initialSlug={resolved.searchParams.get("barbearia")}
+      oauthCompletion={singleValue(input.oauth) === "complete"}
     />
   );
 }

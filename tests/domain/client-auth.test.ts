@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientAuthDestination, clientSignupSchema } from "@/lib/client-auth";
+import { clientAuthDestination, clientOAuthCompletionDestination, clientSignupSchema } from "@/lib/client-auth";
 
 describe("clientAuthDestination", () => {
   it.each([
@@ -44,6 +44,24 @@ describe("clientAuthDestination", () => {
       slug: "barbearia-real",
     })).toBe(
       "/cliente/agendar?barbearia=barbearia-real&barbeiro=00000000-0000-4000-8000-000000000002&horario=2026-08-11T13%3A15%3A00.000Z",
+    );
+  });
+
+  it("routes Google first access through required client completion", () => {
+    expect(clientOAuthCompletionDestination({
+      next: "/cliente/reservas",
+      slug: " Barbearia-Real ",
+    })).toBe(
+      "/cliente/entrar?oauth=complete&next=%2Fcliente%2Freservas&barbearia=barbearia-real",
+    );
+  });
+
+  it("preserves validated booking context through Google completion", () => {
+    expect(clientOAuthCompletionDestination({
+      next: "/cliente/agendar?barbeiro=00000000-0000-4000-8000-000000000002&horario=2026-08-11T13%3A15%3A00.000Z&admin=true",
+      slug: "barbearia-real",
+    })).toBe(
+      "/cliente/entrar?oauth=complete&next=%2Fcliente%2Fagendar%3Fbarbeiro%3D00000000-0000-4000-8000-000000000002%26horario%3D2026-08-11T13%253A15%253A00.000Z&barbearia=barbearia-real",
     );
   });
 });

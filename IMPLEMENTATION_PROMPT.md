@@ -2,57 +2,97 @@
 
 Estamos continuando o projeto Los Barberos em `D:\Display SH\Los Barberos`.
 
-Objetivo imediato: validar em produção o fluxo QR Web/Evolution de confirmação, lembretes de 6 horas e 45 minutos e respostas numéricas. Preserve dados existentes, tenant scope e a separação entre demo e fluxo conectado ao Supabase.
+Assuma o volante técnico para investigar e implementar os próximos relatos funcionais ou visuais. Preserve dados existentes, tenant scope, histórico financeiro e a separação entre demo e fluxo conectado ao Supabase. Código, migrations, testes, documentação e estado remoto verificado são fonte de verdade; não use somente o histórico do chat.
+
+## Ambiente localhost obrigatório
+
+Para novas implementações e correções, trabalhar primeiro em localhost:
+
+```powershell
+cd "D:\Display SH\Los Barberos"
+npm.cmd run dev
+```
+
+- Use `http://localhost:3000` e o hot reload do Next.js. A primeira compilação Turbopack pode demorar.
+- Use a `.env.local` existente conectada ao Supabase real. Confirme apenas os nomes das variáveis; nunca imprima valores.
+- Sem configuração Supabase, o app entra em demo. Demo nunca grava e não serve como prova de fluxo conectado.
+- Não subir Evolution API, Docker, VPS, webhook ou serviços WhatsApp locais. Preserve toda infraestrutura Evolution/Edge Functions de produção.
+- Se a porta `3000` já estiver ocupada por um `next dev` deste projeto, use esse servidor. Não inicie instância duplicada.
+- Antes de `npm.cmd run verify`/build, finalize o dev server se houver conflito com `.next`; reinicie-o depois quando a validação visual continuar.
+- OAuth local está autorizado pelos callbacks `http://localhost:3000/auth/callback**` e `http://127.0.0.1:3000/auth/callback**` no Supabase remoto.
+- No Windows use `npm.cmd` e `npx.cmd`.
 
 ## Preflight obrigatório
 
-1. Leia integralmente `AGENTS.md`, `HANDOFF.md`, `README.md`, este `IMPLEMENTATION_PROMPT.md` e `docs/architecture.md`.
-2. Confirme `git status --short`, branch, remote, SHA de `origin/main` e commits locais/remotos.
+1. Leia integralmente `AGENTS.md`, `HANDOFF.md`, `README.md`, este `IMPLEMENTATION_PROMPT.md`, `docs/architecture.md`, `docs/NEXT_CONVERSATION_PROMPT.md` e, conforme o escopo, `docs/google-oauth-setup.md` ou `docs/whatsapp-evolution-module.md`.
+2. Confirme `git status --short`, branch, remote, SHA local, SHA de `origin/main` e divergência local/remota. Preserve mudanças não relacionadas.
 3. Confirme `npx.cmd supabase migration list --linked`.
-4. Faça smoke em `https://losbarberos-app.vercel.app/entrar`.
-5. Use código, migrations, testes e estado remoto verificado como fonte de verdade.
-6. Nunca exponha secrets, tokens, cookies ou headers de autorização.
+4. Se tocar WhatsApp/Edge Functions, confirme `npx.cmd supabase functions list --project-ref bwdjkhqshmppescunwer`.
+5. Faça smoke em `https://losbarberos-app.vercel.app/` e `/entrar`; rota protegida `/gestor` deve redirecionar sem sessão.
+6. Nunca exponha secrets, tokens, senhas, cookies, chaves ou headers de autorização.
 
-## Baseline atual
+## Sistemas conectados
 
-- GitHub: `https://github.com/losbarberoscontato/losbarberos-app`; confirmar branch/SHA no preflight.
-- Vercel: `https://losbarberos-app.vercel.app`.
-- Supabase ref: `bwdjkhqshmppescunwer`; migrations remotas sincronizadas até `20260817205028`.
-- Edge Functions do fluxo QR ativas: `whatsapp-send-outbox` versão 13, `whatsapp-qr-webhook` versão 16, `whatsapp-qr-start` versão 12 e `whatsapp-qr-health` versão 4; confirmar novamente no preflight.
-- Vercel produção: deployment direto `dpl_ES7U2dCyTSHdVDY2QfcQZNsgp9iF` `READY`, alias oficial atualizado. GitHub não foi alterado: `HEAD` e `origin/main` permaneciam em `2ca10ba` ao publicar.
-- `payment_transactions` é a fonte única de verdade para pagamentos de agendamento.
-- Demo nunca grava no Supabase.
+- GitHub: `https://github.com/losbarberoscontato/losbarberos-app`; produção na branch `main`.
+- Vercel: scope `losbarberoscontatos-projects`, projeto `losbarberos-app`, URL `https://losbarberos-app.vercel.app`.
+- Supabase ref: `bwdjkhqshmppescunwer`.
+- Migrations locais/remotas verificadas até `20260821145726` em 25/08/2026.
+- `whatsapp-v2-dispatcher` verificado `ACTIVE`, versão 13, em 25/08/2026.
+- Supabase Auth: Google ativo; `Site URL` em produção; callbacks com `**` para produção, localhost e `127.0.0.1`.
 
-## WhatsApp QR Web já entregue
+## Entregas atuais preservadas
 
-- Página exclusiva conectada: `/gestor/configuracoes/whatsapp`.
-- Meta Cloud API por Embedded Signup; token de tenant vai apenas para o Vault e há um provider ativo por organização.
-- QR Web por Evolution API: VPS e instância em produção, início protegido por gestor, QR de conexão, callback assinado e roteamento tenant-safe.
-- Confirmação inicial de agendamento já teve recebimento real validado. Lembretes de 6h/45min e respostas numéricas ainda precisam do teste E2E final.
-- Respostas: `1` confirma presença e avisa o profissional; `2` pede segunda confirmação e, após confirmar, cancela e avisa o profissional; `3` registra solicitação e avisa o WhatsApp conectado do gestor com os dados do atendimento.
-- O WhatsApp do profissional é cadastrado em `/gestor/equipe` e normalizado para E.164 com `+55` quando o DDI não é informado.
-- Texto não numérico é encaminhado ao WhatsApp conectado do gestor para retorno manual.
-- Persistência de conexões, regras de lembrete 6h/45min, ciclo de vida, opt-out e status de resposta estão modelados de forma tenant-safe.
-- Instâncias Evolution existentes recebem novamente a configuração de webhook no fluxo de conexão e na checagem periódica de 15 minutos. O evento `MESSAGES_UPSERT` é obrigatório para processar respostas numéricas; falha de configuração é registrada como `WEBHOOK_CONFIGURATION_FAILED`.
-- Respostas Evolution com `remoteJid=@lid` usam `remoteJidAlt` para recuperar o JID telefônico. LID, grupos e broadcasts nunca são convertidos em telefone. Respostas não associadas geram `messages.reply_rejected` sem telefone ou texto no diagnóstico.
-- Meta ainda depende de verificação/análise externa. O teste do número Meta foi rejeitado pela restrição de país; não tratar Meta como validado.
+### Entrada, Google OAuth e logout
 
-## Teste E2E pendente
+- `/` é o hotsite. Seus botões abrem `/entrar`, uma tela focada em login/cadastro, sem repetir o hotsite e sem abas de role.
+- Gestor e cliente entram/criam conta por e-mail ou Google. O callback aceita somente destinos internos conhecidos e os guards decidem membership/tenant.
+- Cliente novo via Google precisa completar WhatsApp, data de nascimento e termos. Consentimento transacional começa ativo somente sem decisão anterior; opt-out não é sobrescrito.
+- O callback local retorna ao localhost, não à Vercel. Configuração completa em `docs/google-oauth-setup.md`.
+- Gestor possui botão funcional `Sair da conta` ao lado do perfil, também no mobile.
+- Nenhuma migration ou Edge Function foi necessária para Google OAuth.
 
-1. Preencher o WhatsApp do profissional usado no agendamento de teste.
-2. Manter consentimento transacional ativo no cliente.
-3. Criar agendamento futuro para o lembrete de 45 minutos e responder somente `1`.
-4. Confirmar status `Confirmado pelo WhatsApp`, agradecimento no WhatsApp do cliente, aviso no WhatsApp do profissional e ciclo `PENDING/PROCESSING/SENT` no outbox.
-5. Somente após validar `1`, testar separadamente `2` com segunda confirmação, `3`, texto não numérico e depois o lembrete de 6 horas.
-6. Tratar recebimento no aparelho como única prova E2E; HTTP 200/201, função `ACTIVE` e outbox `SENT` são evidências parciais.
+### Cliente e agendamento
 
-## Regras de operação
+- `client_accounts` é a identidade global; vínculo com barbearias continua tenant-safe e edição canônica pelo gestor permanece bloqueada.
+- Home conectada, cadastro/login, agenda `COUNTER`, escolha por data, serviço, barbeiro e horário estão entregues.
+- Agendamento do cliente usa fluxo em etapas/modal: serviço, profissional, horário e confirmação. Há escolha por horário sem preferência de barbeiro.
+- Demo nunca persiste no Supabase.
 
-- Migrations são incrementais, compatíveis e só remotas com autorização explícita.
-- Não publicar, aplicar migration, deployar funções, cadastrar secrets, alterar Meta, DNS ou VPS sem autorização explícita na conversa.
-- Diferencie claramente: estrutura local, Edge Function publicada, Meta aprovada, QR conectado e mensagem entregue. HTTP 200 não prova fluxo autenticado.
-- Preserve a regra máxima de agenda: períodos completos não podem conflitar; a constraint GiST do banco continua autoridade final.
+### Gestor, agenda e financeiro
 
-## Primeiro passo desta próxima conversa
+- Agenda permite iniciar/concluir atendimento, preserva comissão e abre boleta para `COUNTER` concluído; cancelar boleta mantém `UNPAID`.
+- `Contas a receber` projeta atendimentos concluídos com saldo aberto e ação `Receber`.
+- `payment_transactions` é a fonte única de verdade de pagamentos de agendamento. A boleta guarda metadados sem duplicar lançamento financeiro.
+- Caixa, contas, fornecedores, planos, centros, tags, lançamentos, liquidações, transferências e conta padrão `Caixa Físico` permanecem entregues.
 
-Faça o preflight curto e acompanhe o teste E2E em produção. Não altere VPS, Evolution, secrets ou Meta sem nova autorização explícita.
+### WhatsApp Evolution
+
+- Leia `docs/whatsapp-evolution-module.md` antes de tocar no módulo.
+- Estrutura QR Web, respostas `1/2/3`, confirmação manual, estados de agenda e regra de um lembrete interativo por cliente/tenant/dia estão publicadas.
+- HTTP 200, provider 201, `SUBMITTED` ou Function `ACTIVE` não provam entrega no aparelho.
+
+## Pendências conhecidas
+
+- PENDENTE: validar manualmente em produção o primeiro cadastro completo de cliente via Google, inclusive WhatsApp/nascimento, retorno ao destino e ausência de duplicação em `client_accounts`.
+- PENDENTE: validar em produção o logout conectado do gestor e confirmar que voltar para `/gestor` exige nova sessão.
+- PENDENTE: corrigir hydration mismatch na tela conectada `/gestor/configuracoes`; o link público difere entre SSR relativo e cliente absoluto.
+- PENDENTE: adaptar o E2E completo para separar modo demo de `.env.local` conectada. Em 25/08, 27 testes passaram, 2 foram ignorados e 5 antigos falharam por exigir dados demo/sessão quando executados conectados; o E2E focado do hotsite passou em desktop/mobile.
+- PENDENTE: validação E2E real da entrega WhatsApp Evolution no aparelho, incluindo webhook, evento persistido, job/outbox, provider, status final e recebimento.
+- PENDENTE externo: Google Auth Platform pode continuar em modo `Testing`; publicar/verificar o app e liberar usuários gerais somente quando branding, domínio e políticas estiverem prontos.
+- PENDENTE externo: revisão jurídica final das páginas públicas e validações Meta.
+- Fora do escopo atual: carteira interna, sinal, Mercado Pago/pagamento antecipado e novo módulo WhatsApp Meta.
+
+## Regras de execução
+
+- Todo dado comercial exige `organization_id`; nenhuma relação cross-tenant.
+- Dinheiro em centavos inteiros; percentuais em basis points.
+- Agenda, pagamentos, billing e comissão devem ser atômicos e idempotentes.
+- Ledgers/eventos são append-only; correções usam reversal/adjustment.
+- Preserve a regra máxima: conflitos de período completo são decididos também pelo banco, não apenas pela UI.
+- Investigue causa antes de corrigir e crie regressão quando viável.
+- Rode validação focada, `npm.cmd run typecheck` e, antes de release, `npm.cmd run verify`.
+- Peça autorização explícita nova antes de migration remota, deploy de Function, push, alteração de Auth remoto ou deploy Vercel. Uma conversa nova não herda autorização desta publicação.
+
+## Primeiro passo
+
+Faça o preflight, confirme que localhost conectado sobe em `http://localhost:3000` e aguarde ou investigue o próximo relato do usuário. Não altere Supabase, GitHub, Vercel, Google Cloud, Meta, Evolution/VPS ou secrets sem autorização explícita na nova conversa.

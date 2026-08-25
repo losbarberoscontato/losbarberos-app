@@ -1,5 +1,19 @@
 # Handoff — Los Barberos
 
+## Google OAuth, entrada única e logout — 25/08/2026
+
+- O hotsite permanece na rota `/`. Seus CTAs levam para a entrada focada `/entrar`, sem duplicar a apresentação comercial dentro do formulário.
+- `/entrar` concentra login e criação de conta do sistema por e-mail ou Google. A escolha antiga por abas `Gestor`, `Cliente` e `Admin` foi removida; destinos internos continuam validados por allowlist e pelos guards de membership/tenant.
+- Google OAuth atende gestor e cliente. O callback troca o código no servidor, preserva apenas destinos internos permitidos e nunca decide role por `user_metadata`.
+- Cliente novo via Google é encaminhado para completar WhatsApp, data de nascimento e termos antes de criar/usar `client_accounts`. A preferência transacional começa ativa somente quando ainda não existe decisão; opt-out anterior não é sobrescrito.
+- O gestor agora possui botão real `Sair da conta` ao lado do perfil no rodapé da sidebar, inclusive no drawer mobile. Em fluxo conectado, executa `supabase.auth.signOut`; em demo, apenas volta à entrada.
+- A causa do OAuth local voltar à produção era a allowlist exata do Supabase não aceitar os parâmetros de query do callback. O remoto foi corrigido com `https://losbarberos-app.vercel.app/auth/callback**`, `http://localhost:3000/auth/callback**` e `http://127.0.0.1:3000/auth/callback**`; o `Site URL` continua em produção e o provedor Google permanece ativo.
+- Nenhuma migration ou Edge Function foi criada para esta entrega. Em 25/08, `supabase db push --linked --dry-run --yes` retornou banco atualizado; migrations locais/remotas alinhadas até `20260821145726`; `whatsapp-v2-dispatcher` remoto ativo na versão 13.
+- Validação local: OAuth Google de gestor retornou pelo callback e abriu `/gestor`; `npm.cmd run verify` passou com 63 arquivos/322 testes, typecheck e build; lint sem erros e com 4 warnings antigos; E2E focado do hotsite passou em desktop/mobile.
+- Limite de prova: o cadastro completo de cliente novo via Google e o logout conectado ainda precisam de validação manual autenticada em produção. O E2E completo existente assume dados demo e não funciona integralmente quando recebe a `.env.local` conectada; ajustar o harness é pendente.
+- Pendente separado observado em localhost: hydration mismatch na tela conectada de Configurações, porque o link público é renderizado relativo no servidor e absoluto no cliente. Não foi alterado neste pacote.
+- Configuração e checklist: `docs/google-oauth-setup.md`. Para desenvolvimento local, subir somente Next.js com `npm.cmd run dev`; não iniciar Evolution API, Docker ou serviços WhatsApp locais.
+
 ## Correção de identidade LID nas respostas Evolution — 17/08/2026
 
 - Causa confirmada: mensagens recebidas pela Evolution podiam chegar com `key.remoteJid` no formato `@lid`. O webhook removia caracteres não numéricos e tratava o identificador LID como telefone; a RPC não encontrava o cliente e retornava `NO_ACTIVE_ACTION`.

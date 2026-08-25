@@ -2,7 +2,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ManagerShell } from "@/components/manager-shell";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/gestor/financeiro/caixa" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/gestor/financeiro/caixa",
+  useRouter: () => ({ replace: vi.fn() }),
+}));
 
 describe("manager finance navigation", () => {
   beforeEach(cleanup);

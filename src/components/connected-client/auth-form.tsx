@@ -2,9 +2,10 @@
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Scissors } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle, MessageCircle, Scissors } from "lucide-react";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getMyClientAccount } from "@/components/connected-client/api";
+import { GoogleMark } from "@/components/google-mark";
 import { formatBirthDateInput, normalizeBirthDateInput, parseBirthDateInput } from "@/lib/birth-date";
 import { clientAuthDestination, clientPasswordSchema, clientSignupSchema } from "@/lib/client-auth";
 import { normalizePhoneE164 } from "@/lib/phone";
@@ -83,12 +84,15 @@ function useExclusiveMutation() {
 export function ClientAuthForm({
   initialSlug,
   initialNext,
+  oauthCompletion = false,
 }: {
   initialSlug: string | null;
   initialNext: string | null;
+  oauthCompletion?: boolean;
 }) {
-  const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>("signin");
+  const { push } = useRouter();
+  const [mode, setMode] = useState<AuthMode>(oauthCompletion ? "complete" : "signin");
+  const [oauthChecking, setOauthChecking] = useState(oauthCompletion);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -112,16 +116,22 @@ export function ClientAuthForm({
     setMode(nextMode);
   }
 
-  function callbackUrl(): string {
+  function callbackUrl(provider?: "google"): string {
     const currentDestination = new URL(destination, "https://cliente.local");
     const safeDestination = clientAuthDestination({
-      next: currentDestination.pathname,
+      next: `${currentDestination.pathname}${currentDestination.search}`,
       slug: currentDestination.searchParams.get("barbearia"),
     });
     const resolved = new URL(safeDestination, "https://cliente.local");
-    const callbackParams = new URLSearchParams({ next: resolved.pathname });
+    const nextParams = new URLSearchParams(resolved.searchParams);
+    nextParams.delete("barbearia");
+    const nextQuery = nextParams.toString();
+    const callbackParams = new URLSearchParams({
+      next: nextQuery ? `${resolved.pathname}?${nextQuery}` : resolved.pathname,
+    });
     const slug = resolved.searchParams.get("barbearia");
     if (slug) callbackParams.set("barbearia", slug);
+    if (provider) callbackParams.set("provider", provider);
     return `${window.location.origin}/auth/callback?${callbackParams.toString()}`;
   }
 
@@ -154,8 +164,67 @@ export function ClientAuthForm({
       setError("Não foi possível concluir acesso. Tente novamente.");
       return false;
     }
-    router.push(destination);
+    push(destination);
     return true;
+  }
+
+  useEffect(() => {
+    if (!oauthCompletion) return;
+    const supabase = getSupabaseBrowserClient();
+    let active = true;
+
+    if (!supabase) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setMode("signin");
+        setOauthChecking(false);
+        setError("Acesso online indisponível.");
+      });
+      return () => { active = false; };
+    }
+
+    void (async () => {
+      const { data, error: userError } = await supabase.auth.getUser();
+      if (userError || !data.user) throw new Error("Sessão Google não encontrada.");
+      const existingAccount = await getMyClientAccount(supabase, data.user.id);
+      if (!active) return;
+      if (existingAccount) {
+        push(destination);
+        return;
+      }
+
+      const metadata = data.user.user_metadata;
+      const metadataTerms = metadataString(metadata, "terms_policy_version") === termsPolicyVersion;
+      setEmail(typeof data.user.email === "string" ? data.user.email : "");
+      setFullName(metadataString(metadata, "full_name") || metadataString(metadata, "name"));
+      setPhoneE164(metadataString(metadata, "phone_e164_candidate"));
+      setBirthDate(formatBirthDateInput(metadataString(metadata, "birth_date")));
+      setAcceptedTerms(metadataTerms);
+      setMode("complete");
+      setSuccess("Informe WhatsApp e data de nascimento para concluir seu primeiro acesso.");
+      setOauthChecking(false);
+    })().catch(() => {
+      if (!active) return;
+      setMode("signin");
+      setOauthChecking(false);
+      setError("Não foi possível validar sua conta Google. Tente novamente.");
+    });
+
+    return () => { active = false; };
+  }, [destination, oauthCompletion, push]);
+
+  async function continueWithGoogle() {
+    clearMessages();
+    const supabase = onlineClient();
+    if (!supabase) return;
+
+    await runMutation(async () => {
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: callbackUrl("google") },
+      });
+      if (oauthError) setError("Não foi possível iniciar o Google. Tente novamente.");
+    }, () => setError("Não foi possível iniciar o Google. Tente novamente."));
   }
 
   async function submitSignIn(event: FormEvent<HTMLFormElement>) {
@@ -183,7 +252,7 @@ export function ClientAuthForm({
         ? await getMyClientAccount(supabase, data.user.id)
         : null;
       if (existingAccount) {
-        router.push(destination);
+        push(destination);
         return;
       }
 
@@ -307,6 +376,18 @@ export function ClientAuthForm({
   const isComplete = mode === "complete";
   const formName = isSignUp ? "Criar conta" : isRecovery ? "Recuperar senha" : isComplete ? "Completar cadastro" : "Entrar";
 
+  if (oauthChecking) {
+    return (
+      <section className={styles.authForm} aria-label="Validando acesso Google">
+        <div className={styles.oauthChecking} role="status">
+          <LoaderCircle className={styles.spin} aria-hidden="true" />
+          <strong>Validando sua conta Google…</strong>
+          <span>Estamos conferindo se seu cadastro já está completo.</span>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={styles.authForm} aria-labelledby="client-auth-title">
       <span className={styles.userMark} aria-hidden="true"><Scissors size={22} /></span>
@@ -317,7 +398,7 @@ export function ClientAuthForm({
           ? "Enviaremos instruções apenas se houver uma conta elegível."
           : isComplete
             ? "Seus dados globais são usados somente após confirmação segura."
-            : "Entre ou crie sua conta com e-mail e senha."}
+            : "Continue com Google ou use seu e-mail e senha."}
       </p>
 
       {!isComplete && (
@@ -325,6 +406,16 @@ export function ClientAuthForm({
           <button type="button" role="tab" aria-selected={mode === "signin"} disabled={busy} onClick={() => selectMode("signin")}>Entrar</button>
           <button type="button" role="tab" aria-selected={isSignUp} disabled={busy} onClick={() => selectMode("signup")}>Criar conta</button>
         </div>
+      )}
+
+      {!isComplete && !isRecovery && (
+        <>
+          <button className={styles.oauthButton} type="button" onClick={() => void continueWithGoogle()} disabled={busy}>
+            <GoogleMark />
+            {busy ? "Abrindo Google…" : "Continuar com Google"}
+          </button>
+          <div className={styles.oauthDivider}><span>ou continue com e-mail</span></div>
+        </>
       )}
 
       {error && <p className={styles.error} role="alert" aria-live="assertive">{error}</p>}
@@ -360,6 +451,10 @@ export function ClientAuthForm({
               <input id="client-terms" type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} required />
               Aceito os termos de uso e a política de privacidade
             </label>
+            <p className={styles.authWhatsappDefault}>
+              <MessageCircle size={17} aria-hidden="true" />
+              <span><strong>Avisos no WhatsApp começam ativos.</strong> Você pode desativá-los depois no perfil.</span>
+            </p>
           </>
         )}
         <button className={styles.primaryButton} type="submit" disabled={busy} aria-busy={busy}>{busy ? "Aguarde…" : formName}</button>

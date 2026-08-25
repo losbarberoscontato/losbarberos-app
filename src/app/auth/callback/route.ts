@@ -1,14 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { clientAuthDestination } from "@/lib/client-auth";
+import { clientAuthDestination, clientOAuthCompletionDestination } from "@/lib/client-auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-
-const managerDestinations = new Set([
-  "/gestor",
-  "/onboarding",
-  "/regularizacao",
-  "/admin",
-]);
+import { resolveSystemAuthDestination } from "@/lib/system-auth";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -17,16 +11,18 @@ export async function GET(request: NextRequest) {
   const requestedNext = requestedNextValues.length === 1 ? requestedNextValues[0] : "/gestor";
   const requestedSlugs = url.searchParams.getAll("barbearia");
   const requestedSlug = requestedSlugs.length === 1 ? requestedSlugs[0] : null;
+  const requestedProviders = url.searchParams.getAll("provider");
+  const isGoogleFlow = requestedProviders.length === 1 && requestedProviders[0] === "google";
+  const isClientDestination = requestedNextValues.length === 1
+    && (requestedNext === "/cliente" || requestedNext.startsWith("/cliente/"));
   const destination = requestedNextValues.length !== 1
     ? "/gestor"
-    : requestedNext === "/cliente" || requestedNext.startsWith("/cliente/")
+    : isClientDestination
     ? clientAuthDestination({
       next: requestedNext,
       slug: requestedSlug,
     })
-    : managerDestinations.has(requestedNext)
-      ? requestedNext
-      : "/gestor";
+    : resolveSystemAuthDestination(requestedNext);
   const supabase = await getSupabaseServerClient();
 
   if (!code || !supabase) {
@@ -37,6 +33,13 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
     return NextResponse.redirect(new URL("/entrar?erro=oauth_exchange_failed", url.origin));
+  }
+
+  if (isGoogleFlow && isClientDestination) {
+    return NextResponse.redirect(new URL(clientOAuthCompletionDestination({
+      next: requestedNext,
+      slug: requestedSlug,
+    }), url.origin));
   }
 
   return NextResponse.redirect(new URL(destination, url.origin));

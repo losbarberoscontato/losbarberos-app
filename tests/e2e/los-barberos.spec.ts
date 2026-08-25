@@ -1,18 +1,19 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Los Barberos · experiências principais", () => {
-  test("landing apresenta o produto e abre o login demo", async ({ page }) => {
+  test("landing apresenta o produto e abre o cadastro do sistema", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: /Sua barbearia cheia/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Testar agora/i })).toBeVisible();
     await page.getByRole("link", { name: /Testar agora/i }).click();
 
-    await expect(page).toHaveURL(/\/entrar$/);
+    await expect(page).toHaveURL(/\/entrar\?modo=cadastro$/);
+    await expect(page.getByRole("heading", { name: /Crie sua barbearia/i })).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveCount(0);
+
+    await page.goto("/entrar?modo=login");
     await expect(page.getByRole("heading", { name: /Entre na sua barbearia/i })).toBeVisible();
-    await expect(page.locator(".login-card__heading p")).toHaveCSS("font-size", "12px");
-    await page.getByRole("tab", { name: "Cliente" }).click();
-    await expect(page.getByRole("heading", { name: /Cuide do seu horário/i })).toBeVisible();
   });
 
   test("gestor navega do dashboard para as visões da agenda", async ({ page }) => {

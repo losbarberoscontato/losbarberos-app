@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useState } from "react";
 import {
   Bell,
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { Avatar } from "@/components/ui";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 const navigation = [
   { href: "/gestor", label: "Visão geral", icon: LayoutDashboard, exact: true },
@@ -105,7 +106,53 @@ function ManagerNavigation({ onNavigate, agendaCount }: { onNavigate?: () => voi
 }
 
 export function ManagerShell({ children, demoMode = false, billingBlocked = false, organizationName = "Sua barbearia", locationName = "Unidade principal", userName = "Gestor", agendaCount = 0 }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; organizationName?: string; locationName?: string; userName?: string; agendaCount?: number }) {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError("");
+
+    try {
+      if (!demoMode) {
+        const supabase = getSupabaseBrowserClient();
+        if (!supabase) throw new Error("Supabase não configurado.");
+        const { error } = await supabase.auth.signOut({ scope: "local" });
+        if (error) throw error;
+      }
+      router.replace("/entrar");
+    } catch {
+      setSignOutError("Não foi possível sair. Tente novamente.");
+      setSigningOut(false);
+    }
+  }
+
+  const managerProfile = (
+    <div className="manager-profile">
+      <Link className="manager-profile__identity" href="/gestor/configuracoes">
+        <Avatar initials="GC" tone="amber" />
+        <span>
+          <strong>{userName}</strong>
+          <small>Proprietário</small>
+        </span>
+      </Link>
+      <button
+        type="button"
+        className="manager-profile__signout"
+        onClick={() => void handleSignOut()}
+        disabled={signingOut}
+        aria-label="Sair da conta"
+        aria-busy={signingOut}
+        title="Sair da conta"
+      >
+        <LogOut size={17} aria-hidden="true" />
+      </button>
+      {signOutError && <p className="manager-profile__error" role="alert">{signOutError}</p>}
+    </div>
+  );
 
   return (
     <ManagerBillingContext.Provider value={billingBlocked}>
@@ -124,14 +171,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
         </button>
         <ManagerNavigation agendaCount={agendaCount} />
         <div className="manager-sidebar__footer">
-          <Link className="manager-profile" href="/gestor/configuracoes">
-            <Avatar initials="GC" tone="amber" />
-            <span>
-              <strong>{userName}</strong>
-              <small>Proprietário</small>
-            </span>
-            <LogOut size={17} />
-          </Link>
+          {managerProfile}
         </div>
       </aside>
 
@@ -156,6 +196,9 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           <ChevronDown size={16} />
         </button>
         <ManagerNavigation agendaCount={agendaCount} onNavigate={() => setMenuOpen(false)} />
+        <div className="manager-sidebar__footer">
+          {managerProfile}
+        </div>
       </aside>
 
       <div className="manager-workspace">
