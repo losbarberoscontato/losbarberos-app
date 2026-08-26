@@ -11,6 +11,12 @@ const clientDestinations = new Set([
   "/cliente/perfil",
 ]);
 
+function normalizeBookingPublicId(value: string | null | undefined): string | null {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value ?? "")
+    ? value!
+    : null;
+}
+
 function isValidIsoDate(value: string): boolean {
   const date = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
@@ -35,15 +41,20 @@ export const clientSignupSchema = z.object({
 export function clientAuthDestination(input: {
   next?: string | null;
   slug?: string | null;
+  booking?: string | null;
 }): string {
-  const normalizedPath = normalizeSafeReturnPath(input.next, defaultClientDestination);
+  const requestedBooking = normalizeBookingPublicId(input.booking);
+  const fallback = requestedBooking ? "/cliente" : defaultClientDestination;
+  const normalizedPath = normalizeSafeReturnPath(input.next, fallback);
   const nextUrl = new URL(normalizedPath, "https://cliente.local");
+  const booking = requestedBooking ?? normalizeBookingPublicId(nextUrl.searchParams.get("booking"));
   const destination = clientDestinations.has(nextUrl.pathname)
     ? nextUrl.pathname
     : defaultClientDestination;
   const slug = normalizeTenantSlug(input.slug);
   const params = new URLSearchParams();
   if (slug) params.set("barbearia", slug);
+  if (!slug && booking && destination === "/cliente") params.set("booking", booking);
   if (destination === "/cliente/agendar") {
     const barberId = nextUrl.searchParams.get("barbeiro");
     const startsAt = nextUrl.searchParams.get("horario");
@@ -59,6 +70,7 @@ export function clientAuthDestination(input: {
 export function clientOAuthCompletionDestination(input: {
   next?: string | null;
   slug?: string | null;
+  booking?: string | null;
 }): string {
   const destination = new URL(clientAuthDestination(input), "https://cliente.local");
   const nextParams = new URLSearchParams(destination.searchParams);

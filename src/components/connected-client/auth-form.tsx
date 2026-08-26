@@ -84,14 +84,16 @@ function useExclusiveMutation() {
 export function ClientAuthForm({
   initialSlug,
   initialNext,
+  initialMode = "signin",
   oauthCompletion = false,
 }: {
   initialSlug: string | null;
   initialNext: string | null;
+  initialMode?: "signin" | "signup";
   oauthCompletion?: boolean;
 }) {
   const { push } = useRouter();
-  const [mode, setMode] = useState<AuthMode>(oauthCompletion ? "complete" : "signin");
+  const [mode, setMode] = useState<AuthMode>(oauthCompletion ? "complete" : initialMode);
   const [oauthChecking, setOauthChecking] = useState(oauthCompletion);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

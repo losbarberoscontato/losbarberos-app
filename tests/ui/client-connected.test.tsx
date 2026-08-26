@@ -662,10 +662,16 @@ describe("cliente conectado", () => {
     expect(from).not.toHaveBeenCalledWith("customers");
   });
 
-  it("redireciona slug público para home do cliente sem criar vínculo", async () => {
+  it("redireciona slug público para login do cliente sem criar vínculo", async () => {
     await PublicBarbershopPage({ params: Promise.resolve({ slug: "barbearia real" }) });
 
-    expect(authMocks.redirect).toHaveBeenCalledWith("/cliente?barbearia=barbearia%20real");
+    expect(authMocks.redirect).toHaveBeenCalledWith("/cliente/entrar?barbearia=barbearia%20real");
+  });
+
+  it("redireciona identificador público para login preservando o vínculo pendente", async () => {
+    await PublicBarbershopPage({ params: Promise.resolve({ slug: "00000000-0000-4000-8000-000000000001" }) });
+
+    expect(authMocks.redirect).toHaveBeenCalledWith("/cliente/entrar?booking=00000000-0000-4000-8000-000000000001");
   });
 
   it("separa entrar de criar conta e oferece Google nos dois modos", () => {
@@ -715,6 +721,14 @@ describe("cliente conectado", () => {
         redirectTo: "http://localhost:3000/auth/callback?next=%2Fcliente%2Fagendar%3Fbarbeiro%3D00000000-0000-4000-8000-000000000002%26horario%3D2026-08-11T13%253A15%253A00.000Z&barbearia=barbearia-real&provider=google",
       },
     }));
+  });
+
+  it("abre cadastro somente quando modo público é cadastro", async () => {
+    render(await ClientEntryPage({
+      searchParams: Promise.resolve({ modo: "cadastro" }),
+    }));
+
+    expect(screen.getByRole("form", { name: "Criar conta" })).toBeInTheDocument();
   });
 
   it("exige WhatsApp, nascimento e termos no primeiro acesso Google", async () => {

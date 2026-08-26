@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test("rota pública por slug preserva contexto na home do cliente", async ({ page }) => {
+test("rota pública por slug abre login do cliente preservando contexto", async ({ page }) => {
   await page.goto("/b/barbearia-do-bairro");
   const url = new URL(page.url());
 
-  if (url.pathname === "/cliente") {
+  if (url.pathname === "/cliente/entrar") {
     expect(url.searchParams.get("barbearia")).toBe("barbearia-do-bairro");
   } else {
     expect(url.pathname).toBe("/entrar");

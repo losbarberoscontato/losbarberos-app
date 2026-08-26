@@ -32,6 +32,18 @@ describe("clientAuthDestination", () => {
     );
   });
 
+  it("preserves a valid public booking link through client authentication", () => {
+    expect(clientAuthDestination({
+      booking: "00000000-0000-4000-8000-000000000001",
+    })).toBe("/cliente?booking=00000000-0000-4000-8000-000000000001");
+  });
+
+  it("preserves a public booking link through Google completion", () => {
+    expect(clientOAuthCompletionDestination({
+      booking: "00000000-0000-4000-8000-000000000001",
+    })).toBe("/cliente/entrar?oauth=complete&next=%2Fcliente%3Fbooking%3D00000000-0000-4000-8000-000000000001");
+  });
+
   it("drops invalid tenant context", () => {
     expect(clientAuthDestination({ next: "/cliente/agendar", slug: "barbearia/evil" })).toBe(
       "/cliente/agendar",

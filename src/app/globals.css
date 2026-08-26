@@ -1533,6 +1533,35 @@
 }
 
 @layer pages {
+  .client-access-page { min-height: 100svh; box-sizing: border-box; display: grid; grid-template-rows: auto 1fr; padding: 24px clamp(20px, 5vw, 72px); overflow: hidden; background: radial-gradient(circle at 84% 13%, rgba(220, 168, 84, .24), transparent 27rem), linear-gradient(132deg, #0c2923 0%, #123d35 52%, #0e302a 100%); color: #fff; }
+  .client-access-page::before { content: ""; position: fixed; z-index: 0; inset: auto -15vw -35vw auto; width: min(70vw, 700px); aspect-ratio: 1; border: 1px solid rgba(240, 205, 142, .15); border-radius: 50%; pointer-events: none; }
+  .client-access-nav, .client-access-card { position: relative; z-index: 1; }
+  .client-access-nav { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+  .client-access-brand { display: inline-flex; align-items: center; gap: 10px; color: #fff; font: 700 18px/1 var(--font-display); }
+  .client-access-brand .brand__mark { width: 42px; height: 42px; background: rgba(255,255,255,.1); }
+  .client-access-nav__manager { min-height: 44px; display: inline-flex; align-items: center; padding-inline: 12px; color: rgba(255,255,255,.78); font-size: 13px; font-weight: 800; }
+  .client-access-nav__manager:hover { color: #f5c36d; }
+  .client-access-card { width: min(100%, 590px); align-self: center; justify-self: center; margin-block: 0; padding: clamp(32px, 6vw, 56px); border: 1px solid rgba(255,255,255,.15); border-radius: 16px; background: #153c34; box-shadow: 0 32px 80px rgba(1, 20, 16, .28); text-align: center; }
+  .client-access-card__mark { width: 54px; height: 54px; display: inline-grid; place-items: center; border: 1px solid rgba(245,195,109,.44); border-radius: 18px; color: #f5c36d; background: rgba(245,195,109,.1); }
+  .client-access-card h1 { max-width: 430px; margin: 22px auto 0; font: 700 clamp(37px, 6vw, 58px)/.98 var(--font-display); letter-spacing: -.04em; }
+  .client-access-card__description { max-width: 430px; margin: 20px auto 0; color: rgba(255,255,255,.74); font-size: 16px; line-height: 1.6; }
+  .client-access-actions { display: grid; gap: 11px; max-width: 390px; margin: 32px auto 0; }
+  .client-access-button { min-height: 56px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid transparent; border-radius: 14px; font-size: 15px; font-weight: 850; transition: transform .18s ease, background .18s ease, border-color .18s ease; }
+  .client-access-button:hover { transform: translateY(-2px); }
+  .client-access-button--primary { background: #f5c36d; color: #122d27; box-shadow: 0 12px 26px rgba(0,0,0,.16); }
+  .client-access-button--primary:hover { background: #ffcf7c; }
+  .client-access-button--secondary { border-color: rgba(255,255,255,.23); color: #fff; background: rgba(255,255,255,.05); }
+  .client-access-button--secondary:hover { border-color: rgba(245,195,109,.62); background: rgba(255,255,255,.1); }
+  .client-access-card__note { display: flex; align-items: flex-start; justify-content: center; gap: 8px; max-width: 440px; margin: 25px auto 0; color: rgba(255,255,255,.62); font-size: 12px; line-height: 1.5; text-align: left; }
+  .client-access-card__note svg { flex: 0 0 auto; margin-top: 1px; color: #b8d6bf; }
+
+  @media (max-width: 560px) {
+    .client-access-page { padding: 18px 18px 28px; }
+    .client-access-card { border-radius: 16px; }
+    .client-access-card h1 { font-size: 42px; }
+    .client-access-card__description { font-size: 15px; }
+  }
+
   .landing-container { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
   .landing-page { overflow: hidden; background: var(--paper); }
   .landing-nav { position: absolute; z-index: 20; top: 0; left: 0; width: 100%; color: #fff; }
