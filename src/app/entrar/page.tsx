@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { DemoLogin } from "@/components/demo-login";
-import { hasSupabaseConfig } from "@/lib/env";
 import {
   resolveSystemAuthDestination,
   resolveSystemAuthMode,
@@ -12,6 +11,7 @@ import {
 export const metadata: Metadata = { title: "Entrar" };
 
 type LoginSearchParams = Promise<{
+  erro?: string | string[];
   modo?: string | string[];
   next?: string | string[];
 }>;
@@ -37,7 +37,9 @@ export default async function LoginPage({
       <section className="system-login-page__main" aria-label="Acesso ao sistema">
         <div className="system-login-panel">
           <DemoLogin
-            demoMode={!hasSupabaseConfig}
+            initialNotice={params.erro === "supabase_not_configured"
+              ? "Sistema indisponível: configuração do Supabase ausente."
+              : ""}
             initialMode={initialMode}
             nextPath={nextPath}
           />

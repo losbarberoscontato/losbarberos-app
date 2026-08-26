@@ -4,7 +4,7 @@ SaaS brasileiro multi-tenant para gestão de barbearias. Next.js PWA no frontend
 
 ## Estado local
 
-- Interface completa usa dados demonstrativos quando Supabase não está configurado.
+- Ambiente Demo está desabilitado. Sem Supabase configurado, rotas operacionais retornam à entrada com erro explícito.
 - Schema, RLS, RPCs e Edge Functions ficam em `supabase/`.
 - Nenhuma integração externa é chamada sem variáveis explícitas.
 - Produção não está configurada nem publicada.
@@ -25,7 +25,7 @@ npm run dev
 Abra `http://localhost:3000`. Rotas principais:
 
 - `/` — entrada do produto
-- `/login` — autenticação Google ou demonstração local
+- `/login` — autenticação por e-mail ou Google
 - `/gestor` — workspace do gestor
 - `/agendar` — PWA do cliente
 - `/admin` — controle mínimo da plataforma

@@ -2,7 +2,7 @@
 
 Estamos continuando o projeto Los Barberos em `D:\Display SH\Los Barberos`.
 
-Assuma o volante técnico para investigar e implementar os próximos relatos funcionais ou visuais. Preserve dados existentes, tenant scope, histórico financeiro e a separação entre demo e fluxo conectado ao Supabase. Código, migrations, testes, documentação e estado remoto verificado são fonte de verdade; não use somente o histórico do chat.
+Assuma o volante técnico para investigar e implementar os próximos relatos funcionais ou visuais. Preserve dados existentes, tenant scope e histórico financeiro. Código, migrations, testes, documentação e estado remoto verificado são fonte de verdade; não use somente o histórico do chat.
 
 ## Ambiente localhost obrigatório
 
@@ -15,7 +15,7 @@ npm.cmd run dev
 
 - Use `http://localhost:3000` e o hot reload do Next.js. A primeira compilação Turbopack pode demorar.
 - Use a `.env.local` existente conectada ao Supabase real. Confirme apenas os nomes das variáveis; nunca imprima valores.
-- Sem configuração Supabase, o app entra em demo. Demo nunca grava e não serve como prova de fluxo conectado.
+- Ambiente Demo está desabilitado. Sem configuração Supabase, rotas operacionais redirecionam para `/entrar` com erro explícito; nunca usar dados locais como fallback.
 - Não subir Evolution API, Docker, VPS, webhook ou serviços WhatsApp locais. Preserve toda infraestrutura Evolution/Edge Functions de produção.
 - Se a porta `3000` já estiver ocupada por um `next dev` deste projeto, use esse servidor. Não inicie instância duplicada.
 - Antes de `npm.cmd run verify`/build, finalize o dev server se houver conflito com `.next`; reinicie-o depois quando a validação visual continuar.
@@ -56,7 +56,7 @@ npm.cmd run dev
 - `client_accounts` é a identidade global; vínculo com barbearias continua tenant-safe e edição canônica pelo gestor permanece bloqueada.
 - Home conectada, cadastro/login, agenda `COUNTER`, escolha por data, serviço, barbeiro e horário estão entregues.
 - Agendamento do cliente usa fluxo em etapas/modal: serviço, profissional, horário e confirmação. Há escolha por horário sem preferência de barbeiro.
-- Demo nunca persiste no Supabase.
+- Fluxo do cliente exige Supabase configurado; não existe fallback Demo ativo.
 
 ### Gestor, agenda e financeiro
 
@@ -74,13 +74,15 @@ npm.cmd run dev
 ## Pendências conhecidas
 
 - PENDENTE: validar manualmente em produção o primeiro cadastro completo de cliente via Google, inclusive WhatsApp/nascimento, retorno ao destino e ausência de duplicação em `client_accounts`.
-- PENDENTE: validar em produção o logout conectado do gestor e confirmar que voltar para `/gestor` exige nova sessão.
-- PENDENTE: corrigir hydration mismatch na tela conectada `/gestor/configuracoes`; o link público difere entre SSR relativo e cliente absoluto.
-- PENDENTE: adaptar o E2E completo para separar modo demo de `.env.local` conectada. Em 25/08, 27 testes passaram, 2 foram ignorados e 5 antigos falharam por exigir dados demo/sessão quando executados conectados; o E2E focado do hotsite passou em desktop/mobile.
-- PENDENTE: validação E2E real da entrega WhatsApp Evolution no aparelho, incluindo webhook, evento persistido, job/outbox, provider, status final e recebimento.
-- PENDENTE externo: Google Auth Platform pode continuar em modo `Testing`; publicar/verificar o app e liberar usuários gerais somente quando branding, domínio e políticas estiverem prontos.
-- PENDENTE externo: revisão jurídica final das páginas públicas e validações Meta.
-- Fora do escopo atual: carteira interna, sinal, Mercado Pago/pagamento antecipado e novo módulo WhatsApp Meta.
+- VALIDADO pelo usuário em 26/08/2026: logout conectado do gestor e proteção de `/gestor` após saída.
+- VALIDADO pelo usuário em 26/08/2026: hydration mismatch da tela conectada `/gestor/configuracoes`.
+- CONCLUÍDO em 26/08/2026: ambiente Demo desabilitado; testes E2E operacionais antigos que dependiam de dados locais foram removidos. Fluxos conectados exigem configuração e sessão próprias.
+- VALIDADO pelo usuário em 26/08/2026: entrega WhatsApp Evolution E2E real.
+- VALIDADO pelo usuário em 26/08/2026: publicação/verificação do Google Auth Platform.
+- PENDENTE: adicionar no painel do gestor controles tenant-safe para ativar/desativar mensagens WhatsApp das 8h e T-45; dispatcher deve respeitar configuração persistida.
+- PENDENTE externo para o final do projeto: revisão jurídica final das páginas públicas e validações Meta.
+- Removidos do escopo: carteira interna e módulo WhatsApp Meta Cloud API; manter somente QR Code/Evolution.
+- Backlog futuro, sem implementação agora: sinal, pagamento parcial/integral antecipado e Mercado Pago para esses pagamentos.
 
 ## Regras de execução
 

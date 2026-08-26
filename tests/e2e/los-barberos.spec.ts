@@ -16,51 +16,14 @@ test.describe("Los Barberos · experiências principais", () => {
     await expect(page.getByRole("heading", { name: /Entre na sua barbearia/i })).toBeVisible();
   });
 
-  test("gestor navega do dashboard para as visões da agenda", async ({ page }) => {
-    await page.goto("/gestor");
-
-    await expect(page.getByRole("heading", { name: /Boa tarde, Guilherme/i })).toBeVisible();
-    await page.getByRole("link", { name: /^Agenda/ }).first().click();
-    await expect(page).toHaveURL(/\/gestor\/agenda/);
-    await expect(page.getByRole("heading", { name: "Agenda" })).toBeVisible();
-
-    await page.getByRole("button", { name: "Semana" }).click();
-    await expect(page.getByText("Seg 03")).toBeVisible();
-    await page.getByRole("button", { name: "Mês" }).click();
-    await expect(page.getByText("Dom", { exact: true })).toBeVisible();
-  });
-
-  test("cliente conclui o funil visual de agendamento", async ({ page }) => {
-    await page.goto("/cliente/agendar");
-
-    await expect(page.getByRole("heading", { name: /Como quer cuidar do visual/i })).toBeVisible();
-    await page.getByRole("tab", { name: "Masculino" }).click();
-    await page.getByRole("button", { name: /Corte clássico/ }).first().click();
-    await page.getByRole("button", { name: "Continuar" }).click();
-
-    await expect(page.getByRole("heading", { name: /Quando fica melhor/i })).toBeVisible();
-    await page.getByRole("button", { name: "10:30" }).click();
-    await page.getByRole("button", { name: "Continuar" }).click();
-
-    await expect(page.getByRole("heading", { name: /Revise e confirme/i })).toBeVisible();
-    await page.getByRole("button", { name: /Pagar valor completo/ }).click();
-    await page.getByRole("button", { name: /Pagar R\$/ }).click();
-
-    await expect(page.getByRole("heading", { name: "Horário confirmado." })).toBeVisible();
-    await expect(page.getByText("LB-1054")).toBeVisible();
-  });
-
-  test("aliases legados levam para as rotas canônicas", async ({ page }) => {
+  test("alias público de login leva para a rota canônica", async ({ page }) => {
     await page.goto("/login");
     await expect(page).toHaveURL(/\/entrar$/);
-
-    await page.goto("/agendar");
-    await expect(page).toHaveURL(/\/cliente\/agendar$/);
   });
 });
 
 test.describe("Los Barberos · responsividade", () => {
-  for (const route of ["/", "/entrar", "/gestor", "/gestor/agenda", "/gestor/clientes", "/cliente/agendar", "/cliente/reservas", "/admin", "/regularizacao", "/onboarding"]) {
+  for (const route of ["/", "/entrar", "/privacidade", "/termos", "/exclusao-de-dados", "/offline"]) {
     test(`${route} não cria overflow horizontal no viewport`, async ({ page }) => {
       await page.goto(route);
       await page.waitForLoadState("domcontentloaded");

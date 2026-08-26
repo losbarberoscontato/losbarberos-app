@@ -84,4 +84,42 @@ describe("entrada do sistema", () => {
       { scroll: false },
     );
   });
+
+  it("bloqueia autenticação quando Supabase não está configurado", async () => {
+    mocks.getSupabaseBrowserClient.mockReturnValue(null);
+    render(<DemoLogin initialMode="signin" nextPath="/gestor" />);
+
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "gestor@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "senha-segura" } });
+    fireEvent.submit(screen.getByRole("form"));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Sistema indisponível: configuração do Supabase ausente.",
+    );
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(screen.queryByText(/demonstração/i)).not.toBeInTheDocument();
+  });
+
+  it("explica indisponibilidade recebida pelo guard de rotas", () => {
+    render(
+      <DemoLogin initialNotice="Sistema indisponível: configuração do Supabase ausente." />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Sistema indisponível: configuração do Supabase ausente.",
+    );
+  });
+
+  it("não abre fluxo Google nem Demo sem Supabase", async () => {
+    mocks.getSupabaseBrowserClient.mockReturnValue(null);
+    render(<DemoLogin initialMode="signin" nextPath="/gestor" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuar com Google" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Sistema indisponível: configuração do Supabase ausente.",
+    );
+    expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
 });

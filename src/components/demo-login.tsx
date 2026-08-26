@@ -12,11 +12,11 @@ import {
 } from "@/lib/system-auth";
 
 export function DemoLogin({
-  demoMode = false,
+  initialNotice = "",
   initialMode = "signin",
   nextPath = "/gestor",
 }: {
-  demoMode?: boolean;
+  initialNotice?: string;
   initialMode?: SystemAuthMode;
   nextPath?: string;
 }) {
@@ -26,7 +26,7 @@ export function DemoLogin({
   const [authMode, setAuthMode] = useState<SystemAuthMode>(initialMode);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
-  const [authNotice, setAuthNotice] = useState("");
+  const [authNotice, setAuthNotice] = useState(initialNotice);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,11 +34,11 @@ export function DemoLogin({
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const supabase = getSupabaseBrowserClient();
-    const postAuthDestination = authMode === "signup" ? "/onboarding" : destination;
     setLoading(true);
 
     if (!supabase) {
-      window.setTimeout(() => router.push(postAuthDestination), 350);
+      setLoading(false);
+      setAuthNotice("Sistema indisponível: configuração do Supabase ausente.");
       return;
     }
 
@@ -73,8 +73,7 @@ export function DemoLogin({
     const supabase = getSupabaseBrowserClient();
 
     if (!supabase) {
-      setAuthNotice("Supabase não configurado. Abrindo a demonstração local.");
-      window.setTimeout(() => router.push(postAuthDestination), 450);
+      setAuthNotice("Sistema indisponível: configuração do Supabase ausente.");
       return;
     }
 
@@ -121,7 +120,6 @@ export function DemoLogin({
       </button>
 
       {authNotice && <p className="login-notice" role="status">{authNotice}</p>}
-      {demoMode && <div className="login-divider"><span>ou use os dados demo</span></div>}
 
       <form onSubmit={submit} aria-label={isSignup ? "Criar conta" : "Entrar"}>
         <label htmlFor="system-auth-email">
@@ -159,7 +157,7 @@ export function DemoLogin({
           </span>
         </label>
         <button className="button button--dark button--block login-submit" type="submit" disabled={loading}>
-          {loading ? "Aguarde..." : isSignup ? "Criar conta" : demoMode ? "Entrar na demonstração" : "Entrar"}
+          {loading ? "Aguarde..." : isSignup ? "Criar conta" : "Entrar"}
           <ArrowRight size={18} />
         </button>
       </form>

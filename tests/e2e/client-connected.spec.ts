@@ -2,14 +2,18 @@ import { expect, test } from "@playwright/test";
 
 test("rota pública por slug preserva contexto na home do cliente", async ({ page }) => {
   await page.goto("/b/barbearia-do-bairro");
-  const connected = Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  );
-  await expect(page).toHaveURL(
-    connected
-      ? /\/cliente\?barbearia=barbearia-do-bairro$/u
-      : /\/cliente\/agendar$/u,
-  );
+  const url = new URL(page.url());
+
+  if (url.pathname === "/cliente") {
+    expect(url.searchParams.get("barbearia")).toBe("barbearia-do-bairro");
+  } else {
+    expect(url.pathname).toBe("/entrar");
+    expect(url.searchParams.get("erro")).toBe("supabase_not_configured");
+    expect(url.searchParams.get("next")).toBe("/b/barbearia-do-bairro");
+    await expect(page.getByRole("status")).toContainText("configuração do Supabase ausente");
+  }
+
+  await expect(page.getByText("Vila Madalena · Rua Harmonia, 214")).toHaveCount(0);
 });
 
 test("cliente conectado nunca mostra dados demo e mantém tipografia legível", async ({ page }, testInfo) => {

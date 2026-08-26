@@ -238,7 +238,7 @@ export default function HomePage() {
       <footer className="landing-footer">
         <div className="landing-container landing-footer__grid">
           <div><Brand light /><p>Gestão simples para quem leva a barbearia a sério.</p></div>
-          <div><strong>Produto</strong><Link href="/gestor">Painel demo</Link><Link href="/cliente/agendar">Experiência cliente</Link><a href="#preco">Preço</a></div>
+          <div><strong>Produto</strong><Link href="/entrar?modo=login">Painel do gestor</Link><Link href="/cliente/agendar">Experiência cliente</Link><a href="#preco">Preço</a></div>
           <div><strong>Empresa</strong><a href="#produto">Sobre</a><a href="mailto:contato@losbarberos.com.br">Contato</a><Link href="/privacidade">Privacidade</Link><Link href="/termos">Termos de uso</Link><Link href="/exclusao-de-dados">Exclusão de dados</Link></div>
           <div><strong>Acompanhe</strong><span>Instagram</span><span>WhatsApp</span><span>LinkedIn</span></div>
         </div>

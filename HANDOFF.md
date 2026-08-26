@@ -1,5 +1,15 @@
 # Handoff — Los Barberos
 
+## Ambiente Demo desabilitado — 26/08/2026
+
+- Rotas operacionais exigem Supabase configurado. Sem configuração, `proxy` redireciona painel, cliente, admin, onboarding, regularização, agendamento público e fila para `/entrar?erro=supabase_not_configured`; hotsite e páginas públicas permanecem disponíveis.
+- Entrada por e-mail ou Google não redireciona mais para dados locais quando cliente Supabase está ausente. Exibe erro explícito e mantém usuário na tela.
+- Código visual Demo permanece dormente para possível decisão futura, mas não existe caminho HTTP ativo que o habilite.
+- E2E operacional antigo baseado em dados Demo foi removido. Validação de fluxos operacionais agora exige Supabase conectado e sessão/dados próprios.
+- Usuário confirmou como validados: logout conectado do gestor, hydration mismatch de Configurações, E2E real Evolution e publicação do Google Auth Platform. Registros antigos abaixo preservam estado histórico, não pendência atual.
+- Pendências atuais: primeiro cadastro completo de cliente novo via Google; controles tenant-safe no painel para ativar/desativar mensagens WhatsApp das 8h e T-45; revisão jurídica/Meta ao final do projeto.
+- Removidos do escopo: carteira interna e WhatsApp Meta Cloud API. Sinal, pagamento parcial/integral antecipado e Mercado Pago ficam somente no backlog futuro.
+
 ## Google OAuth, entrada única e logout — 25/08/2026
 
 - O hotsite permanece na rota `/`. Seus CTAs levam para a entrada focada `/entrar`, sem duplicar a apresentação comercial dentro do formulário.
