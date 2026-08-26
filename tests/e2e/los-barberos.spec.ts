@@ -4,9 +4,9 @@ test.describe("Los Barberos · experiências principais", () => {
   test("landing apresenta o produto e abre o cadastro do sistema", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: /Sua barbearia cheia/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Testar agora/i })).toBeVisible();
-    await page.getByRole("link", { name: /Testar agora/i }).click();
+    await expect(page.getByRole("heading", { name: /Horário vazio custa caro/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Criar minha barbearia/i }).first()).toBeVisible();
+    await page.getByRole("link", { name: /Criar minha barbearia/i }).first().click();
 
     await expect(page).toHaveURL(/\/entrar\?modo=cadastro$/);
     await expect(page.getByRole("heading", { name: /Crie sua barbearia/i })).toBeVisible();

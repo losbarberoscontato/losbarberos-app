@@ -10,17 +10,14 @@ describe("atalhos do hotsite para entrada", () => {
       "href",
       "/entrar?modo=login",
     );
-    expect(screen.getByRole("link", { name: /Testar agora/i })).toHaveAttribute(
-      "href",
-      "/entrar?modo=cadastro",
-    );
-    expect(screen.getAllByRole("link", { name: /Começar/i })).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({}),
-      ]),
-    );
-    for (const link of screen.getAllByRole("link", { name: /Começar/i })) {
+    for (const link of screen.getAllByRole("link", { name: /Entrar no painel/i })) {
+      expect(link).toHaveAttribute("href", "/entrar?modo=login");
+    }
+    const registrationLinks = screen.getAllByRole("link", { name: /Começar|Criar minha barbearia/i });
+    expect(registrationLinks).not.toHaveLength(0);
+    for (const link of registrationLinks) {
       expect(link).toHaveAttribute("href", "/entrar?modo=cadastro");
     }
+    expect(screen.queryByRole("link", { name: /cliente|agendar/i })).not.toBeInTheDocument();
   });
 });
