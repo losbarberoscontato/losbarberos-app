@@ -37,7 +37,7 @@ const financeNavigation = [
   { href: "/gestor/financeiro/caixa", label: "Caixa" },
   { href: "/gestor/financeiro/contas-pagar", label: "Contas a pagar" },
   { href: "/gestor/financeiro/contas-receber", label: "Contas a receber" },
-  { href: "/gestor/financeiro/bancos", label: "Bancos e caixas" },
+  { href: "/gestor/financeiro/bancos", label: "Bancos" },
   { href: "/gestor/financeiro/fornecedores", label: "Fornecedores" },
   { href: "/gestor/financeiro/cadastros", label: "Cadastros" },
 ];

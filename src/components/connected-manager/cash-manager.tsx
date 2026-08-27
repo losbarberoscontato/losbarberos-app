@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
-import { ArrowLeftRight, Building2, ChevronRight, CircleDollarSign, Landmark, Plus, ReceiptText, Tags } from "lucide-react";
+import { ArrowLeftRight, Building2, ChevronRight, CircleDollarSign, Landmark, Plus, ReceiptText, Tags, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { centsFromInput, formatCents } from "./format";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
@@ -32,7 +32,7 @@ const financeSections: Array<{ id: FinanceSection; label: string; href: string }
   { id: "cash", label: "Caixa", href: "/gestor/financeiro/caixa" },
   { id: "payables", label: "Contas a pagar", href: "/gestor/financeiro/contas-pagar" },
   { id: "receivables", label: "Contas a receber", href: "/gestor/financeiro/contas-receber" },
-  { id: "accounts", label: "Bancos e caixas", href: "/gestor/financeiro/bancos" },
+  { id: "accounts", label: "Bancos", href: "/gestor/financeiro/bancos" },
   { id: "suppliers", label: "Fornecedores", href: "/gestor/financeiro/fornecedores" },
   { id: "catalogs", label: "Cadastros", href: "/gestor/financeiro/cadastros" },
   { id: "reports", label: "Relatórios", href: "/gestor/financeiro/relatorios" },
@@ -60,6 +60,11 @@ export type CashManagerProps = {
 
 type EntryKind = FinancialEntryRecord["kind"];
 type EntryStatus = FinancialEntryRecord["status"];
+
+// Payment gateway accounts will be created and classified by their integration.
+// Keep the mapping implementation for that release, but do not expose it while
+// appointment deposits and full prepayments are not enabled.
+const SHOW_APPOINTMENT_RECEIPT_MAPPINGS = false;
 
 const statusLabel: Record<EntryStatus, string> = {
   OPEN: "Em aberto",
@@ -330,31 +335,22 @@ function TransferDialog({ accounts, demoMode, onClose, onSaved, setMessage }: { 
 }
 
 function AccountsSection({ organizationId, accounts, mappings, demoMode, balanceById, setMessage }: Pick<CashManagerProps, "organizationId" | "accounts" | "mappings" | "demoMode"> & { balanceById: Map<string, number>; accountById: Map<string, FinancialAccountRecord>; setMessage: (value: string) => void }) {
-  const router = useRouter(); const [editing, setEditing] = useState<FinancialAccountRecord | null>(null);
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_financial_account", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_kind: safeText(data.get("kind")), p_name: safeText(data.get("name")), p_opening_balance_cents: centsFromInput(data.get("opening")), p_bank_code: safeText(data.get("bank_code")) || null, p_branch: safeText(data.get("branch")) || null, p_account_number: safeText(data.get("number")) || null, p_description: safeText(data.get("description")) || null })); }, editing ? "Conta atualizada." : "Conta criada."); if (saved) { setEditing(null); router.refresh(); } }
+  const router = useRouter(); const [accountEditor, setAccountEditor] = useState<FinancialAccountRecord | "new" | null>(null);
+  const editing = accountEditor && accountEditor !== "new" ? accountEditor : null;
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_financial_account", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_kind: safeText(data.get("kind")), p_name: safeText(data.get("name")), p_opening_balance_cents: centsFromInput(data.get("opening")), p_bank_code: safeText(data.get("bank_code")) || null, p_branch: safeText(data.get("branch")) || null, p_account_number: safeText(data.get("number")) || null, p_description: safeText(data.get("description")) || null })); }, editing ? "Conta atualizada." : "Conta criada."); if (saved) { setAccountEditor(null); router.refresh(); } }
   async function mapAccount(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("configure_payment_account_mapping", { p_provider: safeText(data.get("provider")), p_payment_mode: safeText(data.get("payment_mode")), p_financial_account_id: safeText(data.get("account_id")) })); }, "Mapeamento de recebimento salvo."); if (saved) router.refresh(); }
   async function toggleActive(account: FinancialAccountRecord) { if (blockDemoWrite(demoMode, setMessage)) return; const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("set_financial_catalog_active", { p_catalog: "ACCOUNT", p_id: account.id, p_active: !account.active })); }, account.active ? "Conta inativada; histórico preservado." : "Conta reativada."); if (saved) router.refresh(); }
-  return <div className={styles.grid}>
-    <Panel title={editing ? "Editar conta" : "Nova conta financeira"} description="Banco ou caixa físico; saldo é derivado do ledger." className={styles.span5}>
-      <form className={styles.form} onSubmit={submit}>
-        <Field label="Tipo"><select name="kind" defaultValue={editing?.kind ?? "BANK"}><option value="BANK">Banco</option><option value="CASH">Caixa físico</option></select></Field>
-        <Field label="Nome"><input name="name" required defaultValue={editing?.name ?? ""} /></Field>
-        <Field label="Saldo inicial (R$)"><input name="opening" required inputMode="decimal" defaultValue={editing ? (editing.opening_balance_cents / 100).toFixed(2).replace(".", ",") : "0,00"} /></Field>
-        <Field label="Código do banco"><input name="bank_code" defaultValue={editing?.bank_code ?? ""} /></Field>
-        <Field label="Agência"><input name="branch" defaultValue={editing?.branch ?? ""} /></Field>
-        <Field label="Conta"><input name="number" defaultValue={editing?.account_number ?? ""} /></Field>
-        <Field label="Descrição da conta" wide><textarea name="description" defaultValue={editing?.description ?? ""} /></Field>
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{editing ? "Salvar" : "Adicionar"}</button>{editing && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditing(null)}>Cancelar</button>}</div>
-      </form>
-    </Panel>
-    <Panel title="Bancos e caixas" description="Inative em vez de apagar contas usadas." className={styles.span7}>
+  return <>
+    <div className={styles.grid}>
+    <Panel title="Bancos" description="Inative em vez de apagar contas usadas." className={styles.span12}>
+      <div className={styles.toolbarGroup}><button className={styles.button} type="button" onClick={() => setAccountEditor("new")}><Plus size={16} /> Adicionar conta</button></div>
       {!accounts.length ? <EmptyState title="Sem contas">Cadastre banco ou caixa físico antes de liquidar lançamentos.</EmptyState> : <div className={styles.list}>{accounts.map((item) => <article className={styles.row} key={item.id}>
         <span className={styles.rowTitle}><strong>{item.name}</strong><small>{item.kind === "BANK" ? "Banco" : "Caixa físico"} · saldo inicial {formatCents(item.opening_balance_cents)}{item.description ? ` · ${item.description}` : ""}</small></span>
         <strong>{formatCents(balanceById.get(item.id) ?? item.opening_balance_cents)}</strong><StatusChip active={item.active} /><span />
-        <span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setEditing(item)}>Editar</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => void toggleActive(item)}>{item.active ? "Inativar" : "Reativar"}</button></span>
+        <span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setAccountEditor(item)}>Editar</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => void toggleActive(item)}>{item.active ? "Inativar" : "Reativar"}</button></span>
       </article>)}</div>}
     </Panel>
-    <Panel title="Recebimentos de agendamento" description="Define a conta padrão por provedor e modalidade." className={styles.span12}>
+    {SHOW_APPOINTMENT_RECEIPT_MAPPINGS && <Panel title="Recebimentos de agendamento" description="Define a conta padrão por provedor e modalidade." className={styles.span12}>
       <form className={styles.form} onSubmit={mapAccount}>
         <Field label="Provedor"><select name="provider"><option value="MANUAL">Manual</option><option value="MERCADO_PAGO">Mercado Pago</option></select></Field>
         <Field label="Modalidade"><select name="payment_mode"><option value="COUNTER">Balcão</option><option value="DEPOSIT">Sinal</option><option value="FULL">Integral</option></select></Field>
@@ -362,8 +358,23 @@ function AccountsSection({ organizationId, accounts, mappings, demoMode, balance
         <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Salvar mapeamento</button></div>
       </form>
       {mappings.length > 0 && <p className={styles.muted}>{mappings.length} mapeamento(s) configurado(s).</p>}
-    </Panel>
-  </div>;
+    </Panel>}
+    </div>
+    {accountEditor && <FinancialAccountDialog account={editing} onClose={() => setAccountEditor(null)} onSubmit={submit} />}
+  </>;
+}
+
+function FinancialAccountDialog({ account, onClose, onSubmit }: { account: FinancialAccountRecord | null; onClose: () => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
+  return <Dialog title={account ? "Editar conta" : "Adicionar conta"} onClose={onClose} wide><form className={styles.form} onSubmit={onSubmit}>
+    <Field label="Tipo"><select name="kind" defaultValue={account?.kind ?? "BANK"}><option value="BANK">Banco</option><option value="CASH">Caixa físico</option></select></Field>
+    <Field label="Nome"><input name="name" required defaultValue={account?.name ?? ""} /></Field>
+    <Field label="Saldo inicial (R$)"><input name="opening" required inputMode="decimal" defaultValue={account ? (account.opening_balance_cents / 100).toFixed(2).replace(".", ",") : "0,00"} /></Field>
+    <Field label="Código do banco"><input name="bank_code" defaultValue={account?.bank_code ?? ""} /></Field>
+    <Field label="Agência"><input name="branch" defaultValue={account?.branch ?? ""} /></Field>
+    <Field label="Conta"><input name="number" defaultValue={account?.account_number ?? ""} /></Field>
+    <Field label="Descrição da conta" wide><textarea name="description" defaultValue={account?.description ?? ""} /></Field>
+    <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{account ? "Salvar" : "Adicionar conta"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
+  </form></Dialog>;
 }
 
 function SuppliersSection({ organizationId, suppliers, demoMode, setMessage }: { organizationId: string; suppliers: SupplierRecord[]; demoMode?: boolean; setMessage: (value: string) => void }) {
@@ -509,7 +520,7 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
       </form>
       <CatalogRows items={tags} onEdit={setEditingTag} onToggle={(item) => void toggleCatalog("tag", item)} />
     </Panel>
-    <Panel title="Estrutura financeira" description="Cadastre contas e fornecedores nas seções próprias." className={styles.span6}><div className={styles.cards}><article className={styles.card}><Landmark size={20} /><strong>{accounts.length} contas</strong><small>Banco e caixa físico</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Gerenciar</Link></article><article className={styles.card}><CircleDollarSign size={20} /><strong>{mappings.length} mapeamentos</strong><small>Recebimentos de agendamento</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Configurar</Link></article></div></Panel>
+    <Panel title="Estrutura financeira" description="Cadastre contas e fornecedores nas seções próprias." className={styles.span6}><div className={styles.cards}><article className={styles.card}><Landmark size={20} /><strong>{accounts.length} contas</strong><small>Bancos e caixas físicos</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Gerenciar</Link></article>{SHOW_APPOINTMENT_RECEIPT_MAPPINGS && <article className={styles.card}><CircleDollarSign size={20} /><strong>{mappings.length} mapeamentos</strong><small>Recebimentos de agendamento</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Configurar</Link></article>}</div></Panel>
   </div>;
 }
 
@@ -545,6 +556,6 @@ function CatalogRows<T extends { id: string; name: string; active: boolean }>({ 
   return !items.length ? <p className={styles.muted}>Nenhum item cadastrado.</p> : <div className={styles.list}>{items.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong>{item.name}</strong></span><StatusChip active={item.active} /><span /><span /><span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onEdit(item)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onToggle(item)}>{item.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>;
 }
 
-function Dialog({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) { const titleId = `dialog-${title.replaceAll(/\s+/gu, "-").toLocaleLowerCase("pt-BR")}`; return <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar" onClick={onClose} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby={titleId}><h2 id={titleId}>{title}</h2>{children}</section></div>; }
+function Dialog({ title, children, onClose, wide = false }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) { const titleId = `dialog-${title.replaceAll(/\s+/gu, "-").toLocaleLowerCase("pt-BR")}`; return <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar" onClick={onClose} /><section className={`${styles.modal} ${wide ? styles.modalWide : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className={styles.modalHeader}><h2 id={titleId}>{title}</h2><button className={styles.modalClose} type="button" onClick={onClose} aria-label={`Fechar ${title}`}><X size={18} /></button></div>{children}</section></div>; }
 
 function ConfirmDialog({ title, description, confirmLabel, onClose, onConfirm }: { title: string; description: string; confirmLabel: string; onClose: () => void; onConfirm: () => void }) { return <Dialog title={title} onClose={onClose}><p>{description}</p><div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonDanger}`} type="button" onClick={onConfirm}>{confirmLabel}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div></Dialog>; }

@@ -78,6 +78,17 @@ describe("cash manager", () => {
     expect(screen.getByLabelText("Descrição")).toBeInTheDocument();
   });
 
+  it("uses a modal to add banks and keeps appointment receipt mappings hidden", () => {
+    render(<CashManager {...props} section="accounts" />);
+
+    expect(screen.getByRole("heading", { name: "Bancos", level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Recebimentos de agendamento" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar conta" }));
+    expect(screen.getByRole("dialog", { name: "Adicionar conta" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Código do banco")).toBeInTheDocument();
+  });
+
   it("opens the appointment receipt with prefilled fields and records only the payment transaction", () => {
     render(<CashManager {...props} section="receivables" appointmentReceivables={[{
       appointment_id: "appointment-2",

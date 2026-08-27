@@ -31,6 +31,10 @@
 .modalLayer { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 1.5rem; }
 .modalBackdrop { position: absolute; inset: 0; border: 0; background: rgb(12 27 23 / 42%); }
 .modal { position: relative; width: min(100%, 28rem); padding: 1.5rem; border: 1px solid #e4e7df; border-radius: 1.25rem; background: #fffdf8; box-shadow: 0 1.5rem 4rem rgb(12 27 23 / 20%); }
+.modalWide { width: min(100%, 44rem); }
+.modalHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.modalClose { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid #d9dfd7; border-radius: .85rem; background: #fff; color: #243029; cursor: pointer; }
+.modalClose:hover { background: #f1f4ef; }
 .modal h2 { margin: 0; color: #10211c; font-size: 1.35rem; }
 .modal p { margin: .6rem 0 1.25rem; color: #62706b; }
 .field { display: grid; gap: .35rem; color: #555f57; font-size: .78rem; font-weight: 700; }
