@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { CashManager, type CashManagerProps } from "@/components/connected-manager/cash-manager";
+import { FinancialReportsManager } from "@/components/connected-manager/financial-reports-manager";
 import type { FinanceSection } from "@/components/connected-manager/types";
-import { loadCashData } from "@/components/connected-manager/server";
+import { loadCashData, loadFinancialReportsData } from "@/components/connected-manager/server";
 import { hasSupabaseConfig } from "@/lib/env";
 
 const sections: Record<string, FinanceSection> = {
@@ -37,6 +38,12 @@ function demoData(section: FinanceSection): CashManagerProps {
 
 export default async function FinanceSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section: rawSection } = await params;
+  if (rawSection === "relatorios") {
+    if (!hasSupabaseConfig) notFound();
+    const data = await loadFinancialReportsData();
+    if (data.billingStatus === "CANCELED_RETENTION" || data.billingStatus === "CLOSED") redirect("/regularizacao");
+    return <FinancialReportsManager {...data} />;
+  }
   const section = sections[rawSection];
   if (!section) notFound();
   if (!hasSupabaseConfig) return <CashManager {...demoData(section)} />;

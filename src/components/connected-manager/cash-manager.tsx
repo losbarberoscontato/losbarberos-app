@@ -35,6 +35,7 @@ const financeSections: Array<{ id: FinanceSection; label: string; href: string }
   { id: "accounts", label: "Bancos e caixas", href: "/gestor/financeiro/bancos" },
   { id: "suppliers", label: "Fornecedores", href: "/gestor/financeiro/fornecedores" },
   { id: "catalogs", label: "Cadastros", href: "/gestor/financeiro/cadastros" },
+  { id: "reports", label: "Relatórios", href: "/gestor/financeiro/relatorios" },
 ];
 
 export type CashManagerProps = {
@@ -204,7 +205,7 @@ export function CashManager(props: CashManagerProps) {
     {props.section === "catalogs" && <CatalogsSection organizationId={props.organizationId} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} accounts={props.accounts} mappings={props.mappings} demoMode={props.demoMode} setMessage={setMessage} />}
 
     {entryEditor && <EntryDialog entry={entryEditor === "new" ? null : entryEditor} {...props} onClose={() => setEntryEditor(null)} onSaved={() => { setEntryEditor(null); router.refresh(); }} setMessage={setMessage} />}
-    {appointmentReceipt && <AppointmentReceiptDialog receipt={appointmentReceipt} accounts={props.accounts} chartAccounts={props.chartAccounts} mappings={props.mappings} demoMode={props.demoMode} onClose={() => setAppointmentReceipt(null)} onSaved={() => { setAppointmentReceipt(null); router.refresh(); }} setMessage={setMessage} />}
+    {appointmentReceipt && <AppointmentReceiptDialog receipt={appointmentReceipt} accounts={props.accounts} chartAccounts={props.chartAccounts} costCenters={props.costCenters} mappings={props.mappings} demoMode={props.demoMode} onClose={() => setAppointmentReceipt(null)} onSaved={() => { setAppointmentReceipt(null); router.refresh(); }} setMessage={setMessage} />}
     {settlementEntry && <SettlementDialog entry={settlementEntry} accounts={props.accounts} demoMode={props.demoMode} onClose={() => setSettlementEntry(null)} onSaved={() => { setSettlementEntry(null); router.refresh(); }} setMessage={setMessage} />}
     {transferOpen && <TransferDialog accounts={props.accounts} demoMode={props.demoMode} onClose={() => setTransferOpen(false)} onSaved={() => { setTransferOpen(false); router.refresh(); }} setMessage={setMessage} />}
     {reversePayment && <ConfirmDialog title="Estornar recebimento do agendamento?" description="O valor será estornado ao cliente e o saldo do agendamento será reaberto. Serviço e agendamento continuam concluídos." confirmLabel="Confirmar estorno" onClose={() => setReversePayment(null)} onConfirm={() => void reverseAppointmentReceipt()} />}
@@ -234,9 +235,9 @@ function CashList({ entries, activity, receivables, accountById, supplierById, c
   </Panel>;
 }
 
-export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts = [], mappings = [], demoMode, onClose, onSaved, setMessage }: { receipt: AppointmentReceivableRecord | AppointmentReceiptDraft; accounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; mappings?: PaymentAccountMappingRecord[]; demoMode?: boolean; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts = [], costCenters = [], mappings = [], demoMode, onClose, onSaved, setMessage }: { receipt: AppointmentReceivableRecord | AppointmentReceiptDraft; accounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; mappings?: PaymentAccountMappingRecord[]; demoMode?: boolean; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
   const mappedAccountId = mappings.find((item) => item.provider === "MANUAL" && item.payment_mode === "COUNTER")?.financial_account_id;
-  const defaultAccount = mappedAccountId ?? accounts.find((item) => item.active && /caixa/i.test(item.name))?.id ?? "";
+  const defaultAccount = mappedAccountId ?? accounts.find((item) => item.active && /caixa/i.test(item.name))?.id ?? accounts.find((item) => item.active)?.id ?? "";
   const defaultChart = chartAccounts.find((item) => item.active && (item.code === "1" || /receita/i.test(item.name)))?.id ?? "";
   const customerName = "customer_name" in receipt ? receipt.customer_name : receipt.customerName;
   const amountCents = "outstanding_cents" in receipt ? receipt.outstanding_cents : receipt.amountCents;
@@ -249,12 +250,16 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     const data = new FormData(event.currentTarget);
     const appointmentId = "appointment_id" in receipt ? receipt.appointment_id : receipt.appointmentId;
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().rpc("record_manual_appointment_receipt", {
+      await assertResult(await connectedClient().rpc("record_manual_appointment_receipt_v2", {
         p_appointment_id: appointmentId,
-        p_amount_cents: amountCents,
-        p_reference: `${safeText(data.get("document_number"))} · ${safeText(data.get("payment_method"))}`,
+        p_amount_cents: centsFromInput(data.get("amount")),
+        p_payment_method: safeText(data.get("payment_method")),
+        p_financial_account_id: safeText(data.get("financial_account_id")),
+        p_chart_account_id: safeText(data.get("chart_account_id")),
+        p_cost_center_id: safeText(data.get("cost_center_id")) || null,
+        p_reference: safeText(data.get("reference")) || `${safeText(data.get("document_number"))} · ${safeText(data.get("payment_method"))}`,
+        p_document_number: safeText(data.get("document_number")),
         p_idempotency_key: `manager:appointment-receipt:${appointmentId}:${crypto.randomUUID()}`,
-        p_receipt: { customer_name: customerName, description: receipt.description, amount_cents: amountCents, issue_date: issueDate, due_date: dueDate, chart_account_id: defaultChart || null, financial_account_id: defaultAccount || null, cost_center_id: null, document_number: safeText(data.get("document_number")), tags: [] },
       }));
     }, "Recebimento confirmado e enviado ao Caixa.");
     if (saved) onSaved();
@@ -263,15 +268,17 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     <Field label="Contraparte / Cliente"><input value={customerName} readOnly /></Field>
     <Field label="Tipo"><input value="Receita" readOnly /></Field>
     <Field label="Descrição" wide><input name="description" defaultValue={receipt.description} required /></Field>
-    <Field label="Valor (R$)"><input value={(amountCents / 100).toFixed(2).replace(".", ",")} readOnly /></Field>
+    <Field label="Saldo restante"><input value={(amountCents / 100).toFixed(2).replace(".", ",")} readOnly /></Field>
+    <Field label="Valor a receber (R$)"><input name="amount" required inputMode="decimal" defaultValue={(amountCents / 100).toFixed(2).replace(".", ",")} /></Field>
     <Field label="Data do lançamento"><input type="date" value={issueDate} readOnly /></Field>
     <Field label="Vencimento"><input type="date" value={dueDate} readOnly /></Field>
-    <Field label="Plano de conta"><select aria-label="Plano de conta" defaultValue={defaultChart} disabled={!defaultChart}><option value="">1 · Receitas</option>{chartAccounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select></Field>
-    <Field label="Banco ou caixa"><select aria-label="Banco ou caixa" defaultValue={defaultAccount} disabled={!defaultAccount}><option value="">Caixa Físico</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-    <Field label="Centro de custo"><input value="Não informar" readOnly /></Field>
+    <Field label="Plano de conta"><select name="chart_account_id" aria-label="Plano de conta" required defaultValue={defaultChart}><option value="" disabled>Selecione</option>{chartAccounts.filter((item) => item.active && item.kind === "REVENUE").map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select></Field>
+    <Field label="Banco ou caixa"><select name="financial_account_id" aria-label="Banco ou caixa" required defaultValue={defaultAccount}><option value="" disabled>Selecione</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+    <Field label="Centro de custo"><select name="cost_center_id" defaultValue=""><option value="">Não informar</option>{costCenters.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Número do documento"><input name="document_number" defaultValue={documentNumber} required /></Field>
     <Field label="Tags"><input value="Nenhuma" readOnly /></Field>
     <Field label="Forma de recebimento"><select name="payment_method" defaultValue="CASH"><option value="CASH">Dinheiro</option><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field>
+    <Field label="Referência"><input name="reference" placeholder="PIX, NSU ou comprovante" /></Field>
     <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar recebimento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
   </form></Dialog>;
 }
@@ -454,7 +461,14 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
       : catalog === "cost"
         ? { p_organization_id: organizationId, p_id: editingCost?.id ?? null, p_name: safeText(data.get("name")) }
         : { p_organization_id: organizationId, p_id: editingTag?.id ?? null, p_name: safeText(data.get("name")), p_color: safeText(data.get("color")) || null };
-    const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc(rpc, params)); }, "Cadastro financeiro salvo.");
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc(rpc, params));
+      if (catalog === "chart" && editingChart) await assertResult(await connectedClient().rpc("set_chart_account_reporting_classification", {
+        p_chart_account_id: editingChart.id,
+        p_dre_group: safeText(data.get("dre_group")) || null,
+        p_cash_flow_activity: safeText(data.get("cash_flow_activity")) || null,
+      }));
+    }, "Cadastro financeiro salvo.");
     if (saved) { cancelChartEdit(); setEditingCost(null); setEditingTag(null); router.refresh(); }
   }
 
@@ -473,6 +487,7 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
         <Field label="Nome"><input name="name" required defaultValue={editingChart?.name ?? ""} /></Field>
         <Field label="Natureza"><select name="kind" value={chartKind} onChange={(event) => setChartKind(event.target.value as ChartAccountRecord["kind"])}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>
         <Field label="Conta superior"><select name="parent_id" defaultValue={editingChart?.parent_id ?? ""}><option value="">Nenhuma</option>{chartParentOptions.map((item) => <option key={item.id} value={item.id}>{`${"  ".repeat(item.depth)}${chartAccountLabel(item)}`}</option>)}</select></Field>
+        {editingChart && <><Field label="Grupo DRE"><select name="dre_group" defaultValue={editingChart.dre_group ?? ""}><option value="">Não classificado</option><option value="GROSS_REVENUE">Receita bruta</option><option value="REVENUE_DEDUCTIONS">Deduções da receita</option><option value="SERVICE_COST">Custo do serviço</option><option value="OPERATING_EXPENSE">Despesa operacional</option><option value="FINANCIAL_RESULT">Resultado financeiro</option><option value="OTHER_RESULT">Outros resultados</option><option value="INCOME_TAX">Imposto sobre resultado</option></select></Field><Field label="Atividade DFC"><select name="cash_flow_activity" defaultValue={editingChart.cash_flow_activity ?? ""}><option value="">Não classificado</option><option value="OPERATING">Operacional</option><option value="INVESTING">Investimento</option><option value="FINANCING">Financiamento</option></select></Field></>}
         <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><ReceiptText size={15} /> {editingChart ? "Salvar" : "Adicionar conta"}</button>{editingChart && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelChartEdit}>Cancelar</button>}</div>
       </form>
       <ChartAccountColumns accounts={chartAccounts} onEdit={editChart} onToggle={(item) => void toggleCatalog("chart", item)} />

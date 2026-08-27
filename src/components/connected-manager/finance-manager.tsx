@@ -23,6 +23,7 @@ export function FinanceManager(props: Props) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [showPayout, setShowPayout] = useState(false);
+  const [payPayout, setPayPayout] = useState<Props["payouts"][number] | null>(null);
   const [showManual, setShowManual] = useState(false);
   const customerById = useMemo(() => new Map(props.customers.map((item) => [item.id, item])), [props.customers]);
   const barberById = useMemo(() => new Map(props.barbers.map((item) => [item.id, item])), [props.barbers]);
@@ -57,12 +58,21 @@ export function FinanceManager(props: Props) {
     if (saved) { setShowPayout(false); router.refresh(); }
   }
 
-  async function markPaid(id: string) {
-    if (!window.confirm("Confirmar que este lote foi pago fora da plataforma?")) return;
+  async function markPaid(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!payPayout) return;
+    const form = new FormData(event.currentTarget);
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().rpc("mark_commission_payout_paid", { p_payout_id: id }));
-    }, "Lote marcado como pago.");
-    if (saved) router.refresh();
+      await assertResult(await connectedClient().rpc("record_commission_payout", {
+        p_payout_id: payPayout.id,
+        p_financial_account_id: String(form.get("financial_account_id")),
+        p_paid_on: String(form.get("paid_on")),
+        p_payment_method: String(form.get("payment_method")),
+        p_reference: String(form.get("reference") ?? "").trim() || null,
+        p_idempotency_key: `manager:commission-payout:${payPayout.id}:${crypto.randomUUID()}`,
+      }));
+    }, "Pagamento de comissão registrado no Caixa.");
+    if (saved) { setPayPayout(null); router.refresh(); }
   }
 
   async function recordManual(event: FormEvent<HTMLFormElement>) {
@@ -154,9 +164,10 @@ export function FinanceManager(props: Props) {
       <Panel title="Ledger de comissão" description="Append-only" className={styles.span7}>
         {props.ledger.length === 0 ? <EmptyState title="Sem comissão">A comissão nasce somente ao concluir um atendimento.</EmptyState> : <div className={styles.list}>{props.ledger.map((entry) => { const remaining = entry.kind === "EARNED" ? entry.amount_cents + (correctionsBySource.get(entry.id) ?? 0) : null; return <article className={styles.row} key={entry.id}><span className={styles.rowTitle}><strong>{barberById.get(entry.barber_id)?.display_name ?? "Profissional"}</strong><small>{new Date(entry.earned_at).toLocaleString("pt-BR")} · {entry.reason ?? entry.kind}{remaining !== null ? ` · vigente ${formatCents(remaining)}` : ""}</small></span><strong>{formatCents(entry.amount_cents)}</strong><StatusChip active={entry.kind === "EARNED"} label={entry.kind} /><span /><span className={styles.rowActions}>{entry.kind === "EARNED" && remaining !== null && remaining > 0 && <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => correctCommission(entry, "ADJUSTMENT")}>Ajustar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => correctCommission(entry, "REVERSAL")}>Reverter</button></>}</span></article>; })}</div>}
       </Panel>
-      <Panel title="Lotes de pagamento" description="Sem repasse automático" className={styles.span5} action={<button className={styles.button} type="button" disabled={!props.barbers.length} onClick={() => setShowPayout((value) => !value)}>Criar lote</button>}>
+      <Panel title="Lotes de pagamento" description="Pagamento gera saída de caixa; não duplica despesa na DRE." className={styles.span5} action={<button className={styles.button} type="button" disabled={!props.barbers.length} onClick={() => setShowPayout((value) => !value)}>Criar lote</button>}>
         {showPayout && <form className={styles.form} onSubmit={createPayout}><Field label="Profissional"><select name="barber_id">{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></Field><Field label="Início"><input type="date" name="period_start" required /></Field><Field label="Fim"><input type="date" name="period_end" required /></Field><button className={styles.button}>Fechar período</button></form>}
-        {props.payouts.length === 0 ? <EmptyState title="Sem lotes">Crie um lote após existir comissão positiva não paga.</EmptyState> : <div className={styles.list}>{props.payouts.map((payout) => <article className={styles.card} key={payout.id}><div className={styles.cardTop}><span className={styles.rowTitle}><strong>{barberById.get(payout.barber_id)?.display_name}</strong><small>{payout.period_start} a {payout.period_end}</small></span><StatusChip active={payout.status === "PAID"} label={payout.status} /></div><strong>{formatCents(payout.amount_cents)}</strong>{payout.status === "OPEN" && <button className={`${styles.button} ${styles.buttonSmall}`} onClick={() => markPaid(payout.id)} type="button">Marcar como pago</button>}</article>)}</div>}
+        {payPayout && <form className={styles.form} onSubmit={markPaid}><p className={styles.formWide}>Liquidação integral: <strong>{formatCents(payPayout.amount_cents)}</strong></p><Field label="Banco ou caixa"><select name="financial_account_id" required><option value="">Selecione</option>{props.financialAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></Field><Field label="Data"><input name="paid_on" type="date" required defaultValue={new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date())} /></Field><Field label="Método"><select name="payment_method"><option value="PIX">PIX</option><option value="TRANSFER">Transferência</option><option value="CASH">Dinheiro</option><option value="OTHER">Outro</option></select></Field><Field label="Referência"><input name="reference" placeholder="Comprovante ou protocolo" /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar pagamento</button><button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPayPayout(null)}>Cancelar</button></div></form>}
+        {props.payouts.length === 0 ? <EmptyState title="Sem lotes">Crie um lote após existir comissão positiva não paga.</EmptyState> : <div className={styles.list}>{props.payouts.map((payout) => <article className={styles.card} key={payout.id}><div className={styles.cardTop}><span className={styles.rowTitle}><strong>{barberById.get(payout.barber_id)?.display_name}</strong><small>{payout.period_start} a {payout.period_end}</small></span><StatusChip active={payout.status === "PAID"} label={payout.status} /></div><strong>{formatCents(payout.amount_cents)}</strong>{payout.status === "OPEN" && <button className={`${styles.button} ${styles.buttonSmall}`} onClick={() => setPayPayout(payout)} type="button">Pagar no Caixa</button>}</article>)}</div>}
       </Panel>
     </div>
   </div>;

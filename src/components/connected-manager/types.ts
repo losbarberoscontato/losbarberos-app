@@ -256,7 +256,42 @@ export interface SubscriptionRecord {
   retention_ends_at: string | null;
 }
 
-export type FinanceSection = "overview" | "cash" | "payables" | "receivables" | "accounts" | "suppliers" | "catalogs";
+export type FinanceSection = "overview" | "cash" | "payables" | "receivables" | "accounts" | "suppliers" | "catalogs" | "reports";
+
+export type FinancialFactBasis = "FORECAST" | "ACCRUAL" | "CASH" | "BUDGET";
+export type FinancialReportType = "DASHBOARD" | "PAYABLES" | "RECEIVABLES" | "CUSTOMERS" | "COMMISSIONS" | "FORECAST" | "CASH_FLOW" | "INCOME_STATEMENT" | "BUDGET";
+
+export interface FinancialReportingFactRecord {
+  organization_id: string;
+  basis: FinancialFactBasis;
+  source_type: string;
+  source_id: string;
+  fact_date: string;
+  competence_date: string | null;
+  due_date: string | null;
+  settlement_date: string | null;
+  location_id: string | null;
+  customer_id: string | null;
+  barber_id: string | null;
+  service_id: string | null;
+  service_name_snapshot: string | null;
+  chart_account_id: string | null;
+  cost_center_id: string | null;
+  financial_account_id: string | null;
+  dre_group: "GROSS_REVENUE" | "REVENUE_DEDUCTIONS" | "SERVICE_COST" | "OPERATING_EXPENSE" | "FINANCIAL_RESULT" | "OTHER_RESULT" | "INCOME_TAX" | null;
+  cash_flow_activity: "OPERATING" | "INVESTING" | "FINANCING" | null;
+  signed_cents: number;
+  status: string;
+}
+
+export interface FinancialBudgetVersionRecord {
+  id: string;
+  organization_id: string;
+  budget_id: string;
+  version_number: number;
+  status: "DRAFT" | "APPROVED" | "SUPERSEDED";
+  approved_at: string | null;
+}
 
 export interface FinancialAccountRecord {
   id: string;
@@ -296,6 +331,8 @@ export interface ChartAccountRecord {
   code: string | null;
   name: string;
   kind: "REVENUE" | "EXPENSE";
+  dre_group?: "GROSS_REVENUE" | "REVENUE_DEDUCTIONS" | "SERVICE_COST" | "OPERATING_EXPENSE" | "FINANCIAL_RESULT" | "OTHER_RESULT" | "INCOME_TAX" | null;
+  cash_flow_activity?: "OPERATING" | "INVESTING" | "FINANCING" | null;
   active: boolean;
 }
 

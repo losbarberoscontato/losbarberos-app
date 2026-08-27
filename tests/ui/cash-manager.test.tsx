@@ -99,7 +99,7 @@ describe("cash manager", () => {
     expect(screen.getByDisplayValue("ATD-APPOINT2")).toBeInTheDocument();
     fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
 
-    expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt", expect.objectContaining({ p_appointment_id: "appointment-2", p_amount_cents: 6500, p_receipt: expect.objectContaining({ document_number: "ATD-APPOINT2" }) }));
+    expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_appointment_id: "appointment-2", p_amount_cents: 6500, p_chart_account_id: "chart-revenue", p_financial_account_id: "account-1", p_document_number: "ATD-APPOINT2" }));
     expect(rpc).not.toHaveBeenCalledWith("create_financial_entry", expect.anything());
   });
 

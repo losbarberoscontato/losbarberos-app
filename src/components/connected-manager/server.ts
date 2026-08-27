@@ -35,6 +35,8 @@ import type {
   AppointmentCashActivityRecord,
   AppointmentReceivableRecord,
   PaymentAccountMappingRecord,
+  FinancialBudgetVersionRecord,
+  FinancialReportingFactRecord,
   WorkIntervalRecord,
 } from "./types";
 import type { WhatsAppSettingsStatus } from "./whatsapp-settings";
@@ -159,7 +161,7 @@ export async function loadAgendaData() {
 
 export async function loadFinanceData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [financial, appointments, customers, barbers, ledger, payouts, refunds, outbox] = await Promise.all([
+  const [financial, appointments, customers, barbers, ledger, payouts, refunds, outbox, accounts] = await Promise.all([
     supabase.from("appointment_financial_summary").select("*").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(250),
     supabase.from("customers").select("id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
@@ -168,6 +170,7 @@ export async function loadFinanceData() {
     supabase.from("commission_payouts").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(200),
     supabase.from("refund_jobs").select("id,appointment_id,amount_cents,status,attempts,next_attempt_at,last_error,created_at").eq("organization_id", organizationId).in("status", ["PENDING", "PROCESSING", "FAILED", "SEND_UNKNOWN"]).order("created_at", { ascending: false }).limit(100),
     supabase.from("notification_outbox").select("id,appointment_id,template_key,recipient_e164,status,attempts,next_attempt_at,last_error,created_at").eq("organization_id", organizationId).in("status", ["FAILED", "SEND_UNKNOWN"]).order("created_at", { ascending: false }).limit(100),
+    supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).eq("active", true).order("name"),
   ]);
   return {
     organizationId,
@@ -180,6 +183,7 @@ export async function loadFinanceData() {
     payouts: requireData(payouts, "Lotes") as CommissionPayoutRecord[],
     refundJobs: requireData(refunds, "Reembolsos pendentes") as RefundJobRecord[],
     outboxIssues: requireData(outbox, "Mensagens pendentes") as OutboxRecord[],
+    financialAccounts: requireData(accounts, "Contas para comissão") as FinancialAccountRecord[],
   };
 }
 
@@ -189,7 +193,7 @@ export async function loadCashData() {
     supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
     supabase.from("financial_account_balances").select("financial_account_id,balance_cents").eq("organization_id", organizationId),
     supabase.from("suppliers").select("id,organization_id,person_kind,name,document,phone_e164,email,address,notes,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
-    supabase.from("chart_of_accounts").select("id,organization_id,parent_id,code,name,kind,active").eq("organization_id", organizationId).order("kind").order("code").order("name"),
+    supabase.from("chart_of_accounts").select("id,organization_id,parent_id,code,name,kind,active,dre_group,cash_flow_activity").eq("organization_id", organizationId).order("kind").order("code").order("name"),
     supabase.from("cost_centers").select("id,organization_id,name,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
     supabase.from("financial_tags").select("id,organization_id,name,color,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
     supabase.from("customers").select("id,organization_id,full_name,active").eq("organization_id", organizationId).is("merged_into_customer_id", null).order("full_name").limit(MANAGER_ROW_LIMIT),
@@ -255,6 +259,37 @@ export async function loadCashData() {
     }),
     mappings: requireData(mappings, "Mapeamentos de recebimento") as PaymentAccountMappingRecord[],
     appointmentReceivables,
+  };
+}
+
+export async function loadFinancialReportsData() {
+  const { context, supabase, organizationId } = await managerClient();
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().slice(0, 10);
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const [facts, customers, barbers, locations, chartAccounts, costCenters, accounts, budgetVersions] = await Promise.all([
+    supabase.from("financial_reporting_facts").select("*").eq("organization_id", organizationId).gte("fact_date", from).lte("fact_date", to).order("fact_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("customers").select("id,organization_id,full_name,active").eq("organization_id", organizationId).is("merged_into_customer_id", null).order("full_name").limit(MANAGER_ROW_LIMIT),
+    supabase.from("barbers").select("id,organization_id,location_id,display_name,bio,avatar_url,whatsapp_e164,active").eq("organization_id", organizationId).order("display_name").limit(MANAGER_ROW_LIMIT),
+    supabase.from("locations").select("id,organization_id,name,address,active").eq("organization_id", organizationId).order("name"),
+    supabase.from("chart_of_accounts").select("id,organization_id,parent_id,code,name,kind,active,dre_group,cash_flow_activity").eq("organization_id", organizationId).order("code"),
+    supabase.from("cost_centers").select("id,organization_id,name,active").eq("organization_id", organizationId).order("name"),
+    supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).order("name"),
+    supabase.from("financial_budget_versions").select("id,organization_id,budget_id,version_number,status,approved_at").eq("organization_id", organizationId).order("version_number", { ascending: false }).limit(100),
+  ]);
+  return {
+    organizationId,
+    billingStatus: context.billingStatus,
+    from,
+    to,
+    facts: requireData(facts, "Fatos financeiros") as FinancialReportingFactRecord[],
+    customers: requireData(customers, "Clientes financeiros") as Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">[],
+    barbers: requireData(barbers, "Profissionais financeiros") as BarberRecord[],
+    locations: requireData(locations, "Unidades financeiras") as LocationRecord[],
+    chartAccounts: requireData(chartAccounts, "Plano de contas") as ChartAccountRecord[],
+    costCenters: requireData(costCenters, "Centros de custo") as CostCenterRecord[],
+    accounts: requireData(accounts, "Contas financeiras") as FinancialAccountRecord[],
+    budgetVersions: requireData(budgetVersions, "Versões de orçamento") as FinancialBudgetVersionRecord[],
   };
 }
 
