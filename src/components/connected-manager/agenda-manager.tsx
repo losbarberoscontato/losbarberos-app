@@ -82,6 +82,7 @@ export function AgendaManager(props: Props) {
   const [status, setStatus] = useState<AgendaStatusFilter>("ALL");
   const [selected, setSelected] = useState<AppointmentRecord | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  const [agendaHelpOpen, setAgendaHelpOpen] = useState(false);
   const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
@@ -295,7 +296,10 @@ export function AgendaManager(props: Props) {
   const selectedFinancial = selected ? financialById.get(selected.id) : null;
 
   return <div className={styles.stack}>
-    <PageHeader title="Agenda" description="Organize equipe, horários e atendimentos em tempo real." />
+    <div className={styles.agendaHeader}>
+      <PageHeader title="Agenda" description="Organize equipe, horários e atendimentos em tempo real." />
+      <button type="button" className={styles.agendaHelpLink} onClick={() => setAgendaHelpOpen(true)}>Como funciona a agenda</button>
+    </div>
     {blocked && <ActionMessage tone="warning" message="Assinatura bloqueada: criar e reagendar estão desabilitados. As reservas existentes continuam operacionais." />}
     <ActionMessage message={message} />
 
@@ -399,6 +403,19 @@ export function AgendaManager(props: Props) {
       <div className="form-modal__body"><div className="form-grid"><label>Profissional<span className="select-input"><select name="barber_id" defaultValue={rescheduling.barber_id}>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label><label>Data<span className="input-shell"><CalendarDays size={17} /><input name="date" type="date" defaultValue={appointmentDate(rescheduling)} required /></span></label></div><div className="form-grid"><label>Horário<span className="input-shell"><Clock3 size={17} /><input name="time" type="time" defaultValue={appointmentGeometry(rescheduling.service_period, timezone)?.startLabel} step={BUSINESS_SLOT_INTERVAL_MINUTES * 60} required /></span></label><label>Motivo fora da escala<input name="override_reason" /></label></div></div>
       <div className="form-modal__footer"><button type="button" className="button button--ghost" onClick={() => setRescheduling(null)}>Cancelar</button><button type="submit" className="button button--dark">Proteger novo slot</button></div>
     </form></div>}
+    {agendaHelpOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar explicação da agenda" onClick={() => setAgendaHelpOpen(false)} /><section className={`form-modal ${styles.agendaHelpModal}`} role="dialog" aria-modal="true" aria-label="Como funciona a agenda">
+      <div className="form-modal__head"><span><strong>Como funciona a agenda</strong></span><button type="button" className="icon-button" onClick={() => setAgendaHelpOpen(false)} aria-label="Fechar"><X size={19} /></button></div>
+      <div className="form-modal__body">
+        <p className={styles.agendaHelpIntro}>A agenda protege tempo real de cada profissional. Escolha cliente, serviço ou pacote, profissional, data e horário.</p>
+        <ol className={styles.agendaHelpSteps}>
+          <li><strong>Serviço e pacote definem duração.</strong><span>O tempo cadastrado reserva período na agenda. Pacote usa própria duração; se não houver, soma serviços incluídos.</span></li>
+          <li><strong>Horários seguem intervalos da agenda.</strong><span>Para manter grade organizada, reserva ocupa próximo intervalo completo. Exemplo: 80 minutos em grade de 15 ocupa 90 minutos.</span></li>
+          <li><strong>Escala e conflitos são conferidos.</strong><span>Sistema verifica disponibilidade do profissional e impede duas reservas no mesmo período.</span></li>
+          <li><strong>Atendimento acompanha rotina.</strong><span>Reserva confirmada passa por iniciar e concluir. Depois, recebimento fica disponível no Financeiro quando necessário.</span></li>
+        </ol>
+      </div>
+      <div className="form-modal__footer"><button type="button" className="button button--dark" onClick={() => setAgendaHelpOpen(false)}>Entendi</button></div>
+    </section></div>}
     {receiptTarget && <AppointmentReceiptDialog receipt={receiptTarget} onClose={() => setReceiptTarget(null)} onSaved={() => { setReceiptTarget(null); router.refresh(); }} setMessage={setMessage} />}
   </div>;
 }

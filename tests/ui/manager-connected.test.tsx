@@ -125,6 +125,20 @@ describe("connected manager UI", () => {
     expect(within(sheet).getByTestId("queue-print-qr")).toHaveAttribute("width", "520");
   });
 
+  it("não exibe nem atualiza sinal ou frequência de comissões nas regras da barbearia", () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+    />);
+
+    expect(screen.queryByLabelText("Sinal (%)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Frequência das comissões")).not.toBeInTheDocument();
+  });
+
   it("blocks only new booking and rescheduling while existing operations stay visible", () => {
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
     const futureStart = new Date(`${today}T14:00:00-03:00`);
@@ -257,6 +271,17 @@ describe("connected manager UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Novo agendamento" }));
     expect(screen.getByRole("dialog", { name: "Novo agendamento" })).toBeInTheDocument();
     expect(screen.getByText("Reserve um horário")).toBeInTheDocument();
+  });
+
+  it("explica o funcionamento da agenda em modal", () => {
+    render(<AgendaManager organizationId="org-1" billingStatus="ACTIVE" organization={organization} customers={[customer]} barbers={[barber]} services={[service]} packages={[]} barberServices={[]} financial={[]} appointments={[]} appointmentItems={[]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Como funciona a agenda" }));
+    const dialog = screen.getByRole("dialog", { name: "Como funciona a agenda" });
+    expect(dialog).toHaveTextContent("Serviço e pacote definem duração.");
+    expect(dialog).toHaveTextContent("80 minutos em grade de 15 ocupa 90 minutos.");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Entendi" }));
+    expect(screen.queryByRole("dialog", { name: "Como funciona a agenda" })).not.toBeInTheDocument();
   });
 
   it("abre cadastro e edição de cliente em modal", () => {

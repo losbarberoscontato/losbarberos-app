@@ -47,11 +47,9 @@ export function SettingsManager(props: Props) {
         name: String(data.get("name") ?? "").trim(),
         slug: String(data.get("slug") ?? "").trim().toLowerCase(),
         timezone: String(data.get("timezone")),
-        deposit_bps: Math.round(Number(data.get("deposit_percent")) * 100),
         cancellation_lead_minutes: Math.round(Number(data.get("cancellation_hours")) * 60),
         slot_interval_minutes: Number(data.get("slot_interval_minutes")),
         hold_duration_minutes: Number(data.get("hold_duration_minutes")),
-        commission_frequency: String(data.get("commission_frequency")),
         public_contact_phone_e164: String(data.get("public_contact_phone_e164") ?? "").trim() || null,
         logo_path: logoPath || null,
       }).eq("id", props.organizationId));
@@ -185,11 +183,9 @@ export function SettingsManager(props: Props) {
           <Field label="WhatsApp público"><input name="public_contact_phone_e164" inputMode="tel" placeholder="+5511999999999" defaultValue={props.organization.public_contact_phone_e164 ?? ""} /></Field>
           <Field label="Logomarca"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void uploadLogo(event.target.files?.[0])} /><small>{logoPath ? "Logo cadastrada" : "PNG, JPEG ou WebP até 2 MB"}</small></Field>
           <Field label="Timezone"><select name="timezone" defaultValue={props.organization.timezone}><option value="America/Sao_Paulo">America/Sao_Paulo</option><option value="America/Manaus">America/Manaus</option><option value="America/Fortaleza">America/Fortaleza</option><option value="America/Recife">America/Recife</option><option value="America/Bahia">America/Bahia</option><option value="America/Cuiaba">America/Cuiaba</option><option value="America/Rio_Branco">America/Rio_Branco</option></select></Field>
-          <Field label="Sinal (%)"><input name="deposit_percent" type="number" min={0} max={100} step="0.01" defaultValue={props.organization.deposit_bps / 100} /></Field>
           <Field label="Prazo de cancelamento (horas)"><input name="cancellation_hours" type="number" min={0} step="1" defaultValue={props.organization.cancellation_lead_minutes / 60} /></Field>
           <Field label="Intervalo dos slots"><select name="slot_interval_minutes" defaultValue={15}><option value="15">15 minutos</option></select></Field>
           <Field label="Duração do hold"><input name="hold_duration_minutes" type="number" min={2} max={30} defaultValue={props.organization.hold_duration_minutes} /></Field>
-          <Field label="Frequência das comissões"><select name="commission_frequency" defaultValue={props.organization.commission_frequency}><option value="DAILY">Diária</option><option value="WEEKLY">Semanal</option><option value="MONTHLY">Mensal</option></select></Field>
           <button className={`${styles.button} ${styles.formWide}`} type="submit">Salvar regras</button>
         </form>
       </Panel>

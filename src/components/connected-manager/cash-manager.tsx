@@ -115,7 +115,6 @@ export function CashManager(props: CashManagerProps) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState<"ALL" | EntryKind>(props.section === "payables" ? "EXPENSE" : props.section === "receivables" ? "REVENUE" : "ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | EntryStatus>("ALL");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -124,6 +123,7 @@ export function CashManager(props: CashManagerProps) {
   const [transferOpen, setTransferOpen] = useState(false);
   const [reversePayment, setReversePayment] = useState<AppointmentCashActivityRecord | null>(null);
   const [appointmentReceipt, setAppointmentReceipt] = useState<AppointmentReceivableRecord | AppointmentReceiptDraft | null>(null);
+  const sectionKind: "ALL" | EntryKind = props.section === "payables" ? "EXPENSE" : props.section === "receivables" ? "REVENUE" : "ALL";
 
   const accountById = useMemo(() => new Map(props.accounts.map((item) => [item.id, item])), [props.accounts]);
   const supplierById = useMemo(() => new Map(props.suppliers.map((item) => [item.id, item])), [props.suppliers]);
@@ -140,14 +140,14 @@ export function CashManager(props: CashManagerProps) {
   const visibleEntries = useMemo(() => props.entries.filter((entry) => {
     const counterparty = entry.counterparty_kind === "CUSTOMER" ? customerById.get(entry.customer_id ?? "")?.full_name : supplierById.get(entry.supplier_id ?? "")?.name;
     const haystack = [entry.description, entry.document_number, counterparty, chartById.get(entry.chart_account_id)?.name, ...(tagNamesByEntry.get(entry.id) ?? [])].join(" ").toLocaleLowerCase("pt-BR");
-    return (kindFilter === "ALL" || entry.kind === kindFilter) && (statusFilter === "ALL" || entry.status === statusFilter) && isDateInRange(entry.due_date, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.entries, customerById, supplierById, chartById, tagNamesByEntry, kindFilter, statusFilter, startDate, endDate, query]);
+    return (sectionKind === "ALL" || entry.kind === sectionKind) && (statusFilter === "ALL" || entry.status === statusFilter) && isDateInRange(entry.due_date, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.entries, customerById, supplierById, chartById, tagNamesByEntry, sectionKind, statusFilter, startDate, endDate, query]);
 
   const visibleActivity = useMemo(() => props.appointmentActivity.filter((item) => {
     const customer = customerById.get(item.customer_id)?.full_name ?? "Cliente";
     const haystack = `${customer} ${item.display_description} ${item.provider} ${item.payment_mode}`.toLocaleLowerCase("pt-BR");
-    return kindFilter !== "EXPENSE" && isDateInRange(item.occurred_at, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.appointmentActivity, customerById, kindFilter, startDate, endDate, query]);
+    return sectionKind !== "EXPENSE" && isDateInRange(item.occurred_at, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.appointmentActivity, customerById, sectionKind, startDate, endDate, query]);
 
   const capturedFromAppointments = props.appointmentActivity.reduce((total, item) => total + item.signed_cents, 0);
   const manualRevenue = props.entries.filter((item) => item.kind === "REVENUE").reduce((total, item) => total + item.settled_cents, 0);
@@ -192,7 +192,6 @@ export function CashManager(props: CashManagerProps) {
           <input className={styles.packageFilterSelect} aria-label="Buscar lançamentos" placeholder="Buscar descrição, documento ou contraparte" value={query} onChange={(event) => setQuery(event.target.value)} />
           <input className={styles.packageFilterSelect} aria-label="Data inicial" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
           <input className={styles.packageFilterSelect} aria-label="Data final" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-          <select className={styles.packageFilterSelect} aria-label="Filtrar tipo" value={kindFilter} onChange={(event) => setKindFilter(event.target.value as "ALL" | EntryKind)}><option value="ALL">Todos tipos</option><option value="REVENUE">Receitas</option><option value="EXPENSE">Despesas</option></select>
           <select className={styles.packageFilterSelect} aria-label="Filtrar status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "ALL" | EntryStatus)}><option value="ALL">Todos status</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
         </div>
         {props.section !== "cash" && <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button>}
@@ -209,7 +208,7 @@ export function CashManager(props: CashManagerProps) {
     {props.section === "suppliers" && <SuppliersSection organizationId={props.organizationId} suppliers={props.suppliers} demoMode={props.demoMode} setMessage={setMessage} />}
     {props.section === "catalogs" && <CatalogsSection organizationId={props.organizationId} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} accounts={props.accounts} mappings={props.mappings} demoMode={props.demoMode} setMessage={setMessage} />}
 
-    {entryEditor && <EntryDialog entry={entryEditor === "new" ? null : entryEditor} {...props} onClose={() => setEntryEditor(null)} onSaved={() => { setEntryEditor(null); router.refresh(); }} setMessage={setMessage} />}
+    {entryEditor && <EntryDialog entry={entryEditor === "new" ? null : entryEditor} defaultKind={sectionKind === "ALL" ? "REVENUE" : sectionKind} {...props} onClose={() => setEntryEditor(null)} onSaved={() => { setEntryEditor(null); router.refresh(); }} setMessage={setMessage} />}
     {appointmentReceipt && <AppointmentReceiptDialog receipt={appointmentReceipt} accounts={props.accounts} chartAccounts={props.chartAccounts} costCenters={props.costCenters} mappings={props.mappings} demoMode={props.demoMode} onClose={() => setAppointmentReceipt(null)} onSaved={() => { setAppointmentReceipt(null); router.refresh(); }} setMessage={setMessage} />}
     {settlementEntry && <SettlementDialog entry={settlementEntry} accounts={props.accounts} demoMode={props.demoMode} onClose={() => setSettlementEntry(null)} onSaved={() => { setSettlementEntry(null); router.refresh(); }} setMessage={setMessage} />}
     {transferOpen && <TransferDialog accounts={props.accounts} demoMode={props.demoMode} onClose={() => setTransferOpen(false)} onSaved={() => { setTransferOpen(false); router.refresh(); }} setMessage={setMessage} />}
@@ -288,9 +287,18 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
   </form></Dialog>;
 }
 
-function EntryDialog({ entry, organizationId, accounts, suppliers, chartAccounts, costCenters, tags, customers, entryTags, demoMode, onClose, onSaved, setMessage }: Omit<CashManagerProps, "section" | "billingStatus" | "balances" | "entries" | "settlements" | "appointmentActivity" | "mappings" | "appointmentReceivables"> & { entry: FinancialEntryRecord | null; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+function EntryDialog({ entry, defaultKind, organizationId, accounts, suppliers, chartAccounts, costCenters, tags, customers, entryTags, demoMode, onClose, onSaved, setMessage }: Omit<CashManagerProps, "section" | "billingStatus" | "balances" | "entries" | "settlements" | "appointmentActivity" | "mappings" | "appointmentReceivables"> & { entry: FinancialEntryRecord | null; defaultKind: EntryKind; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
   const [counterpartyKind, setCounterpartyKind] = useState<"" | "CUSTOMER" | "SUPPLIER">(entry?.counterparty_kind ?? "");
+  const [kind, setKind] = useState<EntryKind>(entry?.kind ?? defaultKind);
+  const [expenseType, setExpenseType] = useState<"SINGLE" | "RECURRING" | "INSTALLMENT">("SINGLE");
+  const [recurrence, setRecurrence] = useState<"BIWEEKLY" | "MONTHLY">("MONTHLY");
+  const [amount, setAmount] = useState(entry ? (entry.total_cents / 100).toFixed(2).replace(".", ",") : "");
+  const [installments, setInstallments] = useState("2");
   const selectedTags = new Set(entry ? entryTags.filter((item) => item.entry_id === entry.id).map((item) => item.tag_id) : []);
+  const isSeries = !entry && kind === "EXPENSE" && expenseType !== "SINGLE";
+  const installmentTotalCents = useMemo(() => {
+    try { return centsFromInput(amount) * Math.max(0, Number.parseInt(installments, 10) || 0); } catch { return 0; }
+  }, [amount, installments]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (blockDemoWrite(demoMode, setMessage)) return;
@@ -298,17 +306,37 @@ function EntryDialog({ entry, organizationId, accounts, suppliers, chartAccounts
     const params = { p_description: safeText(data.get("description")), p_issue_date: safeText(data.get("issue_date")), p_due_date: safeText(data.get("due_date")), p_total_cents: centsFromInput(data.get("amount")), p_chart_account_id: safeText(data.get("chart_account_id")), p_cost_center_id: safeText(data.get("cost_center_id")) || null, p_preferred_financial_account_id: safeText(data.get("account_id")) || null, p_counterparty_kind: counterpartyKind || null, p_customer_id: counterpartyKind === "CUSTOMER" ? safeText(data.get("customer_id")) || null : null, p_supplier_id: counterpartyKind === "SUPPLIER" ? safeText(data.get("supplier_id")) || null : null, p_document_number: safeText(data.get("document_number")) || null, p_tag_ids: data.getAll("tag_ids").map(String) };
     const saved = await runMutation(setMessage, async () => {
       if (entry) await assertResult(await connectedClient().rpc("update_financial_entry", { p_entry_id: entry.id, ...params }));
-      else await assertResult(await connectedClient().rpc("create_financial_entry", { p_organization_id: organizationId, p_kind: safeText(data.get("kind")), ...params }));
-    }, entry ? "Lançamento aberto atualizado." : "Lançamento criado.");
+      else if (isSeries) await assertResult(await connectedClient().rpc("create_financial_series", {
+        p_organization_id: organizationId,
+        p_kind: expenseType === "INSTALLMENT" ? "INSTALLMENT" : "RECURRING",
+        p_cadence: expenseType === "INSTALLMENT" ? "MONTHLY" : recurrence,
+        p_entry_kind: "EXPENSE",
+        p_description: params.p_description,
+        p_start_date: params.p_due_date,
+        p_chart_account_id: params.p_chart_account_id,
+        p_occurrence_count: expenseType === "INSTALLMENT" ? Number.parseInt(installments, 10) : null,
+        p_end_date: null,
+        p_total_cents: expenseType === "INSTALLMENT" ? installmentTotalCents : null,
+        p_amount_cents: expenseType === "RECURRING" ? params.p_total_cents : null,
+        p_cost_center_id: params.p_cost_center_id,
+        p_location_id: null,
+        p_preferred_financial_account_id: params.p_preferred_financial_account_id,
+      }));
+      else await assertResult(await connectedClient().rpc("create_financial_entry", { p_organization_id: organizationId, p_kind: kind, ...params }));
+    }, entry ? "Lançamento aberto atualizado." : isSeries ? "Série de despesas criada." : "Lançamento criado.");
     if (saved) onSaved();
   }
-  return <Dialog title={entry ? "Editar lançamento" : "Novo lançamento"} onClose={onClose}><form className={styles.form} onSubmit={submit}>
-    {!entry && <Field label="Tipo"><select name="kind" defaultValue="REVENUE"><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>}
+  return <Dialog title={entry ? "Editar lançamento" : "Novo lançamento"} onClose={onClose} wide><form className={styles.form} onSubmit={submit}>
+    {!entry && defaultKind === "REVENUE" && <Field label="Tipo"><select name="kind" value={kind} onChange={(event) => setKind(event.target.value as EntryKind)}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>}
+    {!entry && kind === "EXPENSE" && <Field label="Tipo de despesa"><select value={expenseType} onChange={(event) => setExpenseType(event.target.value as "SINGLE" | "RECURRING" | "INSTALLMENT")}><option value="SINGLE">Única</option><option value="RECURRING">Recorrente</option><option value="INSTALLMENT">Parcelada</option></select></Field>}
     <Field label="Descrição"><input name="description" required defaultValue={entry?.description ?? ""} /></Field>
-    <Field label="Valor (R$)"><input name="amount" required inputMode="decimal" defaultValue={entry ? (entry.total_cents / 100).toFixed(2).replace(".", ",") : ""} /></Field>
+    <Field label={expenseType === "INSTALLMENT" ? "Valor da parcela (R$)" : isSeries ? "Valor por vencimento (R$)" : "Valor (R$)"}><input name="amount" required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></Field>
     <Field label="Data do lançamento"><input type="date" name="issue_date" required defaultValue={entry?.issue_date ?? today()} /></Field>
-    <Field label="Vencimento"><input type="date" name="due_date" required defaultValue={entry?.due_date ?? today()} /></Field>
-    <Field label="Plano de conta"><select name="chart_account_id" required defaultValue={entry?.chart_account_id ?? ""}><option value="" disabled>Selecione</option>{chartAccounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name} ({item.kind === "REVENUE" ? "Receita" : "Despesa"})</option>)}</select></Field>
+    {expenseType === "RECURRING" && <Field label="Tipo de recorrência"><select value={recurrence} onChange={(event) => setRecurrence(event.target.value as "BIWEEKLY" | "MONTHLY")}><option value="BIWEEKLY">Quinzenal</option><option value="MONTHLY">Mensal</option></select></Field>}
+    {expenseType === "INSTALLMENT" && <Field label="Qtd. de parcelas"><input type="number" min="2" max="360" value={installments} onChange={(event) => setInstallments(event.target.value)} required /></Field>}
+    <Field label={isSeries ? "1º vencimento" : "Vencimento"}><input type="date" name="due_date" required defaultValue={entry?.due_date ?? today()} /></Field>
+    {expenseType === "INSTALLMENT" && <Field label="Total (R$)"><input value={formatCents(installmentTotalCents)} readOnly /></Field>}
+    <Field label="Plano de conta"><select name="chart_account_id" required defaultValue={entry?.chart_account_id ?? ""}><option value="" disabled>Selecione</option>{chartAccounts.filter((item) => item.active && item.kind === kind).map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select></Field>
     <Field label="Banco ou caixa"><select name="account_id" defaultValue={entry?.preferred_financial_account_id ?? ""}><option value="">Definir na liquidação</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Centro de custo"><select name="cost_center_id" defaultValue={entry?.cost_center_id ?? ""}><option value="">Não informar</option>{costCenters.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Número do documento"><input name="document_number" defaultValue={entry?.document_number ?? ""} /></Field>

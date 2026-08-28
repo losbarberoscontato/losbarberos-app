@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CashManager } from "@/components/connected-manager/cash-manager";
 import styles from "@/components/connected-manager/connected-manager.module.css";
@@ -76,6 +76,62 @@ describe("cash manager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
     expect(screen.getByRole("dialog", { name: "Novo lançamento" })).toBeInTheDocument();
     expect(screen.getByLabelText("Descrição")).toBeInTheDocument();
+  });
+
+  it("cria despesa única na sub tela correta e fecha o modal", async () => {
+    render(<CashManager {...props} section="payables" />);
+
+    expect(screen.queryByLabelText("Filtrar tipo")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
+    expect(within(dialog).getByLabelText("Tipo de despesa")).toHaveValue("SINGLE");
+    fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Energia" } });
+    fireEvent.change(within(dialog).getByLabelText("Valor (R$)"), { target: { value: "120,00" } });
+    fireEvent.change(within(dialog).getByLabelText("Plano de conta"), { target: { value: "chart-expense" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Adicionar" }).closest("form")!);
+
+    expect(rpc).toHaveBeenCalledWith("create_financial_entry", expect.objectContaining({ p_organization_id: "org-1", p_kind: "EXPENSE", p_description: "Energia", p_total_cents: 12000 }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).not.toBeInTheDocument());
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("calcula total das parcelas e cria série tenant-safe", async () => {
+    render(<CashManager {...props} section="payables" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de despesa"), { target: { value: "INSTALLMENT" } });
+    fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Cadeira" } });
+    fireEvent.change(within(dialog).getByLabelText("Valor da parcela (R$)"), { target: { value: "250,00" } });
+    fireEvent.change(within(dialog).getByLabelText("Qtd. de parcelas"), { target: { value: "4" } });
+    expect(within(dialog).getByLabelText("Total (R$)")).toHaveValue("R$ 1.000,00");
+    fireEvent.change(within(dialog).getByLabelText("Plano de conta"), { target: { value: "chart-expense" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Adicionar" }).closest("form")!);
+
+    expect(rpc).toHaveBeenCalledWith("create_financial_series", expect.objectContaining({ p_organization_id: "org-1", p_kind: "INSTALLMENT", p_cadence: "MONTHLY", p_occurrence_count: 4, p_total_cents: 100000 }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).not.toBeInTheDocument());
+  });
+
+  it("cria recorrência quinzenal e filtra despesas por período e status", async () => {
+    render(<CashManager {...props} section="payables" entries={[...props.entries, { ...props.entries[0], id: "entry-canceled", description: "Água", due_date: "2026-08-15", status: "CANCELED", canceled_at: "2026-08-01T00:00:00Z", cancellation_reason: "Teste" }]} />);
+
+    fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-08-15" } });
+    fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-08-15" } });
+    fireEvent.change(screen.getByLabelText("Filtrar status"), { target: { value: "CANCELED" } });
+    expect(screen.getByText("Água")).toBeInTheDocument();
+    expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de despesa"), { target: { value: "RECURRING" } });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de recorrência"), { target: { value: "BIWEEKLY" } });
+    fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Internet" } });
+    fireEvent.change(within(dialog).getByLabelText("Valor por vencimento (R$)"), { target: { value: "99,90" } });
+    fireEvent.change(within(dialog).getByLabelText("Plano de conta"), { target: { value: "chart-expense" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Adicionar" }).closest("form")!);
+
+    expect(rpc).toHaveBeenCalledWith("create_financial_series", expect.objectContaining({ p_kind: "RECURRING", p_cadence: "BIWEEKLY", p_amount_cents: 9990, p_occurrence_count: null }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).not.toBeInTheDocument());
   });
 
   it("uses a modal to add banks and keeps appointment receipt mappings hidden", () => {
