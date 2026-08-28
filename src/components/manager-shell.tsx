@@ -183,7 +183,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
         <div className="manager-sidebar__brand">
           <Brand href="/gestor" light />
         </div>
-        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice(true)} showNotice={organizationNotice} />
+        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} />
         <ManagerNavigation agendaCount={agendaCount} />
         <div className="manager-sidebar__footer">
           {managerProfile}
@@ -205,7 +205,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
             <X size={20} />
           </button>
         </div>
-        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice(true)} showNotice={organizationNotice} />
+        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} />
         <ManagerNavigation agendaCount={agendaCount} onNavigate={() => setMenuOpen(false)} />
         <div className="manager-sidebar__footer">
           {managerProfile}

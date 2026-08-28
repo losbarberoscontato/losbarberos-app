@@ -67,5 +67,7 @@ describe("manager logout", () => {
     expect(screen.getAllByRole("img", { name: "Logo de BarberShop" })[0]).toHaveStyle({ backgroundImage: 'url("https://example.com/barbershop-logo.png")' });
     fireEvent.click(screen.getAllByRole("button", { name: "Trocar barbearia" })[0]);
     expect(screen.getAllByRole("status")[0]).toHaveTextContent("Logo você poderá adicionar uma filial da sua barbearia");
+    fireEvent.click(screen.getAllByRole("button", { name: "Trocar barbearia" })[0]);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

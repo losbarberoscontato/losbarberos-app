@@ -42,6 +42,7 @@ export type PublicPackage = {
   name: string;
   description: string | null;
   price_cents: number;
+  duration_minutes?: number | null;
   audiences: readonly CatalogAudience[];
   items: PublicPackageItem[];
 };

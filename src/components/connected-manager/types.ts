@@ -107,6 +107,7 @@ export interface PackageRecord {
   name: string;
   description: string | null;
   price_cents: number;
+  duration_minutes?: number | null;
   active: boolean;
   sort_order: number;
   audiences: readonly import("@/lib/catalog-audiences").CatalogAudience[];

@@ -37,7 +37,7 @@ export function catalogChoices(context: PublicBookingContext): CatalogChoice[] {
       name: item.name,
       description: item.description,
       priceCents: item.price_cents,
-      durationMinutes: item.items.reduce(
+      durationMinutes: item.duration_minutes ?? item.items.reduce(
         (total, packageItem) => total + packageItem.duration_minutes * packageItem.quantity,
         0,
       ),

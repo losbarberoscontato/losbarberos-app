@@ -132,6 +132,7 @@
 .commercialToggle input:checked::after { transform: translateX(16px); }
 .commercialToggleDisabled { opacity: .62; cursor: not-allowed; }
 .commercialToggle input:disabled { cursor: not-allowed; }
+.packageDifference { display: block; margin-top: .35rem; color: #b64545; font-size: .73rem; font-weight: 700; line-height: 1.35; }
 .details { border-top: 1px solid #edf0eb; padding-top: .8rem; display: grid; gap: .65rem; }
 .details summary { cursor: pointer; color: #3d493e; font-weight: 800; font-size: .84rem; }
 .schedule { display: grid; grid-template-columns: repeat(7, minmax(85px, 1fr)); gap: .5rem; overflow-x: auto; }

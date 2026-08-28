@@ -52,23 +52,28 @@ describe("catálogo do gestor", () => {
     expect(within(dialog).getByRole("checkbox", { name: /Aceita pagamento online/ })).toBeInTheDocument();
   });
 
-  it("bloqueia regra do pacote quando serviço não permite e chama RPC v2", () => {
+  it("calcula preço e duração do pacote, permite ajuste e chama RPC v3", () => {
     render(<CatalogManager organizationId="org-1" billingStatus="TRIALING" services={[service]} packages={[]} packageItems={[]} />);
     switchToPackages();
     fireEvent.click(within(panel("Pacotes")).getByRole("button", { name: "Adicionar pacote" }));
     const dialog = screen.getByRole("dialog", { name: "Adicionar pacote" });
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Nome" }), { target: { value: "Combo Corte" } });
-    fireEvent.change(within(dialog).getByRole("textbox", { name: "Preço do pacote (R$)" }), { target: { value: "90,00" } });
     fireEvent.click(within(dialog).getByRole("checkbox", { name: "Infantil" }));
     fireEvent.click(within(dialog).getByRole("checkbox", { name: "Corte" }));
+    expect(within(dialog).getByRole("textbox", { name: /Preço do pacote/u })).toHaveValue("50,00");
+    expect(within(dialog).getByRole("spinbutton", { name: "Duração (minutos)" })).toHaveValue(30);
+    fireEvent.change(within(dialog).getByRole("textbox", { name: /Preço do pacote/u }), { target: { value: "40,00" } });
+    expect(within(dialog).getByText(/Diferença para soma dos serviços: R\$\s?10,00 \(20,00%\) menor/u)).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByRole("spinbutton", { name: "Duração (minutos)" }), { target: { value: "45" } });
     const subscription = within(dialog).getByRole("checkbox", { name: /Aceita assinatura/ });
     const onlinePayment = within(dialog).getByRole("checkbox", { name: /Aceita pagamento online/ });
     expect(subscription).toBeEnabled();
     expect(onlinePayment).toBeDisabled();
     fireEvent.click(subscription);
     fireEvent.click(within(dialog).getByRole("button", { name: "Cadastrar pacote" }));
-    expect(mutationMocks.rpc).toHaveBeenCalledWith("save_package_with_items_v2", expect.objectContaining({
+    expect(mutationMocks.rpc).toHaveBeenCalledWith("save_package_with_items_v3", expect.objectContaining({
       p_organization_id: "org-1", p_items: [{ service_id: "service-1", quantity: 1 }],
+      p_price_cents: 4000, p_duration_minutes: 45,
       p_accepts_subscription: true, p_accepts_online_payment: false,
     }));
   });

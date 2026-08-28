@@ -71,7 +71,7 @@ describe("connected manager UI", () => {
     })));
   });
 
-  it("mantém apenas um formulário de escala aberto e alterna o pagamento da comissão", () => {
+  it("mantém apenas uma sub tela de escala aberta e alterna a forma de pagamento", () => {
     renderTeam();
     fireEvent.click(screen.getByRole("button", { name: "Escala e comissão" }));
 
@@ -84,6 +84,8 @@ describe("connected manager UI", () => {
     expect(screen.queryByLabelText("Início")).toBeInTheDocument();
     expect(screen.queryByLabelText("Dia")).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: "Forma de Pagamento" }));
+    expect(screen.queryByLabelText("Motivo")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Forma de pagamento"), { target: { value: "BIWEEKLY" } });
     expect(screen.getByLabelText("1º pagamento")).toBeInTheDocument();
     expect(screen.getByLabelText("2º pagamento")).toBeInTheDocument();
