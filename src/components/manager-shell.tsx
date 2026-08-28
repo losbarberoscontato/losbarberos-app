@@ -28,7 +28,7 @@ const navigation = [
   { href: "/gestor/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/gestor/clientes", label: "Clientes", icon: Users },
   { href: "/gestor/equipe", label: "Equipe", icon: Sparkles },
-  { href: "/gestor/catalogo", label: "Serviços e pacotes", icon: PackageOpen },
+  { href: "/gestor/catalogo", label: "Serviços", icon: PackageOpen },
   { href: "/gestor/financeiro", label: "Financeiro", icon: WalletCards },
 ];
 
@@ -105,11 +105,33 @@ function ManagerNavigation({ onNavigate, agendaCount }: { onNavigate?: () => voi
   );
 }
 
-export function ManagerShell({ children, demoMode = false, billingBlocked = false, organizationName = "Sua barbearia", locationName = "Unidade principal", userName = "Gestor", agendaCount = 0 }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; organizationName?: string; locationName?: string; userName?: string; agendaCount?: number }) {
+function OrganizationSwitcher({ organizationName, locationName, organizationLogoUrl, onClick, showNotice }: { organizationName: string; locationName: string; organizationLogoUrl?: string; onClick: () => void; showNotice: boolean }) {
+  return <div className="organization-switcher-wrap">
+    <button className="organization-switcher" type="button" aria-label="Trocar barbearia" onClick={onClick}>
+      <span
+        className={`organization-switcher__mark${organizationLogoUrl ? " organization-switcher__mark--logo" : ""}`}
+        aria-label={organizationLogoUrl ? `Logo de ${organizationName}` : undefined}
+        role={organizationLogoUrl ? "img" : undefined}
+        style={organizationLogoUrl ? { backgroundImage: `url("${organizationLogoUrl}")` } : undefined}
+      >
+        {!organizationLogoUrl && "LB"}
+      </span>
+      <span>
+        <strong>{organizationName}</strong>
+        <small>{locationName}</small>
+      </span>
+      <ChevronDown size={16} />
+    </button>
+    {showNotice && <p className="organization-switcher__notice" role="status">Logo você poderá adicionar uma filial da sua barbearia</p>}
+  </div>;
+}
+
+export function ManagerShell({ children, demoMode = false, billingBlocked = false, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0 }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
+  const [organizationNotice, setOrganizationNotice] = useState(false);
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -161,14 +183,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
         <div className="manager-sidebar__brand">
           <Brand href="/gestor" light />
         </div>
-        <button className="organization-switcher" type="button" aria-label="Trocar barbearia">
-          <span className="organization-switcher__mark">LB</span>
-          <span>
-            <strong>{organizationName}</strong>
-            <small>{locationName}</small>
-          </span>
-          <ChevronDown size={16} />
-        </button>
+        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice(true)} showNotice={organizationNotice} />
         <ManagerNavigation agendaCount={agendaCount} />
         <div className="manager-sidebar__footer">
           {managerProfile}
@@ -190,11 +205,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
             <X size={20} />
           </button>
         </div>
-        <button className="organization-switcher" type="button">
-          <span className="organization-switcher__mark">LB</span>
-          <span><strong>{organizationName}</strong><small>{locationName}</small></span>
-          <ChevronDown size={16} />
-        </button>
+        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice(true)} showNotice={organizationNotice} />
         <ManagerNavigation agendaCount={agendaCount} onNavigate={() => setMenuOpen(false)} />
         <div className="manager-sidebar__footer">
           {managerProfile}

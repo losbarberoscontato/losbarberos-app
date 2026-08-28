@@ -33,6 +33,21 @@ const customer = { id: "customer-1", organization_id: "org-1", auth_user_id: nul
 const barber = { id: "barber-1", organization_id: "org-1", location_id: "location-1", display_name: "Barbeiro Real", bio: null, avatar_url: null, whatsapp_e164: null, active: true };
 const service = { id: "service-1", organization_id: "org-1", name: "Corte Real", description: null, price_cents: 5000, duration_minutes: 30, active: true, sort_order: 0, audiences: ["MASCULINO"] as const };
 
+function renderTeam() {
+  return render(<TeamManager
+    organizationId="org-1"
+    billingStatus="ACTIVE"
+    timezone="America/Sao_Paulo"
+    locations={[{ id: "location-1", organization_id: "org-1", name: "Unidade principal", address: {}, active: true }]}
+    barbers={[barber]}
+    services={[]}
+    barberServices={[]}
+    workIntervals={[]}
+    exceptions={[]}
+    commissionRules={[]}
+  />);
+}
+
 describe("connected manager UI", () => {
   beforeEach(() => { cleanup(); refresh.mockReset(); mutationMocks.update.mockClear(); });
 
@@ -45,18 +60,7 @@ describe("connected manager UI", () => {
   });
 
   it("normaliza e salva o WhatsApp do profissional", async () => {
-    render(<TeamManager
-      organizationId="org-1"
-      billingStatus="ACTIVE"
-      timezone="America/Sao_Paulo"
-      locations={[{ id: "location-1", organization_id: "org-1", name: "Unidade principal", address: {}, active: true }]}
-      barbers={[barber]}
-      services={[]}
-      barberServices={[]}
-      workIntervals={[]}
-      exceptions={[]}
-      commissionRules={[]}
-    />);
+    renderTeam();
 
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
     fireEvent.change(screen.getByLabelText(/WhatsApp do profissional/), { target: { value: "47 99978-2545" } });
@@ -65,6 +69,27 @@ describe("connected manager UI", () => {
     await waitFor(() => expect(mutationMocks.update).toHaveBeenCalledWith(expect.objectContaining({
       whatsapp_e164: "+5547999782545",
     })));
+  });
+
+  it("mantém apenas um formulário de escala aberto e alterna o pagamento da comissão", () => {
+    renderTeam();
+    fireEvent.click(screen.getByRole("button", { name: "Escala e comissão" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar horário" }));
+    expect(screen.getByLabelText("Dia")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Motivo")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar folga/exceção" }));
+    expect(screen.getByLabelText("Motivo")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Início")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Dia")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Forma de pagamento"), { target: { value: "BIWEEKLY" } });
+    expect(screen.getByLabelText("1º pagamento")).toBeInTheDocument();
+    expect(screen.getByLabelText("2º pagamento")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Forma de pagamento"), { target: { value: "WEEKLY" } });
+    expect(screen.getByLabelText("Dia do pagamento")).toBeInTheDocument();
+    expect(screen.queryByLabelText("1º pagamento")).not.toBeInTheDocument();
   });
 
   it("exibe a resposta do cliente pelo WhatsApp na agenda do gestor", () => {

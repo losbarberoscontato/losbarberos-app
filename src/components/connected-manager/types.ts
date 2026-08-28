@@ -79,6 +79,10 @@ export interface BarberRecord {
   display_name: string;
   bio: string | null;
   avatar_url: string | null;
+  commission_payment_frequency?: "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+  commission_payment_weekday?: number | null;
+  commission_payment_first_day?: number | null;
+  commission_payment_second_day?: number | null;
   whatsapp_e164: string | null;
   active: boolean;
 }
@@ -93,6 +97,8 @@ export interface ServiceRecord {
   active: boolean;
   sort_order: number;
   audiences: readonly import("@/lib/catalog-audiences").CatalogAudience[];
+  accepts_subscription?: boolean;
+  accepts_online_payment?: boolean;
 }
 
 export interface PackageRecord {
@@ -104,6 +110,8 @@ export interface PackageRecord {
   active: boolean;
   sort_order: number;
   audiences: readonly import("@/lib/catalog-audiences").CatalogAudience[];
+  accepts_subscription?: boolean;
+  accepts_online_payment?: boolean;
 }
 
 export interface PackageItemRecord {

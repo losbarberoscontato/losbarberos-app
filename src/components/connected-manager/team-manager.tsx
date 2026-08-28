@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent, useRef } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
@@ -15,6 +16,36 @@ import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadTeamData>;
 type ProfessionalFilter = "ACTIVE" | "INACTIVE";
+type OperationForm = "SCHEDULE" | "EXCEPTION" | "COMMISSION" | null;
+type CommissionPaymentFrequency = "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+
+async function profileImage320(file: File) {
+  if (!/^image\/(png|jpeg|webp)$/u.test(file.type) || file.size > 2 * 1024 * 1024) {
+    throw new Error("Foto deve ser PNG, JPEG ou WebP de até 2 MB.");
+  }
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new window.Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("Não foi possível ler esta foto."));
+      element.src = sourceUrl;
+    });
+    const cropSize = Math.min(image.naturalWidth, image.naturalHeight);
+    if (!cropSize) throw new Error("Não foi possível ler esta foto.");
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 320;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Não foi possível preparar esta foto.");
+    context.drawImage(image, (image.naturalWidth - cropSize) / 2, (image.naturalHeight - cropSize) / 2, cropSize, cropSize, 0, 0, 320, 320);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.9));
+    if (!blob) throw new Error("Não foi possível preparar esta foto.");
+    return new File([blob], "perfil.webp", { type: "image/webp" });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
 
 export function TeamManager(props: Props) {
   const router = useRouter();
@@ -23,10 +54,10 @@ export function TeamManager(props: Props) {
   const [professionalFilter, setProfessionalFilter] = useState<ProfessionalFilter>("ACTIVE");
   const [query, setQuery] = useState("");
   const [scheduleBarber, setScheduleBarber] = useState(props.barbers.find((item) => item.active)?.id ?? "");
-  const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [showExceptionForm, setShowExceptionForm] = useState(false);
-  const [showCommissionForm, setShowCommissionForm] = useState(false);
+  const [activeOperationForm, setActiveOperationForm] = useState<OperationForm>(null);
   const [operationOpen, setOperationOpen] = useState(false);
+  const [commissionPaymentFrequency, setCommissionPaymentFrequency] = useState<CommissionPaymentFrequency>("PER_SERVICE");
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const activeLocation = props.locations.find((location) => location.active);
   const serviceById = useMemo(() => new Map(props.services.map((service) => [service.id, service])), [props.services]);
   const selectedBarber = props.barbers.find((barber) => barber.id === scheduleBarber);
@@ -35,9 +66,18 @@ export function TeamManager(props: Props) {
   async function saveBarber(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const editing = barberForm !== "new" && barberForm;
+    const editing = barberForm === "new" || barberForm === null ? null : barberForm;
     const rawWhatsapp = String(data.get("whatsapp_e164") ?? "").trim();
     const whatsappE164 = normalizePhoneE164(rawWhatsapp);
+    const submittedPhoto = data.get("avatar");
+    const photo = submittedPhoto instanceof File && submittedPhoto.size > 0 ? submittedPhoto : null;
+    let preparedPhoto: File | null = null;
+    try {
+      preparedPhoto = photo ? await profileImage320(photo) : null;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível preparar esta foto.");
+      return;
+    }
     const payload = {
       organization_id: props.organizationId,
       location_id: String(data.get("location_id") || activeLocation?.id || ""),
@@ -49,9 +89,21 @@ export function TeamManager(props: Props) {
       if (!payload.location_id) throw new Error("Cadastre uma unidade ativa antes da equipe.");
       if (rawWhatsapp && !whatsappE164) throw new Error("Informe um WhatsApp válido para o profissional.");
       const client = connectedClient();
-      await assertResult(editing
-        ? await client.from("barbers").update(payload).eq("id", editing.id).eq("organization_id", props.organizationId)
-        : await client.from("barbers").insert(payload));
+      let barberId = editing?.id;
+      if (editing) {
+        await assertResult(await client.from("barbers").update(payload).eq("id", editing.id).eq("organization_id", props.organizationId));
+      } else {
+        const result = await client.from("barbers").insert(payload).select("id").single();
+        await assertResult(result);
+        barberId = result.data?.id;
+      }
+      if (!barberId) throw new Error("Não foi possível identificar o profissional salvo.");
+      if (preparedPhoto) {
+        const path = `${props.organizationId}/${barberId}/${crypto.randomUUID()}.webp`;
+        await assertResult(await client.storage.from("barber-avatars").upload(path, preparedPhoto, { contentType: "image/webp", cacheControl: "31536000" }));
+        const avatarUrl = client.storage.from("barber-avatars").getPublicUrl(path).data.publicUrl;
+        await assertResult(await client.from("barbers").update({ avatar_url: avatarUrl }).eq("id", barberId).eq("organization_id", props.organizationId));
+      }
     }, editing ? "Profissional atualizado." : "Profissional cadastrado.");
     if (saved) { setBarberForm(null); router.refresh(); }
   }
@@ -83,7 +135,7 @@ export function TeamManager(props: Props) {
         ends_at: String(data.get("ends_at")),
       }));
     }, "Intervalo adicionado.");
-    if (saved) { setShowScheduleForm(false); router.refresh(); }
+    if (saved) { setActiveOperationForm(null); router.refresh(); }
   }
 
   async function removeInterval(id: string) {
@@ -106,7 +158,7 @@ export function TeamManager(props: Props) {
         reason: String(data.get("reason") ?? "").trim() || null,
       }));
     }, "Exceção adicionada.");
-    if (saved) { setShowExceptionForm(false); router.refresh(); }
+    if (saved) { setActiveOperationForm(null); router.refresh(); }
   }
 
   async function removeException(id: string) {
@@ -137,7 +189,23 @@ export function TeamManager(props: Props) {
         p_current_rule_id: currentRule?.id ?? null,
       }));
     }, "Nova versão de comissão criada.");
-    if (saved) { setShowCommissionForm(false); router.refresh(); }
+    if (saved) { setActiveOperationForm(null); router.refresh(); }
+  }
+
+  async function saveCommissionPaymentSchedule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const frequency = String(data.get("commission_payment_frequency")) as CommissionPaymentFrequency;
+    const saved = await runMutation(setMessage, async () => {
+      if (!scheduleBarber) throw new Error("Selecione um profissional.");
+      await assertResult(await connectedClient().from("barbers").update({
+        commission_payment_frequency: frequency,
+        commission_payment_weekday: frequency === "WEEKLY" ? Number(data.get("commission_payment_weekday")) : null,
+        commission_payment_first_day: frequency === "BIWEEKLY" || frequency === "MONTHLY" ? Number(data.get("commission_payment_first_day")) : null,
+        commission_payment_second_day: frequency === "BIWEEKLY" ? Number(data.get("commission_payment_second_day")) : null,
+      }).eq("id", scheduleBarber).eq("organization_id", props.organizationId));
+    }, "Forma de pagamento da comissão atualizada.");
+    if (saved) router.refresh();
   }
 
   const intervals = props.workIntervals.filter((item) => item.barber_id === scheduleBarber && item.active);
@@ -157,6 +225,7 @@ export function TeamManager(props: Props) {
             <Field label="Unidade"><select name="location_id" required defaultValue={barberForm === "new" ? activeLocation?.id : barberForm.location_id}>{props.locations.filter((item) => item.active).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></Field>
             <Field label="WhatsApp do profissional"><><input name="whatsapp_e164" inputMode="tel" required placeholder="47999999999 ou +5547999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={barberForm === "new" ? "" : barberForm.whatsapp_e164 ?? ""} onBlur={(event) => { const normalized = normalizePhoneE164(event.currentTarget.value); if (normalized) event.currentTarget.value = normalized; }} /><small>Usado somente para avisos transacionais dos próprios agendamentos.</small></></Field>
             <Field label="Apresentação"><textarea name="bio" defaultValue={barberForm === "new" ? "" : barberForm.bio ?? ""} /></Field>
+            <div className={styles.field}><span>Foto de perfil</span><div className={styles.profilePhotoField}><span className={styles.profilePhotoPreview}>{barberForm !== "new" && barberForm.avatar_url ? <Image src={barberForm.avatar_url} alt="" width={64} height={64} sizes="64px" /> : initials(barberForm === "new" ? "Profissional" : barberForm.display_name)}</span><span><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => photoInputRef.current?.click()}>Adicionar foto</button><input ref={photoInputRef} className={styles.fileInput} type="file" name="avatar" accept="image/png,image/jpeg,image/webp" /><small>Será centralizada e salva em 320 × 320 pixels.</small></span></div></div>
           </div>
           <div className="form-modal__footer"><button className="button button--ghost" type="button" onClick={() => setBarberForm(null)}>Cancelar</button><button className="button button--dark" type="submit">{barberForm === "new" ? "Cadastrar" : "Salvar"}</button></div>
         </form>
@@ -164,11 +233,11 @@ export function TeamManager(props: Props) {
       <div className={styles.toolbar}><label className={styles.field}><span>Buscar</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome ou WhatsApp" /></label></div>
       {filteredBarbers.length === 0 ? <EmptyState title={props.barbers.length ? "Nenhum resultado" : "Cadastre a equipe"}>{props.barbers.length ? "Ajuste a busca ou altere o filtro." : "A unidade precisa de pelo menos um profissional para abrir a agenda."}</EmptyState> : <div className={styles.list}>{filteredBarbers.map((barber) => {
         const skills = props.barberServices.filter((link) => link.barber_id === barber.id && link.active);
-        return <article className={`${styles.row} ${styles.professionalRow}`} key={barber.id}><span className={styles.professionalTitle}><i className={styles.avatar}>{initials(barber.display_name)}</i><span className={styles.rowTitle}><strong>{barber.display_name}</strong><small>{barber.bio ?? "Sem apresentação"}</small></span></span>
+        return <article className={`${styles.row} ${styles.professionalRow}`} key={barber.id}><span className={styles.professionalTitle}><i className={styles.avatar}>{barber.avatar_url ? <Image src={barber.avatar_url} alt="" width={42} height={42} sizes="42px" /> : initials(barber.display_name)}</i><span className={styles.rowTitle}><strong>{barber.display_name}</strong><small>{barber.bio ?? "Sem apresentação"}</small></span></span>
           <span className={styles.professionalWhatsapp}>{barber.whatsapp_e164 ?? "WhatsApp não cadastrado"}</span>
           <span className={styles.professionalSkills}>{props.services.length ? props.services.map((service) => { const checked = skills.some((link) => link.service_id === service.id); return <label className={styles.check} key={service.id}><input type="checkbox" checked={checked} onChange={(event) => toggleSkill(barber.id, service.id, event.target.checked)} />{service.name}</label>; }) : <small className={styles.muted}>Sem serviços cadastrados</small>}</span>
           <StatusChip active={barber.active} />
-          <div className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => { setScheduleBarber(barber.id); setShowScheduleForm(false); setShowExceptionForm(false); setShowCommissionForm(false); setOperationOpen(true); }}>Escala e comissão</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setBarberForm(barber)}>Editar</button><button className={`${styles.button} ${barber.active ? styles.buttonDanger : styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => toggleBarber(barber)}>{barber.active ? "Inativar" : "Reativar"}</button></div>
+          <div className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => { setScheduleBarber(barber.id); setActiveOperationForm(null); setCommissionPaymentFrequency(barber.commission_payment_frequency ?? "PER_SERVICE"); setOperationOpen(true); }}>Escala e comissão</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setBarberForm(barber)}>Editar</button><button className={`${styles.button} ${barber.active ? styles.buttonDanger : styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => toggleBarber(barber)}>{barber.active ? "Inativar" : "Reativar"}</button></div>
         </article>;
       })}</div>}
     </Panel>
@@ -179,10 +248,17 @@ export function TeamManager(props: Props) {
         <div className="form-modal__head"><span><small>Configuração do profissional</small><strong>Escala, exceções e comissão</strong></span><button type="button" className="icon-button" onClick={() => setOperationOpen(false)} aria-label="Fechar"><X size={19} /></button></div>
         <div className="form-modal__body">
           <p className={styles.operationDescription}>{selectedBarber.display_name}</p>
-          <div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setShowScheduleForm((value) => !value)}>Adicionar horário</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setShowExceptionForm((value) => !value)}>Adicionar folga/exceção</button><button className={styles.button} type="button" onClick={() => setShowCommissionForm((value) => !value)}>Nova comissão</button></div>
-          {showScheduleForm && <form className={styles.form} onSubmit={addInterval}><Field label="Dia"><select name="weekday">{weekDays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></Field><Field label="Início"><input type="time" name="starts_at" required defaultValue="09:00" /></Field><Field label="Fim"><input type="time" name="ends_at" required defaultValue="18:00" /></Field><div className={styles.toolbarGroup}><button className={styles.button}>Adicionar</button></div></form>}
-          {showExceptionForm && <form className={styles.form} onSubmit={addException}><Field label="Tipo"><select name="kind"><option value="UNAVAILABLE">Indisponível / folga</option><option value="AVAILABLE_OVERRIDE">Disponível em exceção</option></select></Field><Field label="Motivo"><input name="reason" required /></Field><Field label="Início"><input type="datetime-local" name="start" required /></Field><Field label="Fim"><input type="datetime-local" name="end" required /></Field><button className={styles.button}>Adicionar exceção</button></form>}
-          {showCommissionForm && <form className={styles.form} onSubmit={addCommissionRule}><Field label="Aplicação"><select name="service_id"><option value="">Padrão do profissional</option>{props.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></Field><Field label="Modelo"><select name="mode"><option value="PERCENT">Percentual (%)</option><option value="FIXED">Fixo (R$)</option></select></Field><Field label="Valor"><input name="value" type="number" min="0" step="0.01" required /></Field><div className={styles.toolbarGroup}><button className={styles.button}>Criar versão</button></div></form>}
+          <div className={styles.toolbarGroup}><button className={`${styles.button} ${activeOperationForm === "SCHEDULE" ? "" : styles.buttonSoft}`} type="button" onClick={() => setActiveOperationForm((value) => value === "SCHEDULE" ? null : "SCHEDULE")}>Adicionar horário</button><button className={`${styles.button} ${activeOperationForm === "EXCEPTION" ? "" : styles.buttonSoft}`} type="button" onClick={() => setActiveOperationForm((value) => value === "EXCEPTION" ? null : "EXCEPTION")}>Adicionar folga/exceção</button><button className={`${styles.button} ${activeOperationForm === "COMMISSION" ? "" : styles.buttonSoft}`} type="button" onClick={() => setActiveOperationForm((value) => value === "COMMISSION" ? null : "COMMISSION")}>Nova comissão</button></div>
+          {activeOperationForm === "SCHEDULE" && <form className={styles.form} onSubmit={addInterval}><Field label="Dia"><select name="weekday">{weekDays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></Field><Field label="Início"><input type="time" name="starts_at" required defaultValue="09:00" /></Field><Field label="Fim"><input type="time" name="ends_at" required defaultValue="18:00" /></Field><div className={styles.toolbarGroup}><button className={styles.button}>Adicionar</button></div></form>}
+          {activeOperationForm === "EXCEPTION" && <form className={styles.form} onSubmit={addException}><Field label="Tipo"><select name="kind"><option value="UNAVAILABLE">Indisponível / folga</option><option value="AVAILABLE_OVERRIDE">Disponível em exceção</option></select></Field><Field label="Motivo"><input name="reason" required /></Field><Field label="Início"><input type="datetime-local" name="start" required /></Field><Field label="Fim"><input type="datetime-local" name="end" required /></Field><button className={styles.button}>Adicionar exceção</button></form>}
+          {activeOperationForm === "COMMISSION" && <form className={styles.form} onSubmit={addCommissionRule}><Field label="Aplicação"><select name="service_id"><option value="">Padrão do profissional</option>{props.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></Field><Field label="Modelo"><select name="mode"><option value="PERCENT">Percentual (%)</option><option value="FIXED">Fixo (R$)</option></select></Field><Field label="Valor"><input name="value" type="number" min="0" step="0.01" required /></Field><div className={styles.toolbarGroup}><button className={styles.button}>Criar versão</button></div></form>}
+          <form className={styles.form} onSubmit={saveCommissionPaymentSchedule}>
+            <Field label="Forma de pagamento"><select name="commission_payment_frequency" value={commissionPaymentFrequency} onChange={(event) => setCommissionPaymentFrequency(event.target.value as CommissionPaymentFrequency)}><option value="PER_SERVICE">Por serviço</option><option value="WEEKLY">Por semana</option><option value="BIWEEKLY">Quinzenal</option><option value="MONTHLY">Mensal</option></select></Field>
+            {commissionPaymentFrequency === "WEEKLY" && <Field label="Dia do pagamento"><select name="commission_payment_weekday" defaultValue={selectedBarber.commission_payment_weekday ?? 1}><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="7">Domingo</option></select></Field>}
+            {commissionPaymentFrequency === "BIWEEKLY" && <><Field label="1º pagamento"><input name="commission_payment_first_day" type="number" min="1" max="31" required defaultValue={selectedBarber.commission_payment_first_day ?? ""} /></Field><Field label="2º pagamento"><input name="commission_payment_second_day" type="number" min="1" max="31" required defaultValue={selectedBarber.commission_payment_second_day ?? ""} /></Field></>}
+            {commissionPaymentFrequency === "MONTHLY" && <Field label="Dia do pagamento"><input name="commission_payment_first_day" type="number" min="1" max="31" required defaultValue={selectedBarber.commission_payment_first_day ?? ""} /></Field>}
+            <div className={styles.toolbarGroup}><button className={styles.button}>Salvar pagamento</button></div>
+          </form>
           <div className={styles.grid}>
             <section className={styles.span12}><h3>Escala semanal</h3><div className={styles.schedule}>{weekDays.map((day, index) => <div className={styles.day} key={day}><strong>{day}</strong>{intervals.filter((item) => item.weekday === index).map((item) => <span key={item.id}>{item.starts_at.slice(0, 5)}–{item.ends_at.slice(0, 5)} <button aria-label="Remover intervalo" type="button" onClick={() => removeInterval(item.id)}>×</button></span>)}</div>)}</div></section>
             <section className={styles.span12}><h3>Exceções</h3>{exceptions.length ? <div className={styles.list}>{exceptions.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong>{item.kind === "UNAVAILABLE" ? "Indisponível" : "Disponível"}</strong><small>{item.reason ?? "Sem motivo"}</small></span><span>{formatRange(item.service_period)}</span><span /><span /><span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => removeException(item.id)}>Remover</button></span></article>)}</div> : <span className={styles.muted}>Nenhuma folga ou exceção cadastrada.</span>}</section>

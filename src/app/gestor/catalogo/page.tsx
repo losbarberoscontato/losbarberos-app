@@ -7,7 +7,7 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { CatalogManager } from "@/components/connected-manager/catalog-manager";
 import { loadCatalogData } from "@/components/connected-manager/server";
 
-export const metadata: Metadata = { title: "Serviços e pacotes" };
+export const metadata: Metadata = { title: "Serviços" };
 
 export default async function CatalogPage() {
   if (hasSupabaseConfig) {
@@ -17,7 +17,7 @@ export default async function CatalogPage() {
   }
   return (
     <div className="catalog-page">
-      <PageHeader title="Serviços e pacotes" description="Organize seu cardápio, preços, durações e combinações." actions={<button type="button" className="button button--dark"><Plus size={17} /> Adicionar</button>} />
+      <PageHeader title="Serviços" description="Organize serviços, preços, durações e combinações." actions={<button type="button" className="button button--dark"><Plus size={17} /> Adicionar</button>} />
       <CatalogView />
     </div>
   );

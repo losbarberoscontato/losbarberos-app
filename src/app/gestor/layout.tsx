@@ -19,6 +19,7 @@ export default async function GestorLayout({ children }: { children: React.React
   // reachable so CANCELED_RETENTION can export data; CLOSED sees it disabled.
 
   let organizationName = "Sua barbearia";
+  let organizationLogoUrl: string | undefined;
   let locationName = "Unidade principal";
   let userName = "Gestor";
   let agendaCount = demoAppointments.filter((appointment) => appointment.date === new Intl.DateTimeFormat("en-CA").format(new Date())).length;
@@ -26,11 +27,14 @@ export default async function GestorLayout({ children }: { children: React.React
     const supabase = await getSupabaseServerClient();
     if (supabase) {
       const [{ data: organization }, { data: location }, { data: profile }] = await Promise.all([
-        supabase.from("organizations").select("name,timezone").eq("id", context.organizationId).maybeSingle(),
+        supabase.from("organizations").select("name,timezone,logo_path").eq("id", context.organizationId).maybeSingle(),
         supabase.from("locations").select("name").eq("organization_id", context.organizationId).eq("active", true).maybeSingle(),
         supabase.from("profiles").select("display_name").eq("id", context.userId).maybeSingle(),
       ]);
       organizationName = organization?.name ?? organizationName;
+      if (organization?.logo_path) {
+        organizationLogoUrl = supabase.storage.from("organization-logos").getPublicUrl(organization.logo_path).data.publicUrl;
+      }
       locationName = location?.name ?? locationName;
       userName = profile?.display_name ?? userName;
       const { data: todayAppointments } = await supabase.from("appointments").select("service_period,status").eq("organization_id", context.organizationId);
@@ -44,7 +48,7 @@ export default async function GestorLayout({ children }: { children: React.React
   }
 
   return (
-    <ManagerShell agendaCount={agendaCount} demoMode={!hasSupabaseConfig} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"}>
+    <ManagerShell agendaCount={agendaCount} demoMode={!hasSupabaseConfig} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} organizationLogoUrl={organizationLogoUrl} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"}>
       {children}
     </ManagerShell>
   );

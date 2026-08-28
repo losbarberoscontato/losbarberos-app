@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarDays, Check, Clock3, LoaderCircle, Scissors, ShieldCheck, UserRound, X } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -534,7 +535,7 @@ function BookingContent() {
                           setStartsAt("");
                         }}
                       >
-                        <span>{item.name.slice(0, 2).toUpperCase()}</span>
+                        <span>{item.avatar_url ? <Image src={item.avatar_url} alt="" width={42} height={42} sizes="42px" /> : item.name.slice(0, 2).toUpperCase()}</span>
                         <strong>{item.name}</strong>
                         <small>{item.bio || "Profissional da equipe"}</small>
                       </button>

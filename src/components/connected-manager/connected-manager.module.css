@@ -102,6 +102,12 @@
 .card { display: grid; gap: .8rem; align-content: start; padding: 1rem; border: 1px solid #e7ebe5; border-radius: 16px; }
 .cardTop { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; }
 .avatar { width: 42px; height: 42px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: #dfe9db; color: #3d5538; font-weight: 900; }
+.avatar img, .profilePhotoPreview img { width: 100%; height: 100%; object-fit: cover; }
+.profilePhotoField { display: flex; align-items: center; gap: .8rem; }
+.profilePhotoField > span:last-child { display: grid; gap: .45rem; }
+.profilePhotoField small { color: #718076; font-size: .75rem; }
+.profilePhotoPreview { width: 64px; height: 64px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: #dfe9db; color: #3d5538; font-size: .82rem; font-weight: 900; }
+.fileInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 .inlineMeta { display: flex; gap: .4rem; flex-wrap: wrap; }
 .panelTitleRow { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
 .packageFilterSelect { min-width: 7rem; border: 1px solid #d9dfd7; border-radius: 10px; padding: .42rem 2rem .42rem .65rem; background: #fff; color: #222823; font: inherit; font-size: .78rem; font-weight: 700; }
@@ -113,6 +119,19 @@
 .tabs { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .2rem; }
 .tab { border: 0; border-radius: 999px; background: #eff2ed; color: #586159; padding: .55rem .8rem; font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
 .tabActive { background: #2b322c; color: #fff; }
+.catalogTabs { display: flex; gap: .5rem; width: fit-content; max-width: 100%; padding: .35rem; overflow-x: auto; border: 1px solid #e0e6dd; border-radius: 999px; background: #fff; }
+.catalogTabs .tab, .catalogTabs .tabActive { padding: .62rem 1rem; }
+.commercialToggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
+.commercialToggle { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .8rem; border: 1px solid #dfe6dc; border-radius: 13px; background: #fff; cursor: pointer; }
+.commercialToggle > span { display: grid; gap: .2rem; }
+.commercialToggle strong { color: #303933; font-size: .82rem; }
+.commercialToggle small { color: #748075; font-size: .73rem; line-height: 1.35; }
+.commercialToggle input { appearance: none; width: 38px; height: 22px; flex: 0 0 auto; margin: 0; border-radius: 999px; background: #c9d0c8; cursor: pointer; }
+.commercialToggle input::after { content: ""; display: block; width: 16px; height: 16px; margin: 3px; border-radius: 50%; background: #fff; transition: transform .16s ease; }
+.commercialToggle input:checked { background: #1d5b4b; }
+.commercialToggle input:checked::after { transform: translateX(16px); }
+.commercialToggleDisabled { opacity: .62; cursor: not-allowed; }
+.commercialToggle input:disabled { cursor: not-allowed; }
 .details { border-top: 1px solid #edf0eb; padding-top: .8rem; display: grid; gap: .65rem; }
 .details summary { cursor: pointer; color: #3d493e; font-weight: 800; font-size: .84rem; }
 .schedule { display: grid; grid-template-columns: repeat(7, minmax(85px, 1fr)); gap: .5rem; overflow-x: auto; }
@@ -168,7 +187,7 @@
 }
 @media (max-width: 680px) {
   .panel { padding: 1rem; border-radius: 16px; }
-  .stats, .cards, .form, .definition { grid-template-columns: 1fr; }
+  .stats, .cards, .form, .definition, .commercialToggles { grid-template-columns: 1fr; }
   .chartColumns { grid-template-columns: 1fr; }
   .chartColumnHeader { align-items: flex-start; flex-direction: column; }
   .chartColumnHeader .button { width: 100%; }

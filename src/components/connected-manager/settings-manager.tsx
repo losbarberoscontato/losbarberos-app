@@ -65,11 +65,16 @@ export function SettingsManager(props: Props) {
       setMessage("Logo deve ser PNG, JPEG ou WebP de até 2 MB.");
       return;
     }
-    const path = `${props.organizationId}/logo`;
+    const path = `${props.organizationId}/logo-${crypto.randomUUID()}`;
     const { error } = await connectedClient().storage.from("organization-logos").upload(path, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
     if (error) { setMessage(error.message); return; }
-    setLogoPath(path);
-    setMessage("Logo enviada. Clique em Salvar regras para concluir.");
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().from("organizations").update({ logo_path: path }).eq("id", props.organizationId));
+    }, "Logo atualizada.");
+    if (saved) {
+      setLogoPath(path);
+      router.refresh();
+    }
   }
 
   async function saveLocation(event: FormEvent<HTMLFormElement>) {

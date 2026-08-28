@@ -104,6 +104,8 @@ export function humanizeError(error: unknown) {
     [/row-level security|permission denied|organization owner required/i, "Acesso negado para esta organização."],
     [/phone_e164|customers_phone/i, "Use telefone no formato +5511999999999."],
     [/no positive unpaid commission/i, "Não há comissão positiva em aberto nesse período."],
+    [/package subscription requires every included service to accept subscription|disable subscription on dependent packages/i, "Ative Aceita assinatura em todos os serviços do pacote antes de alterar esta regra."],
+    [/package online payment requires every included service to accept online payment|disable online payment on dependent packages/i, "Ative Aceita pagamento online em todos os serviços do pacote antes de alterar esta regra."],
   ];
   return dictionary.find(([pattern]) => pattern.test(message))?.[1] ?? message;
 }

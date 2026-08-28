@@ -1772,10 +1772,12 @@
   .manager-sidebar__brand .brand__wordmark strong { font-size: 19.8px; }
   .organization-switcher { width: 100%; display: grid; grid-template-columns: 31px 1fr auto; align-items: center; gap: 9px; padding: 9px; border: 1px solid rgba(255,255,255,.09); border-radius: 11px; background: rgba(255,255,255,.045); color: #fff; text-align: left; }
   .organization-switcher__mark { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 8px; background: rgba(225,180,110,.14); color: var(--amber-400); font: 700 9.9px var(--font-display); }
+  .organization-switcher__mark--logo { background-color: #fff; background-position: center; background-repeat: no-repeat; background-size: contain; }
   .organization-switcher > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; }
   .organization-switcher strong { overflow: hidden; font-size: 9.9px; text-overflow: ellipsis; white-space: nowrap; }
   .organization-switcher small { margin-top: 2px; color: rgba(255,255,255,.43); font-size: 7.7px; }
   .organization-switcher > svg { color: rgba(255,255,255,.45); }
+  .organization-switcher__notice { margin: 6px 4px 0; color: rgba(255,255,255,.62); font-size: 8px; line-height: 1.35; }
   .manager-nav { display: flex; flex-direction: column; gap: 3px; margin-top: 21px; }
   .manager-nav__label { padding: 0 10px 6px; color: rgba(255,255,255,.28); font-size: 7.7px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
   .manager-nav__label--second { margin-top: 13px; }
