@@ -80,14 +80,17 @@ const context: PublicBookingContext = {
   barbers: [{ id: "barber-1", name: "Diego", bio: null, avatar_url: null, service_ids: ["service-1", "service-2"] }],
 };
 
-function queryResult(data: unknown) {
+function queryResult(data: unknown | (() => unknown)) {
   const query = {
     select: vi.fn(),
     eq: vi.fn(),
     is: vi.fn(),
     order: vi.fn(),
     limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-    maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
+    maybeSingle: vi.fn().mockImplementation(() => Promise.resolve({
+      data: typeof data === "function" ? data() : data,
+      error: null,
+    })),
   };
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
@@ -109,6 +112,7 @@ function installProviderClient({
   mismatchedClaim = false,
   mismatchedLink = false,
   missingAccount = false,
+  accountAvailableAfterUpsert = false,
   canonicalSlug = null,
 }: {
   authenticated: boolean;
@@ -123,6 +127,7 @@ function installProviderClient({
   mismatchedClaim?: boolean;
   mismatchedLink?: boolean;
   missingAccount?: boolean;
+  accountAvailableAfterUpsert?: boolean;
   canonicalSlug?: string | null;
 }) {
   const user = authenticated
@@ -156,7 +161,8 @@ function installProviderClient({
   const publicContext = canonicalSlug
     ? { ...context, organization: { ...context.organization, slug: canonicalSlug } }
     : context;
-  const accountQuery = queryResult(missingAccount ? null : account);
+  let accountVisible = !missingAccount;
+  const accountQuery = queryResult(() => accountVisible ? account : null);
   const customerQuery = queryResult(customer);
   const from = vi.fn((table: string) => table === "client_accounts" ? accountQuery : customerQuery);
   let linked = initiallyLinked;
@@ -239,7 +245,10 @@ function installProviderClient({
       if (!reviewAfterClaim && !mismatchedClaim) linked = true;
       return claimResult;
     }
-    if (name === "upsert_my_client_account") return { data: "user-1", error: null };
+    if (name === "upsert_my_client_account") {
+      if (accountAvailableAfterUpsert) accountVisible = true;
+      return { data: "user-1", error: null };
+    }
     throw new Error(`RPC inesperada: ${name}`);
   });
   authMocks.client = {
@@ -804,6 +813,30 @@ describe("cliente conectado", () => {
       p_birth_date: "1990-02-10",
       p_terms_policy_version: "client-access-2026-08",
     }));
+    expect(authMocks.push).toHaveBeenCalledWith("/cliente/agendar?barbearia=barbearia-real");
+  });
+
+  it("revalida o provider depois de concluir cadastro sem voltar ao loop", async () => {
+    installProviderClient({
+      authenticated: true,
+      missingAccount: true,
+      accountAvailableAfterUpsert: true,
+    });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente/agendar" oauthCompletion />
+        <ConnectedClientGate><div>agenda liberada</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Complete seu cadastro" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Telefone (E.164)"), { target: { value: "47999782545" } });
+    fireEvent.change(screen.getByLabelText("Data de nascimento"), { target: { value: "10/02/1990" } });
+    fireEvent.click(screen.getByLabelText("Aceito os termos de uso e a política de privacidade"));
+    fireEvent.submit(screen.getByRole("form", { name: "Completar cadastro" }));
+
+    expect(await screen.findByRole("button", { name: "Entrar nesta barbearia" })).toBeInTheDocument();
     expect(authMocks.push).toHaveBeenCalledWith("/cliente/agendar?barbearia=barbearia-real");
   });
 

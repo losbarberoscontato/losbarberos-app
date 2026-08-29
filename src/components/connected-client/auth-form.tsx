@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, LoaderCircle, MessageCircle, Scissors } from "lucide-react";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getMyClientAccount } from "@/components/connected-client/api";
+import { notifyClientAccountSaved } from "@/components/connected-client/account-events";
 import { GoogleMark } from "@/components/google-mark";
 import { formatBirthDateInput, normalizeBirthDateInput, parseBirthDateInput } from "@/lib/birth-date";
 import { clientAuthDestination, clientPasswordSchema, clientSignupSchema } from "@/lib/client-auth";
@@ -168,6 +169,7 @@ export function ClientAuthForm({
       setError("Não foi possível concluir acesso. Tente novamente.");
       return false;
     }
+    notifyClientAccountSaved();
     push(destination);
     return true;
   }

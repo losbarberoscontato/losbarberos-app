@@ -13,6 +13,7 @@ import {
   setMyLastClientOrganization,
   toClientError,
 } from "@/components/connected-client/api";
+import { clientAccountSavedEvent } from "@/components/connected-client/account-events";
 import { normalizeTenantSlug, resolveTenantSlug, tenantStorageKey } from "@/components/connected-client/format";
 import type {
   ClientClaimResult,
@@ -76,6 +77,7 @@ export function ConnectedClientProvider({
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
+  const [accountRefreshKey, setAccountRefreshKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const currentSlugRef = useRef(slug);
   const linkInFlightRef = useRef<{ slug: string; promise: Promise<ClientTenantLinkResult> } | null>(null);
@@ -188,6 +190,12 @@ export function ConnectedClientProvider({
   }, [supabase]);
 
   useEffect(() => {
+    const refreshAccount = () => setAccountRefreshKey((current) => current + 1);
+    window.addEventListener(clientAccountSavedEvent, refreshAccount);
+    return () => window.removeEventListener(clientAccountSavedEvent, refreshAccount);
+  }, []);
+
+  useEffect(() => {
     if (!supabase || !user) {
       queueMicrotask(() => {
         setAccount(null);
@@ -251,7 +259,7 @@ export function ConnectedClientProvider({
     return () => {
       active = false;
     };
-  }, [context, supabase, user]);
+  }, [accountRefreshKey, context, supabase, user]);
 
   useEffect(() => {
     if (
