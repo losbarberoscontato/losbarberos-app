@@ -65,7 +65,7 @@
 .empty p { max-width: 500px; margin: 0; font-size: .86rem; }
 .list { display: grid; gap: .65rem; }
 .cashTable { display: grid; gap: .65rem; }
-.cashHeader, .cashRow { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(90px, .7fr) minmax(95px, .75fr) minmax(120px, .9fr) minmax(135px, .9fr) minmax(130px, auto); gap: .8rem; align-items: center; }
+.cashHeader, .cashRow { display: grid; grid-template-columns: minmax(210px, 1.5fr) minmax(105px, .7fr) minmax(115px, .75fr) minmax(160px, 1fr) minmax(170px, 1fr) minmax(190px, auto); gap: .8rem; align-items: center; }
 .cashHeader { padding: 0 .8rem; color: #69716b; font-size: .75rem; font-weight: 800; }
 .cashRow { padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }
 .cashRow:hover { background: #fafbf9; }

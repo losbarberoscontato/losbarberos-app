@@ -95,6 +95,33 @@ describe("cash manager", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("abre contas a pagar e receber no mês atual, com todos os status", () => {
+    render(<CashManager {...props} section="payables" />);
+
+    expect(screen.getByLabelText("Data inicial")).toHaveValue("2026-08-01");
+    expect(screen.getByLabelText("Data final")).toHaveValue("2026-08-31");
+    expect(screen.getByLabelText("Filtrar status")).toHaveValue("ALL");
+  });
+
+  it("abre cadastros rápidos de fornecedor, cliente e tag no lançamento", () => {
+    render(<CashManager {...props} section="payables" />);
+    fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
+
+    fireEvent.change(within(dialog).getByLabelText("Tipo de contraparte"), { target: { value: "SUPPLIER" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Novo fornecedor" }));
+    expect(screen.getByRole("dialog", { name: "Novo fornecedor" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Fechar" }).at(-1)!);
+
+    fireEvent.change(within(dialog).getByLabelText("Tipo de contraparte"), { target: { value: "CUSTOMER" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Novo cliente" }));
+    expect(screen.getByRole("dialog", { name: "Novo cliente" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Fechar" }).at(-1)!);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Nova tag" }));
+    expect(screen.getByRole("dialog", { name: "Nova tag" })).toBeInTheDocument();
+  });
+
   it("calcula total das parcelas e cria série tenant-safe", async () => {
     render(<CashManager {...props} section="payables" />);
 
@@ -130,7 +157,7 @@ describe("cash manager", () => {
     fireEvent.change(within(dialog).getByLabelText("Plano de conta"), { target: { value: "chart-expense" } });
     fireEvent.submit(within(dialog).getByRole("button", { name: "Adicionar" }).closest("form")!);
 
-    expect(rpc).toHaveBeenCalledWith("create_financial_series", expect.objectContaining({ p_kind: "RECURRING", p_cadence: "BIWEEKLY", p_amount_cents: 9990, p_occurrence_count: null }));
+    expect(rpc).toHaveBeenCalledWith("create_financial_series", expect.objectContaining({ p_kind: "RECURRING", p_cadence: "BIWEEKLY", p_amount_cents: 9990, p_occurrence_count: null, p_counterparty_kind: null, p_tag_ids: [] }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).not.toBeInTheDocument());
   });
 

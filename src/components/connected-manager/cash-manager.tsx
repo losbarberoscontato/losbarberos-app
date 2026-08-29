@@ -78,6 +78,13 @@ function today() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 }
 
+function currentMonthRange() {
+  const [year, month] = today().split("-").map(Number);
+  const first = `${year}-${String(month).padStart(2, "0")}-01`;
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { start: first, end: `${year}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}` };
+}
+
 function movementDate(value: string) {
   return value.includes("T") ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(value)) : value;
 }
@@ -116,8 +123,9 @@ export function CashManager(props: CashManagerProps) {
   const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | EntryStatus>("ALL");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const periodDefault = props.section === "payables" || props.section === "receivables" ? currentMonthRange() : null;
+  const [startDate, setStartDate] = useState(() => periodDefault?.start ?? "");
+  const [endDate, setEndDate] = useState(() => periodDefault?.end ?? "");
   const [entryEditor, setEntryEditor] = useState<FinancialEntryRecord | "new" | null>(null);
   const [settlementEntry, setSettlementEntry] = useState<FinancialEntryRecord | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -230,7 +238,9 @@ function CashList({ entries, activity, receivables, accountById, supplierById, c
     {!entries.length && !activity.length && !receivables.length ? <EmptyState title="Sem movimentações">Crie um lançamento ou registre um recebimento de agendamento.</EmptyState> : <div className={styles.cashTable} role="table" aria-label="Movimentações financeiras">
       <div className={styles.cashHeader} role="row"><span role="columnheader">Cliente/Fornecedor</span><span role="columnheader">Data</span><span role="columnheader">Valor</span><span role="columnheader">Conta financeira</span><span role="columnheader">Situação do pagamento</span><span role="columnheader">Ações</span></div>
       {entries.map((entry) => {
-        const counterpart = entry.counterparty_kind === "CUSTOMER" ? customerById.get(entry.customer_id ?? "")?.full_name : supplierById.get(entry.supplier_id ?? "")?.name;
+        const counterpart = entry.counterparty_kind === "CUSTOMER"
+          ? customerById.get(entry.customer_id ?? "")?.full_name
+          : supplierById.get(entry.supplier_id ?? "")?.name;
         return <article key={entry.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpart ?? "Não informado"}</strong><small className={styles.cashDescription}>{entry.description}</small></span><span role="cell">{entry.due_date}</span><strong role="cell">{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span role="cell">{accountById.get(entry.preferred_financial_account_id ?? "")?.name ?? "Não definida"}</span><span role="cell"><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /></span><span className={styles.rowActions} role="cell">{!["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>Liquidar</button>}{entry.status === "OPEN" || entry.status === "OVERDUE" ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : entry.status !== "CANCELED" ? <small className={styles.muted}>Use reversal para corrigir liquidações.</small> : null}</span></article>;
       })}
       {activity.map((item) => <article key={item.payment_transaction_id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{customerById.get(item.customer_id)?.full_name ?? "Cliente"}</strong><small className={styles.cashDescription}>{item.display_description}</small></span><span role="cell">{new Date(item.occurred_at).toLocaleDateString("pt-BR")}</span><strong role="cell">{item.signed_cents >= 0 ? "+" : "−"}{formatCents(Math.abs(item.signed_cents))}</strong><span role="cell">{item.needs_reconciliation ? "Não vinculada" : accountById.get(item.financial_account_id ?? "")?.name ?? "Conta não encontrada"}</span><span role="cell"><StatusChip active={item.financial_status === "PAID"} label={appointmentPaymentLabel(item.financial_status)} /></span><span className={styles.rowActions} role="cell">{item.kind === "CAPTURE" && item.provider === "MANUAL" && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseAppointment(item)}>Estornar recebimento</button>}</span></article>)}
@@ -288,12 +298,14 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
 }
 
 function EntryDialog({ entry, defaultKind, organizationId, accounts, suppliers, chartAccounts, costCenters, tags, customers, entryTags, demoMode, onClose, onSaved, setMessage }: Omit<CashManagerProps, "section" | "billingStatus" | "balances" | "entries" | "settlements" | "appointmentActivity" | "mappings" | "appointmentReceivables"> & { entry: FinancialEntryRecord | null; defaultKind: EntryKind; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+  const router = useRouter();
   const [counterpartyKind, setCounterpartyKind] = useState<"" | "CUSTOMER" | "SUPPLIER">(entry?.counterparty_kind ?? "");
   const [kind, setKind] = useState<EntryKind>(entry?.kind ?? defaultKind);
   const [expenseType, setExpenseType] = useState<"SINGLE" | "RECURRING" | "INSTALLMENT">("SINGLE");
   const [recurrence, setRecurrence] = useState<"BIWEEKLY" | "MONTHLY">("MONTHLY");
   const [amount, setAmount] = useState(entry ? (entry.total_cents / 100).toFixed(2).replace(".", ",") : "");
   const [installments, setInstallments] = useState("2");
+  const [quickCreate, setQuickCreate] = useState<"CUSTOMER" | "SUPPLIER" | "TAG" | null>(null);
   const selectedTags = new Set(entry ? entryTags.filter((item) => item.entry_id === entry.id).map((item) => item.tag_id) : []);
   const isSeries = !entry && kind === "EXPENSE" && expenseType !== "SINGLE";
   const installmentTotalCents = useMemo(() => {
@@ -321,6 +333,11 @@ function EntryDialog({ entry, defaultKind, organizationId, accounts, suppliers, 
         p_cost_center_id: params.p_cost_center_id,
         p_location_id: null,
         p_preferred_financial_account_id: params.p_preferred_financial_account_id,
+        p_counterparty_kind: params.p_counterparty_kind,
+        p_customer_id: params.p_customer_id,
+        p_supplier_id: params.p_supplier_id,
+        p_document_number: params.p_document_number,
+        p_tag_ids: params.p_tag_ids,
       }));
       else await assertResult(await connectedClient().rpc("create_financial_entry", { p_organization_id: organizationId, p_kind: kind, ...params }));
     }, entry ? "Lançamento aberto atualizado." : isSeries ? "Série de despesas criada." : "Lançamento criado.");
@@ -341,11 +358,27 @@ function EntryDialog({ entry, defaultKind, organizationId, accounts, suppliers, 
     <Field label="Centro de custo"><select name="cost_center_id" defaultValue={entry?.cost_center_id ?? ""}><option value="">Não informar</option>{costCenters.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Número do documento"><input name="document_number" defaultValue={entry?.document_number ?? ""} /></Field>
     <Field label="Contraparte"><select aria-label="Tipo de contraparte" value={counterpartyKind} onChange={(event) => setCounterpartyKind(event.target.value as "" | "CUSTOMER" | "SUPPLIER")}><option value="">Não informar</option><option value="CUSTOMER">Cliente</option><option value="SUPPLIER">Fornecedor</option></select></Field>
-    {counterpartyKind === "CUSTOMER" && <Field label="Cliente"><select name="customer_id" defaultValue={entry?.customer_id ?? ""}><option value="">Selecione</option>{customers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select></Field>}
-    {counterpartyKind === "SUPPLIER" && <Field label="Fornecedor"><select name="supplier_id" defaultValue={entry?.supplier_id ?? ""}><option value="">Selecione</option>{suppliers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>}
-    <Field label="Tags" wide><select name="tag_ids" multiple defaultValue={[...selectedTags]}>{tags.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+    {counterpartyKind === "CUSTOMER" && <Field label="Cliente"><select name="customer_id" defaultValue={entry?.customer_id ?? ""}><option value="">Selecione</option>{customers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("CUSTOMER")}>Novo cliente</button></Field>}
+    {counterpartyKind === "SUPPLIER" && <Field label="Fornecedor"><select name="supplier_id" defaultValue={entry?.supplier_id ?? ""}><option value="">Selecione</option>{suppliers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("SUPPLIER")}>Novo fornecedor</button></Field>}
+    <Field label="Tags" wide><select name="tag_ids" multiple defaultValue={[...selectedTags]}>{tags.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("TAG")}>Nova tag</button></Field>
     <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{entry ? "Salvar" : "Adicionar"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
-  </form></Dialog>;
+  </form>{quickCreate && <QuickFinancialCatalogDialog kind={quickCreate} organizationId={organizationId} demoMode={demoMode} onClose={() => setQuickCreate(null)} onCreated={() => { setQuickCreate(null); router.refresh(); }} setMessage={setMessage} />}</Dialog>;
+}
+
+function QuickFinancialCatalogDialog({ kind, organizationId, demoMode, onClose, onCreated, setMessage }: { kind: "CUSTOMER" | "SUPPLIER" | "TAG"; organizationId: string; demoMode?: boolean; onClose: () => void; onCreated: () => void; setMessage: (value: string) => void }) {
+  const title = kind === "CUSTOMER" ? "Novo cliente" : kind === "SUPPLIER" ? "Novo fornecedor" : "Nova tag";
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (blockDemoWrite(demoMode, setMessage)) return;
+    const name = safeText(new FormData(event.currentTarget).get("name"));
+    const saved = await runMutation(setMessage, async () => {
+      if (kind === "SUPPLIER") await assertResult(await connectedClient().rpc("save_supplier", { p_organization_id: organizationId, p_id: null, p_person_kind: "COMPANY", p_name: name, p_document: null, p_phone_e164: null, p_email: null, p_address: {}, p_notes: null }));
+      else if (kind === "TAG") await assertResult(await connectedClient().rpc("save_financial_tag", { p_organization_id: organizationId, p_id: null, p_name: name, p_color: null }));
+      else await assertResult(await connectedClient().from("customers").insert({ organization_id: organizationId, full_name: name, phone_e164: null, email: null, birth_date: null, notes: null }));
+    }, `${title} criado.`);
+    if (saved) onCreated();
+  }
+  return <Dialog title={title} onClose={onClose}><form className={styles.form} onSubmit={submit}><Field label="Nome"><input name="name" required autoFocus /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Salvar</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div></form></Dialog>;
 }
 
 function SettlementDialog({ entry, accounts, demoMode, onClose, onSaved, setMessage }: { entry: FinancialEntryRecord; accounts: FinancialAccountRecord[]; demoMode?: boolean; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
