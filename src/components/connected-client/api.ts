@@ -36,6 +36,9 @@ export function toClientError(error: unknown, fallback: string): string {
   if (message.includes("mercado pago account is not connected")) return "Pagamento online ainda não foi conectado por esta barbearia.";
   if (message.includes("reschedule deadline")) return "Prazo de reagendamento já terminou.";
   if (message.includes("authentication required") || message.includes("jwt")) return "Sessão expirou. Entre novamente.";
+  if (message.includes("client account not found") || message.includes("query returned no rows")) {
+    return "Complete seus dados de cliente antes de entrar nesta barbearia.";
+  }
   return error.message || fallback;
 }
 

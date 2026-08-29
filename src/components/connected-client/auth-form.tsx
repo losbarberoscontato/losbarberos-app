@@ -86,15 +86,17 @@ export function ClientAuthForm({
   initialNext,
   initialMode = "signin",
   oauthCompletion = false,
+  resumeCompletion = false,
 }: {
   initialSlug: string | null;
   initialNext: string | null;
   initialMode?: "signin" | "signup";
   oauthCompletion?: boolean;
+  resumeCompletion?: boolean;
 }) {
   const { push } = useRouter();
   const [mode, setMode] = useState<AuthMode>(oauthCompletion ? "complete" : initialMode);
-  const [oauthChecking, setOauthChecking] = useState(oauthCompletion);
+  const [oauthChecking, setOauthChecking] = useState(oauthCompletion || resumeCompletion);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -171,7 +173,7 @@ export function ClientAuthForm({
   }
 
   useEffect(() => {
-    if (!oauthCompletion) return;
+    if (!oauthCompletion && !resumeCompletion) return;
     const supabase = getSupabaseBrowserClient();
     let active = true;
 
@@ -187,7 +189,7 @@ export function ClientAuthForm({
 
     void (async () => {
       const { data, error: userError } = await supabase.auth.getUser();
-      if (userError || !data.user) throw new Error("Sessão Google não encontrada.");
+      if (userError || !data.user) throw new Error("Sessão do cliente não encontrada.");
       const existingAccount = await getMyClientAccount(supabase, data.user.id);
       if (!active) return;
       if (existingAccount) {
@@ -209,11 +211,13 @@ export function ClientAuthForm({
       if (!active) return;
       setMode("signin");
       setOauthChecking(false);
-      setError("Não foi possível validar sua conta Google. Tente novamente.");
+      setError(oauthCompletion
+        ? "Não foi possível validar sua conta Google. Tente novamente."
+        : "Não foi possível validar sua sessão. Entre novamente.");
     });
 
     return () => { active = false; };
-  }, [destination, oauthCompletion, push]);
+  }, [destination, oauthCompletion, push, resumeCompletion]);
 
   async function continueWithGoogle() {
     clearMessages();

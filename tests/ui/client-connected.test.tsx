@@ -108,6 +108,8 @@ function installProviderClient({
   reviewAfterClaim = false,
   mismatchedClaim = false,
   mismatchedLink = false,
+  missingAccount = false,
+  canonicalSlug = null,
 }: {
   authenticated: boolean;
   failFirstLink?: boolean;
@@ -120,6 +122,8 @@ function installProviderClient({
   reviewAfterClaim?: boolean;
   mismatchedClaim?: boolean;
   mismatchedLink?: boolean;
+  missingAccount?: boolean;
+  canonicalSlug?: string | null;
 }) {
   const user = authenticated
     ? { id: "user-1", email: "ana@example.com", user_metadata: { full_name: "Ana Souza" } }
@@ -149,7 +153,10 @@ function installProviderClient({
     customer_id: customer.id,
     is_last: isLast,
   };
-  const accountQuery = queryResult(account);
+  const publicContext = canonicalSlug
+    ? { ...context, organization: { ...context.organization, slug: canonicalSlug } }
+    : context;
+  const accountQuery = queryResult(missingAccount ? null : account);
   const customerQuery = queryResult(customer);
   const from = vi.fn((table: string) => table === "client_accounts" ? accountQuery : customerQuery);
   let linked = initiallyLinked;
@@ -197,7 +204,7 @@ function installProviderClient({
       })
     : null;
   const rpc = vi.fn(async (name: string) => {
-    if (name === "get_public_booking_context") return { data: context, error: null };
+    if (name === "get_public_booking_context") return { data: publicContext, error: null };
     if (name === "get_available_slots_for_date") return {
       data: {
         duration_minutes: 35,
@@ -414,6 +421,44 @@ describe("cliente conectado", () => {
     expect(await screen.findByText("conteúdo tenant")).toBeInTheDocument();
     expect(rpc.mock.calls.filter(([name]) => name === "link_my_client_to_organization")).toHaveLength(2);
     expect(from).toHaveBeenCalledWith("customers");
+  });
+
+  it("direciona sessão sem perfil global para completar cadastro sem chamar vínculo", async () => {
+    const { rpc } = installProviderClient({ authenticated: true, missingAccount: true });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedClientGate><div>conteúdo tenant</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByText("Complete seus dados de cliente antes de entrar nesta barbearia.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Completar cadastro" })).toHaveAttribute(
+      "href",
+      "/cliente/entrar?barbearia=barbearia-real&complete=1",
+    );
+    expect(screen.queryByText("query returned no rows")).not.toBeInTheDocument();
+    expect(rpc.mock.calls.some(([name]) => name === "link_my_client_to_organization")).toBe(false);
+  });
+
+  it("troca slug legado pelo slug canônico retornado no contexto público", async () => {
+    const { rpc } = installProviderClient({ authenticated: false, canonicalSlug: "cutclub" });
+    window.history.replaceState(null, "", "/cliente/agendar?barbearia=barbershop");
+
+    render(
+      <ConnectedClientProvider initialSlug="barbershop">
+        <ConnectedClientGate><div>contexto canônico</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByText("contexto canônico")).toBeInTheDocument();
+    await waitFor(() => expect(window.location.search).toBe("?barbearia=cutclub"));
+    expect(rpc).toHaveBeenCalledWith("get_public_booking_context", {
+      p_organization_slug: "barbershop",
+    });
+    expect(rpc).toHaveBeenCalledWith("get_public_booking_context", {
+      p_organization_slug: "cutclub",
+    });
   });
 
   it("permite confirmar explicitamente um cadastro existente antes de carregar dados tenant", async () => {

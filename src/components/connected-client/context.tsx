@@ -138,6 +138,14 @@ export function ConnectedClientProvider({
     void getPublicBookingContext(supabase, slug)
       .then((result) => {
         if (!active) return;
+        const canonicalSlug = normalizeTenantSlug(result?.organization.slug);
+        if (canonicalSlug && canonicalSlug !== slug) {
+          const url = new URL(window.location.href);
+          url.searchParams.set("barbearia", canonicalSlug);
+          window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+          setSlug(canonicalSlug);
+          return;
+        }
         setContext(result);
         setCustomer((current) =>
           current?.organization_id === result?.organization.id ? current : null
@@ -202,7 +210,14 @@ export function ConnectedClientProvider({
     });
     void (async () => {
       const nextAccount = await getMyClientAccount(supabase, expectedUserId);
-      if (!nextAccount) throw new Error("Conta global de cliente não encontrada.");
+      if (!nextAccount) {
+        if (!active) return;
+        setAccount(null);
+        setOrganizations([]);
+        setCustomer(null);
+        setLinkStatus(context ? "PROFILE_REQUIRED" : "IDLE");
+        return;
+      }
       const nextOrganizations = await listMyClientOrganizations(supabase);
       if (!active) return;
 

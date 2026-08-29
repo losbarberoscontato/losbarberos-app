@@ -115,6 +115,7 @@ export type ClientLinkStatus =
   | "IDLE"
   | "LOADING"
   | "UNLINKED"
+  | "PROFILE_REQUIRED"
   | "LINKING"
   | ClientLinkResult["status"]
   | "ERROR";

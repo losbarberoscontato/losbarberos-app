@@ -10,6 +10,7 @@ type ClientEntrySearchParams = Promise<{
   modo?: string | string[];
   next?: string | string[];
   oauth?: string | string[];
+  complete?: string | string[];
 }>;
 
 function singleValue(value: string | string[] | undefined): string | null {
@@ -39,6 +40,7 @@ export default async function ClientEntryPage({
       initialSlug={resolved.searchParams.get("barbearia")}
       initialMode={initialMode(input.modo)}
       oauthCompletion={singleValue(input.oauth) === "complete"}
+      resumeCompletion={singleValue(input.complete) === "1"}
     />
   );
 }

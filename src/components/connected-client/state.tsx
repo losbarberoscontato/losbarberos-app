@@ -48,6 +48,8 @@ export function ConnectedClientGate({ children }: { children: React.ReactNode })
   if (user && linkStatus !== "LINKED") {
     const pendingReview = linkStatus === "REVIEW_REQUIRED";
     const claimRequired = linkStatus === "CLAIM_REQUIRED";
+    const profileRequired = linkStatus === "PROFILE_REQUIRED";
+    const completeProfileHref = `/cliente/entrar?barbearia=${encodeURIComponent(context.organization.slug)}&complete=1`;
     return (
       <section className={styles.authPrompt}>
         <UserMark />
@@ -55,13 +57,17 @@ export function ConnectedClientGate({ children }: { children: React.ReactNode })
         <p>
           {pendingReview
             ? "Vínculo enviado para revisão pela barbearia."
+            : profileRequired
+              ? "Complete seus dados de cliente antes de entrar nesta barbearia."
             : claimRequired
               ? "Encontramos um cadastro existente. Confirme que este cadastro é seu para continuar."
               : organizations.length
                 ? `Você está conectado a ${organizations[0].organization_name}. Confirme para trocar para ${context.organization.name}.`
                 : "Confirme para criar sua relação com esta barbearia. Visitar o link não cria vínculo."}
         </p>
-        {!pendingReview && (
+        {profileRequired ? (
+          <Link href={completeProfileHref} className={styles.primaryButton}>Completar cadastro</Link>
+        ) : !pendingReview && (
           <button
             type="button"
             disabled={linkStatus === "LINKING"}
