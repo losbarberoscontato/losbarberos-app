@@ -55,7 +55,7 @@ type AgendaData = AwaitedReturn<typeof loadAgendaData>;
 type Props = Omit<AgendaData, "appointmentItems"> & { appointmentItems?: AgendaData["appointmentItems"] };
 type View = "day" | "week" | "month";
 
-const hours = Array.from({ length: 12 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
+const hours = Array.from({ length: 14 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
 function formatDate(dateKey: string, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" }) {
   return new Intl.DateTimeFormat("pt-BR", { ...options, timeZone: "UTC" }).format(new Date(`${dateKey}T12:00:00.000Z`));
 }
@@ -328,6 +328,7 @@ export function AgendaManager(props: Props) {
         <div className="agenda-day__time-label">Horário</div>
         {displayedBarbers.map((barber, index) => <div className="agenda-day__barber" key={barber.id}><Avatar initials={barber.display_name.slice(0, 2).toUpperCase()} tone={index % 3 === 0 ? "sage" : index % 3 === 1 ? "amber" : "blue"} size="sm" /><span><strong>{barber.display_name}</strong><small>{appointmentsOn(date).filter((appointment) => appointment.barber_id === barber.id).length} hoje</small></span><i /></div>)}
       </div>
+      <div className="agenda-day__scroll" aria-label="Horários da agenda">
       <div className="agenda-day__grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayedBarbers.length, 1)}, minmax(220px, 1fr))`, height: hours.length * 78 }}>
         {!appointmentsOn(date).length && <div className="agenda-day__empty">Nenhum agendamento para este dia.</div>}
         <div className="agenda-time-axis" style={{ gridTemplateRows: `repeat(${hours.length}, 78px)` }}>{hours.map((hour) => <span key={hour}>{hour}</span>)}</div>
@@ -341,6 +342,7 @@ export function AgendaManager(props: Props) {
           })}
         </div>)}
         {nowLine && <div className="agenda-now-line" style={{ top: nowLine.top }} aria-label={`Hora atual: ${nowLine.label}`}><span>{nowLine.label}</span><i /></div>}
+      </div>
       </div>
     </section>}
 
