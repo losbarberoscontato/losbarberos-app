@@ -35,6 +35,9 @@ function applyTemplate(template: string, job: Job, fallback: string): string {
   const barber = typeof job.payload.barber_name === "string" ? job.payload.barber_name : "profissional";
   const service = typeof job.payload.service_names === "string" ? job.payload.service_names : "Serviço não informado";
   const rendered = template
+    // Templates persisted through JSON may contain literal "\\n" sequences.
+    // Evolution must receive real line breaks for WhatsApp to format them.
+    .replaceAll("\\n", "\n")
     .replaceAll("{cliente}", name)
     .replaceAll("{barbeiro}", barber)
     .replaceAll("{horario}", formatStart(job.payload))

@@ -28,6 +28,10 @@ type ProviderMessageResult = {
   key?: { id?: string };
 };
 
+function normalizeMessageText(value: string): string {
+  return value.replaceAll("\\n", "\n").slice(0, 4_096);
+}
+
 function buildMessage(job: OutboxJob): Record<string, unknown> {
   const to = normalizeWhatsAppRecipient(job.recipient_e164);
 
@@ -87,7 +91,7 @@ function buildMessage(job: OutboxJob): Record<string, unknown> {
   }
 
   if (job.message_kind === "TEXT" && job.text_body?.trim()) {
-    return { to, type: "text", text: { body: job.text_body.slice(0, 4_096) } };
+    return { to, type: "text", text: { body: normalizeMessageText(job.text_body) } };
   }
 
   throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
@@ -97,7 +101,7 @@ function buildEvolutionMessage(job: OutboxJob): Record<string, unknown> {
   if (job.message_kind === "EVOLUTION_REMINDER_BUTTONS") {
     if (!job.text_body?.trim()) throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
     return {
-      text: `${job.text_body.slice(0, 4_096)}\n\nDigite 1 para confirmar, 2 para cancelar ou 3 para reagendar.`,
+      text: `${normalizeMessageText(job.text_body)}\n\nDigite 1 para confirmar, 2 para cancelar ou 3 para reagendar.`,
     };
   }
 
@@ -108,7 +112,7 @@ function buildEvolutionMessage(job: OutboxJob): Record<string, unknown> {
   }
 
   if (job.text_body?.trim()) {
-    return { text: job.text_body.slice(0, 4_096) };
+    return { text: normalizeMessageText(job.text_body) };
   }
   const label = job.appointment_label?.trim() || "o seu horário";
   let text: string;

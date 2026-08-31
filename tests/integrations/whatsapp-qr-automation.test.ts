@@ -16,6 +16,7 @@ describe("automação WhatsApp QR v2", () => {
   const reconnectionRecoveryMigration = read("supabase/migrations/20260831201500_whatsapp_v2_reconnection_recovery.sql");
   const perAppointmentMigration = read("supabase/migrations/20260831213000_whatsapp_v2_per_appointment_t45.sql");
   const dispatcher = read("supabase/functions/whatsapp-v2-dispatcher/index.ts");
+  const legacyOutbox = read("supabase/functions/whatsapp-send-outbox/index.ts");
   const webhook = read("supabase/functions/whatsapp-qr-webhook/index.ts");
   const config = read("supabase/functions/_shared/evolution-qr-webhook.ts");
   const identity = read("supabase/functions/_shared/evolution-message.ts");
@@ -72,6 +73,9 @@ describe("automação WhatsApp QR v2", () => {
     expect(agendaStatusMigration).toContain("MANUAL_CONFIRMATION_STAFF");
     expect(dispatcher).toContain("MANUAL_CONFIRMATION_CLIENT");
     expect(dispatcher).toContain("MANUAL_CONFIRMATION_STAFF");
+    expect(dispatcher).toContain('.replaceAll("\\\\n", "\\n")');
+    expect(legacyOutbox).toContain("function normalizeMessageText");
+    expect(legacyOutbox).toContain('.replaceAll("\\\\n", "\\n")');
   });
 
   it("entrega atendimento a um número do gestor separado e sinaliza coincidência com o QR", () => {
