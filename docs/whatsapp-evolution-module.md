@@ -104,6 +104,8 @@ Não misturar a fila V2 com `notification_outbox`/fluxo QR legado. A versão V1 
 5. `CONNECTION_UPDATE` altera estado e persiste telefone conectado.
 6. Health-check periódico consulta a Evolution e reaplica o webhook.
 
+Quando uma conexão QR nova entra em `CONNECTED`, ela inicia uma nova época de entrega: V2 é ativada, pendências outbound, requests interativos e webhooks não processados da sessão anterior são encerrados sem replay. Mensagens novas são criadas somente por agendamentos após essa conexão. O outbox legado não atende `QR_WEB`; permanece restrito à compatibilidade Meta.
+
 Uma falha `WEBHOOK_CONFIGURATION_FAILED` significa que respostas recebidas podem não chegar ao sistema.
 
 ### Agendamento e lembretes

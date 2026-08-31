@@ -13,6 +13,7 @@ describe("automação WhatsApp QR v2", () => {
   const managerPhoneValidationMigration = read("supabase/migrations/20260819163816_fix_whatsapp_v2_manager_notification_phone_validation.sql");
   const agendaStatusMigration = read("supabase/migrations/20260821115548_whatsapp_agenda_response_statuses.sql");
   const dailyConfirmationMigration = read("supabase/migrations/20260821145726_whatsapp_evolution_single_daily_confirmation.sql");
+  const reconnectionRecoveryMigration = read("supabase/migrations/20260831201500_whatsapp_v2_reconnection_recovery.sql");
   const dispatcher = read("supabase/functions/whatsapp-v2-dispatcher/index.ts");
   const webhook = read("supabase/functions/whatsapp-qr-webhook/index.ts");
   const config = read("supabase/functions/_shared/evolution-qr-webhook.ts");
@@ -126,5 +127,30 @@ describe("automação WhatsApp QR v2", () => {
     expect(phoneMigration).toContain("whatsapp_v2_phone_matches");
     expect(phoneMigration).toContain("substr(expected_digits,5,1) = '9'");
     expect(phoneMigration).toContain("public.whatsapp_v2_phone_matches(phone_e164,p_sender_e164)");
+  });
+
+  it("reinicia V2 ao reconectar QR sem replayar fluxos antigos", () => {
+    expect(reconnectionRecoveryMigration).toContain("restart_whatsapp_v2_after_qr_connection");
+    expect(reconnectionRecoveryMigration).toContain("'QR_CONNECTION_RESTARTED'");
+    expect(reconnectionRecoveryMigration).toContain("status = 'CANCELED'");
+    expect(reconnectionRecoveryMigration).toContain("status = 'EXPIRED'");
+    expect(reconnectionRecoveryMigration).toContain("processing_status = 'DEAD'");
+    expect(reconnectionRecoveryMigration).toContain("mode = 'ACTIVE'");
+    expect(reconnectionRecoveryMigration).toContain("dispatch_paused = false");
+  });
+
+  it("impede outbox legado e respeita configuração de avisos ao barbeiro", () => {
+    expect(reconnectionRecoveryMigration).toContain("Legacy outbox remains available to Meta only");
+    expect(reconnectionRecoveryMigration).toContain("and c.provider = 'QR_WEB'");
+    expect(reconnectionRecoveryMigration).toContain("v_settings.staff_notifications_enabled");
+    expect(reconnectionRecoveryMigration).toContain("'STAFF_NOTIFICATIONS_DISABLED'");
+    expect(reconnectionRecoveryMigration).toContain("c.is_active");
+  });
+
+  it("persiste template V2 no job e renderiza placeholders seguros", () => {
+    expect(reconnectionRecoveryMigration).toContain("'templates',v_settings.templates");
+    expect(dispatcher).toContain("configuredTemplate");
+    expect(dispatcher).toContain("replaceAll(\"{cliente}\"");
+    expect(dispatcher).toContain("replaceAll(\"{horario}\"");
   });
 });
