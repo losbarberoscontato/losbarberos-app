@@ -305,7 +305,9 @@ function BookingContent() {
       if (!active) return;
       setSlotsLoading(true);
       setSlotsError("");
-      if (!walkinQueueHoldId) setStartsAt("");
+      // Ao converter a vaga da fila em hold de agendamento, o hold da fila é
+      // consumido. Não limpe o horário enquanto o novo hold estiver ativo.
+      if (!walkinQueueHoldId && !bookingHold) setStartsAt("");
     });
     void getAvailableSlots(supabase, {
       organizationSlug: slug,
@@ -324,7 +326,7 @@ function BookingContent() {
       if (active) setSlotsLoading(false);
     });
     return () => { active = false; };
-  }, [availabilityRetry, barberId, barberMode, choice, context, localDate, slug, supabase, walkinQueueHoldId]);
+  }, [availabilityRetry, barberId, barberMode, bookingHold, choice, context, localDate, slug, supabase, walkinQueueHoldId]);
 
   useEffect(() => {
     if (!supabase || !context || !slug || !choice || barberMode !== "ANY" || !localDate || !context.organization.accepting_bookings) {
@@ -434,9 +436,9 @@ function BookingContent() {
         idempotencyKey: requestKey,
         walkinQueueHoldId,
       });
-      window.sessionStorage.removeItem(holdStorageKey);
-      setWalkinQueueHoldId(null);
       if (hold.status === "CONFIRMED") {
+        window.sessionStorage.removeItem(holdStorageKey);
+        setWalkinQueueHoldId(null);
         window.sessionStorage.removeItem(draftKey(tenantSlug));
         router.push(`/cliente/reservas?barbearia=${encodeURIComponent(tenantSlug)}&appointment_id=${hold.appointment_id}`);
         return;
@@ -447,6 +449,8 @@ function BookingContent() {
         bookingHoldStorageKey(tenantSlug, user.id, customer.id),
         JSON.stringify(hold),
       );
+      window.sessionStorage.removeItem(holdStorageKey);
+      setWalkinQueueHoldId(null);
       setStep(4);
     } catch (cause: unknown) {
       const errorKind = bookingErrorKind(cause);

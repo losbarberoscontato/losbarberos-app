@@ -728,6 +728,32 @@ describe("cliente conectado", () => {
     })));
   });
 
+  it("mantém resumo e confirmação ao converter a vaga da fila em hold de agendamento", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true });
+    window.history.replaceState(null, "", "/cliente/agendar?barbearia=barbearia-real&barbeiro=barber-1&horario=2026-08-10T12:00:00Z");
+    window.sessionStorage.setItem("los-barberos:walkin-queue-hold", JSON.stringify({
+      id: "queue-hold-1",
+      expiresAt: new Date(Date.now() + 3 * 60_000).toISOString(),
+    }));
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedBooking />
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Masculino" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Corte/u })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continuar" }));
+    expect(await screen.findByRole("heading", { name: "Quando fica melhor?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByRole("heading", { name: "Revise e agende" })).toBeInTheDocument();
+    expect(screen.getByText("Resumo do agendamento")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Aceito a política desta reserva/u })).toBeInTheDocument();
+  });
+
   it("atualiza horários quando outro cliente vence a disputa", async () => {
     const { rpc } = installProviderClient({
       authenticated: true,
