@@ -119,7 +119,7 @@ Quando um agendamento entra no estado operacional `CONFIRMED`, o banco cria jobs
 
 O dispatcher cria `whatsapp_confirmation_requests_v2` ao enviar lembrete. T-45 substitui a solicitação pendente anterior da mesma versão do agendamento.
 
-Para que `1`, `2` e `3` tenham um único atendimento-alvo, existe no máximo um fluxo interativo por **cliente + organização + dia local**: o atendimento confirmado mais cedo. Outros atendimentos do mesmo cliente e dia continuam válidos na agenda, mas seus jobs de lembrete ficam `SKIPPED` com `SAME_DAY_CUSTOMER_REMINDER_SUPPRESSED`; eles não recebem mensagem interativa. A regra é por tenant e nunca bloqueia reservas em outras barbearias.
+Cada agendamento confirmado possui seu próprio fluxo interativo T-45 e seu próprio token/request. Assim, reservas do mesmo cliente no mesmo dia não suprimem umas às outras. Como as respostas continuam sendo numéricas (`1`, `2` e `3`), o dispatcher resolve uma resposta para o request pendente mais próximo do horário atual e encerra requests concorrentes legados de forma determinística.
 
 ### Respostas do cliente
 
@@ -194,7 +194,7 @@ Erros conhecidos:
 - `NO_ACTIVE_REQUEST`: não há solicitação válida para o remetente.
 - `SAME_DAY_CUSTOMER_REMINDER_SUPPRESSED`: outro atendimento confirmado, mais cedo, já é o dono da confirmação daquele cliente no mesmo dia local.
 
-Como recuperação para requests duplicadas já existentes, a primeira resposta numérica escolhe deterministicamente o atendimento mais próximo e marca os outros requests pendentes como `SUPERSEDED`. Isso evita travamento, mas não reconstrói a intenção de mensagens antigas; a prevenção é a regra diária acima.
+Como recuperação para requests duplicadas já existentes, a primeira resposta numérica escolhe deterministicamente o atendimento mais próximo e marca os outros requests pendentes como `SUPERSEDED`. Novos agendamentos não são suprimidos: cada T-45 cria request e token próprios.
 
 ## Manutenção e publicação
 

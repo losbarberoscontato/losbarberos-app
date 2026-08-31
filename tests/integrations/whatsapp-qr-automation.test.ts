@@ -14,6 +14,7 @@ describe("automação WhatsApp QR v2", () => {
   const agendaStatusMigration = read("supabase/migrations/20260821115548_whatsapp_agenda_response_statuses.sql");
   const dailyConfirmationMigration = read("supabase/migrations/20260821145726_whatsapp_evolution_single_daily_confirmation.sql");
   const reconnectionRecoveryMigration = read("supabase/migrations/20260831201500_whatsapp_v2_reconnection_recovery.sql");
+  const perAppointmentMigration = read("supabase/migrations/20260831213000_whatsapp_v2_per_appointment_t45.sql");
   const dispatcher = read("supabase/functions/whatsapp-v2-dispatcher/index.ts");
   const webhook = read("supabase/functions/whatsapp-qr-webhook/index.ts");
   const config = read("supabase/functions/_shared/evolution-qr-webhook.ts");
@@ -127,6 +128,12 @@ describe("automação WhatsApp QR v2", () => {
     expect(phoneMigration).toContain("whatsapp_v2_phone_matches");
     expect(phoneMigration).toContain("substr(expected_digits,5,1) = '9'");
     expect(phoneMigration).toContain("public.whatsapp_v2_phone_matches(phone_e164,p_sender_e164)");
+  });
+
+  it("mantém T-45 independente por agendamento", () => {
+    expect(perAppointmentMigration).toContain("Nenhum agendamento do mesmo dia é suprimido");
+    expect(perAppointmentMigration).not.toContain("SAME_DAY_CUSTOMER_REMINDER_SUPPRESSED");
+    expect(perAppointmentMigration).toContain("v_phase='T45'");
   });
 
   it("reinicia V2 ao reconectar QR sem replayar fluxos antigos", () => {
