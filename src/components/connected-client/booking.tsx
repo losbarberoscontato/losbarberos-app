@@ -312,6 +312,7 @@ function BookingContent() {
       barberId,
       localDate,
       selections: bookingSelection(choice),
+      walkinQueueHoldId,
     }).then((result) => {
       if (active) setSlots(result?.slots ?? []);
     }).catch((cause: unknown) => {

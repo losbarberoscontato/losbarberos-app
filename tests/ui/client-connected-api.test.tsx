@@ -175,6 +175,21 @@ describe("contratos Supabase do cliente conectado", () => {
     }));
   });
 
+  it("envia o hold da fila para manter a vaga selecionada visível", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { duration_minutes: 35, total_cents: 6500, slots: [] }, error: null });
+    const supabase = { rpc } as unknown as SupabaseClient;
+    await getAvailableSlots(supabase, {
+      organizationSlug: "tenant-a",
+      barberId: "00000000-0000-4000-8000-000000000002",
+      localDate: "2026-08-10",
+      selections: [{ type: "SERVICE", service_id: "00000000-0000-4000-8000-000000000003", quantity: 1 }],
+      walkinQueueHoldId: "00000000-0000-4000-8000-000000000004",
+    });
+    expect(rpc).toHaveBeenCalledWith("get_available_slots", expect.objectContaining({
+      p_walkin_queue_hold_id: "00000000-0000-4000-8000-000000000004",
+    }));
+  });
+
   it("confirma e libera somente o hold autenticado informado", async () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: { appointment_id: "appointment-1", status: "CONFIRMED" }, error: null })

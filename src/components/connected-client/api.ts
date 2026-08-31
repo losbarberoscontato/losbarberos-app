@@ -185,6 +185,7 @@ export async function getAvailableSlots(
     barberId: string;
     localDate: string;
     selections: BookingSelection[];
+    walkinQueueHoldId?: string | null;
   },
 ): Promise<Availability | null> {
   const { data, error } = await supabase.rpc("get_available_slots", {
@@ -192,6 +193,7 @@ export async function getAvailableSlots(
     p_barber_id: input.barberId,
     p_local_date: input.localDate,
     p_selections: input.selections,
+    ...(input.walkinQueueHoldId ? { p_walkin_queue_hold_id: input.walkinQueueHoldId } : {}),
   });
   if (error) throw new Error(error.message);
   return (data as Availability | null) ?? null;
