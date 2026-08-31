@@ -115,6 +115,9 @@ function BookingContent() {
   const [bookingHold, setBookingHold] = useState<BookingHold | null>(null);
   const [holdSeconds, setHoldSeconds] = useState(0);
   const holdRequestKeyRef = useRef("");
+  // A vaga escolhida na fila pública sobrevive à seleção do serviço após login.
+  // O cliente ainda pode substituí-la explicitamente nos passos 2/3.
+  const queuePresetRef = useRef<{ barberId: string; startsAt: string } | null>(null);
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [dateAvailableSlots, setDateAvailableSlots] = useState<AvailableDateOption[]>([]);
   const [dateSlotsLoading, setDateSlotsLoading] = useState(false);
@@ -157,6 +160,9 @@ function BookingContent() {
       : null;
     queueMicrotask(() => {
       if (barber) {
+        queuePresetRef.current = starts && !Number.isNaN(new Date(starts).getTime())
+          ? { barberId: barber, startsAt: starts }
+          : null;
         setBarberMode("SPECIFIC");
         setBarberId(barber);
       }
@@ -231,11 +237,13 @@ function BookingContent() {
           const draft = JSON.parse(raw) as Partial<Draft>;
           if (typeof draft.choiceId === "string") setChoiceId(draft.choiceId);
           if (typeof draft.audience === "string" && CATALOG_AUDIENCES.includes(draft.audience)) setSelectedAudience(draft.audience);
-          if (draft.barberMode === "ANY" || draft.barberMode === "SPECIFIC") setBarberMode(draft.barberMode);
-          else if (typeof draft.barberId === "string" && draft.barberId) setBarberMode("SPECIFIC");
-          if (typeof draft.barberId === "string") setBarberId(draft.barberId);
+          if (!queuePresetRef.current) {
+            if (draft.barberMode === "ANY" || draft.barberMode === "SPECIFIC") setBarberMode(draft.barberMode);
+            else if (typeof draft.barberId === "string" && draft.barberId) setBarberMode("SPECIFIC");
+            if (typeof draft.barberId === "string") setBarberId(draft.barberId);
+          }
           if (typeof draft.localDate === "string") setLocalDate(draft.localDate);
-          if (typeof draft.startsAt === "string") setStartsAt(draft.startsAt);
+          if (!queuePresetRef.current && typeof draft.startsAt === "string") setStartsAt(draft.startsAt);
           if (typeof draft.step === "number" && draft.step >= 1 && draft.step <= 4) {
             const storedHold = user && customer
               ? window.sessionStorage.getItem(bookingHoldStorageKey(slug, user.id, customer.id))
@@ -391,6 +399,7 @@ function BookingContent() {
   }, []);
 
   function resetBookingAfterChoice() {
+    if (queuePresetRef.current) return;
     setBarberMode("");
     setBarberId("");
     setStartsAt("");
@@ -665,6 +674,7 @@ function BookingContent() {
                   className={`${styles.anyBarber} ${barberMode === "ANY" ? styles.selected : ""}`}
                   aria-pressed={barberMode === "ANY"}
                   onClick={() => {
+                    queuePresetRef.current = null;
                     setBarberMode("ANY");
                     setBarberId("");
                     setStartsAt("");
@@ -686,6 +696,7 @@ function BookingContent() {
                         aria-pressed={selected}
                         className={selected ? styles.selected : undefined}
                         onClick={() => {
+                          queuePresetRef.current = null;
                           setBarberMode("SPECIFIC");
                           setBarberId(item.id);
                           setStartsAt("");

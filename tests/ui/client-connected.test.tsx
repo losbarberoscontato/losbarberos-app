@@ -703,6 +703,31 @@ describe("cliente conectado", () => {
     }));
   });
 
+  it("mantém barbeiro e horário escolhidos na fila ao selecionar o serviço", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true });
+    window.history.replaceState(null, "", "/cliente/agendar?barbearia=barbearia-real&barbeiro=barber-1&horario=2026-08-10T12:00:00Z");
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedBooking />
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Masculino" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Corte/u })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    const selectedBarber = await screen.findByRole("button", { name: /Diego/u });
+    expect(selectedBarber).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByRole("heading", { name: "Quando fica melhor?" })).toBeInTheDocument();
+    await waitFor(() => expect(authMocks.client?.rpc).toHaveBeenCalledWith("get_available_slots", expect.objectContaining({
+      p_barber_id: "barber-1",
+      p_local_date: "2026-08-10",
+    })));
+  });
+
   it("atualiza horários quando outro cliente vence a disputa", async () => {
     const { rpc } = installProviderClient({
       authenticated: true,
