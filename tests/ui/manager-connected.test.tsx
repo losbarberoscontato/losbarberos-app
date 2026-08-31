@@ -125,7 +125,7 @@ describe("connected manager UI", () => {
     expect(within(sheet).getByTestId("queue-print-qr")).toHaveAttribute("width", "520");
   });
 
-  it("não exibe nem atualiza sinal ou frequência de comissões nas regras da barbearia", () => {
+  it("não exibe hold, sinal ou frequência de comissões nas regras da barbearia", () => {
     render(<SettingsManager
       organizationId="org-1"
       billingStatus="ACTIVE"
@@ -137,6 +137,7 @@ describe("connected manager UI", () => {
 
     expect(screen.queryByLabelText("Sinal (%)")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Frequência das comissões")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Duração do hold")).not.toBeInTheDocument();
   });
 
   it("blocks only new booking and rescheduling while existing operations stay visible", () => {

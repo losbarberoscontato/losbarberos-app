@@ -190,6 +190,9 @@ select has_table('public', 'organizations', 'organizations table exists');
 select has_table('public', 'appointments', 'appointments table exists');
 select has_table('public', 'refund_jobs', 'durable refund job table exists');
 select has_function('public', 'create_appointment_hold', 'hold RPC exists');
+select has_function('public', 'create_customer_booking_hold', 'customer booking hold RPC exists');
+select has_function('public', 'confirm_customer_booking_hold', 'customer booking confirmation RPC exists');
+select has_function('public', 'release_customer_booking_hold', 'customer booking release RPC exists');
 select ok(
   not has_table_privilege('authenticated', 'public.packages', 'INSERT')
     and not has_table_privilege('authenticated', 'public.package_items', 'UPDATE'),

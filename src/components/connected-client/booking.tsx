@@ -4,13 +4,17 @@ import { CalendarDays, Check, Clock3, LoaderCircle, Scissors, ShieldCheck, UserR
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  createAppointmentHold,
+  acquireBookingHold,
+  bookingErrorKind,
+  confirmBookingHold,
   getCustomerPrivacy,
   getAvailableSlotsForDate,
   getAvailableSlots,
+  releaseBookingHold,
   toClientError,
+  type BookingHold,
 } from "@/components/connected-client/api";
 import { useConnectedClient } from "@/components/connected-client/context";
 import { holdStorageKey } from "@/components/walkin-queue";
@@ -77,6 +81,15 @@ function draftKey(slug: string) {
   return `los-barberos:booking-draft:${slug}`;
 }
 
+function bookingHoldStorageKey(slug: string, userId: string, customerId: string) {
+  return `los-barberos:booking-hold:${slug}:${userId}:${customerId}`;
+}
+
+function countdownLabel(seconds: number) {
+  const safeSeconds = Math.max(0, seconds);
+  return `${String(Math.floor(safeSeconds / 60)).padStart(2, "0")}:${String(safeSeconds % 60).padStart(2, "0")}`;
+}
+
 export function ConnectedBooking() {
   return <ConnectedClientGate><BookingContent /></ConnectedClientGate>;
 }
@@ -99,6 +112,9 @@ function BookingContent() {
   const [localDate, setLocalDate] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [walkinQueueHoldId, setWalkinQueueHoldId] = useState<string | null>(null);
+  const [bookingHold, setBookingHold] = useState<BookingHold | null>(null);
+  const [holdSeconds, setHoldSeconds] = useState(0);
+  const holdRequestKeyRef = useRef("");
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [dateAvailableSlots, setDateAvailableSlots] = useState<AvailableDateOption[]>([]);
   const [dateSlotsLoading, setDateSlotsLoading] = useState(false);
@@ -116,12 +132,29 @@ function BookingContent() {
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const choice = choices.find((item) => item.id === choiceId) ?? null;
+  const resetBookingHold = useCallback((options?: { clearSlot?: boolean; refreshAvailability?: boolean }) => {
+    setBookingHold(null);
+    setAccepted(false);
+    holdRequestKeyRef.current = "";
+    if (options?.clearSlot) setStartsAt("");
+    if (options?.refreshAvailability) setAvailabilityRetry((current) => current + 1);
+    if (slug && user && customer) {
+      window.sessionStorage.removeItem(bookingHoldStorageKey(slug, user.id, customer.id));
+    }
+  }, [customer, slug, user]);
 
   useEffect(() => {
+    if (!slug) return;
     const query = new URLSearchParams(window.location.search);
     const barber = query.get("barbeiro");
     const starts = query.get("horario");
     const stored = window.sessionStorage.getItem(holdStorageKey);
+    const bookingStorageKey = user && customer
+      ? bookingHoldStorageKey(slug, user.id, customer.id)
+      : null;
+    const storedBookingHold = bookingStorageKey
+      ? window.sessionStorage.getItem(bookingStorageKey)
+      : null;
     queueMicrotask(() => {
       if (barber) {
         setBarberMode("SPECIFIC");
@@ -139,8 +172,21 @@ function BookingContent() {
           window.sessionStorage.removeItem(holdStorageKey);
         }
       }
+      if (storedBookingHold) {
+        try {
+          const hold = JSON.parse(storedBookingHold) as BookingHold;
+          if (hold.status === "HELD" && hold.expires_at && new Date(hold.expires_at) > new Date()) {
+            setBookingHold(hold);
+            setStep(4);
+          } else {
+            window.sessionStorage.removeItem(bookingStorageKey!);
+          }
+        } catch {
+          window.sessionStorage.removeItem(bookingStorageKey!);
+        }
+      }
     });
-  }, []);
+  }, [customer, slug, user]);
   const compatibleBarbers = useMemo(() => {
     if (!context || !choice) return context?.barbers ?? [];
     const requiredServices = serviceIdsForChoice(context, choice);
@@ -190,7 +236,21 @@ function BookingContent() {
           if (typeof draft.barberId === "string") setBarberId(draft.barberId);
           if (typeof draft.localDate === "string") setLocalDate(draft.localDate);
           if (typeof draft.startsAt === "string") setStartsAt(draft.startsAt);
-          if (typeof draft.step === "number" && draft.step >= 1 && draft.step <= 4) setStep(draft.step);
+          if (typeof draft.step === "number" && draft.step >= 1 && draft.step <= 4) {
+            const storedHold = user && customer
+              ? window.sessionStorage.getItem(bookingHoldStorageKey(slug, user.id, customer.id))
+              : null;
+            let hasActiveHold = false;
+            if (storedHold) {
+              try {
+                const hold = JSON.parse(storedHold) as BookingHold;
+                hasActiveHold = hold.status === "HELD" && Boolean(hold.expires_at) && new Date(hold.expires_at ?? 0) > new Date();
+              } catch {
+                window.sessionStorage.removeItem(bookingHoldStorageKey(slug, user!.id, customer!.id));
+              }
+            }
+            setStep(draft.step === 4 && !hasActiveHold ? 3 : draft.step);
+          }
         } catch {
           window.sessionStorage.removeItem(draftKey(slug));
         }
@@ -198,13 +258,34 @@ function BookingContent() {
       setLocalDate((current) => current || dates[0] || "");
       setRestored(true);
     });
-  }, [context, dates, restored, slug]);
+  }, [context, customer, dates, restored, slug, user]);
 
   useEffect(() => {
     if (!slug || !restored) return;
     const draft: Draft = { choiceId, barberMode, barberId, localDate, startsAt, step, audience: selectedAudience ?? undefined };
     window.sessionStorage.setItem(draftKey(slug), JSON.stringify(draft));
   }, [barberId, barberMode, choiceId, localDate, restored, selectedAudience, slug, startsAt, step]);
+
+  useEffect(() => {
+    if (!bookingHold?.expires_at || !supabase || !slug) {
+      queueMicrotask(() => setHoldSeconds(0));
+      return;
+    }
+    const expiresAt = new Date(bookingHold.expires_at).getTime();
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+      setHoldSeconds(remaining);
+      if (remaining > 0) return;
+      const expiredId = bookingHold.appointment_id;
+      resetBookingHold({ clearSlot: true, refreshAvailability: true });
+      setStep(3);
+      setError("O tempo para concluir terminou. Escolha o horário novamente.");
+      void releaseBookingHold(supabase, expiredId).catch(() => undefined);
+    };
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [bookingHold, resetBookingHold, slug, supabase]);
 
   useEffect(() => {
     if (!supabase || !context || !slug || !choice || barberMode !== "SPECIFIC" || !barberId || !localDate || !context.organization.accepting_bookings) {
@@ -313,40 +394,114 @@ function BookingContent() {
     setBarberMode("");
     setBarberId("");
     setStartsAt("");
+    holdRequestKeyRef.current = "";
   }
 
   function selectDate(date: string) {
     setLocalDate(date);
     setStartsAt("");
+    holdRequestKeyRef.current = "";
     if (barberMode === "ANY") setBarberId("");
   }
 
-  async function confirmBooking() {
-    if (!supabase || !choice || !barber || !startsAt || !user || !customer || !accepted) return;
+  async function protectBookingForReview() {
+    if (!supabase || !choice || !barber || !startsAt || !user || !customer) return;
     if (customer.auth_user_id !== user.id) {
       setError("Sua conta de cliente não corresponde a esta barbearia.");
       return;
     }
     setBusy(true);
     setError("");
+    const requestKey = holdRequestKeyRef.current || crypto.randomUUID();
+    holdRequestKeyRef.current = requestKey;
     try {
-      const hold = await createAppointmentHold(supabase, {
+      const hold = await acquireBookingHold(supabase, {
         organizationId: organization.id,
         customerId: customer.id,
         barberId: barber.id,
         startsAt,
         selections: bookingSelection(choice),
-        paymentMode: "COUNTER",
+        idempotencyKey: requestKey,
         walkinQueueHoldId,
       });
       window.sessionStorage.removeItem(holdStorageKey);
-      window.sessionStorage.removeItem(draftKey(tenantSlug));
-      router.push(`/cliente/reservas?barbearia=${encodeURIComponent(tenantSlug)}&appointment_id=${hold.appointment_id}`);
+      setWalkinQueueHoldId(null);
+      if (hold.status === "CONFIRMED") {
+        window.sessionStorage.removeItem(draftKey(tenantSlug));
+        router.push(`/cliente/reservas?barbearia=${encodeURIComponent(tenantSlug)}&appointment_id=${hold.appointment_id}`);
+        return;
+      }
+      if (!hold.expires_at) throw new Error("appointment hold expired");
+      setBookingHold(hold);
+      window.sessionStorage.setItem(
+        bookingHoldStorageKey(tenantSlug, user.id, customer.id),
+        JSON.stringify(hold),
+      );
+      setStep(4);
     } catch (cause: unknown) {
-      setError(toClientError(cause, "Não foi possível concluir reserva."));
+      const errorKind = bookingErrorKind(cause);
+      const clientError = toClientError(cause, "Não foi possível proteger horário.");
+      setError(clientError);
+      if (errorKind === "CONFLICT" || errorKind === "EXPIRED") {
+        window.sessionStorage.removeItem(holdStorageKey);
+        setWalkinQueueHoldId(null);
+        resetBookingHold({ clearSlot: true, refreshAvailability: true });
+        setStep(3);
+      }
     } finally {
       setBusy(false);
     }
+  }
+
+  async function confirmBooking() {
+    if (!supabase || !bookingHold || !user || !customer || !accepted) return;
+    setBusy(true);
+    setError("");
+    try {
+      const confirmed = await confirmBookingHold(supabase, bookingHold.appointment_id);
+      if (confirmed.status === "EXPIRED") throw new Error("appointment hold expired");
+      resetBookingHold();
+      window.sessionStorage.removeItem(draftKey(tenantSlug));
+      router.push(`/cliente/reservas?barbearia=${encodeURIComponent(tenantSlug)}&appointment_id=${confirmed.appointment_id}`);
+    } catch (cause: unknown) {
+      const errorKind = bookingErrorKind(cause);
+      const clientError = toClientError(cause, "Não foi possível concluir reserva.");
+      setError(clientError);
+      if (errorKind === "EXPIRED" || errorKind === "CONFLICT") {
+        resetBookingHold({ clearSlot: true, refreshAvailability: true });
+        setStep(3);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function releaseReviewHold(onSettled?: () => void) {
+    const currentHold = bookingHold;
+    resetBookingHold();
+    if (!supabase || !currentHold) {
+      onSettled?.();
+      return;
+    }
+    void releaseBookingHold(supabase, currentHold.appointment_id)
+      .catch(() => undefined)
+      .finally(onSettled);
+  }
+
+  function backFromCurrentStep() {
+    setError("");
+    if (step !== 4) {
+      setStep((current) => current - 1);
+      return;
+    }
+    releaseReviewHold(() => setAvailabilityRetry((current) => current + 1));
+    setStep(3);
+  }
+
+  function exitBooking() {
+    releaseReviewHold();
+    window.sessionStorage.removeItem(draftKey(tenantSlug));
+    router.push(exitHref);
   }
 
   if (!organization.accepting_bookings) {
@@ -386,16 +541,16 @@ function BookingContent() {
       aria-describedby="booking-step-description"
       onCancel={(event) => {
         event.preventDefault();
-        router.push(exitHref);
+        void exitBooking();
       }}
     >
       <header className={styles.bookingDialogHeader}>
         <div className={styles.bookingContext}>
           <span>{organization.name}</span>
           <span>Etapa {step} de 4</span>
-          <Link href={exitHref} className={styles.bookingClose} aria-label="Fechar agendamento">
+          <button type="button" className={styles.bookingClose} aria-label="Fechar agendamento" disabled={busy} onClick={() => void exitBooking()}>
             <X size={20} aria-hidden="true" />
-          </Link>
+          </button>
         </div>
         <h1 ref={stepHeadingRef} tabIndex={-1} id="booking-step-title">{stepTitle}</h1>
         <p id="booking-step-description">{stepDescription}</p>
@@ -513,6 +668,7 @@ function BookingContent() {
                     setBarberMode("ANY");
                     setBarberId("");
                     setStartsAt("");
+                    holdRequestKeyRef.current = "";
                   }}
                 >
                   <span><Clock3 size={22} aria-hidden="true" /></span>
@@ -533,6 +689,7 @@ function BookingContent() {
                           setBarberMode("SPECIFIC");
                           setBarberId(item.id);
                           setStartsAt("");
+                          holdRequestKeyRef.current = "";
                         }}
                       >
                         <span>{item.avatar_url ? <Image src={item.avatar_url} alt="" width={42} height={42} sizes="42px" /> : item.name.slice(0, 2).toUpperCase()}</span>
@@ -600,6 +757,8 @@ function BookingContent() {
                               onClick={() => {
                                 if (isAvailableDateOption(slot)) setBarberId(slot.barber_id);
                                 setStartsAt(slot.starts_at);
+                                holdRequestKeyRef.current = "";
+                                setError("");
                               }}
                             >
                               <strong>{formatSlotTime(slot.starts_at, organization.timezone)}</strong>
@@ -634,6 +793,7 @@ function BookingContent() {
                     <div className={styles.sectionTitle}><UserRound aria-hidden="true" /><div><h2>Seus dados</h2><p>Nome e contato vêm do seu perfil global.</p></div></div>
                     <p className={styles.customerDetails}>{customer?.full_name ?? "Cliente"}<span>{customer?.phone_e164 ?? "Contato não informado"}</span></p>
                   </section>
+                  <p className={styles.holdNotice} role="timer" aria-live="polite"><Clock3 size={18} aria-hidden="true" /> Horário protegido por <strong>{countdownLabel(holdSeconds)}</strong>. Conclua antes do contador terminar.</p>
                   <section className={styles.panel}>
                     <div className={styles.sectionTitle}><CalendarDays aria-hidden="true" /><div><h2>Pagamento no atendimento</h2><p>O valor integral será pago diretamente à barbearia.</p></div></div>
                   </section>
@@ -654,10 +814,10 @@ function BookingContent() {
           {step === 1 ? (
             <Link href={exitHref} className={styles.secondaryButton}>Cancelar</Link>
           ) : (
-            <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => { setError(""); setStep((current) => current - 1); }}>Voltar</button>
+            <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void backFromCurrentStep()}>Voltar</button>
           )}
           {step < 4 ? (
-            <button type="button" className={styles.primaryButton} disabled={!canContinue} onClick={() => setStep((current) => current + 1)}>Continuar</button>
+            <button type="button" className={styles.primaryButton} disabled={!canContinue || busy} onClick={() => step === 3 ? void protectBookingForReview() : setStep((current) => current + 1)}>{busy && step === 3 ? <><LoaderCircle className={styles.spin} /> Protegendo…</> : "Continuar"}</button>
           ) : user ? (
             <button type="button" className={styles.primaryButton} disabled={busy || !accepted} onClick={() => void confirmBooking()}>{busy ? <><LoaderCircle className={styles.spin} /> Processando…</> : "Confirmar agendamento"}</button>
           ) : null}

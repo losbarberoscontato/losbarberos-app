@@ -49,7 +49,6 @@ export function SettingsManager(props: Props) {
         timezone: String(data.get("timezone")),
         cancellation_lead_minutes: Math.round(Number(data.get("cancellation_hours")) * 60),
         slot_interval_minutes: Number(data.get("slot_interval_minutes")),
-        hold_duration_minutes: Number(data.get("hold_duration_minutes")),
         public_contact_phone_e164: String(data.get("public_contact_phone_e164") ?? "").trim() || null,
         logo_path: logoPath || null,
       }).eq("id", props.organizationId));
@@ -185,7 +184,6 @@ export function SettingsManager(props: Props) {
           <Field label="Timezone"><select name="timezone" defaultValue={props.organization.timezone}><option value="America/Sao_Paulo">America/Sao_Paulo</option><option value="America/Manaus">America/Manaus</option><option value="America/Fortaleza">America/Fortaleza</option><option value="America/Recife">America/Recife</option><option value="America/Bahia">America/Bahia</option><option value="America/Cuiaba">America/Cuiaba</option><option value="America/Rio_Branco">America/Rio_Branco</option></select></Field>
           <Field label="Prazo de cancelamento (horas)"><input name="cancellation_hours" type="number" min={0} step="1" defaultValue={props.organization.cancellation_lead_minutes / 60} /></Field>
           <Field label="Intervalo dos slots"><select name="slot_interval_minutes" defaultValue={15}><option value="15">15 minutos</option></select></Field>
-          <Field label="Duração do hold"><input name="hold_duration_minutes" type="number" min={2} max={30} defaultValue={props.organization.hold_duration_minutes} /></Field>
           <button className={`${styles.button} ${styles.formWide}`} type="submit">Salvar regras</button>
         </form>
       </Panel>

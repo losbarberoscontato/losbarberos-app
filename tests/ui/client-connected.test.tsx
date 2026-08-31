@@ -114,6 +114,8 @@ function installProviderClient({
   missingAccount = false,
   accountAvailableAfterUpsert = false,
   canonicalSlug = null,
+  bookingHoldConflict = false,
+  bookingHoldExpiresInMs = 3 * 60_000,
 }: {
   authenticated: boolean;
   failFirstLink?: boolean;
@@ -129,6 +131,8 @@ function installProviderClient({
   missingAccount?: boolean;
   accountAvailableAfterUpsert?: boolean;
   canonicalSlug?: string | null;
+  bookingHoldConflict?: boolean;
+  bookingHoldExpiresInMs?: number;
 }) {
   const user = authenticated
     ? { id: "user-1", email: "ana@example.com", user_metadata: { full_name: "Ana Souza" } }
@@ -217,6 +221,33 @@ function installProviderClient({
         total_cents: 6500,
         options: [{ barber_id: "barber-1", barber_name: "Diego", starts_at: "2026-08-10T12:00:00Z", ends_at: "2026-08-10T12:35:00Z" }],
       },
+      error: null,
+    };
+    if (name === "create_customer_booking_hold" && bookingHoldConflict) return {
+      data: null,
+      error: { code: "23P01", message: "requested slot is no longer available" },
+    };
+    if (name === "create_customer_booking_hold") return {
+      data: {
+        appointment_id: "appointment-hold-1",
+        status: "HELD",
+        expires_at: new Date(Date.now() + bookingHoldExpiresInMs).toISOString(),
+        total_cents: 6500,
+        amount_due_now_cents: 0,
+        service_period: "[2026-08-10T12:00:00Z,2026-08-10T12:35:00Z)",
+      },
+      error: null,
+    };
+    if (name === "confirm_customer_booking_hold") return {
+      data: {
+        appointment_id: "appointment-hold-1",
+        status: "CONFIRMED",
+        service_period: "[2026-08-10T12:00:00Z,2026-08-10T12:35:00Z)",
+      },
+      error: null,
+    };
+    if (name === "release_customer_booking_hold") return {
+      data: { appointment_id: "appointment-hold-1", status: "EXPIRED" },
       error: null,
     };
     if (name === "list_my_client_organizations") return { data: linked ? [relation] : [], error: null };
@@ -626,8 +657,8 @@ describe("cliente conectado", () => {
     expect(screen.queryByText(/saldo|carteira/iu)).not.toBeInTheDocument();
   });
 
-  it("oferece o primeiro horário disponível pela data sem exigir profissional", async () => {
-    installProviderClient({ authenticated: true, initiallyLinked: true });
+  it("protege por três minutos o primeiro horário e o libera ao voltar", async () => {
+    const { rpc } = installProviderClient({ authenticated: true, initiallyLinked: true });
 
     render(
       <ConnectedClientProvider initialSlug="barbearia-real">
@@ -653,6 +684,86 @@ describe("cliente conectado", () => {
     expect(screen.getByText("Resumo do agendamento")).toBeInTheDocument();
     expect(screen.getAllByText("Diego").length).toBeGreaterThan(0);
     expect(screen.getByRole("list", { name: "Etapa 4 de 4" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("timer")).toHaveTextContent(/Horário protegido por 0[23]:\d{2}/u));
+    expect(window.sessionStorage.getItem(
+      "los-barberos:booking-hold:barbearia-real:user-1:customer-1",
+    )).not.toBeNull();
+    expect(window.sessionStorage.getItem("los-barberos:booking-hold:barbearia-real")).toBeNull();
+    expect(rpc).toHaveBeenCalledWith("create_customer_booking_hold", expect.objectContaining({
+      p_organization_id: context.organization.id,
+      p_customer_id: "customer-1",
+      p_barber_id: "barber-1",
+      p_starts_at: "2026-08-10T12:00:00Z",
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    expect(await screen.findByRole("heading", { name: "Escolha o horário" })).toBeInTheDocument();
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("release_customer_booking_hold", {
+      p_appointment_id: "appointment-hold-1",
+    }));
+  });
+
+  it("atualiza horários quando outro cliente vence a disputa", async () => {
+    const { rpc } = installProviderClient({
+      authenticated: true,
+      initiallyLinked: true,
+      bookingHoldConflict: true,
+    });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedBooking />
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Masculino" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Corte/u })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(await screen.findByRole("heading", { name: "Quem vai cuidar de você?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Primeiro horário livre/u }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    expect(await screen.findByRole("heading", { name: "Quando fica melhor?" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /09:00.*Diego/u }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Este horário está sendo finalizado por outro cliente. Atualizamos os horários disponíveis.",
+    );
+    expect(screen.getByRole("heading", { name: "Escolha o horário" })).toBeInTheDocument();
+    await waitFor(() => expect(
+      rpc.mock.calls.filter(([name]) => name === "get_available_slots_for_date").length,
+    ).toBeGreaterThanOrEqual(2));
+  });
+
+  it("libera e atualiza a agenda quando os três minutos terminam", async () => {
+    const { rpc } = installProviderClient({
+      authenticated: true,
+      initiallyLinked: true,
+      bookingHoldExpiresInMs: 50,
+    });
+
+    render(
+      <ConnectedClientProvider initialSlug="barbearia-real">
+        <ConnectedBooking />
+      </ConnectedClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Masculino" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Corte/u })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Primeiro horário livre/u }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.click(await screen.findByRole("button", { name: /09:00.*Diego/u }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(await screen.findByRole("heading", { name: "Revise e agende" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
+      "O tempo para concluir terminou. Escolha o horário novamente.",
+    ), { timeout: 2_500 });
+    expect(screen.getByRole("heading", { name: "Escolha o horário" })).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledWith("release_customer_booking_hold", {
+      p_appointment_id: "appointment-hold-1",
+    });
   });
 
   it("salva o perfil global e mantém o e-mail sob gestão da autenticação", async () => {

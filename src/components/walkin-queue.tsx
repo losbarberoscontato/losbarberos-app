@@ -74,7 +74,7 @@ export function WalkinQueue({ queuePublicId }: { queuePublicId: string }) {
       <header className="walkin-queue__header">
         <span className="hero-pill"><Scissors size={15} /> Fila presencial</span>
         <h1>{data.organization.name}</h1>
-        <p>Escolha uma vaga livre. Ela fica reservada por 10 minutos enquanto você entra.</p>
+        <p>Escolha uma vaga livre. Ela fica reservada por 3 minutos enquanto você entra.</p>
       </header>
       {error && <p className="walkin-queue__error" role="alert">{error}</p>}
       {nextSlots.length > 0 && <section className="walkin-queue__next-section" aria-labelledby="walkin-next-title">

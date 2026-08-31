@@ -423,6 +423,10 @@
   font-size: 14px;
   font-weight: 850;
 }
+
+.holdNotice { display: flex; align-items: center; gap: 9px; margin: 0; padding: 12px 14px; border: 1px solid #c9dece; border-radius: 11px; background: #edf6ef; color: #235947; font-size: 12px; line-height: 1.45; }
+.holdNotice svg { flex: 0 0 auto; }
+.holdNotice strong { font-variant-numeric: tabular-nums; }
 .primaryButton { border: 1px solid #153a31; background: #153a31; color: #fff; }
 .secondaryButton { border: 1px solid #d4cec3; background: #fff; color: #263c34; }
 .dangerButton { border: 1px solid #9a4338; background: #9a4338; color: #fff; }

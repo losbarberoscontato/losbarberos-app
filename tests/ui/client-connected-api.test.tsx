@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import {
+  acquireBookingHold,
+  confirmBookingHold,
   createMercadoPagoCheckout,
-  createAppointmentHold,
   createWalkinQueueHold,
   getWalkinQueueAvailability,
   claimMyExistingCustomer,
@@ -13,6 +14,7 @@ import {
   linkMyClientToOrganization,
   listMyClientOrganizations,
   recordWhatsappConsent,
+  releaseBookingHold,
   rescheduleAppointment,
   upsertMyClientAccount,
 } from "@/components/connected-client/api";
@@ -153,21 +155,49 @@ describe("contratos Supabase do cliente conectado", () => {
     expect(dateOptions("America/Sao_Paulo", undefined, new Date("2026-08-10T12:00:00Z"))).toHaveLength(16);
   });
 
-  it("cria reserva confirmada somente para pagamento no atendimento", async () => {
+  it("adquire hold idempotente antes de confirmar pagamento no atendimento", async () => {
     const rpc = vi.fn().mockResolvedValue({
-      data: { appointment_id: "appointment-1", status: "CONFIRMED", expires_at: null, total_cents: 6500, amount_due_now_cents: 0, service_period: "[a,b)" },
+      data: { appointment_id: "appointment-1", status: "HELD", expires_at: "2026-08-10T12:03:00Z", total_cents: 6500, amount_due_now_cents: 0, service_period: "[a,b)" },
       error: null,
     });
     const supabase = { rpc } as unknown as SupabaseClient;
-    await expect(createAppointmentHold(supabase, {
+    await expect(acquireBookingHold(supabase, {
       organizationId: "organization-1",
       customerId: "customer-1",
       barberId: "barber-1",
       startsAt: "2026-08-10T12:00:00Z",
       selections: [{ type: "SERVICE", service_id: "service-1", quantity: 1 }],
-      paymentMode: "COUNTER",
-    })).resolves.toMatchObject({ status: "CONFIRMED", amount_due_now_cents: 0 });
-    expect(rpc).toHaveBeenCalledWith("create_appointment_hold", expect.objectContaining({ p_payment_mode: "COUNTER" }));
+      idempotencyKey: "00000000-0000-4000-8000-000000000009",
+    })).resolves.toMatchObject({ status: "HELD", amount_due_now_cents: 0 });
+    expect(rpc).toHaveBeenCalledWith("create_customer_booking_hold", expect.objectContaining({
+      p_idempotency_key: "00000000-0000-4000-8000-000000000009",
+      p_walkin_queue_hold_id: null,
+    }));
+  });
+
+  it("confirma e libera somente o hold autenticado informado", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { appointment_id: "appointment-1", status: "CONFIRMED" }, error: null })
+      .mockResolvedValueOnce({ data: { appointment_id: "appointment-2", status: "EXPIRED" }, error: null });
+    const supabase = { rpc } as unknown as SupabaseClient;
+
+    await expect(confirmBookingHold(supabase, "appointment-1")).resolves.toMatchObject({ status: "CONFIRMED" });
+    await expect(releaseBookingHold(supabase, "appointment-2")).resolves.toMatchObject({ status: "EXPIRED" });
+    expect(rpc).toHaveBeenNthCalledWith(1, "confirm_customer_booking_hold", { p_appointment_id: "appointment-1" });
+    expect(rpc).toHaveBeenNthCalledWith(2, "release_customer_booking_hold", { p_appointment_id: "appointment-2" });
+  });
+
+  it("traduz disputa e expiração com mensagens próprias do novo agendamento", async () => {
+    const { toClientError } = await import("@/components/connected-client/api");
+    expect(toClientError(new Error("requested slot is no longer available"), "fallback")).toBe(
+      "Este horário está sendo finalizado por outro cliente. Atualizamos os horários disponíveis.",
+    );
+    expect(toClientError(new Error("appointment hold expired"), "fallback")).toBe(
+      "O tempo para concluir terminou. Escolha o horário novamente.",
+    );
+    expect(toClientError(new Error("customer already has an active booking hold"), "fallback")).toBe(
+      "Você já está finalizando outro horário em outra aba. Conclua-o ou aguarde até 3 minutos.",
+    );
   });
 
   it("consulta somente vagas públicas da fila pelo identificador impresso", async () => {

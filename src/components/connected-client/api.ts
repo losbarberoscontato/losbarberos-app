@@ -24,13 +24,29 @@ function assertData<T>(data: T | null, error: DatabaseError, fallback: string): 
   return data;
 }
 
+export type BookingErrorKind = "CONFLICT" | "EXPIRED" | "ACTIVE_IN_ANOTHER_TAB" | null;
+
+export function bookingErrorKind(error: unknown): BookingErrorKind {
+  if (!(error instanceof Error)) return null;
+  const message = error.message.toLowerCase();
+  if (message.includes("requested slot is no longer available") || error.message.includes("23P01")) return "CONFLICT";
+  if (message.includes("hold expired") || message.includes("hold is not active")) return "EXPIRED";
+  if (message.includes("customer already has an active booking hold")) return "ACTIVE_IN_ANOTHER_TAB";
+  return null;
+}
+
 export function toClientError(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback;
   const message = error.message.toLowerCase();
-  if (message.includes("requested slot is no longer available") || error.message.includes("23P01")) {
-    return "Horário acabou de ser reservado. Escolha outro; sua reserva anterior continua intacta.";
+  if (bookingErrorKind(error) === "CONFLICT") {
+    return "Este horário está sendo finalizado por outro cliente. Atualizamos os horários disponíveis.";
   }
-  if (message.includes("hold expired")) return "Proteção do horário expirou. Escolha o horário novamente.";
+  if (bookingErrorKind(error) === "EXPIRED") {
+    return "O tempo para concluir terminou. Escolha o horário novamente.";
+  }
+  if (bookingErrorKind(error) === "ACTIVE_IN_ANOTHER_TAB") {
+    return "Você já está finalizando outro horário em outra aba. Conclua-o ou aguarde até 3 minutos.";
+  }
   if (message.includes("not accepting")) return "Barbearia não aceita novas reservas agora.";
   if (message.includes("cannot perform") || message.includes("active barber not found")) return "Profissional não executa seleção escolhida. Escolha outro.";
   if (message.includes("mercado pago account is not connected")) return "Pagamento online ainda não foi conectado por esta barbearia.";
@@ -236,7 +252,16 @@ export async function getAvailableSlotsForDate(
   return (data as DateAvailability | null) ?? null;
 }
 
-export async function createAppointmentHold(
+export type BookingHold = {
+  appointment_id: string;
+  status: "HELD" | "CONFIRMED";
+  expires_at: string | null;
+  total_cents: number;
+  amount_due_now_cents: number;
+  service_period: string;
+};
+
+export async function acquireBookingHold(
   supabase: SupabaseClient,
   input: {
     organizationId: string;
@@ -244,34 +269,40 @@ export async function createAppointmentHold(
     barberId: string;
     startsAt: string;
     selections: BookingSelection[];
-    paymentMode: "COUNTER";
+    idempotencyKey: string;
     walkinQueueHoldId?: string | null;
   },
-): Promise<{
-  appointment_id: string;
-  status: "CONFIRMED";
-  expires_at: null;
-  total_cents: number;
-  amount_due_now_cents: number;
-  service_period: string;
-}> {
-  const { data, error } = await supabase.rpc("create_appointment_hold", {
+): Promise<BookingHold> {
+  const { data, error } = await supabase.rpc("create_customer_booking_hold", {
     p_organization_id: input.organizationId,
     p_customer_id: input.customerId,
     p_barber_id: input.barberId,
     p_starts_at: input.startsAt,
     p_selections: input.selections,
-    p_payment_mode: input.paymentMode,
+    p_idempotency_key: input.idempotencyKey,
     p_walkin_queue_hold_id: input.walkinQueueHoldId ?? null,
   });
-  return assertData<{
-    appointment_id: string;
-    status: "CONFIRMED";
-    expires_at: null;
-    total_cents: number;
-    amount_due_now_cents: number;
-    service_period: string;
-  }>(data, error, "Não foi possível proteger horário.");
+  return assertData<BookingHold>(data as BookingHold | null, error, "Não foi possível proteger horário.");
+}
+
+export async function confirmBookingHold(
+  supabase: SupabaseClient,
+  appointmentId: string,
+): Promise<{ appointment_id: string; status: "CONFIRMED" | "EXPIRED"; service_period?: string }> {
+  const { data, error } = await supabase.rpc("confirm_customer_booking_hold", {
+    p_appointment_id: appointmentId,
+  });
+  return assertData(data as { appointment_id: string; status: "CONFIRMED" | "EXPIRED"; service_period?: string } | null, error, "Não foi possível confirmar reserva.");
+}
+
+export async function releaseBookingHold(
+  supabase: SupabaseClient,
+  appointmentId: string,
+): Promise<{ appointment_id: string; status: "EXPIRED" }> {
+  const { data, error } = await supabase.rpc("release_customer_booking_hold", {
+    p_appointment_id: appointmentId,
+  });
+  return assertData(data as { appointment_id: string; status: "EXPIRED" } | null, error, "Não foi possível liberar horário.");
 }
 
 export async function createPaymentCheckoutOrder(
