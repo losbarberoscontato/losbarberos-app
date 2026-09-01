@@ -22,6 +22,7 @@
 .panelHead { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }
 .panelHead p { margin: .3rem 0 0; color: #69716b; font-size: .9rem; }
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+.statsCash { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .stat { min-height: 120px; display: grid; align-content: space-between; background: linear-gradient(150deg, #fff, #f7f8f5); border: 1px solid rgba(36, 42, 38, .1); border-radius: 18px; padding: 1rem; }
 .stat span { color: #69716b; font-size: .82rem; }
 .stat strong { font-family: var(--font-display, serif); color: #202620; font-size: 1.75rem; }
@@ -67,7 +68,8 @@
 .empty p { max-width: 500px; margin: 0; font-size: .86rem; }
 .list { display: grid; gap: .65rem; }
 .cashTable { display: grid; gap: .65rem; }
-.cashHeader, .cashRow { display: grid; grid-template-columns: minmax(210px, 1.5fr) minmax(105px, .7fr) minmax(115px, .75fr) minmax(160px, 1fr) minmax(170px, 1fr) minmax(190px, auto); gap: .8rem; align-items: center; }
+.cashHeader, .cashRow { --cash-columns: minmax(210px, 1.5fr) minmax(105px, .7fr) minmax(115px, .75fr) minmax(160px, 1fr) minmax(170px, 1fr) minmax(190px, auto); display: grid; grid-template-columns: var(--cash-columns); gap: .8rem; align-items: center; }
+.cashTableOnly .cashHeader, .cashTableOnly .cashRow { --cash-columns: minmax(220px, 1.55fr) minmax(118px, .75fr) minmax(130px, .8fr) minmax(190px, 1fr) minmax(255px, auto); }
 .cashHeader { padding: 0 .8rem; color: #69716b; font-size: .75rem; font-weight: 800; }
 .cashRow { padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }
 .cashRow:hover { background: #fafbf9; }

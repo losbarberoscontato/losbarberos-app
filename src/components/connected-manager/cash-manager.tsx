@@ -60,6 +60,7 @@ export type CashManagerProps = {
 
 type EntryKind = FinancialEntryRecord["kind"];
 type EntryStatus = FinancialEntryRecord["status"];
+type CashSettlementMovement = { entry: FinancialEntryRecord; settlement: FinancialSettlementRecord };
 const APPOINTMENT_AMOUNT_ADJUSTMENT_REASON = "Ajuste automático do valor final no recebimento";
 
 // Payment gateway accounts will be created and classified by their integration.
@@ -90,13 +91,23 @@ function movementDate(value: string) {
   return value.includes("T") ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(value)) : value;
 }
 
+function formatMovementDate(value: string) {
+  const [year, month, day] = movementDate(value).split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
 function isDateInRange(value: string, start: string, end: string) {
   const date = movementDate(value);
   return (!start || date >= start) && (!end || date <= end);
 }
 
-function appointmentPaymentLabel(status: string) {
-  return ({ PAID: "Recebido", PARTIAL: "Parcial", UNPAID: "Em aberto", REFUND_PENDING: "Estorno pendente", PARTIALLY_REFUNDED: "Parcialmente estornado", REFUNDED: "Estornado" } as Record<string, string>)[status] ?? status.replaceAll("_", " ");
+function counterpartName(entry: Pick<FinancialEntryRecord, "customer_id" | "supplier_id">, customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>, supplierById: Map<string, SupplierRecord>) {
+  return customerById.get(entry.customer_id ?? "")?.full_name ?? supplierById.get(entry.supplier_id ?? "")?.name ?? "Não informado";
+}
+
+function settlementSignedCents(entryKind: EntryKind, settlement: FinancialSettlementRecord) {
+  const positive = (entryKind === "REVENUE") === (settlement.kind === "SETTLEMENT");
+  return positive ? settlement.amount_cents : -settlement.amount_cents;
 }
 
 function safeText(value: FormDataEntryValue | null) {
@@ -124,7 +135,8 @@ export function CashManager(props: CashManagerProps) {
   const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | EntryStatus>("ALL");
-  const periodDefault = props.section === "payables" || props.section === "receivables" ? currentMonthRange() : null;
+  const [accountFilter, setAccountFilter] = useState("ALL");
+  const periodDefault = props.section === "cash" || props.section === "payables" || props.section === "receivables" ? currentMonthRange() : null;
   const [startDate, setStartDate] = useState(() => periodDefault?.start ?? "");
   const [endDate, setEndDate] = useState(() => periodDefault?.end ?? "");
   const [entryEditor, setEntryEditor] = useState<FinancialEntryRecord | "new" | null>(null);
@@ -145,18 +157,30 @@ export function CashManager(props: CashManagerProps) {
     return result;
   }, [props.entryTags, props.tags]);
   const balanceById = useMemo(() => new Map(props.balances.map((item) => [item.financial_account_id, item.balance_cents])), [props.balances]);
+  const entryById = useMemo(() => new Map(props.entries.map((item) => [item.id, item])), [props.entries]);
 
   const visibleEntries = useMemo(() => props.entries.filter((entry) => {
-    const counterparty = entry.counterparty_kind === "CUSTOMER" ? customerById.get(entry.customer_id ?? "")?.full_name : supplierById.get(entry.supplier_id ?? "")?.name;
+    const counterparty = counterpartName(entry, customerById, supplierById);
     const haystack = [entry.description, entry.document_number, counterparty, chartById.get(entry.chart_account_id)?.name, ...(tagNamesByEntry.get(entry.id) ?? [])].join(" ").toLocaleLowerCase("pt-BR");
-    return (sectionKind === "ALL" || entry.kind === sectionKind) && (statusFilter === "ALL" || entry.status === statusFilter) && isDateInRange(entry.due_date, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.entries, customerById, supplierById, chartById, tagNamesByEntry, sectionKind, statusFilter, startDate, endDate, query]);
+    return props.section !== "cash" && (sectionKind === "ALL" || entry.kind === sectionKind) && (statusFilter === "ALL" || entry.status === statusFilter) && (!accountFilter || accountFilter === "ALL" || entry.preferred_financial_account_id === accountFilter) && isDateInRange(entry.due_date, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.entries, props.section, customerById, supplierById, chartById, tagNamesByEntry, sectionKind, statusFilter, accountFilter, startDate, endDate, query]);
+
+  const cashSettlementMovements = useMemo(() => props.settlements.flatMap((settlement): CashSettlementMovement[] => {
+    const entry = entryById.get(settlement.entry_id);
+    return entry && entry.status !== "CANCELED" ? [{ entry, settlement }] : [];
+  }), [props.settlements, entryById]);
+
+  const visibleSettlements = useMemo(() => cashSettlementMovements.filter(({ entry, settlement }) => {
+    const counterparty = counterpartName(entry, customerById, supplierById);
+    const haystack = [entry.description, entry.document_number, counterparty, chartById.get(entry.chart_account_id)?.name, ...(tagNamesByEntry.get(entry.id) ?? [])].join(" ").toLocaleLowerCase("pt-BR");
+    return (accountFilter === "ALL" || settlement.financial_account_id === accountFilter) && isDateInRange(settlement.settled_on, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [cashSettlementMovements, customerById, supplierById, chartById, tagNamesByEntry, accountFilter, startDate, endDate, query]);
 
   const visibleActivity = useMemo(() => props.appointmentActivity.filter((item) => {
     const customer = customerById.get(item.customer_id)?.full_name ?? "Cliente";
     const haystack = `${customer} ${item.display_description} ${item.provider} ${item.payment_mode}`.toLocaleLowerCase("pt-BR");
-    return sectionKind !== "EXPENSE" && isDateInRange(item.occurred_at, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.appointmentActivity, customerById, sectionKind, startDate, endDate, query]);
+    return sectionKind !== "EXPENSE" && (accountFilter === "ALL" || item.financial_account_id === accountFilter) && isDateInRange(item.occurred_at, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.appointmentActivity, customerById, sectionKind, accountFilter, startDate, endDate, query]);
 
   const capturedFromAppointments = props.appointmentActivity.reduce((total, item) => total + item.signed_cents, 0);
   const manualRevenue = props.entries.filter((item) => item.kind === "REVENUE").reduce((total, item) => total + item.settled_cents, 0);
@@ -181,7 +205,7 @@ export function CashManager(props: CashManagerProps) {
   }
 
   const title = props.section === "overview" ? "Financeiro" : props.section === "cash" ? "Controle de caixa" : financeSections.find((item) => item.id === props.section)?.label ?? "Financeiro";
-  const description = props.demoMode ? "Modo demonstração: dados locais, sem escrita no Supabase." : "Lançamentos auditáveis; valores liquidado não são apagados.";
+  const description = props.demoMode ? "Modo demonstração: dados locais, sem escrita no Supabase." : props.section === "cash" ? "Entradas e saídas efetivamente movimentadas." : "Lançamentos auditáveis; valores liquidados não são apagados.";
 
   return <div className={styles.stack}>
     <PageHeader title={title} description={description} actions={props.section === "cash" ? <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button> : undefined} />
@@ -195,17 +219,17 @@ export function CashManager(props: CashManagerProps) {
       </Panel>
     </>}
     {(props.section === "cash" || props.section === "payables" || props.section === "receivables") && <>
-      <CashStats balance={balance} incoming={manualRevenue + capturedFromAppointments} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} />
+      <CashStats balance={balance} incoming={manualRevenue + capturedFromAppointments} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} showOpen={props.section !== "cash"} />
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
           <input className={styles.packageFilterSelect} aria-label="Buscar lançamentos" placeholder="Buscar descrição, documento ou contraparte" value={query} onChange={(event) => setQuery(event.target.value)} />
           <input className={styles.packageFilterSelect} aria-label="Data inicial" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
           <input className={styles.packageFilterSelect} aria-label="Data final" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-          <select className={styles.packageFilterSelect} aria-label="Filtrar status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "ALL" | EntryStatus)}><option value="ALL">Todos status</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          {props.section === "cash" ? <select className={styles.packageFilterSelect} aria-label="Filtrar conta financeira" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}><option value="ALL">Todas as contas</option>{props.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select> : <select className={styles.packageFilterSelect} aria-label="Filtrar status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "ALL" | EntryStatus)}><option value="ALL">Todos status</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}
         </div>
         {props.section !== "cash" && <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button>}
       </div>
-      <CashList entries={visibleEntries} activity={visibleActivity} receivables={props.section === "receivables" ? (props.appointmentReceivables ?? []) : []} accountById={accountById} supplierById={supplierById} customerById={customerById} onEdit={setEntryEditor} onSettle={setSettlementEntry} onReceive={setAppointmentReceipt} onCancel={async (entry) => {
+      <CashList cashOnly={props.section === "cash"} entries={visibleEntries} settlements={props.section === "cash" ? visibleSettlements : []} activity={visibleActivity} receivables={props.section === "receivables" ? (props.appointmentReceivables ?? []) : []} accountById={accountById} supplierById={supplierById} customerById={customerById} onEdit={setEntryEditor} onSettle={setSettlementEntry} onReceive={setAppointmentReceipt} onCancel={async (entry) => {
         if (blockDemoWrite(props.demoMode, setMessage)) return;
         const reason = window.prompt("Motivo obrigatório do cancelamento:");
         if (!reason?.trim()) return;
@@ -225,27 +249,26 @@ export function CashManager(props: CashManagerProps) {
   </div>;
 }
 
-function CashStats({ balance, incoming, outgoing, openReceivable, openPayable }: { balance: number; incoming: number; outgoing: number; openReceivable: number; openPayable: number }) {
-  return <section className={styles.stats}>
+function CashStats({ balance, incoming, outgoing, openReceivable, openPayable, showOpen = true }: { balance: number; incoming: number; outgoing: number; openReceivable: number; openPayable: number; showOpen?: boolean }) {
+  return <section className={`${styles.stats} ${showOpen ? "" : styles.statsCash}`}>
     <article className={styles.stat}><span>Saldo em contas</span><strong>{formatCents(balance)}</strong><small>saldo inicial + movimentações</small></article>
     <article className={styles.stat}><span>Entradas realizadas</span><strong>{formatCents(incoming)}</strong><small>inclui agendamentos vinculados</small></article>
     <article className={styles.stat}><span>Saídas realizadas</span><strong>{formatCents(outgoing)}</strong><small>despesas liquidadas</small></article>
-    <article className={styles.stat}><span>Em aberto</span><strong>{formatCents(openReceivable - openPayable)}</strong><small>{formatCents(openReceivable)} a receber · {formatCents(openPayable)} a pagar</small></article>
+    {showOpen && <article className={styles.stat}><span>Em aberto</span><strong>{formatCents(openReceivable - openPayable)}</strong><small>{formatCents(openReceivable)} a receber · {formatCents(openPayable)} a pagar</small></article>}
   </section>;
 }
 
-function CashList({ entries, activity, receivables, accountById, supplierById, customerById, onEdit, onSettle, onReceive, onCancel, onTransfer, onReverseAppointment }: { entries: FinancialEntryRecord[]; activity: AppointmentCashActivityRecord[]; receivables: AppointmentReceivableRecord[]; accountById: Map<string, FinancialAccountRecord>; supplierById: Map<string, SupplierRecord>; customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>; onEdit: (entry: FinancialEntryRecord) => void; onSettle: (entry: FinancialEntryRecord) => void; onReceive: (entry: AppointmentReceivableRecord) => void; onCancel: (entry: FinancialEntryRecord) => void; onTransfer: () => void; onReverseAppointment: (entry: AppointmentCashActivityRecord) => void }) {
-  return <Panel title="Movimentações" description="Registros de agendamento são vinculados ao ledger existente e não podem ser editados aqui." action={<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onTransfer}><ArrowLeftRight size={15} /> Transferir</button>}>
-    {!entries.length && !activity.length && !receivables.length ? <EmptyState title="Sem movimentações">Crie um lançamento ou registre um recebimento de agendamento.</EmptyState> : <div className={styles.cashTable} role="table" aria-label="Movimentações financeiras">
-      <div className={styles.cashHeader} role="row"><span role="columnheader">Cliente/Fornecedor</span><span role="columnheader">Data</span><span role="columnheader">Valor</span><span role="columnheader">Conta financeira</span><span role="columnheader">Situação do pagamento</span><span role="columnheader">Ações</span></div>
+function CashList({ cashOnly, entries, settlements, activity, receivables, accountById, supplierById, customerById, onEdit, onSettle, onReceive, onCancel, onTransfer, onReverseAppointment }: { cashOnly: boolean; entries: FinancialEntryRecord[]; settlements: CashSettlementMovement[]; activity: AppointmentCashActivityRecord[]; receivables: AppointmentReceivableRecord[]; accountById: Map<string, FinancialAccountRecord>; supplierById: Map<string, SupplierRecord>; customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>; onEdit: (entry: FinancialEntryRecord) => void; onSettle: (entry: FinancialEntryRecord) => void; onReceive: (entry: AppointmentReceivableRecord) => void; onCancel: (entry: FinancialEntryRecord) => void; onTransfer: () => void; onReverseAppointment: (entry: AppointmentCashActivityRecord) => void }) {
+  return <Panel title="Movimentações" description={cashOnly ? "Somente valores efetivamente recebidos ou pagos." : "Registros de agendamento são vinculados ao ledger existente e não podem ser editados aqui."} action={<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onTransfer}><ArrowLeftRight size={15} /> Transferir</button>}>
+    {!entries.length && !settlements.length && !activity.length && !receivables.length ? <EmptyState title="Sem movimentações">Registre um recebimento ou pagamento para acompanhar o caixa.</EmptyState> : <div className={`${styles.cashTable} ${cashOnly ? styles.cashTableOnly : ""}`} role="table" aria-label="Movimentações financeiras">
+      <div className={styles.cashHeader} role="row"><span role="columnheader">Cliente/Fornecedor</span><span role="columnheader">Data</span><span role="columnheader">Valor</span><span role="columnheader">Conta financeira</span>{!cashOnly && <span role="columnheader">Situação do pagamento</span>}<span role="columnheader">Ações</span></div>
       {entries.map((entry) => {
-        const counterpart = entry.counterparty_kind === "CUSTOMER"
-          ? customerById.get(entry.customer_id ?? "")?.full_name
-          : supplierById.get(entry.supplier_id ?? "")?.name;
-        return <article key={entry.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpart ?? "Não informado"}</strong><small className={styles.cashDescription}>{entry.description}</small></span><span role="cell">{entry.due_date}</span><strong role="cell">{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span role="cell">{accountById.get(entry.preferred_financial_account_id ?? "")?.name ?? "Não definida"}</span><span role="cell"><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /></span><span className={styles.rowActions} role="cell">{!["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>Liquidar</button>}{entry.status === "OPEN" || entry.status === "OVERDUE" ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : entry.status !== "CANCELED" ? <small className={styles.muted}>Use reversal para corrigir liquidações.</small> : null}</span></article>;
+        const counterpart = counterpartName(entry, customerById, supplierById);
+        return <article key={entry.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpart}</strong><small className={styles.cashDescription}>{entry.description}</small></span><span role="cell">{formatMovementDate(entry.due_date)}</span><strong role="cell">{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span role="cell">{accountById.get(entry.preferred_financial_account_id ?? "")?.name ?? "Não definida"}</span>{!cashOnly && <span role="cell"><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /></span>}<span className={styles.rowActions} role="cell">{!cashOnly && !["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>Liquidar</button>}{!cashOnly && (entry.status === "OPEN" || entry.status === "OVERDUE") ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : null}</span></article>;
       })}
-      {activity.map((item) => <article key={item.payment_transaction_id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{customerById.get(item.customer_id)?.full_name ?? "Cliente"}</strong><small className={styles.cashDescription}>{item.display_description}</small></span><span role="cell">{new Date(item.occurred_at).toLocaleDateString("pt-BR")}</span><strong role="cell">{item.signed_cents >= 0 ? "+" : "−"}{formatCents(Math.abs(item.signed_cents))}</strong><span role="cell">{item.needs_reconciliation ? "Não vinculada" : accountById.get(item.financial_account_id ?? "")?.name ?? "Conta não encontrada"}</span><span role="cell"><StatusChip active={item.financial_status === "PAID"} label={appointmentPaymentLabel(item.financial_status)} /></span><span className={styles.rowActions} role="cell">{item.kind === "CAPTURE" && item.provider === "MANUAL" && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseAppointment(item)}>Estornar recebimento</button>}</span></article>)}
-      {receivables.map((item) => <article key={`receivable-${item.appointment_id}`} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{item.customer_name}</strong><small className={styles.cashDescription}>{item.description}</small></span><span role="cell">{item.due_date}</span><strong role="cell">+{formatCents(item.outstanding_cents)}</strong><span role="cell">Caixa Físico</span><span role="cell"><StatusChip active={false} label="A receber" /></span><span className={styles.rowActions} role="cell"><button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onReceive(item)}>Receber</button></span></article>)}
+      {settlements.map(({ entry, settlement }) => { const signedCents = settlementSignedCents(entry.kind, settlement); return <article key={settlement.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpartName(entry, customerById, supplierById)}</strong><small className={styles.cashDescription}>{settlement.kind === "REVERSAL" ? `Estorno · ${entry.description}` : entry.description}</small></span><span role="cell">{formatMovementDate(settlement.settled_on)}</span><strong role="cell">{signedCents >= 0 ? "+" : "−"}{formatCents(Math.abs(signedCents))}</strong><span role="cell">{accountById.get(settlement.financial_account_id)?.name ?? "Conta não encontrada"}</span><span className={styles.rowActions} role="cell" /> </article>; })}
+      {activity.map((item) => <article key={item.payment_transaction_id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{customerById.get(item.customer_id)?.full_name ?? "Cliente"}</strong><small className={styles.cashDescription}>{item.display_description}</small></span><span role="cell">{formatMovementDate(item.occurred_at)}</span><strong role="cell">{item.signed_cents >= 0 ? "+" : "−"}{formatCents(Math.abs(item.signed_cents))}</strong><span role="cell">{item.needs_reconciliation ? "Não vinculada" : accountById.get(item.financial_account_id ?? "")?.name ?? "Conta não encontrada"}</span><span className={styles.rowActions} role="cell">{item.kind === "CAPTURE" && item.provider === "MANUAL" && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseAppointment(item)}>Estornar recebimento</button>}</span></article>)}
+      {receivables.map((item) => <article key={`receivable-${item.appointment_id}`} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{item.customer_name}</strong><small className={styles.cashDescription}>{item.description}</small></span><span role="cell">{formatMovementDate(item.due_date)}</span><strong role="cell">+{formatCents(item.outstanding_cents)}</strong><span role="cell">Caixa Físico</span><span role="cell"><StatusChip active={false} label="A receber" /></span><span className={styles.rowActions} role="cell"><button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onReceive(item)}>Receber</button></span></article>)}
     </div>}
   </Panel>;
 }

@@ -34,41 +34,105 @@ describe("cash manager", () => {
   beforeEach(() => { cleanup(); refresh.mockReset(); rpc.mockClear(); });
 
   it("filters manual entries and keeps appointment receipts visibly linked", () => {
-    render(<CashManager {...props} />);
-    expect(screen.getByRole("heading", { name: "Controle de caixa" })).toBeInTheDocument();
-    expect(screen.getByText("Aluguel")).toBeInTheDocument();
-    expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} />);
+      expect(screen.getByRole("heading", { name: "Controle de caixa" })).toBeInTheDocument();
+      expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
+      expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Liquidar" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Estornar recebimento" })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("Buscar descrição, documento ou contraparte"), { target: { value: "aluguel" } });
-    expect(screen.getByText("Aluguel")).toBeInTheDocument();
-    expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
+      fireEvent.change(screen.getByPlaceholderText("Buscar descrição, documento ou contraparte"), { target: { value: "aluguel" } });
+      expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
+      expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows a paid appointment separately from its unmapped financial account and filters movements by inclusive date", () => {
-    render(<CashManager {...props} appointmentActivity={[{
-      ...props.appointmentActivity[0],
-      needs_reconciliation: true,
-      display_description: "Corte clássico · Profissional: Alef",
-      financial_status: "PAID",
-    }]} />);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} appointmentActivity={[{
+        ...props.appointmentActivity[0],
+        needs_reconciliation: true,
+        display_description: "Corte clássico · Profissional: Alef",
+        financial_status: "PAID",
+      }]} />);
 
-    expect(screen.getByRole("columnheader", { name: "Cliente/Fornecedor" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Situação do pagamento" })).toBeInTheDocument();
-    expect(screen.getByText("Cliente Real")).toBeInTheDocument();
-    expect(screen.getByText("Imobiliária Real")).toBeInTheDocument();
-    expect(screen.getByText("Corte clássico · Profissional: Alef")).toHaveClass(styles.cashDescription);
-    expect(screen.getByText("Aluguel")).toHaveClass(styles.cashDescription);
-    expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
-    expect(screen.getByText("Recebido")).toBeInTheDocument();
-    expect(screen.getByText("Não vinculada")).toBeInTheDocument();
-    expect(screen.queryByText("Aguardando conciliação")).not.toBeInTheDocument();
-    expect(screen.queryByText("PENDENTE")).not.toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: "Cliente/Fornecedor" })).toBeInTheDocument();
+      expect(screen.queryByRole("columnheader", { name: "Situação do pagamento" })).not.toBeInTheDocument();
+      expect(screen.getByText("Cliente Real")).toBeInTheDocument();
+      expect(screen.queryByText("Imobiliária Real")).not.toBeInTheDocument();
+      expect(screen.getByText("Corte clássico · Profissional: Alef")).toHaveClass(styles.cashDescription);
+      expect(screen.getByText("Não vinculada")).toBeInTheDocument();
+      expect(screen.queryByText("Recebido")).not.toBeInTheDocument();
+      expect(screen.queryByText("Aguardando conciliação")).not.toBeInTheDocument();
+      expect(screen.queryByText("PENDENTE")).not.toBeInTheDocument();
+      expect(screen.getByText("09/08/2026")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-08-09" } });
-    fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-08-09" } });
+      fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-08-09" } });
+      fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-08-09" } });
 
-    expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
-    expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
+      expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
+      expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("abre a Caixa no mês atual e oferece filtro de conta financeira", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} accounts={[...props.accounts, { ...props.accounts[0], id: "account-2", name: "Caixa físico" }]} />);
+
+      expect(screen.getByLabelText("Data inicial")).toHaveValue("2026-08-01");
+      expect(screen.getByLabelText("Data final")).toHaveValue("2026-08-31");
+      expect(screen.getByLabelText("Filtrar conta financeira")).toHaveValue("ALL");
+      expect(screen.getByRole("option", { name: "Caixa físico" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("Filtrar status")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("mostra settlements liquidados com contraparte, data brasileira e conta filtrável", () => {
+    const settledEntry = {
+      ...props.entries[0],
+      id: "entry-settled",
+      kind: "REVENUE" as const,
+      description: "Corte adicional",
+      total_cents: 6500,
+      settled_cents: 6500,
+      remaining_cents: 0,
+      status: "SETTLED" as const,
+      chart_account_id: "chart-revenue",
+      counterparty_kind: null,
+      supplier_id: "supplier-1",
+    };
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} accounts={[...props.accounts, { ...props.accounts[0], id: "account-2", name: "Caixa físico" }]} entries={[...props.entries, settledEntry]} settlements={[{ id: "settlement-1", entry_id: "entry-settled", financial_account_id: "account-1", kind: "SETTLEMENT" as const, amount_cents: 6500, settled_on: "2026-08-10", payment_method: "PIX", reference: null }]} />);
+
+      expect(screen.getByText("Imobiliária Real")).toBeInTheDocument();
+      expect(screen.getByText("10/08/2026")).toBeInTheDocument();
+      expect(screen.getByText("Corte adicional")).toBeInTheDocument();
+      expect(screen.getByText(/R\$\s*65,00/)).toBeInTheDocument();
+      expect(screen.getAllByText("Banco Principal").length).toBeGreaterThan(0);
+      expect(screen.queryByRole("columnheader", { name: "Situação do pagamento" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Liquidar" })).not.toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Filtrar conta financeira"), { target: { value: "account-2" } });
+      expect(screen.queryByText("Corte adicional")).not.toBeInTheDocument();
+      expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("opens a cash entry form without calling Supabase in advance", () => {
