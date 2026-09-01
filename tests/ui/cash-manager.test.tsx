@@ -96,11 +96,17 @@ describe("cash manager", () => {
   });
 
   it("abre contas a pagar e receber no mês atual, com todos os status", () => {
-    render(<CashManager {...props} section="payables" />);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} section="payables" />);
 
-    expect(screen.getByLabelText("Data inicial")).toHaveValue("2026-08-01");
-    expect(screen.getByLabelText("Data final")).toHaveValue("2026-08-31");
-    expect(screen.getByLabelText("Filtrar status")).toHaveValue("ALL");
+      expect(screen.getByLabelText("Data inicial")).toHaveValue("2026-08-01");
+      expect(screen.getByLabelText("Data final")).toHaveValue("2026-08-31");
+      expect(screen.getByLabelText("Filtrar status")).toHaveValue("ALL");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("abre cadastros rápidos de fornecedor, cliente e tag no lançamento", () => {
@@ -173,7 +179,7 @@ describe("cash manager", () => {
   });
 
   it("opens the appointment receipt with prefilled fields and records only the payment transaction", () => {
-    render(<CashManager {...props} section="receivables" appointmentReceivables={[{
+    render(<CashManager {...props} section="receivables" tags={[{ id: "tag-1", organization_id: "org-1", name: "Cliente recorrente", color: null, active: true }]} appointmentReceivables={[{
       appointment_id: "appointment-2",
       organization_id: "org-1",
       customer_id: "customer-1",
@@ -191,9 +197,10 @@ describe("cash manager", () => {
     expect(screen.getByDisplayValue("Cliente Real")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Barba completa · Profissional: Alef")).toBeInTheDocument();
     expect(screen.getByDisplayValue("ATD-APPOINT2")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "tag-1" } });
     fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
 
-    expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_appointment_id: "appointment-2", p_amount_cents: 6500, p_chart_account_id: "chart-revenue", p_financial_account_id: "account-1", p_document_number: "ATD-APPOINT2" }));
+    expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_appointment_id: "appointment-2", p_amount_cents: 6500, p_chart_account_id: "chart-revenue", p_financial_account_id: "account-1", p_document_number: "ATD-APPOINT2", p_tag_ids: ["tag-1"] }));
     expect(rpc).not.toHaveBeenCalledWith("create_financial_entry", expect.anything());
   });
 

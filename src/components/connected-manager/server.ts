@@ -133,7 +133,7 @@ export async function loadAgendaData() {
   from.setDate(from.getDate() - 31);
   const to = new Date(now);
   to.setDate(to.getDate() + 93);
-  const [org, appointments, appointmentItems, customers, barbers, services, packages, links, financial] = await Promise.all([
+  const [org, appointments, appointmentItems, customers, barbers, services, packages, links, financial, accounts, chartAccounts, costCenters, tags, mappings] = await Promise.all([
     supabase.from("organizations").select("*").eq("id", organizationId).single(),
     supabase.from("appointments").select("*").eq("organization_id", organizationId).overlaps("service_period", `[${from.toISOString()},${to.toISOString()})`).order("service_period").limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_items").select("id,organization_id,appointment_id,service_name_snapshot,position").eq("organization_id", organizationId).order("position").limit(MANAGER_ROW_LIMIT),
@@ -143,6 +143,11 @@ export async function loadAgendaData() {
     supabase.from("packages").select("*").eq("organization_id", organizationId).eq("active", true).order("name"),
     supabase.from("barber_services").select("*").eq("organization_id", organizationId).eq("active", true),
     supabase.from("appointment_financial_summary").select("*").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
+    supabase.from("chart_of_accounts").select("id,organization_id,parent_id,code,name,kind,active,dre_group,cash_flow_activity").eq("organization_id", organizationId).order("kind").order("code").order("name"),
+    supabase.from("cost_centers").select("id,organization_id,name,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
+    supabase.from("financial_tags").select("id,organization_id,name,color,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
+    supabase.from("payment_account_mappings").select("id,organization_id,provider,payment_mode,financial_account_id").eq("organization_id", organizationId),
   ]);
   return {
     organizationId,
@@ -156,6 +161,13 @@ export async function loadAgendaData() {
     packages: requireData(packages, "Pacotes") as PackageRecord[],
     barberServices: requireData(links, "Competências") as BarberServiceRecord[],
     financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],
+    receiptCatalogs: {
+      accounts: requireData(accounts, "Contas financeiras da agenda") as FinancialAccountRecord[],
+      chartAccounts: requireData(chartAccounts, "Plano de contas da agenda") as ChartAccountRecord[],
+      costCenters: requireData(costCenters, "Centros de custo da agenda") as CostCenterRecord[],
+      tags: requireData(tags, "Tags financeiras da agenda") as FinancialTagRecord[],
+      mappings: requireData(mappings, "Mapeamentos de recebimento da agenda") as PaymentAccountMappingRecord[],
+    },
   };
 }
 

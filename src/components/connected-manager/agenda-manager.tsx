@@ -52,7 +52,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type AgendaData = AwaitedReturn<typeof loadAgendaData>;
-type Props = Omit<AgendaData, "appointmentItems"> & { appointmentItems?: AgendaData["appointmentItems"] };
+type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"] };
 type View = "day" | "week" | "month";
 
 const hours = Array.from({ length: 14 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
@@ -418,6 +418,6 @@ export function AgendaManager(props: Props) {
       </div>
       <div className="form-modal__footer"><button type="button" className="button button--dark" onClick={() => setAgendaHelpOpen(false)}>Entendi</button></div>
     </section></div>}
-    {receiptTarget && <AppointmentReceiptDialog receipt={receiptTarget} onClose={() => setReceiptTarget(null)} onSaved={() => { setReceiptTarget(null); router.refresh(); }} setMessage={setMessage} />}
+    {receiptTarget && <AppointmentReceiptDialog receipt={receiptTarget} {...(props.receiptCatalogs ?? {})} modalClassName={styles.receiptModal} layerClassName={styles.receiptModalLayer} onClose={() => setReceiptTarget(null)} onSaved={() => { setReceiptTarget(null); router.refresh(); }} setMessage={setMessage} />}
   </div>;
 }

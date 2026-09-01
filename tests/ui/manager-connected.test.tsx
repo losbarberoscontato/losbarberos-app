@@ -8,10 +8,10 @@ import { TeamManager } from "@/components/connected-manager/team-manager";
 import type { WhatsAppSettingsStatus } from "@/components/connected-manager/whatsapp-settings";
 
 const refresh = vi.fn();
-const mutationMocks = vi.hoisted(() => ({ update: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })) })) }));
+const mutationMocks = vi.hoisted(() => ({ update: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })) })), rpc: vi.fn(() => Promise.resolve({ error: null, data: null })) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/components/connected-manager/mutation-utils", () => ({
-  connectedClient: () => ({ from: () => ({ update: mutationMocks.update }) }),
+  connectedClient: () => ({ from: () => ({ update: mutationMocks.update }), rpc: mutationMocks.rpc }),
   assertResult: (result: unknown) => result,
   runMutation: async (_setMessage: unknown, mutation: () => Promise<unknown>) => { await mutation(); return true; },
 }));
@@ -67,7 +67,7 @@ function renderTeam() {
 }
 
 describe("connected manager UI", () => {
-  beforeEach(() => { cleanup(); refresh.mockReset(); mutationMocks.update.mockClear(); });
+  beforeEach(() => { cleanup(); refresh.mockReset(); mutationMocks.update.mockClear(); mutationMocks.rpc.mockClear(); });
 
   it("renders only tenant records on the dashboard", () => {
     render(<ManagerDashboard organizationId="org-1" billingStatus="ACTIVE" organization={organization} appointments={[]} customers={[customer]} barbers={[barber]} financial={[]} openPayouts={[]} />);
@@ -219,6 +219,40 @@ describe("connected manager UI", () => {
     expect(screen.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("target", "_blank");
     expect(screen.getByText("Pgto Pendente")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeEnabled();
+  });
+
+  it("carrega os catálogos financeiros ao abrir recebimento pela agenda", async () => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const start = new Date(`${today}T14:00:00-03:00`);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    render(<AgendaManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      customers={[customer]}
+      barbers={[barber]}
+      services={[service]}
+      packages={[]}
+      barberServices={[]}
+      financial={[{ appointment_id: "appointment-receipt", captured_cents: 0, refunded_cents: 0, net_paid_cents: 0, outstanding_cents: 5000, financial_status: "UNPAID" }]}
+      appointments={[{ id: "appointment-receipt", organization_id: "org-1", customer_id: customer.id, barber_id: barber.id, status: "IN_SERVICE", source: "MANAGER", service_period: `[${start.toISOString()},${end.toISOString()})`, payment_mode: "COUNTER", currency: "BRL", total_cents_snapshot: 5000, notes: null, schedule_override_reason: null, created_at: new Date().toISOString() }]}
+      receiptCatalogs={{
+        accounts: [{ id: "account-1", organization_id: "org-1", kind: "BANK", name: "Banco Principal", bank_code: null, branch: null, account_number: null, description: null, opening_balance_cents: 0, active: true }],
+        chartAccounts: [{ id: "chart-revenue", organization_id: "org-1", parent_id: null, code: "1", name: "Serviços", kind: "REVENUE", active: true }],
+        costCenters: [{ id: "cost-center-1", organization_id: "org-1", name: "Operação", active: true }],
+        tags: [{ id: "tag-1", organization_id: "org-1", name: "Cliente recorrente", color: null, active: true }],
+        mappings: [],
+      }}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Cliente Real" }));
+    fireEvent.click(screen.getByRole("button", { name: "Concluir" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Receber atendimento" });
+    expect(within(dialog).getByRole("option", { name: "1 · Serviços" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("option", { name: "Banco Principal" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("option", { name: "Operação" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("option", { name: "Cliente recorrente" })).toBeInTheDocument();
   });
 
   it("permite buscar um cliente real antes de criar o agendamento", () => {

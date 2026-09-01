@@ -217,7 +217,7 @@ export function CashManager(props: CashManagerProps) {
     {props.section === "catalogs" && <CatalogsSection organizationId={props.organizationId} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} accounts={props.accounts} mappings={props.mappings} demoMode={props.demoMode} setMessage={setMessage} />}
 
     {entryEditor && <EntryDialog entry={entryEditor === "new" ? null : entryEditor} defaultKind={sectionKind === "ALL" ? "REVENUE" : sectionKind} {...props} onClose={() => setEntryEditor(null)} onSaved={() => { setEntryEditor(null); router.refresh(); }} setMessage={setMessage} />}
-    {appointmentReceipt && <AppointmentReceiptDialog receipt={appointmentReceipt} accounts={props.accounts} chartAccounts={props.chartAccounts} costCenters={props.costCenters} mappings={props.mappings} demoMode={props.demoMode} onClose={() => setAppointmentReceipt(null)} onSaved={() => { setAppointmentReceipt(null); router.refresh(); }} setMessage={setMessage} />}
+    {appointmentReceipt && <AppointmentReceiptDialog receipt={appointmentReceipt} accounts={props.accounts} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} mappings={props.mappings} demoMode={props.demoMode} onClose={() => setAppointmentReceipt(null)} onSaved={() => { setAppointmentReceipt(null); router.refresh(); }} setMessage={setMessage} />}
     {settlementEntry && <SettlementDialog entry={settlementEntry} accounts={props.accounts} demoMode={props.demoMode} onClose={() => setSettlementEntry(null)} onSaved={() => { setSettlementEntry(null); router.refresh(); }} setMessage={setMessage} />}
     {transferOpen && <TransferDialog accounts={props.accounts} demoMode={props.demoMode} onClose={() => setTransferOpen(false)} onSaved={() => { setTransferOpen(false); router.refresh(); }} setMessage={setMessage} />}
     {reversePayment && <ConfirmDialog title="Estornar recebimento do agendamento?" description="O valor será estornado ao cliente e o saldo do agendamento será reaberto. Serviço e agendamento continuam concluídos." confirmLabel="Confirmar estorno" onClose={() => setReversePayment(null)} onConfirm={() => void reverseAppointmentReceipt()} />}
@@ -249,15 +249,16 @@ function CashList({ entries, activity, receivables, accountById, supplierById, c
   </Panel>;
 }
 
-export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts = [], costCenters = [], mappings = [], demoMode, onClose, onSaved, setMessage }: { receipt: AppointmentReceivableRecord | AppointmentReceiptDraft; accounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; mappings?: PaymentAccountMappingRecord[]; demoMode?: boolean; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
-  const mappedAccountId = mappings.find((item) => item.provider === "MANUAL" && item.payment_mode === "COUNTER")?.financial_account_id;
+export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts = [], costCenters = [], tags = [], mappings = [], demoMode, modalClassName, layerClassName, onClose, onSaved, setMessage }: { receipt: AppointmentReceivableRecord | AppointmentReceiptDraft; accounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[]; mappings?: PaymentAccountMappingRecord[]; demoMode?: boolean; modalClassName?: string; layerClassName?: string; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+  const mappedAccountId = accounts.find((account) => account.active && account.id === mappings.find((item) => item.provider === "MANUAL" && item.payment_mode === "COUNTER")?.financial_account_id)?.id;
   const defaultAccount = mappedAccountId ?? accounts.find((item) => item.active && /caixa/i.test(item.name))?.id ?? accounts.find((item) => item.active)?.id ?? "";
-  const defaultChart = chartAccounts.find((item) => item.active && (item.code === "1" || /receita/i.test(item.name)))?.id ?? "";
+  const defaultChart = chartAccounts.find((item) => item.active && item.kind === "REVENUE" && (item.code === "1" || /receita/i.test(item.name)))?.id ?? "";
   const customerName = "customer_name" in receipt ? receipt.customer_name : receipt.customerName;
   const amountCents = "outstanding_cents" in receipt ? receipt.outstanding_cents : receipt.amountCents;
   const issueDate = "issue_date" in receipt ? receipt.issue_date : receipt.issueDate;
   const dueDate = "due_date" in receipt ? receipt.due_date : receipt.dueDate;
   const documentNumber = "document_number" in receipt ? receipt.document_number : receipt.documentNumber;
+  const activeTags = tags.filter((item) => item.active);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (blockDemoWrite(demoMode, setMessage)) return;
@@ -271,6 +272,7 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
         p_financial_account_id: safeText(data.get("financial_account_id")),
         p_chart_account_id: safeText(data.get("chart_account_id")),
         p_cost_center_id: safeText(data.get("cost_center_id")) || null,
+        p_tag_ids: data.getAll("tag_ids").map(String),
         p_reference: safeText(data.get("reference")) || `${safeText(data.get("document_number"))} · ${safeText(data.get("payment_method"))}`,
         p_document_number: safeText(data.get("document_number")),
         p_idempotency_key: `manager:appointment-receipt:${appointmentId}:${crypto.randomUUID()}`,
@@ -278,7 +280,7 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     }, "Recebimento confirmado e enviado ao Caixa.");
     if (saved) onSaved();
   }
-  return <Dialog title="Receber atendimento" onClose={onClose}><form className={styles.form} onSubmit={submit}>
+  return <Dialog title="Receber atendimento" modalClassName={modalClassName} layerClassName={layerClassName} onClose={onClose}><form className={styles.form} onSubmit={submit}>
     <Field label="Contraparte / Cliente"><input value={customerName} readOnly /></Field>
     <Field label="Tipo"><input value="Receita" readOnly /></Field>
     <Field label="Descrição" wide><input name="description" defaultValue={receipt.description} required /></Field>
@@ -290,7 +292,7 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     <Field label="Banco ou caixa"><select name="financial_account_id" aria-label="Banco ou caixa" required defaultValue={defaultAccount}><option value="" disabled>Selecione</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Centro de custo"><select name="cost_center_id" defaultValue=""><option value="">Não informar</option>{costCenters.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Número do documento"><input name="document_number" defaultValue={documentNumber} required /></Field>
-    <Field label="Tags"><input value="Nenhuma" readOnly /></Field>
+    <Field label="Tags"><select name="tag_ids" aria-label="Tags" multiple size={Math.min(Math.max(activeTags.length, 2), 4)} disabled={activeTags.length === 0}>{activeTags.length === 0 ? <option>Nenhuma tag cadastrada</option> : activeTags.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Forma de recebimento"><select name="payment_method" defaultValue="CASH"><option value="CASH">Dinheiro</option><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field>
     <Field label="Referência"><input name="reference" placeholder="PIX, NSU ou comprovante" /></Field>
     <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar recebimento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
@@ -617,6 +619,6 @@ function CatalogRows<T extends { id: string; name: string; active: boolean }>({ 
   return !items.length ? <p className={styles.muted}>Nenhum item cadastrado.</p> : <div className={styles.list}>{items.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong>{item.name}</strong></span><StatusChip active={item.active} /><span /><span /><span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onEdit(item)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onToggle(item)}>{item.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>;
 }
 
-function Dialog({ title, children, onClose, wide = false }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) { const titleId = `dialog-${title.replaceAll(/\s+/gu, "-").toLocaleLowerCase("pt-BR")}`; return <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar" onClick={onClose} /><section className={`${styles.modal} ${wide ? styles.modalWide : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className={styles.modalHeader}><h2 id={titleId}>{title}</h2><button className={styles.modalClose} type="button" onClick={onClose} aria-label={`Fechar ${title}`}><X size={18} /></button></div>{children}</section></div>; }
+function Dialog({ title, children, onClose, wide = false, modalClassName = "", layerClassName = "" }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean; modalClassName?: string; layerClassName?: string }) { const titleId = `dialog-${title.replaceAll(/\s+/gu, "-").toLocaleLowerCase("pt-BR")}`; return <div className={`${styles.modalLayer} ${layerClassName}`} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar" onClick={onClose} /><section className={`${styles.modal} ${wide ? styles.modalWide : ""} ${modalClassName}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className={styles.modalHeader}><h2 id={titleId}>{title}</h2><button className={styles.modalClose} type="button" onClick={onClose} aria-label={`Fechar ${title}`}><X size={18} /></button></div>{children}</section></div>; }
 
 function ConfirmDialog({ title, description, confirmLabel, onClose, onConfirm }: { title: string; description: string; confirmLabel: string; onClose: () => void; onConfirm: () => void }) { return <Dialog title={title} onClose={onClose}><p>{description}</p><div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonDanger}`} type="button" onClick={onConfirm}>{confirmLabel}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div></Dialog>; }
