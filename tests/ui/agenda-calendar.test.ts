@@ -57,4 +57,23 @@ describe("connected agenda calendar projections", () => {
       "America/Sao_Paulo",
     )).toBeNull();
   });
+
+  it("mantém agendamentos consecutivos dentro da duração real", () => {
+    const first = appointmentGeometry(
+      '["2026-08-07 12:00:00+00","2026-08-07 12:30:00+00")',
+      "America/Sao_Paulo",
+    );
+    const second = appointmentGeometry(
+      '["2026-08-07 12:30:00+00","2026-08-07 13:00:00+00")',
+      "America/Sao_Paulo",
+    );
+
+    expect(first?.top).toBe(78);
+    expect(first?.height).toBe(32);
+    expect(second?.top).toBe(117);
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    if (!first || !second) throw new Error("Expected consecutive appointments to have geometry");
+    expect(first.top + first.height).toBeLessThanOrEqual(second.top);
+  });
 });

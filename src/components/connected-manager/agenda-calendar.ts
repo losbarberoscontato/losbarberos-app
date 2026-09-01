@@ -66,7 +66,9 @@ export function appointmentGeometry(range: string, timezone: string, startHour =
   const durationMinutes = Math.max(15, endMinutes - startMinutes);
   return {
     top: (startMinutes - startHour * 60) * (rowHeight / 60),
-    height: Math.max(58, Math.round(durationMinutes * (rowHeight / 60) - 7)),
+    // Keep visual height inside its real time slot so back-to-back appointments
+    // share a boundary instead of overlapping one another.
+    height: Math.max(18, Math.round(durationMinutes * (rowHeight / 60) - 7)),
     startLabel: `${start.hour}:${start.minute}`,
     endLabel: `${end.hour}:${end.minute}`,
   };
