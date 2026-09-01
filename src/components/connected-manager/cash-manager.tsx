@@ -264,15 +264,22 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     if (blockDemoWrite(demoMode, setMessage)) return;
     const data = new FormData(event.currentTarget);
     const appointmentId = "appointment_id" in receipt ? receipt.appointment_id : receipt.appointmentId;
+    const paymentAmountCents = centsFromInput(data.get("amount"));
+    const adjustmentReason = safeText(data.get("adjustment_reason"));
+    if (paymentAmountCents !== amountCents && !adjustmentReason) {
+      setMessage("Informe o motivo da alteração do valor.");
+      return;
+    }
     const saved = await runMutation(setMessage, async () => {
       await assertResult(await connectedClient().rpc("record_manual_appointment_receipt_v2", {
         p_appointment_id: appointmentId,
-        p_amount_cents: centsFromInput(data.get("amount")),
+        p_amount_cents: paymentAmountCents,
         p_payment_method: safeText(data.get("payment_method")),
         p_financial_account_id: safeText(data.get("financial_account_id")),
         p_chart_account_id: safeText(data.get("chart_account_id")),
         p_cost_center_id: safeText(data.get("cost_center_id")) || null,
         p_tag_ids: data.getAll("tag_ids").map(String),
+        p_adjustment_reason: adjustmentReason || null,
         p_reference: safeText(data.get("reference")) || `${safeText(data.get("document_number"))} · ${safeText(data.get("payment_method"))}`,
         p_document_number: safeText(data.get("document_number")),
         p_idempotency_key: `manager:appointment-receipt:${appointmentId}:${crypto.randomUUID()}`,
@@ -285,7 +292,8 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     <Field label="Tipo"><input value="Receita" readOnly /></Field>
     <Field label="Descrição" wide><input name="description" defaultValue={receipt.description} required /></Field>
     <Field label="Saldo restante"><input value={(amountCents / 100).toFixed(2).replace(".", ",")} readOnly /></Field>
-    <Field label="Valor a receber (R$)"><input name="amount" required inputMode="decimal" defaultValue={(amountCents / 100).toFixed(2).replace(".", ",")} /></Field>
+    <Field label="Valor final lançado (R$)"><input name="amount" required inputMode="decimal" defaultValue={(amountCents / 100).toFixed(2).replace(".", ",")} /><small className={styles.muted}>Pode ser maior ou menor que o valor agendado.</small></Field>
+    <Field label="Motivo do ajuste"><input name="adjustment_reason" placeholder="Obrigatório se alterar o valor" /></Field>
     <Field label="Data do lançamento"><input type="date" value={issueDate} readOnly /></Field>
     <Field label="Vencimento"><input type="date" value={dueDate} readOnly /></Field>
     <Field label="Plano de conta"><select name="chart_account_id" aria-label="Plano de conta" required defaultValue={defaultChart}><option value="" disabled>Selecione</option>{chartAccounts.filter((item) => item.active && item.kind === "REVENUE").map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select></Field>

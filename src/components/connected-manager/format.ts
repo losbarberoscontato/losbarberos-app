@@ -101,6 +101,8 @@ export function humanizeError(error: unknown) {
     [/duplicate key|unique constraint/i, "Já existe um cadastro igual ativo."],
     [/organization is not accepting/i, "A assinatura está bloqueada para novas reservas."],
     [/override reason required/i, "Informe o motivo para agendar fora da escala."],
+    [/adjustment reason is required/i, "Informe o motivo da alteração do valor."],
+    [/final amount cannot be below waived amount/i, "O valor final não pode ficar abaixo do valor já concedido como desconto."],
     [/row-level security|permission denied|organization owner required/i, "Acesso negado para esta organização."],
     [/phone_e164|customers_phone/i, "Use telefone no formato +5511999999999."],
     [/no positive unpaid commission/i, "Não há comissão positiva em aberto nesse período."],

@@ -4,6 +4,7 @@ export interface AppointmentReceiptDraft {
   customerName: string;
   description: string;
   amountCents: number;
+  netPaidCents: number;
   issueDate: string;
   dueDate: string;
   documentNumber: string;
@@ -20,6 +21,7 @@ export function buildAppointmentReceiptDraft(input: {
   serviceDescription: string;
   barberName: string;
   amountCents: number;
+  netPaidCents?: number;
   reservedAt: string;
   completedAt: string;
 }): AppointmentReceiptDraft {
@@ -29,6 +31,7 @@ export function buildAppointmentReceiptDraft(input: {
     customerName: input.customerName,
     description: `${input.serviceDescription} · Profissional: ${input.barberName}`,
     amountCents: input.amountCents,
+    netPaidCents: input.netPaidCents ?? 0,
     issueDate: dateInSaoPaulo(input.reservedAt),
     dueDate: dateInSaoPaulo(input.completedAt),
     documentNumber: `ATD-${input.appointmentId.slice(0, 8).toUpperCase()}`,

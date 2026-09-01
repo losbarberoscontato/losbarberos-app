@@ -158,7 +158,7 @@ export default function HomePage() {
         <div className="landing-container landing-footer__grid">
           <div><Brand light /><p>Gestão para barbearias que querem enxergar a própria operação.</p></div>
           <div><strong>Acesso</strong><Link href="/entrar?modo=login">Entrar no painel</Link><Link href="/entrar?modo=cadastro">Criar minha barbearia</Link></div>
-          <div><strong>Empresa</strong><a href="mailto:contato@losbarberos.com.br">Contato</a><Link href="/privacidade">Privacidade</Link><Link href="/termos">Termos de uso</Link></div>
+          <div><strong>Empresa</strong><a href="mailto:contato@losbarberos.com.br">Contato</a><Link href="/privacidade">Privacidade</Link><Link href="/termos">Termos de uso</Link><Link href="/exclusao-de-dados">Exclusão de dados</Link></div>
         </div>
         <div className="landing-container landing-footer__bottom"><span>© 2026 Los Barberos</span><span>Feito no Brasil · BRL · PT-BR</span></div>
       </footer>

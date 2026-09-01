@@ -204,6 +204,31 @@ describe("cash manager", () => {
     expect(rpc).not.toHaveBeenCalledWith("create_financial_entry", expect.anything());
   });
 
+  it("requires a reason and sends the adjusted final amount when receipt changes", () => {
+    render(<CashManager {...props} section="receivables" appointmentReceivables={[{
+      appointment_id: "appointment-2",
+      organization_id: "org-1",
+      customer_id: "customer-1",
+      customer_name: "Cliente Real",
+      description: "Barba completa · Profissional: Alef",
+      amount_cents: 6500,
+      issue_date: "2026-08-09",
+      due_date: "2026-08-11",
+      document_number: "ATD-APPOINT2",
+      outstanding_cents: 6500,
+    }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Receber" }));
+    fireEvent.change(screen.getByLabelText(/Valor final lançado \(R\$\)/), { target: { value: "71,00" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Informe o motivo da alteração do valor.");
+
+    fireEvent.change(screen.getByLabelText("Motivo do ajuste"), { target: { value: "Serviço adicional realizado" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
+    expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_amount_cents: 7100, p_adjustment_reason: "Serviço adicional realizado" }));
+  });
+
   it("does not call Supabase when a demo entry is submitted", () => {
     render(<CashManager {...props} demoMode />);
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));

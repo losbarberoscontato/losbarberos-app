@@ -248,6 +248,7 @@ export async function loadCashData() {
       due_date: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(completedAtByAppointment.get(appointment.id) ?? new Date().toISOString())),
       document_number: `ATD-${appointment.id.slice(0, 8).toUpperCase()}`,
       outstanding_cents: financial.outstanding_cents,
+      net_paid_cents: financial.net_paid_cents,
     }];
   });
   return {

@@ -426,6 +426,7 @@ export interface AppointmentReceivableRecord {
   due_date: string;
   document_number: string;
   outstanding_cents: number;
+  net_paid_cents?: number;
 }
 
 export interface PaymentAccountMappingRecord {

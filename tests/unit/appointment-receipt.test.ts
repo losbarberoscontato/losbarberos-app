@@ -18,6 +18,7 @@ describe("appointment receipt draft", () => {
       customerName: "Roberto Carlos",
       description: "Barba completa · Profissional: Alef Gonçalves",
       amountCents: 6500,
+      netPaidCents: 0,
       issueDate: "2026-08-09",
       dueDate: "2026-08-11",
       documentNumber: "ATD-01234567",

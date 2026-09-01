@@ -229,9 +229,10 @@ export function AgendaManager(props: Props) {
       if (next === "COMPLETED" && appointment.payment_mode === "COUNTER") {
         const customer = customerById.get(appointment.customer_id);
         const barber = barberById.get(appointment.barber_id);
-        const outstanding = financialById.get(appointment.id)?.outstanding_cents ?? appointment.total_cents_snapshot;
+        const financialSummary = financialById.get(appointment.id);
+        const outstanding = financialSummary?.outstanding_cents ?? appointment.total_cents_snapshot;
         if (outstanding > 0) {
-          setReceiptTarget(buildAppointmentReceiptDraft({ appointmentId: appointment.id, customerId: appointment.customer_id, customerName: customer?.full_name ?? "Cliente", serviceDescription: serviceLabel(appointment.id), barberName: barber?.display_name ?? "Profissional", amountCents: outstanding, reservedAt: appointment.created_at, completedAt: new Date().toISOString() }));
+          setReceiptTarget(buildAppointmentReceiptDraft({ appointmentId: appointment.id, customerId: appointment.customer_id, customerName: customer?.full_name ?? "Cliente", serviceDescription: serviceLabel(appointment.id), barberName: barber?.display_name ?? "Profissional", amountCents: outstanding, netPaidCents: financialSummary?.net_paid_cents ?? 0, reservedAt: appointment.created_at, completedAt: new Date().toISOString() }));
         }
       }
       setSelected(null);
