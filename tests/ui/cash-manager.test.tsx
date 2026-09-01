@@ -197,6 +197,8 @@ describe("cash manager", () => {
     expect(screen.getByDisplayValue("Cliente Real")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Barba completa · Profissional: Alef")).toBeInTheDocument();
     expect(screen.getByDisplayValue("ATD-APPOINT2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Observações")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Referência")).not.toBeInTheDocument();
     expect(screen.queryByText("Pode ser maior ou menor que o valor agendado.")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "tag-1" } });
     fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
@@ -205,7 +207,7 @@ describe("cash manager", () => {
     expect(rpc).not.toHaveBeenCalledWith("create_financial_entry", expect.anything());
   });
 
-  it("requires a reason and sends the adjusted final amount when receipt changes", () => {
+  it("sends the adjusted final amount without requiring an adjustment reason", () => {
     render(<CashManager {...props} section="receivables" appointmentReceivables={[{
       appointment_id: "appointment-2",
       organization_id: "org-1",
@@ -222,12 +224,8 @@ describe("cash manager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Receber" }));
     fireEvent.change(screen.getByLabelText(/Valor final lançado \(R\$\)/), { target: { value: "71,00" } });
     fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
-    expect(rpc).not.toHaveBeenCalled();
-    expect(screen.getByRole("status")).toHaveTextContent("Informe o motivo da alteração do valor.");
-
-    fireEvent.change(screen.getByLabelText("Motivo do ajuste"), { target: { value: "Serviço adicional realizado" } });
-    fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
-    expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_amount_cents: 7100, p_adjustment_reason: "Serviço adicional realizado" }));
+    expect(rpc).toHaveBeenLastCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_amount_cents: 7100, p_adjustment_reason: "Ajuste automático do valor final no recebimento" }));
+    expect(screen.queryByLabelText("Motivo do ajuste")).not.toBeInTheDocument();
   });
 
   it("does not call Supabase when a demo entry is submitted", () => {

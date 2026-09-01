@@ -60,6 +60,7 @@ export type CashManagerProps = {
 
 type EntryKind = FinancialEntryRecord["kind"];
 type EntryStatus = FinancialEntryRecord["status"];
+const APPOINTMENT_AMOUNT_ADJUSTMENT_REASON = "Ajuste automático do valor final no recebimento";
 
 // Payment gateway accounts will be created and classified by their integration.
 // Keep the mapping implementation for that release, but do not expose it while
@@ -265,11 +266,6 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     const data = new FormData(event.currentTarget);
     const appointmentId = "appointment_id" in receipt ? receipt.appointment_id : receipt.appointmentId;
     const paymentAmountCents = centsFromInput(data.get("amount"));
-    const adjustmentReason = safeText(data.get("adjustment_reason"));
-    if (paymentAmountCents !== amountCents && !adjustmentReason) {
-      setMessage("Informe o motivo da alteração do valor.");
-      return;
-    }
     const saved = await runMutation(setMessage, async () => {
       await assertResult(await connectedClient().rpc("record_manual_appointment_receipt_v2", {
         p_appointment_id: appointmentId,
@@ -279,7 +275,7 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
         p_chart_account_id: safeText(data.get("chart_account_id")),
         p_cost_center_id: safeText(data.get("cost_center_id")) || null,
         p_tag_ids: data.getAll("tag_ids").map(String),
-        p_adjustment_reason: adjustmentReason || null,
+        p_adjustment_reason: APPOINTMENT_AMOUNT_ADJUSTMENT_REASON,
         p_reference: safeText(data.get("reference")) || `${safeText(data.get("document_number"))} · ${safeText(data.get("payment_method"))}`,
         p_document_number: safeText(data.get("document_number")),
         p_idempotency_key: `manager:appointment-receipt:${appointmentId}:${crypto.randomUUID()}`,
@@ -293,7 +289,6 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     <Field label="Descrição" wide><input name="description" defaultValue={receipt.description} required /></Field>
     <Field label="Saldo restante"><input value={(amountCents / 100).toFixed(2).replace(".", ",")} readOnly /></Field>
     <Field label="Valor final lançado (R$)"><input name="amount" required inputMode="decimal" defaultValue={(amountCents / 100).toFixed(2).replace(".", ",")} /></Field>
-    <Field label="Motivo do ajuste"><input name="adjustment_reason" placeholder="Obrigatório se alterar o valor" /></Field>
     <Field label="Data do lançamento"><input type="date" value={issueDate} readOnly /></Field>
     <Field label="Vencimento"><input type="date" value={dueDate} readOnly /></Field>
     <Field label="Plano de conta"><select name="chart_account_id" aria-label="Plano de conta" required defaultValue={defaultChart}><option value="" disabled>Selecione</option>{chartAccounts.filter((item) => item.active && item.kind === "REVENUE").map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select></Field>
@@ -302,7 +297,7 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     <Field label="Número do documento"><input name="document_number" defaultValue={documentNumber} required /></Field>
     <Field label="Tags"><select name="tag_ids" aria-label="Tags" multiple size={Math.min(Math.max(activeTags.length, 2), 4)} disabled={activeTags.length === 0}>{activeTags.length === 0 ? <option>Nenhuma tag cadastrada</option> : activeTags.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Forma de recebimento"><select name="payment_method" defaultValue="CASH"><option value="CASH">Dinheiro</option><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field>
-    <Field label="Referência"><input name="reference" placeholder="PIX, NSU ou comprovante" /></Field>
+    <Field label="Observações"><input name="reference" placeholder="PIX, NSU ou comprovante" /></Field>
     <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar recebimento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
   </form></Dialog>;
 }
