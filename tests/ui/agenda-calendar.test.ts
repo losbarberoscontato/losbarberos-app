@@ -69,7 +69,7 @@ describe("connected agenda calendar projections", () => {
     );
 
     expect(first?.top).toBe(78);
-    expect(first?.height).toBe(32);
+    expect(first?.height).toBe(39);
     expect(second?.top).toBe(117);
     expect(first).not.toBeNull();
     expect(second).not.toBeNull();

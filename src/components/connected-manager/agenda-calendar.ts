@@ -67,8 +67,9 @@ export function appointmentGeometry(range: string, timezone: string, startHour =
   return {
     top: (startMinutes - startHour * 60) * (rowHeight / 60),
     // Keep visual height inside its real time slot so back-to-back appointments
-    // share a boundary instead of overlapping one another.
-    height: Math.max(18, Math.round(durationMinutes * (rowHeight / 60) - 7)),
+    // share a boundary instead of overlapping one another. Short cards need
+    // the full slot to keep customer and service readable.
+    height: Math.max(18, Math.round(durationMinutes * (rowHeight / 60) - (durationMinutes <= 30 ? 0 : 7))),
     startLabel: `${start.hour}:${start.minute}`,
     endLabel: `${end.hour}:${end.minute}`,
   };
