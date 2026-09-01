@@ -5,6 +5,7 @@ import { CustomersManager } from "@/components/connected-manager/customers-manag
 import { ManagerDashboard } from "@/components/connected-manager/manager-dashboard";
 import { SettingsManager } from "@/components/connected-manager/settings-manager";
 import { TeamManager } from "@/components/connected-manager/team-manager";
+import type { WhatsAppSettingsStatus } from "@/components/connected-manager/whatsapp-settings";
 
 const refresh = vi.fn();
 const mutationMocks = vi.hoisted(() => ({ update: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })) })) }));
@@ -32,6 +33,23 @@ const organization = {
 const customer = { id: "customer-1", organization_id: "org-1", auth_user_id: null, full_name: "Cliente Real", phone_e164: "+5511999999999", email: null, birth_date: null, notes: null, active: true, inactivation_reason: null, inactivated_at: null, created_at: new Date().toISOString() };
 const barber = { id: "barber-1", organization_id: "org-1", location_id: "location-1", display_name: "Barbeiro Real", bio: null, avatar_url: null, whatsapp_e164: null, active: true };
 const service = { id: "service-1", organization_id: "org-1", name: "Corte Real", description: null, price_cents: 5000, duration_minutes: 30, active: true, sort_order: 0, audiences: ["MASCULINO"] as const };
+const connectedWhatsapp: WhatsAppSettingsStatus = {
+  connections: [{
+    id: "whatsapp-1", provider: "QR_WEB", status: "CONNECTED", is_active: true,
+    waba_id: null, phone_number_id: null, gateway_instance_id: "lb-test",
+    connected_at: "2026-09-01T10:00:00Z", disconnected_at: null, last_error_code: null,
+    last_status_at: "2026-09-01T10:00:00Z", health_status: "OK",
+  }],
+  managerNotification: { phoneE164: null, matchesQrPhone: false },
+  automation: {
+    booking_client_enabled: true,
+    booking_staff_enabled: true,
+    reminder_morning_enabled: true,
+    reminder_t180_enabled: false,
+    reminder_t45_enabled: true,
+    custom_messages: [],
+  },
+};
 
 function renderTeam() {
   return render(<TeamManager
@@ -115,6 +133,7 @@ describe("connected manager UI", () => {
       locations={[]}
       merchant={null}
       subscription={null}
+      whatsapp={null}
     />);
 
     const sheet = screen.getByLabelText("Folha de impressão da fila presencial");
@@ -133,11 +152,46 @@ describe("connected manager UI", () => {
       locations={[]}
       merchant={null}
       subscription={null}
+      whatsapp={null}
     />);
 
     expect(screen.queryByLabelText("Sinal (%)")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Frequência das comissões")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Duração do hold")).not.toBeInTheDocument();
+  });
+
+  it("exibe WhatsApp conectado quando há canal ativo e saudável", () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+      whatsapp={connectedWhatsapp}
+    />);
+
+    expect(screen.getByText("CONECTADO")).toBeInTheDocument();
+    expect(screen.getByText("Integração ativa para confirmações, lembretes e ações seguras.")).toBeInTheDocument();
+    expect(screen.queryByText("PENDENTE")).not.toBeInTheDocument();
+  });
+
+  it("retorna WhatsApp para pendente quando canal conectado está inativo", () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+      whatsapp={{
+        ...connectedWhatsapp,
+        connections: [{ ...connectedWhatsapp.connections[0], is_active: false }],
+      }}
+    />);
+
+    expect(screen.getByText("PENDENTE")).toBeInTheDocument();
+    expect(screen.getByText("Configure Meta Cloud API ou QR Web na página exclusiva da integração.")).toBeInTheDocument();
   });
 
   it("blocks only new booking and rescheduling while existing operations stay visible", () => {

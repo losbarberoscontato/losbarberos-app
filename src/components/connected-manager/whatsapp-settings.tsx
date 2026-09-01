@@ -36,21 +36,58 @@ export type WhatsAppSettingsStatus = {
     phoneE164: string | null;
     matchesQrPhone: boolean;
   };
-  reminders: Array<{
-    id: string;
-    position: number;
-    enabled: boolean;
-    offset_minutes: number;
-    template_key: "appointment_reminder_6h" | "appointment_reminder_45m";
-    language_code: string;
-  }>;
   automation: {
-    confirmation_enabled: boolean;
-    confirmation_template_key: string;
-    welcome_enabled: boolean;
-    welcome_message: string;
+    booking_client_enabled: boolean;
+    booking_staff_enabled: boolean;
+    reminder_morning_enabled: boolean;
+    reminder_t180_enabled: boolean;
+    reminder_t45_enabled: boolean;
+    custom_messages: WhatsAppCustomMessage[];
   };
 };
+
+type WhatsAppCustomMessageKey = "AFTER_SERVICE_14D" | "AFTER_SERVICE_28D" | "AFTER_SERVICE_40D" | "BIRTHDAY" | "SPECIAL_DATES" | "MARKETING_CAMPAIGNS";
+
+type WhatsAppCustomMessage = {
+  key: WhatsAppCustomMessageKey;
+  enabled: boolean;
+  body: string;
+};
+
+const defaultAutomationRules: WhatsAppSettingsStatus["automation"] = {
+  booking_client_enabled: true,
+  booking_staff_enabled: true,
+  reminder_morning_enabled: true,
+  reminder_t180_enabled: false,
+  reminder_t45_enabled: true,
+  custom_messages: [],
+};
+
+const automaticMessages: Array<{ key: Exclude<keyof WhatsAppSettingsStatus["automation"], "custom_messages">; title: string; description: string }> = [
+  { key: "booking_client_enabled", title: "Confirmação de agendamento para o cliente", description: "Vai para o cliente após o agendamento confirmado. Vale para novos agendamentos feitos depois da ativação." },
+  { key: "booking_staff_enabled", title: "Confirmação de agendamento para o barbeiro", description: "Vai para o barbeiro após o cliente agendar. Vale para novos agendamentos feitos depois da ativação." },
+  { key: "reminder_morning_enabled", title: "Confirmação de presença às 8h", description: "Vai ao cliente às 08:00 no dia do atendimento. Ao confirmar, o barbeiro também é avisado." },
+  { key: "reminder_t180_enabled", title: "Confirmação de presença 3 horas antes", description: "Vai ao cliente 180 minutos antes do atendimento. Ao confirmar, o barbeiro também é avisado." },
+  { key: "reminder_t45_enabled", title: "Confirmação de presença 45 minutos antes", description: "Vai ao cliente 45 minutos antes do atendimento. Ao confirmar, o barbeiro também é avisado." },
+];
+
+const customMessageGroups: Array<{ title: string; messages: Array<{ key: WhatsAppCustomMessageKey; title: string }> }> = [
+  { title: "Mensagens após o serviço", messages: [
+    { key: "AFTER_SERVICE_14D", title: "14 dias após o serviço" },
+    { key: "AFTER_SERVICE_28D", title: "28 dias após o serviço" },
+    { key: "AFTER_SERVICE_40D", title: "40 dias após o serviço" },
+  ] },
+  { title: "Mensagens de Felicitações", messages: [
+    { key: "BIRTHDAY", title: "Aniversário" },
+    { key: "SPECIAL_DATES", title: "Datas Especiais" },
+  ] },
+  { title: "Mensagens de Marketing", messages: [{ key: "MARKETING_CAMPAIGNS", title: "Promoções e campanhas" }] },
+];
+
+function customMessageDefaults(messages: WhatsAppCustomMessage[]): WhatsAppCustomMessage[] {
+  const byKey = new Map(messages.map((message) => [message.key, message]));
+  return customMessageGroups.flatMap((group) => group.messages.map(({ key }) => byKey.get(key) ?? { key, enabled: false, body: "" }));
+}
 
 type Props = {
   organizationId: string;
@@ -120,19 +157,15 @@ function diagnostic(connection: WhatsAppConnection | undefined) {
   };
 }
 
-function formatOffset(minutes: number) {
-  if (minutes % 60 === 0) return `${minutes / 60}h antes`;
-  return `${minutes} min antes`;
-}
-
 export function WhatsAppSettings({ organizationId, organizationName, status, schemaReady = true }: Props) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [busyProvider, setBusyProvider] = useState<"META_CLOUD" | "QR_WEB" | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [qrCodeOverride, setQrCodeOverride] = useState<string | null | undefined>(undefined);
-  const [reminders, setReminders] = useState(status.reminders);
-  const [welcomeMessage, setWelcomeMessage] = useState(status.automation.welcome_message);
+  const initialAutomation = { ...defaultAutomationRules, ...status.automation };
+  const [automationRules, setAutomationRules] = useState(initialAutomation);
+  const [customMessages, setCustomMessages] = useState(() => customMessageDefaults(initialAutomation.custom_messages));
   const managerNotification = status.managerNotification ?? { phoneE164: null, matchesQrPhone: false };
   const [managerNotificationPhone, setManagerNotificationPhone] = useState(managerNotification.phoneE164 ?? "");
   const [managerNotificationMatchesQr, setManagerNotificationMatchesQr] = useState(managerNotification.matchesQrPhone);
@@ -181,22 +214,19 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   async function saveAutomation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const saved = await runMutation(setMessage, async () => {
-      const client = connectedClient();
-      await assertResult(await client.from("whatsapp_automation_settings").update({
-        welcome_message: welcomeMessage.trim(),
-      }).eq("organization_id", organizationId));
-      await assertResult(await client.rpc("save_whatsapp_reminder_rules", {
+      await assertResult(await connectedClient().rpc("save_whatsapp_v2_automation_controls", {
         p_organization_id: organizationId,
-        p_rules: reminders.map((rule) => ({
-          position: rule.position,
-          enabled: rule.enabled,
-          offset_minutes: rule.offset_minutes,
-          template_key: rule.template_key,
-          language_code: rule.language_code,
-        })),
+        p_rules: {
+          booking_client_enabled: automationRules.booking_client_enabled,
+          booking_staff_enabled: automationRules.booking_staff_enabled,
+          reminder_morning_enabled: automationRules.reminder_morning_enabled,
+          reminder_t180_enabled: automationRules.reminder_t180_enabled,
+          reminder_t45_enabled: automationRules.reminder_t45_enabled,
+        },
+        p_custom_messages: customMessages,
       }));
-    }, "Mensagens automáticas atualizadas.");
-    if (saved) setMessage("Mensagens automáticas atualizadas.");
+    }, "Automações atualizadas.");
+    if (saved) setMessage("Automações atualizadas. Regras ativas valem somente para novos agendamentos confirmados; mensagens personalizadas continuam salvas sem envio nesta etapa.");
   }
 
   async function setActive(connection: WhatsAppConnection) {
@@ -268,7 +298,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
         : normalizedState === "connecting"
           ? "QR lido. A Evolution está confirmando a conexão automaticamente."
           : `Evolution informou estado: ${state ?? "desconhecido"}.`);
-    } catch (error) {
+    } catch {
       if (!automatic) setMessage("Não foi possível consultar a Evolution agora. Verifique a VPS e tente novamente.");
     } finally {
       refreshInFlight.current = false;
@@ -301,14 +331,14 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       <div>
         <span className={styles.whatsappEyebrow}>INTEGRAÇÃO POR BARBEARIA</span>
         <h1 id="whatsapp-title">WhatsApp da sua operação</h1>
-        <p>Escolha um canal, acompanhe a conexão e envie confirmações e lembretes com consentimento do cliente.</p>
+        <p>Conecte seu Whatsapp Business, envie confirmações e lembretes de forma automática com consentimento do cliente.</p>
       </div>
       <StatusChip active={activeConnectionHealthy} label={checkingStatus ? "VERIFICANDO…" : activeConnectionHealthy ? "CONECTADO" : "AÇÃO NECESSÁRIA"} />
     </section>
 
-    <Panel title="Escolha como conectar" description="Apenas um canal fica ativo por vez. As credenciais ficam protegidas no servidor e no Vault.">
+    <Panel title="Escolha como conectar">
       <div className={styles.providerGrid}>
-        {(["META_CLOUD", "QR_WEB"] as const).map((provider) => {
+        {(["QR_WEB"] as Array<"META_CLOUD" | "QR_WEB">).map((provider) => {
           const connection = connectionByProvider.get(provider);
           const isMeta = provider === "META_CLOUD";
           return <article className={`${styles.providerCard} ${connection?.is_active ? styles.providerCardActive : ""}`} key={provider}>
@@ -316,7 +346,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
               <div className={styles.providerIcon}>{isMeta ? "M" : "QR"}</div>
               <StatusChip active={connection?.status === "CONNECTED" && (!connection.health_status || connection.health_status === "OK")} label={checkingStatus && connection?.provider === "QR_WEB" ? "VERIFICANDO…" : connectionLabel(connection)} />
             </div>
-            <h3>{providerLabels[provider]}</h3>
+            <h3>{provider === "QR_WEB" ? "Whatsapp Web API" : providerLabels[provider]}</h3>
             <p>{isMeta ? "Canal oficial da Meta, com Embedded Signup e templates aprovados." : "Gateway Evolution API em VPS dedicado. Canal não oficial, sujeito a restrições do WhatsApp."}</p>
             {connection?.phone_number_id && <small>Phone Number ID: {connection.phone_number_id}</small>}
             {connection?.gateway_instance_id && <small>Instância: {connection.gateway_instance_id}</small>}
@@ -338,11 +368,6 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
           </article>;
         })}
       </div>
-      <div className={styles.whatsappSteps} aria-label="Etapas da conexão">
-        <span><strong>1</strong> Escolha o canal</span>
-        <span><strong>2</strong> Autorize a conexão</span>
-        <span><strong>3</strong> Aguarde a confirmação</span>
-      </div>
       <div className={`${styles.message} ${qrDiagnostic.warning ? styles.warning : ""}`} role="status">
         <strong>{qrDiagnostic.title}</strong><br />{qrDiagnostic.body}
         {checkingStatus && <span className={styles.statusProgress}><span className={styles.spinner} aria-hidden="true" /> Verificando conexão automaticamente…</span>}
@@ -352,7 +377,6 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
         <div><strong>Escaneie com o WhatsApp Business</strong><p>Abra Aparelhos conectados no celular do gestor e leia este código.</p></div>
         <img src={visibleQrCode.startsWith("data:") ? visibleQrCode : `data:image/png;base64,${visibleQrCode}`} alt="QR Code temporário para conectar o WhatsApp" />
       </div>}
-      <p className={styles.providerNotice}>O QR Web exige VPS e manutenção do gateway. A Meta Cloud API exige configuração de aplicativo, WABA, templates e credenciais server-side.</p>
     </Panel>
 
     <Panel title="Avisos do gestor" description="Receba solicitações de atendimento do cliente em um WhatsApp separado da conta conectada ao QR.">
@@ -379,19 +403,44 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       </form>
     </Panel>
 
-    <Panel title="Mensagens automáticas" description="Confirmação, lembretes e boas-vindas com textos controlados por barbearia.">
+    <Panel title="Mensagens automáticas" description="Escolha quais avisos transacionais serão enviados automaticamente pelo WhatsApp.">
       <form onSubmit={saveAutomation} className={styles.stack}>
         <div className={styles.automationList}>
-          <div className={styles.automationRow}><div><strong>Confirmação do agendamento</strong><small>Enviada quando o cliente confirma a reserva.</small></div><StatusChip active={status.automation.confirmation_enabled} label="TEMPLATE" /></div>
-          {reminders.map((rule, index) => <div className={styles.automationRow} key={rule.id}>
-            <div><strong>{index === 0 ? "Lembrete 6 horas antes" : "Lembrete 45 minutos antes"}</strong><small>{formatOffset(rule.offset_minutes)} · template utilitário</small></div>
-            <label className={styles.check}><input type="checkbox" checked={rule.enabled} disabled={!schemaReady} onChange={(event) => setReminders((current) => current.map((item) => item.id === rule.id ? { ...item, enabled: event.target.checked } : item))} /> Ativo</label>
+          {automaticMessages.map((automation) => <div className={styles.automationRow} key={automation.key}>
+            <div><strong>{automation.title}</strong><small>{automation.description}</small></div>
+            <label className={styles.automationSwitch}>
+              <span className="sr-only">{automation.title}</span>
+              <input type="checkbox" checked={automationRules[automation.key]} disabled={!schemaReady} onChange={(event) => setAutomationRules((current) => ({ ...current, [automation.key]: event.target.checked }))} />
+            </label>
           </div>)}
         </div>
-        <Field label="Mensagem de boas-vindas" wide>
-          <textarea aria-label="Mensagem de boas-vindas" value={welcomeMessage} disabled={!schemaReady} onChange={(event) => setWelcomeMessage(event.target.value)} maxLength={1024} />
-        </Field>
-        <small className={styles.muted}>Variáveis permitidas: &#123;nome&#125;, &#123;barbearia&#125; e &#123;link&#125;. Não inclua tokens ou dados sensíveis.</small>
+        <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady}>Salvar automações</button></div>
+      </form>
+    </Panel>
+
+    <Panel title="Mensagens Personalizadas" description="Salve textos e ativações para as próximas automações. Ainda não há envio automático destas mensagens.">
+      <form onSubmit={saveAutomation} className={styles.stack}>
+        {customMessageGroups.map((group) => <section className={styles.customMessageGroup} key={group.title} aria-labelledby={`custom-${group.title}`}>
+          <h3 id={`custom-${group.title}`}>{group.title}</h3>
+          <div className={styles.automationList}>
+            {group.messages.map((definition) => {
+              const messageDefinition = customMessages.find((message) => message.key === definition.key)!;
+              return <article className={styles.customMessageRow} key={definition.key}>
+                <div className={styles.automationRow}>
+                  <div><strong>{definition.title}</strong><small>Configuração salva para uso futuro; não dispara mensagens nesta etapa.</small></div>
+                  <label className={styles.automationSwitch}>
+                    <span className="sr-only">Ativar {definition.title}</span>
+                    <input type="checkbox" checked={messageDefinition.enabled} disabled={!schemaReady} onChange={(event) => setCustomMessages((current) => current.map((item) => item.key === definition.key ? { ...item, enabled: event.target.checked } : item))} />
+                  </label>
+                </div>
+                <Field label={`Texto de ${definition.title}`} wide>
+                  <textarea aria-label={`Texto de ${definition.title}`} value={messageDefinition.body} disabled={!schemaReady} onChange={(event) => setCustomMessages((current) => current.map((item) => item.key === definition.key ? { ...item, body: event.target.value } : item))} maxLength={4096} />
+                </Field>
+                <small className={styles.muted}>Variáveis para a futura integração: &#123;cliente&#125;, &#123;barbeiro&#125;, &#123;servico&#125; e &#123;horario&#125;. Não inclua tokens ou dados sensíveis.</small>
+              </article>;
+            })}
+          </div>
+        </section>)}
         <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady}>Salvar automações</button></div>
       </form>
     </Panel>

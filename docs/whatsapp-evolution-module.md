@@ -2,6 +2,23 @@
 
 > Fonte técnica para manutenção do canal WhatsApp via Evolution API. Leia este documento antes de alterar agenda, lembretes, QR, webhooks, jobs ou notificações do WhatsApp.
 
+## Atualização — 01/09/2026
+
+- Foi criado o controle individual das mensagens transacionais V2 na tela `/gestor/configuracoes/whatsapp`: confirmação ao cliente, confirmação ao barbeiro, presença às 08:00, presença T-180 e presença T-45.
+- Para preservar o comportamento já publicado, os quatro fluxos existentes iniciam ativos. O novo T-180 começa inativo e só agenda mensagens para novos agendamentos confirmados depois de sua ativação.
+- Ao desligar uma automação, jobs `PENDING` e `RETRY` daquele tipo são cancelados com `AUTOMATION_DISABLED`; um job já em `PROCESSING` não é alterado, pois a entrega no provedor pode já ter começado.
+- `REMINDER_T180_CLIENT` dispara 180 minutos antes do atendimento e reutiliza o fluxo interativo de `1`/`2`/`3`. Ao receber `1`, a confirmação segue também para o barbeiro, conforme a configuração global de avisos ao profissional.
+- `Mensagens Personalizadas` persiste, por organização, o texto e a ativação de 14/28/40 dias após o serviço, aniversário, datas especiais e promoções/campanhas. Nesta etapa elas **não criam jobs nem enviam mensagens**.
+- A gravação usa a RPC owner-only `save_whatsapp_v2_automation_controls`; texto customizado é limitado a 4.096 caracteres e aceita apenas as chaves cadastradas. A migration permanece local até autorização explícita para aplicá-la.
+- Backup restaurável pré-alteração: `docs/backups/2026-09-01-whatsapp-evolution-before-automation-controls.md`.
+- A página `/gestor/configuracoes/whatsapp` passou a apresentar somente o canal `Whatsapp Web API`. O módulo `Meta Cloud API` permanece no código para possível uso futuro, mas está desativado e não é renderizado nem acionável nesta superfície.
+- O hero informa: `Conecte seu Whatsapp Business, envie confirmações e lembretes de forma automática com consentimento do cliente.`
+- O card QR ocupa toda a largura disponível; etapas numeradas, aviso de infraestrutura e descrição de canal exclusivo foram ocultados conforme decisão de produto.
+- A tela conectada `/gestor/configuracoes` agora consulta `get_whatsapp_connection_status` no carregamento server-side e exibe `CONECTADO` somente quando existe conexão ativa (`is_active = true`), com estado `CONNECTED` e saúde `OK` ou não informada.
+- Quando a integração está ausente, inativa ou em estado não saudável, o card exibe `PENDENTE` e mantém o acesso à página exclusiva `/gestor/configuracoes/whatsapp`.
+- Alteração local em `src/components/connected-manager/server.ts` e `src/components/connected-manager/settings-manager.tsx`; nenhum schema, segredo, Edge Function ou infraestrutura foi alterado.
+- Testes: `tests/ui/manager-connected.test.tsx` passou `25/25`; `npm.cmd run typecheck` passou.
+
 ## Escopo e fronteiras
 
 Este módulo conecta uma conta WhatsApp Business por QR Code à **Evolution API** hospedada em VPS. É o canal `QR_WEB`, não oficial, usado para mensagens transacionais da agenda.
@@ -83,7 +100,8 @@ Todas as tabelas de negócio usam `organization_id`. Relações compostas e RLS 
 | Tabela/objeto | Papel |
 | --- | --- |
 | `whatsapp_business_connections` | Conexão `QR_WEB`, instância, estado, telefone conectado e referência secreta. |
-| `whatsapp_automation_settings_v2` | Modo `OFF`/`SHADOW`/`ACTIVE`, lembretes, pausa e telefone separado do gestor. |
+| `whatsapp_automation_settings_v2` | Modo `OFF`/`SHADOW`/`ACTIVE`, pausa, telefone separado do gestor e toggles dos cinco fluxos transacionais. |
+| `whatsapp_custom_message_settings_v2` | Texto e ativação futura de mensagens pós-serviço, felicitações e marketing; não é fila de entrega. |
 | `whatsapp_contact_preferences_v2` | Preferência transacional por cliente. |
 | `whatsapp_automation_jobs` | Fila persistente de saída; lease, retry, dedupe, tentativa e estado. |
 | `whatsapp_confirmation_requests_v2` | Uma solicitação de resposta pendente por fluxo; fase, expiração e contagem de respostas inválidas. |
@@ -114,10 +132,11 @@ Quando um agendamento entra no estado operacional `CONFIRMED`, o banco cria jobs
 
 - confirmação inicial para cliente e profissional;
 - lembrete de manhã/8h (`REMINDER_MORNING_CLIENT`);
+- lembrete T-180 (`REMINDER_T180_CLIENT`), somente após ativação explícita;
 - lembrete T-45 (`REMINDER_T45_CLIENT`);
 - confirmação, cancelamento e avisos operacionais subsequentes.
 
-O dispatcher cria `whatsapp_confirmation_requests_v2` ao enviar lembrete. T-45 substitui a solicitação pendente anterior da mesma versão do agendamento.
+Cada controle ativo vale somente para novos agendamentos confirmados após o salvamento; a ativação não faz backfill. Ao desativar, pendências ainda não enviadas daquele fluxo são canceladas. O dispatcher cria `whatsapp_confirmation_requests_v2` ao enviar lembrete. T-180 e T-45 substituem a solicitação pendente anterior da mesma versão do agendamento, mantendo apenas o fluxo interativo mais recente.
 
 Cada agendamento confirmado possui seu próprio fluxo interativo T-45 e seu próprio token/request. Assim, reservas do mesmo cliente no mesmo dia não suprimem umas às outras. Como as respostas continuam sendo numéricas (`1`, `2` e `3`), o dispatcher resolve uma resposta para o request pendente mais próximo do horário atual e encerra requests concorrentes legados de forma determinística.
 
@@ -173,6 +192,7 @@ O portal do cliente apresenta somente `Agendado`, `Confirmado`, `Cancelado` e `C
 - Jobs usam lease, `FOR UPDATE SKIP LOCKED`, retry e dead letter; correções preservam histórico.
 - Cancelamento usa RPC transacional; não atualizar ocupação/financeiro diretamente no webhook.
 - Opt-out transacional cancela jobs de cliente ainda pendentes; não contornar consentimento.
+- Mensagens personalizadas salvas não podem ser enfileiradas até que uma automação específica, revisão de consentimento e regra de agendamento sejam implementadas e autorizadas.
 
 ## Operação, diagnóstico e evidências
 
@@ -193,6 +213,7 @@ Erros conhecidos:
 - `SENDER_PHONE_UNRESOLVED`: JID não permitiu resolver telefone seguro.
 - `NO_ACTIVE_REQUEST`: não há solicitação válida para o remetente.
 - `SAME_DAY_CUSTOMER_REMINDER_SUPPRESSED`: outro atendimento confirmado, mais cedo, já é o dono da confirmação daquele cliente no mesmo dia local.
+- `AUTOMATION_DISABLED`: job não enviado foi cancelado porque o gestor desligou a automação correspondente.
 
 Como recuperação para requests duplicadas já existentes, a primeira resposta numérica escolhe deterministicamente o atendimento mais próximo e marca os outros requests pendentes como `SUPERSEDED`. Novos agendamentos não são suprimidos: cada T-45 cria request e token próprios.
 
@@ -208,5 +229,5 @@ Como recuperação para requests duplicadas já existentes, a primeira resposta 
 ## Fora de escopo deste módulo
 
 - API oficial/Cloud API da Meta e seus templates, WABA e Embedded Signup.
-- Campanhas, aniversários e promoções.
+- Disparo de campanhas, aniversários, pós-serviço e promoções; por enquanto somente seus textos e toggles são salvos como configuração futura.
 - Alteração de VPS, DNS, proxy, Docker ou configuração da Evolution sem tarefa específica autorizada.

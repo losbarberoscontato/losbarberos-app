@@ -295,11 +295,12 @@ export async function loadFinancialReportsData() {
 
 export async function loadSettingsData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [organization, locations, merchant, subscription] = await Promise.all([
+  const [organization, locations, merchant, subscription, whatsappResult] = await Promise.all([
     supabase.from("organizations").select("*").eq("id", organizationId).single(),
     supabase.from("locations").select("*").eq("organization_id", organizationId).order("active", { ascending: false }),
     supabase.from("merchant_accounts").select("status,external_account_id,connected_at,token_expires_at").eq("organization_id", organizationId).eq("provider", "MERCADO_PAGO").maybeSingle(),
     supabase.from("saas_subscriptions").select("status,trial_ends_at,current_period_ends_at,grace_ends_at,retention_ends_at").eq("organization_id", organizationId).maybeSingle(),
+    supabase.rpc("get_whatsapp_connection_status", { p_organization_id: organizationId }),
   ]);
   return {
     organizationId,
@@ -308,6 +309,7 @@ export async function loadSettingsData() {
     locations: requireData(locations, "Unidade") as LocationRecord[],
     merchant: requireData(merchant, "Mercado Pago") as MerchantAccountRecord | null,
     subscription: requireData(subscription, "Assinatura") as SubscriptionRecord | null,
+    whatsapp: whatsappResult.error ? null : whatsappResult.data as WhatsAppSettingsStatus,
   };
 }
 
@@ -324,15 +326,13 @@ export async function loadWhatsAppSettingsData() {
     ? {
       connections: [],
       managerNotification: { phoneE164: null, matchesQrPhone: false },
-      reminders: [
-        { id: "default-6h", position: 1, enabled: true, offset_minutes: 360, template_key: "appointment_reminder_6h", language_code: "pt_BR" },
-        { id: "default-45m", position: 2, enabled: true, offset_minutes: 45, template_key: "appointment_reminder_45m", language_code: "pt_BR" },
-      ],
       automation: {
-        confirmation_enabled: true,
-        confirmation_template_key: "appointment_confirmation",
-        welcome_enabled: true,
-        welcome_message: "*{barbearia}* agradece seu contato.\nPara agendar seu horário, acesse {link}.",
+        booking_client_enabled: true,
+        booking_staff_enabled: true,
+        reminder_morning_enabled: true,
+        reminder_t180_enabled: false,
+        reminder_t45_enabled: true,
+        custom_messages: [],
       },
     }
     : (() => {

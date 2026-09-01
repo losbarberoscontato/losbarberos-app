@@ -57,6 +57,7 @@ function textFor(job: Job): string {
     case "BOOKING_CREATED_CLIENT": fallback = `${name}, seu agendamento foi confirmado para ${when}.`; break;
     case "BOOKING_CREATED_STAFF": fallback = `Novo agendamento: ${name}, ${when}.`; break;
     case "REMINDER_MORNING_CLIENT": fallback = `Lembrete: seu atendimento é ${when}.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente`; break;
+    case "REMINDER_T180_CLIENT": fallback = `Lembrete: seu atendimento começa em 3 horas (${when}).\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente`; break;
     case "REMINDER_T45_CLIENT": fallback = `Lembrete: seu atendimento começa em 45 minutos (${when}).\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente`; break;
     case "CONFIRMATION_ACK_CLIENT": fallback = `Presença confirmada. Até ${when}.`; break;
     case "CANCELLATION_ACK_CLIENT": fallback = "Cancelamento confirmado. Se precisar, fale com a barbearia para novo horário."; break;
@@ -89,7 +90,7 @@ function providerMessageId(value: unknown): string | null {
 type ConfirmationRequestResult = { skipped?: boolean };
 
 async function dispatchJob(job: Job): Promise<void> {
-  if (job.job_type === "REMINDER_MORNING_CLIENT" || job.job_type === "REMINDER_T45_CLIENT") {
+  if (job.job_type === "REMINDER_MORNING_CLIENT" || job.job_type === "REMINDER_T180_CLIENT" || job.job_type === "REMINDER_T45_CLIENT") {
     const request = await rpc<ConfirmationRequestResult>("create_whatsapp_v2_confirmation_request", { p_job_id: job.id, p_worker_id: workerId });
     if (request?.skipped) return;
   }

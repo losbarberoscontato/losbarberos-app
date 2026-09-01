@@ -26,37 +26,67 @@ const status: WhatsAppSettingsStatus = {
     phoneE164: null,
     matchesQrPhone: false,
   },
-  reminders: [
-    { id: "r1", position: 1, enabled: true, offset_minutes: 360, template_key: "appointment_reminder_6h", language_code: "pt_BR" },
-    { id: "r2", position: 2, enabled: true, offset_minutes: 45, template_key: "appointment_reminder_45m", language_code: "pt_BR" },
-  ],
   automation: {
-    confirmation_enabled: true,
-    confirmation_template_key: "appointment_confirmation",
-    welcome_enabled: true,
-    welcome_message: "Olá {nome}, acesse {link}.",
+    booking_client_enabled: true,
+    booking_staff_enabled: true,
+    reminder_morning_enabled: true,
+    reminder_t180_enabled: false,
+    reminder_t45_enabled: true,
+    custom_messages: [],
   },
 };
 
 describe("WhatsApp settings", () => {
-  it("exibe conexão híbrida por provedor e automações transacionais", () => {
+  it("exibe somente WhatsApp Web e automações transacionais", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 
     expect(screen.getByRole("heading", { name: "WhatsApp" })).toBeInTheDocument();
-    expect(screen.getByText("Meta Cloud API")).toBeInTheDocument();
-    expect(screen.getByText("QR Web")).toBeInTheDocument();
-    expect(screen.getByText(/um canal fica ativo por vez/i)).toBeInTheDocument();
-    expect(screen.getByText("Confirmação do agendamento")).toBeInTheDocument();
-    expect(screen.getByText("Lembrete 6 horas antes")).toBeInTheDocument();
-    expect(screen.getByText("Lembrete 45 minutos antes")).toBeInTheDocument();
-    expect(screen.getByLabelText("Mensagem de boas-vindas")).toHaveValue("Olá {nome}, acesse {link}.");
+    expect(screen.getByText("Whatsapp Web API")).toBeInTheDocument();
+    expect(screen.queryByText("Meta Cloud API")).not.toBeInTheDocument();
+    expect(screen.queryByText(/um canal fica ativo por vez/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Escolha o canal")).not.toBeInTheDocument();
+    expect(screen.queryByText("Autorize a conexão")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aguarde a confirmação")).not.toBeInTheDocument();
+    expect(screen.queryByText(/O QR Web exige VPS/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Conecte seu Whatsapp Business/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Confirmação de agendamento para o cliente")).not.toHaveLength(0);
+    expect(screen.getAllByText("Confirmação de agendamento para o barbeiro")).not.toHaveLength(0);
+    expect(screen.getAllByText("Confirmação de presença às 8h")).not.toHaveLength(0);
+    expect(screen.getAllByText("Confirmação de presença 3 horas antes")).not.toHaveLength(0);
+    expect(screen.getAllByText("Confirmação de presença 45 minutos antes")).not.toHaveLength(0);
+    expect(screen.getByText("Mensagens Personalizadas")).toBeInTheDocument();
+    expect(screen.getByLabelText("Texto de 14 dias após o serviço")).toBeInTheDocument();
+    expect(screen.queryByText("Confirmação do agendamento")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mensagem de boas-vindas")).not.toBeInTheDocument();
   });
 
   it("não expõe campos de token ou segredo", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 
     expect(screen.queryByLabelText(/token|secret|senha/i)).not.toBeInTheDocument();
-    expect(screen.getAllByText(/credenciais ficam protegidas no servidor/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Não inclua tokens ou dados sensíveis/i)).not.toHaveLength(0);
+  });
+
+  it("salva toggles V2 e textos personalizados pelo RPC tenant-safe", async () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Confirmação de presença 3 horas antes" }));
+    fireEvent.change(screen.getByLabelText("Texto de Aniversário"), { target: { value: "Parabéns, {cliente}!" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Salvar automações" })[1]);
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("save_whatsapp_v2_automation_controls", {
+      p_organization_id: "org-1",
+      p_rules: {
+        booking_client_enabled: true,
+        booking_staff_enabled: true,
+        reminder_morning_enabled: true,
+        reminder_t180_enabled: true,
+        reminder_t45_enabled: true,
+      },
+      p_custom_messages: expect.arrayContaining([
+        expect.objectContaining({ key: "BIRTHDAY", enabled: false, body: "Parabéns, {cliente}!" }),
+      ]),
+    }));
   });
 
   it("oferece atualizar status e lifecycle do canal conectado", () => {

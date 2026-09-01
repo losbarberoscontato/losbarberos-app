@@ -157,7 +157,7 @@
 .whatsappHero h1 { margin: .45rem 0 .35rem; color: inherit; font-family: var(--font-display, serif); font-size: clamp(1.55rem, 3vw, 2.2rem); }
 .whatsappHero p { max-width: 620px; margin: 0; color: #c7ded4; font-size: .9rem; }
 .whatsappEyebrow { color: #e6b45f; font-size: .7rem; font-weight: 900; letter-spacing: .12em; }
-.providerGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
+.providerGrid { display: grid; grid-template-columns: 1fr; gap: .85rem; }
 .providerCard { display: grid; gap: .65rem; align-content: start; padding: 1rem; border: 1px solid #e3e9e1; border-radius: 17px; background: #fbfcfa; }
 .providerCardActive { border-color: #467766; background: #f1f8f3; box-shadow: 0 0 0 2px rgb(70 119 102 / 12%); }
 .providerCardTop { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
@@ -176,6 +176,17 @@
 .automationRow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem .95rem; border: 1px solid #e7e1d6; border-radius: 13px; background: #fffaf1; }
 .automationRow > div { display: grid; gap: .2rem; }
 .automationRow small { color: #817a6e; font-size: .75rem; }
+.automationSwitch { display: inline-flex; flex: 0 0 auto; align-items: center; cursor: pointer; }
+.automationSwitch input { appearance: none; width: 42px; height: 24px; margin: 0; border: 1px solid #c8d0c6; border-radius: 999px; background: #c9d0c8; cursor: pointer; transition: background .16s ease, border-color .16s ease; }
+.automationSwitch input::after { content: ""; display: block; width: 18px; height: 18px; margin: 2px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.18); transition: transform .16s ease; }
+.automationSwitch input:checked { border-color: #1d5b4b; background: #1d5b4b; }
+.automationSwitch input:checked::after { transform: translateX(18px); }
+.automationSwitch input:focus-visible { outline: 3px solid rgba(106, 133, 98, .28); outline-offset: 2px; }
+.automationSwitch input:disabled { cursor: not-allowed; opacity: .62; }
+.customMessageGroup { display: grid; gap: .55rem; }
+.customMessageGroup h3 { margin: .3rem 0 0; color: #303a31; font-size: .92rem; }
+.customMessageRow { display: grid; gap: .55rem; padding: .65rem; border: 1px solid #e7ece5; border-radius: 14px; background: #fafbf9; }
+.customMessageRow .automationRow { background: #fff; }
 .definition { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
 .definition div { display: grid; gap: .2rem; padding: .75rem; border-radius: 12px; background: #f7f8f5; }
 .definition dt { color: #778078; font-size: .72rem; }

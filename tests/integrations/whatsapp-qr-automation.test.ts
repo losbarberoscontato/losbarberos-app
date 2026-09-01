@@ -15,6 +15,7 @@ describe("automação WhatsApp QR v2", () => {
   const dailyConfirmationMigration = read("supabase/migrations/20260821145726_whatsapp_evolution_single_daily_confirmation.sql");
   const reconnectionRecoveryMigration = read("supabase/migrations/20260831201500_whatsapp_v2_reconnection_recovery.sql");
   const perAppointmentMigration = read("supabase/migrations/20260831213000_whatsapp_v2_per_appointment_t45.sql");
+  const automationControlsMigration = read("supabase/migrations/20260901144842_whatsapp_v2_automation_controls_implementation.sql");
   const dispatcher = read("supabase/functions/whatsapp-v2-dispatcher/index.ts");
   const legacyOutbox = read("supabase/functions/whatsapp-send-outbox/index.ts");
   const webhook = read("supabase/functions/whatsapp-qr-webhook/index.ts");
@@ -163,5 +164,29 @@ describe("automação WhatsApp QR v2", () => {
     expect(dispatcher).toContain("configuredTemplate");
     expect(dispatcher).toContain("replaceAll(\"{cliente}\"");
     expect(dispatcher).toContain("replaceAll(\"{horario}\"");
+  });
+
+  it("controla cada automação V2 e adiciona T180 sem retroenvio", () => {
+    expect(automationControlsMigration).toContain("booking_client_enabled boolean not null default true");
+    expect(automationControlsMigration).toContain("booking_staff_enabled boolean not null default true");
+    expect(automationControlsMigration).toContain("reminder_morning_enabled boolean not null default true");
+    expect(automationControlsMigration).toContain("reminder_t180_enabled boolean not null default false");
+    expect(automationControlsMigration).toContain("reminder_t45_enabled boolean not null default true");
+    expect(automationControlsMigration).toContain("save_whatsapp_v2_automation_controls");
+    expect(automationControlsMigration).toContain("status in ('PENDING', 'RETRY')");
+    expect(automationControlsMigration).toContain("'AUTOMATION_DISABLED'");
+    expect(automationControlsMigration).toContain("'REMINDER_T180_CLIENT'");
+    expect(automationControlsMigration).toContain("v_start - interval '180 minutes'");
+    expect(automationControlsMigration).toContain("when 'REMINDER_T180_CLIENT' then 'T180'");
+    expect(dispatcher).toContain('case "REMINDER_T180_CLIENT"');
+    expect(dispatcher).toContain('job.job_type === "REMINDER_T180_CLIENT"');
+  });
+
+  it("persiste personalizações sem colocá-las na fila de envio", () => {
+    expect(automationControlsMigration).toContain("create table if not exists public.whatsapp_custom_message_settings_v2");
+    expect(automationControlsMigration).toContain("'AFTER_SERVICE_14D'");
+    expect(automationControlsMigration).toContain("'BIRTHDAY'");
+    expect(automationControlsMigration).toContain("'MARKETING_CAMPAIGNS'");
+    expect(automationControlsMigration).not.toContain("AFTER_SERVICE_14D', v_customer.phone_e164");
   });
 });
