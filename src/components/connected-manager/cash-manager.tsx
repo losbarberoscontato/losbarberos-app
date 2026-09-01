@@ -292,7 +292,7 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     <Field label="Tipo"><input value="Receita" readOnly /></Field>
     <Field label="Descrição" wide><input name="description" defaultValue={receipt.description} required /></Field>
     <Field label="Saldo restante"><input value={(amountCents / 100).toFixed(2).replace(".", ",")} readOnly /></Field>
-    <Field label="Valor final lançado (R$)"><input name="amount" required inputMode="decimal" defaultValue={(amountCents / 100).toFixed(2).replace(".", ",")} /><small className={styles.muted}>Pode ser maior ou menor que o valor agendado.</small></Field>
+    <Field label="Valor final lançado (R$)"><input name="amount" required inputMode="decimal" defaultValue={(amountCents / 100).toFixed(2).replace(".", ",")} /></Field>
     <Field label="Motivo do ajuste"><input name="adjustment_reason" placeholder="Obrigatório se alterar o valor" /></Field>
     <Field label="Data do lançamento"><input type="date" value={issueDate} readOnly /></Field>
     <Field label="Vencimento"><input type="date" value={dueDate} readOnly /></Field>

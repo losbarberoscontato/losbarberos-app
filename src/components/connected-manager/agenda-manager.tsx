@@ -144,6 +144,37 @@ export function AgendaManager(props: Props) {
     return itemsByAppointment.get(appointmentId)?.join(" + ") || "Atendimento";
   }
 
+  function receiptDraftFor(appointment: AppointmentRecord) {
+    const customer = customerById.get(appointment.customer_id);
+    const barber = barberById.get(appointment.barber_id);
+    const financialSummary = financialById.get(appointment.id);
+    const outstanding = financialSummary?.outstanding_cents ?? appointment.total_cents_snapshot;
+    if (outstanding <= 0) return null;
+    return buildAppointmentReceiptDraft({
+      appointmentId: appointment.id,
+      customerId: appointment.customer_id,
+      customerName: customer?.full_name ?? "Cliente",
+      serviceDescription: serviceLabel(appointment.id),
+      barberName: barber?.display_name ?? "Profissional",
+      amountCents: outstanding,
+      netPaidCents: financialSummary?.net_paid_cents ?? 0,
+      reservedAt: appointment.created_at,
+      completedAt: new Date().toISOString(),
+    });
+  }
+
+  function openAppointment(appointment: AppointmentRecord) {
+    if (appointment.status === "COMPLETED" && appointment.payment_mode === "COUNTER") {
+      const draft = receiptDraftFor(appointment);
+      if (draft) {
+        setSelected(null);
+        setReceiptTarget(draft);
+        return;
+      }
+    }
+    setSelected(appointment);
+  }
+
   function appointmentsOn(dateKey: string) {
     return filteredAppointments.filter((appointment) => appointmentDate(appointment) === dateKey);
   }
@@ -227,13 +258,8 @@ export function AgendaManager(props: Props) {
     }, next === "IN_SERVICE" ? "Atendimento iniciado." : next === "COMPLETED" ? "Atendimento concluído; comissão lançada." : "Não compareceu registrado.");
     if (saved) {
       if (next === "COMPLETED" && appointment.payment_mode === "COUNTER") {
-        const customer = customerById.get(appointment.customer_id);
-        const barber = barberById.get(appointment.barber_id);
-        const financialSummary = financialById.get(appointment.id);
-        const outstanding = financialSummary?.outstanding_cents ?? appointment.total_cents_snapshot;
-        if (outstanding > 0) {
-          setReceiptTarget(buildAppointmentReceiptDraft({ appointmentId: appointment.id, customerId: appointment.customer_id, customerName: customer?.full_name ?? "Cliente", serviceDescription: serviceLabel(appointment.id), barberName: barber?.display_name ?? "Profissional", amountCents: outstanding, netPaidCents: financialSummary?.net_paid_cents ?? 0, reservedAt: appointment.created_at, completedAt: new Date().toISOString() }));
-        }
+        const draft = receiptDraftFor(appointment);
+        if (draft) setReceiptTarget(draft);
       }
       setSelected(null);
       router.refresh();
@@ -339,7 +365,7 @@ export function AgendaManager(props: Props) {
             const geometry = appointmentGeometry(appointment.service_period, timezone);
             if (!geometry) return null;
             const displayStatus = appointmentDisplayStatus(appointment);
-            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height }} onClick={() => setSelected(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><span className="agenda-event__meta"><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i></span></span></button>;
+            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height }} onClick={() => openAppointment(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><span className="agenda-event__meta"><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i></span></span></button>;
           })}
         </div>)}
         {nowLine && <div className="agenda-now-line" style={{ top: nowLine.top }} aria-label={`Hora atual: ${nowLine.label}`}><span>{nowLine.label}</span><i /></div>}
@@ -349,7 +375,7 @@ export function AgendaManager(props: Props) {
 
     {view === "week" && <section className="panel agenda-week" aria-label="Agenda semanal">
       <div className="agenda-week__head"><span>Horário</span>{weekDates.map((day) => <button type="button" key={day} className={`${styles.weekDay} ${day === todayKey ? styles.weekDayToday : ""}`} onClick={() => { setDate(day); setView("day"); }}><strong>{formatDate(day, { weekday: "short", day: "2-digit" })}</strong><small>{appointmentsOn(day).length} reservas</small></button>)}</div>
-      <div className="agenda-week__body">{hours.map((hour) => <div className="agenda-week__row" key={hour}><time>{hour}</time>{weekDates.map((day, column) => <div className={styles.weekCell} key={day}>{appointmentsOn(day).filter((appointment) => appointmentGeometry(appointment.service_period, timezone)?.startLabel.startsWith(hour.slice(0, 2))).map((appointment) => <button type="button" key={appointment.id} className={`has-event tone-${column % 3}`} onClick={() => setSelected(appointment)}><strong>{appointmentGeometry(appointment.service_period, timezone)?.startLabel} · {customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{serviceLabel(appointment.id)}</small></button>)}</div>)}</div>)}</div>
+      <div className="agenda-week__body">{hours.map((hour) => <div className="agenda-week__row" key={hour}><time>{hour}</time>{weekDates.map((day, column) => <div className={styles.weekCell} key={day}>{appointmentsOn(day).filter((appointment) => appointmentGeometry(appointment.service_period, timezone)?.startLabel.startsWith(hour.slice(0, 2))).map((appointment) => <button type="button" key={appointment.id} className={`has-event tone-${column % 3}`} onClick={() => openAppointment(appointment)}><strong>{appointmentGeometry(appointment.service_period, timezone)?.startLabel} · {customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{serviceLabel(appointment.id)}</small></button>)}</div>)}</div>)}</div>
     </section>}
 
     {view === "month" && <section className="panel agenda-month" aria-label="Agenda mensal">

@@ -255,6 +255,32 @@ describe("connected manager UI", () => {
     expect(within(dialog).getByRole("option", { name: "Cliente recorrente" })).toBeInTheDocument();
   });
 
+  it("reabre o lançamento ao clicar em atendimento concluído sem recebimento", async () => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const start = new Date(`${today}T14:00:00-03:00`);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    render(<AgendaManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      customers={[customer]}
+      barbers={[barber]}
+      services={[service]}
+      packages={[]}
+      barberServices={[]}
+      financial={[{ appointment_id: "appointment-pending-receipt", captured_cents: 0, refunded_cents: 0, net_paid_cents: 0, outstanding_cents: 5000, financial_status: "UNPAID" }]}
+      appointments={[{ id: "appointment-pending-receipt", organization_id: "org-1", customer_id: customer.id, barber_id: barber.id, status: "COMPLETED", source: "MANAGER", service_period: `[${start.toISOString()},${end.toISOString()})`, payment_mode: "COUNTER", currency: "BRL", total_cents_snapshot: 5000, notes: null, schedule_override_reason: null, created_at: new Date().toISOString() }]}
+      receiptCatalogs={{ accounts: [], chartAccounts: [], costCenters: [], tags: [], mappings: [] }}
+    />);
+
+    const appointmentButton = screen.getByRole("button", { name: "Abrir Cliente Real" });
+    fireEvent.click(appointmentButton);
+    expect(await screen.findByRole("dialog", { name: "Receber atendimento" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar Receber atendimento" }));
+    fireEvent.click(appointmentButton);
+    expect(await screen.findByRole("dialog", { name: "Receber atendimento" })).toBeInTheDocument();
+  });
+
   it("permite buscar um cliente real antes de criar o agendamento", () => {
     render(<AgendaManager
       organizationId="org-1"

@@ -197,6 +197,7 @@ describe("cash manager", () => {
     expect(screen.getByDisplayValue("Cliente Real")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Barba completa · Profissional: Alef")).toBeInTheDocument();
     expect(screen.getByDisplayValue("ATD-APPOINT2")).toBeInTheDocument();
+    expect(screen.queryByText("Pode ser maior ou menor que o valor agendado.")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "tag-1" } });
     fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
 
