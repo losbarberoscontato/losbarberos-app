@@ -71,6 +71,7 @@
 .cashHeader, .cashRow { --cash-columns: minmax(210px, 1.5fr) minmax(105px, .7fr) minmax(115px, .75fr) minmax(160px, 1fr) minmax(170px, 1fr) minmax(190px, auto); display: grid; grid-template-columns: var(--cash-columns); gap: .8rem; align-items: center; }
 .cashTableOnly .cashHeader, .cashTableOnly .cashRow { --cash-columns: minmax(220px, 1.55fr) minmax(118px, .75fr) minmax(130px, .8fr) minmax(190px, 1fr) minmax(255px, auto); }
 .cashHeader { padding: 0 .8rem; color: #69716b; font-size: .75rem; font-weight: 800; }
+.cashHeaderAction { text-align: right; }
 .cashRow { padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }
 .cashRow:hover { background: #fafbf9; }
 .row { display: grid; grid-template-columns: minmax(150px, 1.4fr) repeat(3, minmax(90px, 1fr)) auto; gap: .8rem; align-items: center; padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }

@@ -39,6 +39,9 @@ describe("cash manager", () => {
     try {
       render(<CashManager {...props} />);
       expect(screen.getByRole("heading", { name: "Controle de caixa" })).toBeInTheDocument();
+      expect(screen.getByText("Movimentações do dia")).toBeInTheDocument();
+      expect(screen.queryByText("Entradas realizadas")).not.toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: "Ações" }).className).toContain("cashHeaderAction");
       expect(screen.queryByText("Somente valores efetivamente recebidos ou pagos.")).not.toBeInTheDocument();
       expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
       expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
@@ -48,6 +51,28 @@ describe("cash manager", () => {
       fireEvent.change(screen.getByPlaceholderText("Buscar descrição, documento ou contraparte"), { target: { value: "aluguel" } });
       expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
       expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("calcula o saldo líquido somente das movimentações do dia", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      const settledExpense = { ...props.entries[0], kind: "EXPENSE" as const, status: "SETTLED" as const, total_cents: 3000, settled_cents: 3000, remaining_cents: 0 };
+      render(<CashManager
+        {...props}
+        entries={[settledExpense]}
+        settlements={[{ id: "settlement-today", entry_id: settledExpense.id, financial_account_id: "account-1", kind: "SETTLEMENT" as const, amount_cents: 3000, settled_on: "2026-08-15", payment_method: "PIX", reference: null }]}
+        appointmentActivity={[
+          { ...props.appointmentActivity[0], occurred_at: "2026-08-15T10:00:00.000Z", signed_cents: 8000 },
+          { ...props.appointmentActivity[0], payment_transaction_id: "payment-old", occurred_at: "2026-08-14T10:00:00.000Z", signed_cents: 9900 },
+        ]}
+      />);
+
+      expect(screen.getByText("Movimentações do dia")).toBeInTheDocument();
+      expect(screen.getByText(/R\$\s*50,00/)).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

@@ -182,9 +182,8 @@ export function CashManager(props: CashManagerProps) {
     return sectionKind !== "EXPENSE" && (accountFilter === "ALL" || item.financial_account_id === accountFilter) && isDateInRange(item.occurred_at, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
   }), [props.appointmentActivity, customerById, sectionKind, accountFilter, startDate, endDate, query]);
 
-  const capturedFromAppointments = props.appointmentActivity.reduce((total, item) => total + item.signed_cents, 0);
-  const manualRevenue = props.entries.filter((item) => item.kind === "REVENUE").reduce((total, item) => total + item.settled_cents, 0);
   const manualExpense = props.entries.filter((item) => item.kind === "EXPENSE").reduce((total, item) => total + item.settled_cents, 0);
+  const dailyMovement = cashSettlementMovements.filter(({ settlement }) => movementDate(settlement.settled_on) === today()).reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + props.appointmentActivity.filter((item) => movementDate(item.occurred_at) === today()).reduce((total, item) => total + item.signed_cents, 0);
   const balance = props.balances.reduce((total, item) => total + item.balance_cents, 0);
   const openReceivable = props.entries.filter((item) => item.kind === "REVENUE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0) + (props.appointmentReceivables ?? []).reduce((total, item) => total + item.outstanding_cents, 0);
   const openPayable = props.entries.filter((item) => item.kind === "EXPENSE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0);
@@ -213,13 +212,13 @@ export function CashManager(props: CashManagerProps) {
     <ActionMessage message={message} />
 
     {props.section === "overview" && <>
-      <CashStats balance={balance} incoming={manualRevenue + capturedFromAppointments} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} />
+      <CashStats balance={balance} dailyMovement={dailyMovement} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} />
       <Panel title="Próximo passo" description="Controle despesas, recebimentos e contas bancárias sem duplicar pagamentos de agendamento.">
         <Link className={styles.button} href="/gestor/financeiro/caixa">Abrir Caixa <ChevronRight size={16} /></Link>
       </Panel>
     </>}
     {(props.section === "cash" || props.section === "payables" || props.section === "receivables") && <>
-      <CashStats balance={balance} incoming={manualRevenue + capturedFromAppointments} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} showOpen={props.section !== "cash"} />
+      <CashStats balance={balance} dailyMovement={dailyMovement} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} showOpen={props.section !== "cash"} />
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
           <input className={styles.packageFilterSelect} aria-label="Buscar lançamentos" placeholder="Buscar descrição, documento ou contraparte" value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -249,10 +248,10 @@ export function CashManager(props: CashManagerProps) {
   </div>;
 }
 
-function CashStats({ balance, incoming, outgoing, openReceivable, openPayable, showOpen = true }: { balance: number; incoming: number; outgoing: number; openReceivable: number; openPayable: number; showOpen?: boolean }) {
+function CashStats({ balance, dailyMovement, outgoing, openReceivable, openPayable, showOpen = true }: { balance: number; dailyMovement: number; outgoing: number; openReceivable: number; openPayable: number; showOpen?: boolean }) {
   return <section className={`${styles.stats} ${showOpen ? "" : styles.statsCash}`}>
     <article className={styles.stat}><span>Saldo em contas</span><strong>{formatCents(balance)}</strong><small>saldo inicial + movimentações</small></article>
-    <article className={styles.stat}><span>Entradas realizadas</span><strong>{formatCents(incoming)}</strong><small>inclui agendamentos vinculados</small></article>
+    <article className={styles.stat}><span>Movimentações do dia</span><strong>{formatCents(dailyMovement)}</strong><small>saldo líquido do dia</small></article>
     <article className={styles.stat}><span>Saídas realizadas</span><strong>{formatCents(outgoing)}</strong><small>despesas liquidadas</small></article>
     {showOpen && <article className={styles.stat}><span>Em aberto</span><strong>{formatCents(openReceivable - openPayable)}</strong><small>{formatCents(openReceivable)} a receber · {formatCents(openPayable)} a pagar</small></article>}
   </section>;
@@ -261,7 +260,7 @@ function CashStats({ balance, incoming, outgoing, openReceivable, openPayable, s
 function CashList({ cashOnly, entries, settlements, activity, receivables, accountById, supplierById, customerById, onEdit, onSettle, onReceive, onCancel, onTransfer, onReverseAppointment }: { cashOnly: boolean; entries: FinancialEntryRecord[]; settlements: CashSettlementMovement[]; activity: AppointmentCashActivityRecord[]; receivables: AppointmentReceivableRecord[]; accountById: Map<string, FinancialAccountRecord>; supplierById: Map<string, SupplierRecord>; customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>; onEdit: (entry: FinancialEntryRecord) => void; onSettle: (entry: FinancialEntryRecord) => void; onReceive: (entry: AppointmentReceivableRecord) => void; onCancel: (entry: FinancialEntryRecord) => void; onTransfer: () => void; onReverseAppointment: (entry: AppointmentCashActivityRecord) => void }) {
   return <Panel title="Movimentações" description={cashOnly ? undefined : "Registros de agendamento são vinculados ao ledger existente e não podem ser editados aqui."} action={<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onTransfer}><ArrowLeftRight size={15} /> Transferir</button>}>
     {!entries.length && !settlements.length && !activity.length && !receivables.length ? <EmptyState title="Sem movimentações">Registre um recebimento ou pagamento para acompanhar o caixa.</EmptyState> : <div className={`${styles.cashTable} ${cashOnly ? styles.cashTableOnly : ""}`} role="table" aria-label="Movimentações financeiras">
-      <div className={styles.cashHeader} role="row"><span role="columnheader">Cliente/Fornecedor</span><span role="columnheader">Data</span><span role="columnheader">Valor</span><span role="columnheader">Conta financeira</span>{!cashOnly && <span role="columnheader">Situação do pagamento</span>}<span role="columnheader">Ações</span></div>
+      <div className={styles.cashHeader} role="row"><span role="columnheader">Cliente/Fornecedor</span><span role="columnheader">Data</span><span role="columnheader">Valor</span><span role="columnheader">Conta financeira</span>{!cashOnly && <span role="columnheader">Situação do pagamento</span>}<span className={styles.cashHeaderAction} role="columnheader">Ações</span></div>
       {entries.map((entry) => {
         const counterpart = counterpartName(entry, customerById, supplierById);
         return <article key={entry.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpart}</strong><small className={styles.cashDescription}>{entry.description}</small></span><span role="cell">{formatMovementDate(entry.due_date)}</span><strong role="cell">{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span role="cell">{accountById.get(entry.preferred_financial_account_id ?? "")?.name ?? "Não definida"}</span>{!cashOnly && <span role="cell"><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /></span>}<span className={styles.rowActions} role="cell">{!cashOnly && !["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>Liquidar</button>}{!cashOnly && (entry.status === "OPEN" || entry.status === "OVERDUE") ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : null}</span></article>;
