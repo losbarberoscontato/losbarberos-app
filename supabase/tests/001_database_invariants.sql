@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_temp;
 
-select plan(122);
+select plan(125);
 
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -184,6 +184,64 @@ insert into public.payment_transactions (
   '80000000-0000-4000-8000-000000000001',
   '70000000-0000-4000-8000-000000000001',
   'MANUAL', 'CAPTURE', 1000, 'manual-ledger-capture'
+);
+insert into public.payment_orders (
+  id, organization_id, appointment_id, provider, kind, status,
+  amount_cents, idempotency_key
+) values (
+  '80000000-0000-4000-8000-000000000003',
+  '20000000-0000-4000-8000-000000000001',
+  '70000000-0000-4000-8000-000000000004',
+  'MANUAL', 'BALANCE', 'PAID', 5000, 'manual-fallback-order'
+);
+insert into public.payment_transactions (
+  id, organization_id, payment_order_id, appointment_id, provider, kind,
+  amount_cents, idempotency_key
+) values (
+  '81000000-0000-4000-8000-000000000002',
+  '20000000-0000-4000-8000-000000000001',
+  '80000000-0000-4000-8000-000000000003',
+  '70000000-0000-4000-8000-000000000004',
+  'MANUAL', 'CAPTURE', 5000, 'manual-fallback-capture'
+);
+
+insert into public.financial_accounts (
+  id, organization_id, kind, name
+) values (
+  '90000000-0000-4000-8000-000000000001',
+  '20000000-0000-4000-8000-000000000001', 'BANK', 'Conta classificada'
+);
+insert into public.appointment_receipt_classifications (
+  organization_id, payment_transaction_id, financial_account_id,
+  chart_account_id, payment_method, created_by
+)
+select
+  '20000000-0000-4000-8000-000000000001',
+  '81000000-0000-4000-8000-000000000001',
+  '90000000-0000-4000-8000-000000000001',
+  id, 'CASH', '10000000-0000-4000-8000-000000000001'
+from public.chart_of_accounts
+where organization_id = '20000000-0000-4000-8000-000000000001'
+  and code = '1.1.1';
+select is(
+  (select financial_account_id from public.appointment_cash_activity
+    where payment_transaction_id = '81000000-0000-4000-8000-000000000001'),
+  '90000000-0000-4000-8000-000000000001'::uuid,
+  'receipt account classification overrides payment-mode mapping'
+);
+select is(
+  (select needs_reconciliation from public.appointment_cash_activity
+    where payment_transaction_id = '81000000-0000-4000-8000-000000000001'),
+  false,
+  'classified appointment cash activity does not need reconciliation'
+);
+select is(
+  (select financial_account_id from public.appointment_cash_activity
+    where payment_transaction_id = '81000000-0000-4000-8000-000000000002'),
+  (select id from public.financial_accounts
+    where organization_id = '20000000-0000-4000-8000-000000000001'
+      and name = 'Caixa Físico'),
+  'unclassified appointment cash activity falls back to payment-mode mapping'
 );
 
 select has_table('public', 'organizations', 'organizations table exists');

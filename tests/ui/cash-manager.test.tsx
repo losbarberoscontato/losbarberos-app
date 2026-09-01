@@ -39,6 +39,7 @@ describe("cash manager", () => {
     try {
       render(<CashManager {...props} />);
       expect(screen.getByRole("heading", { name: "Controle de caixa" })).toBeInTheDocument();
+      expect(screen.queryByText("Somente valores efetivamente recebidos ou pagos.")).not.toBeInTheDocument();
       expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
       expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Liquidar" })).not.toBeInTheDocument();
