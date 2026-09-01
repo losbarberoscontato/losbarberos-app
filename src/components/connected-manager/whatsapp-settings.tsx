@@ -165,7 +165,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [qrCodeOverride, setQrCodeOverride] = useState<string | null | undefined>(undefined);
   const initialAutomation = { ...defaultAutomationRules, ...status.automation };
   const [automationRules, setAutomationRules] = useState(initialAutomation);
-  const [customMessages, setCustomMessages] = useState(() => customMessageDefaults(initialAutomation.custom_messages));
+  const [customMessages] = useState(() => customMessageDefaults(initialAutomation.custom_messages));
   const managerNotification = status.managerNotification ?? { phoneE164: null, matchesQrPhone: false };
   const [managerNotificationPhone, setManagerNotificationPhone] = useState(managerNotification.phoneE164 ?? "");
   const [managerNotificationMatchesQr, setManagerNotificationMatchesQr] = useState(managerNotification.matchesQrPhone);
@@ -418,8 +418,12 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       </form>
     </Panel>
 
-    <Panel title="Mensagens Personalizadas" description="Salve textos e ativações para as próximas automações. Ainda não há envio automático destas mensagens.">
-      <form onSubmit={saveAutomation} className={styles.stack}>
+    <Panel
+      title="Mensagens Personalizadas"
+      titleAdornment={<StatusChip active={false} tone="danger" label="FUNÇÃO EM BREVE" />}
+      description="Estas automações ainda não estão disponíveis para configuração ou envio."
+    >
+      <form onSubmit={(event) => event.preventDefault()} className={styles.stack}>
         {customMessageGroups.map((group) => <section className={styles.customMessageGroup} key={group.title} aria-labelledby={`custom-${group.title}`}>
           <h3 id={`custom-${group.title}`}>{group.title}</h3>
           <div className={styles.automationList}>
@@ -427,21 +431,21 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
               const messageDefinition = customMessages.find((message) => message.key === definition.key)!;
               return <article className={styles.customMessageRow} key={definition.key}>
                 <div className={styles.automationRow}>
-                  <div><strong>{definition.title}</strong><small>Configuração salva para uso futuro; não dispara mensagens nesta etapa.</small></div>
+                  <div><strong>{definition.title}</strong><small>Disponível em uma próxima atualização.</small></div>
                   <label className={styles.automationSwitch}>
                     <span className="sr-only">Ativar {definition.title}</span>
-                    <input type="checkbox" checked={messageDefinition.enabled} disabled={!schemaReady} onChange={(event) => setCustomMessages((current) => current.map((item) => item.key === definition.key ? { ...item, enabled: event.target.checked } : item))} />
+                    <input type="checkbox" checked={messageDefinition.enabled} disabled />
                   </label>
                 </div>
                 <Field label={`Texto de ${definition.title}`} wide>
-                  <textarea aria-label={`Texto de ${definition.title}`} value={messageDefinition.body} disabled={!schemaReady} onChange={(event) => setCustomMessages((current) => current.map((item) => item.key === definition.key ? { ...item, body: event.target.value } : item))} maxLength={4096} />
+                  <textarea aria-label={`Texto de ${definition.title}`} value={messageDefinition.body} disabled maxLength={4096} />
                 </Field>
-                <small className={styles.muted}>Variáveis para a futura integração: &#123;cliente&#125;, &#123;barbeiro&#125;, &#123;servico&#125; e &#123;horario&#125;. Não inclua tokens ou dados sensíveis.</small>
+                <small className={styles.muted}>Variáveis e personalização serão liberadas junto da função.</small>
               </article>;
             })}
           </div>
         </section>)}
-        <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady}>Salvar automações</button></div>
+        <div className={styles.rowActions}><button className={styles.button} type="submit" disabled>Salvar automações</button></div>
       </form>
     </Panel>
   </div>;

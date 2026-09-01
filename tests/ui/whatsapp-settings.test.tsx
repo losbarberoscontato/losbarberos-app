@@ -64,29 +64,17 @@ describe("WhatsApp settings", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 
     expect(screen.queryByLabelText(/token|secret|senha/i)).not.toBeInTheDocument();
-    expect(screen.getAllByText(/Não inclua tokens ou dados sensíveis/i)).not.toHaveLength(0);
+    expect(screen.getAllByText(/Variáveis e personalização serão liberadas/i)).not.toHaveLength(0);
   });
 
-  it("salva toggles V2 e textos personalizados pelo RPC tenant-safe", async () => {
+  it("mantém mensagens personalizadas bloqueadas até a função ser liberada", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Confirmação de presença 3 horas antes" }));
-    fireEvent.change(screen.getByLabelText("Texto de Aniversário"), { target: { value: "Parabéns, {cliente}!" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Salvar automações" })[1]);
-
-    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("save_whatsapp_v2_automation_controls", {
-      p_organization_id: "org-1",
-      p_rules: {
-        booking_client_enabled: true,
-        booking_staff_enabled: true,
-        reminder_morning_enabled: true,
-        reminder_t180_enabled: true,
-        reminder_t45_enabled: true,
-      },
-      p_custom_messages: expect.arrayContaining([
-        expect.objectContaining({ key: "BIRTHDAY", enabled: false, body: "Parabéns, {cliente}!" }),
-      ]),
-    }));
+    expect(screen.getByText("FUNÇÃO EM BREVE")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Ativar Aniversário" })).toBeDisabled();
+    expect(screen.getByLabelText("Texto de Aniversário")).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Salvar automações" })[1]).toBeDisabled();
+    expect(rpcMock).not.toHaveBeenCalledWith("save_whatsapp_v2_automation_controls", expect.anything());
   });
 
   it("oferece atualizar status e lifecycle do canal conectado", () => {

@@ -9,6 +9,7 @@
 - Ao desligar uma automação, jobs `PENDING` e `RETRY` daquele tipo são cancelados com `AUTOMATION_DISABLED`; um job já em `PROCESSING` não é alterado, pois a entrega no provedor pode já ter começado.
 - `REMINDER_T180_CLIENT` dispara 180 minutos antes do atendimento e reutiliza o fluxo interativo de `1`/`2`/`3`. Ao receber `1`, a confirmação segue também para o barbeiro, conforme a configuração global de avisos ao profissional.
 - `Mensagens Personalizadas` persiste, por organização, o texto e a ativação de 14/28/40 dias após o serviço, aniversário, datas especiais e promoções/campanhas. Nesta etapa elas **não criam jobs nem enviam mensagens**.
+- O card `Mensagens Personalizadas` está bloqueado na interface e identificado por `FUNÇÃO EM BREVE`: toggles, textos e botão de salvar não aceitam interação até a próxima implementação autorizada. A estrutura persistida permanece sem fluxo de envio.
 - A gravação usa a RPC owner-only `save_whatsapp_v2_automation_controls`; texto customizado é limitado a 4.096 caracteres e aceita apenas as chaves cadastradas. A migration permanece local até autorização explícita para aplicá-la.
 - Backup restaurável pré-alteração: `docs/backups/2026-09-01-whatsapp-evolution-before-automation-controls.md`.
 - A página `/gestor/configuracoes/whatsapp` passou a apresentar somente o canal `Whatsapp Web API`. O módulo `Meta Cloud API` permanece no código para possível uso futuro, mas está desativado e não é renderizado nem acionável nesta superfície.
