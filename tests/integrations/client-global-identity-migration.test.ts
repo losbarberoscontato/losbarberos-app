@@ -79,7 +79,7 @@ describe("global client identity migration", () => {
     expect(upsertSql).toContain("email_confirmed_at is not null");
     expect(upsertSql).toContain("errcode = '42501'");
     expect(upsertSql).toContain("email confirmation required");
-    expect(invariantSql).toContain("select plan(125)");
+    expect(invariantSql).toContain("select plan(128)");
     expect(invariantSql).toContain(
       "unconfirmed auth email cannot upsert global client account",
     );

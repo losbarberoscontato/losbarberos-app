@@ -117,7 +117,7 @@ describe("automação WhatsApp QR v2", () => {
     expect(config).toContain('"MESSAGES_UPSERT"');
     expect(config).toContain('"MESSAGES_UPDATE"');
     expect(webhook).toContain("x-evolution-webhook-secret");
-    expect(webhook).toContain("EdgeRuntime.waitUntil(triggerV2Dispatcher())");
+    expect(webhook).toContain("edgeRuntime.waitUntil(dispatch)");
   });
 
   it("mantém identidade LID e credencial no Vault", () => {
