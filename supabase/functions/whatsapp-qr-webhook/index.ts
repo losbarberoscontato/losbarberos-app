@@ -33,6 +33,7 @@ type InstanceInfo = {
   number?: unknown;
   instance?: { ownerJid?: unknown; number?: unknown };
 };
+type EdgeRuntimeWithWaitUntil = { waitUntil(promise: Promise<unknown>): void };
 
 function phone(value: unknown): string | null {
   const match = /^(\d{10,15})(?::\d+)?(?:@(s\.whatsapp\.net|c\.us))?$/iu.exec(
@@ -195,7 +196,14 @@ Deno.serve((request) =>
       },
     );
     // Low-latency path. The minute cron remains the durable fallback.
-    if (eventId) EdgeRuntime.waitUntil(triggerV2Dispatcher());
+    if (eventId) {
+      const dispatch = triggerV2Dispatcher();
+      const edgeRuntime = (globalThis as typeof globalThis & {
+        EdgeRuntime?: EdgeRuntimeWithWaitUntil;
+      }).EdgeRuntime;
+      if (edgeRuntime) edgeRuntime.waitUntil(dispatch);
+      else void dispatch;
+    }
     return json(request, { received: true, queued: true });
   })
 );
