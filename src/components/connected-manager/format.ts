@@ -108,6 +108,7 @@ export function humanizeError(error: unknown) {
     [/no positive unpaid commission/i, "Não há comissão positiva em aberto nesse período."],
     [/package subscription requires every included service to accept subscription|disable subscription on dependent packages/i, "Ative Aceita assinatura em todos os serviços do pacote antes de alterar esta regra."],
     [/package online payment requires every included service to accept online payment|disable online payment on dependent packages/i, "Ative Aceita pagamento online em todos os serviços do pacote antes de alterar esta regra."],
+    [/login_email.*(schema cache|does not exist)|barbers.*login_email.*(schema cache|does not exist)/i, "O banco ainda não recebeu a atualização do App do Barbeiro. Aplique as migrations pendentes antes de salvar o e-mail de acesso."],
   ];
   return dictionary.find(([pattern]) => pattern.test(message))?.[1] ?? message;
 }

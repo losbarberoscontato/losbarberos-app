@@ -5,6 +5,7 @@ import { hasSupabaseConfig, publicEnv } from "@/lib/env";
 const publicWithoutSupabase = [
   "/",
   "/auth/callback",
+  "/barbeiro/entrar",
   "/entrar",
   "/exclusao-de-dados",
   "/login",

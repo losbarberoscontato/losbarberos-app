@@ -35,12 +35,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   ...(supabaseImageHostname ? {
     images: {
-      remotePatterns: [{
+      remotePatterns: ["barber-avatars", "organization-logos"].map((bucket) => ({
         protocol: "https",
         hostname: supabaseImageHostname,
-        pathname: "/storage/v1/object/public/barber-avatars/**",
+        pathname: `/storage/v1/object/public/${bucket}/**`,
         search: "",
-      }],
+      })),
     },
   } : {}),
   async headers() {

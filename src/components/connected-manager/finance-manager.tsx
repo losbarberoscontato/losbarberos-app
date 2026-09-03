@@ -9,6 +9,7 @@ import { centsFromInput, formatCents, formatRange } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { FinanceSubnav } from "./cash-manager";
+import { BarberCashSessionReconciliation } from "./barber-cash-reconciliation";
 import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadFinanceData>;
@@ -150,11 +151,12 @@ export function FinanceManager(props: Props) {
       <article className={styles.stat}><span>Comissão acumulada</span><strong>{formatCents(commission)}</strong><small>ganhos, reversões e ajustes</small></article>
       <article className={styles.stat}><span>Lotes abertos</span><strong>{formatCents(openPayouts)}</strong><small>repasse manual</small></article>
     </section>
-    <Panel title="Conciliação" description="Itens que exigem atenção humana; workers não são interrompidos.">
-      {props.refundJobs.length === 0 && props.outboxIssues.length === 0 ? <p className={styles.message}>Sem reembolsos ou mensagens em estado de conciliação.</p> : <div className={styles.grid}>
+    <Panel title="Conciliação" description="Feche primeiro os caixas diários dos Barbeiros. Reembolsos e mensagens permanecem auditáveis.">
+      <section className={styles.list} aria-label="Caixas diários dos Barbeiros"><h3>Caixas diários dos Barbeiros</h3><BarberCashSessionReconciliation sessions={props.barberCashSessions} barberNames={props.barberNames} setMessage={setMessage} onSaved={() => router.refresh()} /></section>
+      {props.refundJobs.length > 0 || props.outboxIssues.length > 0 ? <div className={styles.grid}>
         <section className={styles.span6}><h3>Reembolsos</h3><div className={styles.list}>{props.refundJobs.map((job) => <article className={styles.card} key={job.id}><div className={styles.cardTop}><strong>{formatCents(job.amount_cents)}</strong><span className={`${styles.chip} ${job.status === "SEND_UNKNOWN" ? styles.chipDanger : styles.chipWarn}`}>{job.status}</span></div><small className={styles.muted}>Tentativas: {job.attempts} · agendamento {job.appointment_id.slice(0, 8)}</small>{job.last_error && <small>{job.last_error}</small>}<p className={styles.muted}>{job.status === "SEND_UNKNOWN" ? "Confirme no Mercado Pago antes de qualquer nova ação. Não reenvie às cegas." : "O worker seguirá retry quando aplicável; acompanhe o próximo processamento."}</p></article>)}</div></section>
         <section className={styles.span6}><h3>WhatsApp</h3><div className={styles.list}>{props.outboxIssues.map((item) => <article className={styles.card} key={item.id}><div className={styles.cardTop}><strong>{item.template_key}</strong><span className={`${styles.chip} ${item.status === "SEND_UNKNOWN" ? styles.chipDanger : styles.chipWarn}`}>{item.status}</span></div><small className={styles.muted}>{item.recipient_e164} · tentativas {item.attempts}</small>{item.last_error && <small>{item.last_error}</small>}<p className={styles.muted}>{item.status === "SEND_UNKNOWN" ? "Entrega pode ter ocorrido. Confira no provedor e não dispare duplicado." : "Falha registrada; retry permanece responsabilidade do worker."}</p></article>)}</div></section>
-      </div>}
+      </div> : <p className={styles.muted}>Sem reembolsos ou mensagens em estado de conciliação.</p>}
     </Panel>
     <Panel title="Saldos por agendamento" description="Pagamento e reembolso manual geram eventos compensatórios" action={<button className={styles.button} type="button" disabled={!eligibleAppointments.length} onClick={() => setShowManual((value) => !value)}>Registrar evento manual</button>}>
       {showManual && <form className={styles.form} onSubmit={recordManual}><Field label="Ação"><select name="action"><option value="payment">Pagamento recebido</option><option value="refund">Reembolso realizado</option></select></Field><Field label="Agendamento"><select name="appointment_id">{eligibleAppointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{customerById.get(appointment.customer_id)?.full_name} · {formatRange(appointment.service_period)}</option>)}</select></Field><Field label="Valor (R$)"><input name="amount" required inputMode="decimal" /></Field><Field label="Referência"><input name="reference" required placeholder="PIX, comprovante ou protocolo" /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Registrar no ledger</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setShowManual(false)}>Cancelar</button></div></form>}

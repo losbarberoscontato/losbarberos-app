@@ -32,4 +32,8 @@ describe("connected manager formatting contracts", () => {
   it("translates slot interval validation errors", () => {
     expect(humanizeError(new Error("start time is not aligned to slot interval"))).toBe("Escolha um horário alinhado ao intervalo de slots da agenda.");
   });
+
+  it("explains when the App do Barbeiro migration is missing", () => {
+    expect(humanizeError(new Error("Could not find the 'login_email' column of 'barbers' in the schema cache"))).toBe("O banco ainda não recebeu a atualização do App do Barbeiro. Aplique as migrations pendentes antes de salvar o e-mail de acesso.");
+  });
 });
