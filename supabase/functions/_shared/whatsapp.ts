@@ -11,7 +11,12 @@ type WhatsAppResponse = {
 
 export type WhatsAppSender =
   | { provider: "META_CLOUD"; phoneNumberId: string; accessToken: string }
-  | { provider: "QR_WEB"; gatewayBaseUrl: string; gatewayInstanceId: string; gatewayApiKey: string };
+  | {
+    provider: "QR_WEB";
+    gatewayBaseUrl: string;
+    gatewayInstanceId: string;
+    gatewayApiKey: string;
+  };
 
 type SenderContext = {
   provider?: unknown;
@@ -54,9 +59,12 @@ export function whatsappRequest(
 export async function whatsappSenderForOrganization(
   organizationId: string,
 ): Promise<WhatsAppSender> {
-  const context = await rpc<SenderContext | null>("get_whatsapp_sender_context", {
-    p_organization_id: organizationId,
-  });
+  const context = await rpc<SenderContext | null>(
+    "get_whatsapp_sender_context",
+    {
+      p_organization_id: organizationId,
+    },
+  );
   if (!context || typeof context.provider !== "string") {
     throw new IntegrationError(503, "WHATSAPP_NOT_CONNECTED", true);
   }
@@ -96,14 +104,16 @@ export function evolutionRequest(
   message: Record<string, unknown>,
 ): Promise<WhatsAppResponse> {
   const textBody = typeof message.text === "object" && message.text !== null &&
-    "body" in message.text && typeof message.text.body === "string"
+      "body" in message.text && typeof message.text.body === "string"
     ? message.text.body
     : null;
   if (textBody !== null && (!textBody.trim() || textBody.length > 4_096)) {
     throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
   }
   return providerFetch<WhatsAppResponse>(
-    `${sender.gatewayBaseUrl}/message/${Array.isArray(message.buttons) ? "sendButtons" : "sendText"}/${encodeURIComponent(sender.gatewayInstanceId)}`,
+    `${sender.gatewayBaseUrl}/message/${
+      Array.isArray(message.buttons) ? "sendButtons" : "sendText"
+    }/${encodeURIComponent(sender.gatewayInstanceId)}`,
     {
       method: "POST",
       headers: {
@@ -111,7 +121,10 @@ export function evolutionRequest(
         apikey: sender.gatewayApiKey,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ number: normalizeWhatsAppRecipient(recipient), ...message }),
+      body: JSON.stringify({
+        number: normalizeWhatsAppRecipient(recipient),
+        ...message,
+      }),
     },
   );
 }

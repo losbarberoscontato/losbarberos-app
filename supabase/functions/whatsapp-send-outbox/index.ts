@@ -4,8 +4,8 @@ import { requireServiceInvocation, rpc } from "../_shared/supabase.ts";
 import {
   evolutionRequest,
   normalizeWhatsAppRecipient,
-  whatsappSenderForOrganization,
   whatsappRequest,
+  whatsappSenderForOrganization,
 } from "../_shared/whatsapp.ts";
 
 type RequestBody = { limit?: unknown };
@@ -13,7 +13,11 @@ type OutboxJob = {
   id: string;
   organization_id: string;
   recipient_e164: string;
-  message_kind: "TEMPLATE" | "CANCEL_CONFIRM_PROMPT" | "TEXT" | "EVOLUTION_REMINDER_BUTTONS";
+  message_kind:
+    | "TEMPLATE"
+    | "CANCEL_CONFIRM_PROMPT"
+    | "TEXT"
+    | "EVOLUTION_REMINDER_BUTTONS";
   template_name?: string;
   language_code?: string;
   template_components?: unknown[];
@@ -91,7 +95,11 @@ function buildMessage(job: OutboxJob): Record<string, unknown> {
   }
 
   if (job.message_kind === "TEXT" && job.text_body?.trim()) {
-    return { to, type: "text", text: { body: normalizeMessageText(job.text_body) } };
+    return {
+      to,
+      type: "text",
+      text: { body: normalizeMessageText(job.text_body) },
+    };
   }
 
   throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
@@ -99,15 +107,21 @@ function buildMessage(job: OutboxJob): Record<string, unknown> {
 
 function buildEvolutionMessage(job: OutboxJob): Record<string, unknown> {
   if (job.message_kind === "EVOLUTION_REMINDER_BUTTONS") {
-    if (!job.text_body?.trim()) throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
+    if (!job.text_body?.trim()) {
+      throw new IntegrationError(422, "INVALID_OUTBOX_MESSAGE");
+    }
     return {
-      text: `${normalizeMessageText(job.text_body)}\n\nDigite 1 para confirmar, 2 para cancelar ou 3 para reagendar.`,
+      text: `${
+        normalizeMessageText(job.text_body)
+      }\n\nDigite 1 para confirmar, 2 para cancelar ou 3 para reagendar.`,
     };
   }
 
   if (job.message_kind === "CANCEL_CONFIRM_PROMPT") {
     return {
-      text: `Confirma o cancelamento de ${job.appointment_label ?? "seu horário"}?\n\nDigite 1 para confirmar o cancelamento ou 2 para manter o horário.`,
+      text: `Confirma o cancelamento de ${
+        job.appointment_label ?? "seu horário"
+      }?\n\nDigite 1 para confirmar o cancelamento ou 2 para manter o horário.`,
     };
   }
 
@@ -184,9 +198,17 @@ Deno.serve((request) =>
         const sender = await whatsappSenderForOrganization(job.organization_id);
         let result: ProviderMessageResult;
         if (sender.provider === "META_CLOUD") {
-          result = await whatsappRequest(sender.phoneNumberId, sender.accessToken, buildMessage(job));
+          result = await whatsappRequest(
+            sender.phoneNumberId,
+            sender.accessToken,
+            buildMessage(job),
+          );
         } else {
-          result = await evolutionRequest(sender, job.recipient_e164, buildEvolutionMessage(job));
+          result = await evolutionRequest(
+            sender,
+            job.recipient_e164,
+            buildEvolutionMessage(job),
+          );
         }
         messageId = result.messages?.[0]?.id ?? result.key?.id ?? "";
         if (!messageId) {
