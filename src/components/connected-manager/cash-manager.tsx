@@ -162,7 +162,8 @@ export function CashManager(props: CashManagerProps) {
   const visibleEntries = useMemo(() => props.entries.filter((entry) => {
     const counterparty = counterpartName(entry, customerById, supplierById);
     const haystack = [entry.description, entry.document_number, counterparty, chartById.get(entry.chart_account_id)?.name, ...(tagNamesByEntry.get(entry.id) ?? [])].join(" ").toLocaleLowerCase("pt-BR");
-    return props.section !== "cash" && (sectionKind === "ALL" || entry.kind === sectionKind) && (statusFilter === "ALL" || entry.status === statusFilter) && (!accountFilter || accountFilter === "ALL" || entry.preferred_financial_account_id === accountFilter) && isDateInRange(entry.due_date, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+    const futureControl = entry.status !== "SETTLED" && entry.status !== "CANCELED";
+    return props.section !== "cash" && futureControl && (sectionKind === "ALL" || entry.kind === sectionKind) && (statusFilter === "ALL" || entry.status === statusFilter) && (!accountFilter || accountFilter === "ALL" || entry.preferred_financial_account_id === accountFilter) && isDateInRange(entry.due_date, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
   }), [props.entries, props.section, customerById, supplierById, chartById, tagNamesByEntry, sectionKind, statusFilter, accountFilter, startDate, endDate, query]);
 
   const cashSettlementMovements = useMemo(() => props.settlements.flatMap((settlement): CashSettlementMovement[] => {

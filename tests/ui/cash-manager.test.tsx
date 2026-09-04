@@ -161,6 +161,12 @@ describe("cash manager", () => {
     }
   });
 
+  it("oculta lançamentos liquidados das contas a pagar", () => {
+    const settled = { ...props.entries[0], id: "settled-payable", description: "Despesa já paga", kind: "EXPENSE" as const, status: "SETTLED" as const, settled_cents: 1000, remaining_cents: 0 };
+    render(<CashManager {...props} section="payables" entries={[settled]} />);
+    expect(screen.queryByText("Despesa já paga")).not.toBeInTheDocument();
+  });
+
   it("opens a cash entry form without calling Supabase in advance", () => {
     render(<CashManager {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
@@ -241,7 +247,7 @@ describe("cash manager", () => {
     fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-08-15" } });
     fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-08-15" } });
     fireEvent.change(screen.getByLabelText("Filtrar status"), { target: { value: "CANCELED" } });
-    expect(screen.getByText("Água")).toBeInTheDocument();
+    expect(screen.queryByText("Água")).not.toBeInTheDocument();
     expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
