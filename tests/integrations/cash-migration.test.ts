@@ -16,6 +16,13 @@ describe("financial cash migration contract", () => {
     expect(sql).toContain("idempotency key is required");
   });
 
+  it("supports atomic immediate settlement for manual cash entries", () => {
+    const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260904122521_cash_manual_entry_immediate_settlement.sql"), "utf8");
+    expect(sql).toContain("create_and_settle_financial_entry");
+    expect(sql).toContain("perform public.settle_financial_entry");
+    expect(sql).toContain("p_idempotency_key");
+  });
+
   it("restores manual creation with competência and supports quinzenal series", () => {
     const seriesMigrationPath = join(process.cwd(), "supabase/migrations/20260828195635_financial_entry_series_form.sql");
     const sql = readFileSync(seriesMigrationPath, "utf8");

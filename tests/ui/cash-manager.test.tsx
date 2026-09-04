@@ -324,7 +324,7 @@ describe("cash manager", () => {
     fireEvent.change(screen.getByLabelText("Descrição"), { target: { value: "Receita de teste" } });
     fireEvent.change(screen.getByLabelText("Valor (R$)"), { target: { value: "10,00" } });
     fireEvent.change(screen.getByLabelText("Plano de conta"), { target: { value: "chart-revenue" } });
-    fireEvent.submit(screen.getByRole("button", { name: "Adicionar" }).closest("form")!);
+    fireEvent.submit(screen.getByRole("button", { name: "Lançar no Caixa" }).closest("form")!);
 
     expect(rpc).not.toHaveBeenCalled();
     expect(screen.getByText("Modo demonstração: nenhuma alteração é salva.")).toBeInTheDocument();
