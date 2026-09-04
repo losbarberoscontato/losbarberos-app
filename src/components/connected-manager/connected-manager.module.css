@@ -22,7 +22,7 @@
 .panelHead { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }
 .panelHead p { margin: .3rem 0 0; color: #69716b; font-size: .9rem; }
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
-.statsCash { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.statsCash { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .stat { min-height: 120px; display: grid; align-content: space-between; background: linear-gradient(150deg, #fff, #f7f8f5); border: 1px solid rgba(36, 42, 38, .1); border-radius: 18px; padding: 1rem; }
 .stat span { color: #69716b; font-size: .82rem; }
 .stat strong { font-family: var(--font-display, serif); color: #202620; font-size: 1.75rem; }
