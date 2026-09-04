@@ -39,8 +39,8 @@ describe("cash manager", () => {
     try {
       render(<CashManager {...props} />);
       expect(screen.getByRole("heading", { name: "Controle de caixa" })).toBeInTheDocument();
-      expect(screen.getByText("Movimentações do dia")).toBeInTheDocument();
-      expect(screen.queryByText("Entradas realizadas")).not.toBeInTheDocument();
+      expect(screen.getByText("Movimentação no período")).toBeInTheDocument();
+      expect(screen.getByText("Entradas realizadas")).toBeInTheDocument();
       expect(screen.getByRole("columnheader", { name: "Ações" }).className).toContain("cashHeaderAction");
       expect(screen.queryByText("Somente valores efetivamente recebidos ou pagos.")).not.toBeInTheDocument();
       expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
@@ -56,7 +56,7 @@ describe("cash manager", () => {
     }
   });
 
-  it("calcula o saldo líquido somente das movimentações do dia", () => {
+  it("calcula o saldo líquido de todas movimentações do período", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
     try {
@@ -71,8 +71,8 @@ describe("cash manager", () => {
         ]}
       />);
 
-      expect(screen.getByText("Movimentações do dia")).toBeInTheDocument();
-      expect(screen.getByText(/R\$\s*50,00/)).toBeInTheDocument();
+      expect(screen.getByText("Movimentação no período")).toBeInTheDocument();
+      expect(screen.getByText(/R\$\s*149,00/)).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

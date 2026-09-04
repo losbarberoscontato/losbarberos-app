@@ -27,6 +27,10 @@
 .stat span { color: #69716b; font-size: .82rem; }
 .stat strong { font-family: var(--font-display, serif); color: #202620; font-size: 1.75rem; }
 .stat small { color: #7d857f; }
+.statDanger { background: linear-gradient(150deg, #fff8f7, #fff0ed); border-color: rgba(161, 63, 49, .2); }
+.statDanger strong { color: #a13f31; }
+.statInfo { background: linear-gradient(150deg, #f5fbff, #eaf5ff); border-color: rgba(39, 113, 171, .2); }
+.statInfo strong { color: #2771ab; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
 .toolbarGroup { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
 .button { border: 0; border-radius: 999px; padding: .72rem 1rem; display: inline-flex; align-items: center; justify-content: center; gap: .45rem; font: inherit; font-size: .87rem; font-weight: 700; cursor: pointer; background: #252b26; color: #fff; text-decoration: none; }

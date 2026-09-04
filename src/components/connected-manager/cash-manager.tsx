@@ -186,6 +186,9 @@ export function CashManager(props: CashManagerProps) {
 
   const manualExpense = props.entries.filter((item) => item.kind === "EXPENSE").reduce((total, item) => total + item.settled_cents, 0);
   const dailyMovement = cashSettlementMovements.filter(({ settlement }) => movementDate(settlement.settled_on) === today()).reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + props.appointmentActivity.filter((item) => movementDate(item.occurred_at) === today()).reduce((total, item) => total + item.signed_cents, 0);
+  const periodMovement = visibleSettlements.reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + visibleActivity.reduce((total, item) => total + item.signed_cents, 0);
+  const periodOutflow = visibleSettlements.reduce((total, { entry, settlement }) => { const value = settlementSignedCents(entry.kind, settlement); return total + (value < 0 ? value : 0); }, 0) + visibleActivity.reduce((total, item) => total + (item.signed_cents < 0 ? item.signed_cents : 0), 0);
+  const periodInflow = visibleSettlements.reduce((total, { entry, settlement }) => { const value = settlementSignedCents(entry.kind, settlement); return total + (value > 0 ? value : 0); }, 0) + visibleActivity.reduce((total, item) => total + (item.signed_cents > 0 ? item.signed_cents : 0), 0);
   const balance = props.balances.reduce((total, item) => total + item.balance_cents, 0);
   const openReceivable = props.entries.filter((item) => item.kind === "REVENUE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0) + (props.appointmentReceivables ?? []).reduce((total, item) => total + item.outstanding_cents, 0);
   const openPayable = props.entries.filter((item) => item.kind === "EXPENSE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0);
@@ -214,13 +217,13 @@ export function CashManager(props: CashManagerProps) {
     <ActionMessage message={message} />
 
     {props.section === "overview" && <>
-      <CashStats balance={balance} dailyMovement={dailyMovement} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} />
+      <CashStats balance={balance} dailyMovement={dailyMovement} outgoing={manualExpense} incoming={0} openReceivable={openReceivable} openPayable={openPayable} />
       <Panel title="Próximo passo" description="Controle despesas, recebimentos e contas bancárias sem duplicar pagamentos de agendamento.">
         <Link className={styles.button} href="/gestor/financeiro/caixa">Abrir Caixa <ChevronRight size={16} /></Link>
       </Panel>
     </>}
     {(props.section === "cash" || props.section === "payables" || props.section === "receivables") && <>
-      <CashStats balance={balance} dailyMovement={dailyMovement} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} showOpen={props.section !== "cash"} />
+      <CashStats balance={balance} dailyMovement={props.section === "cash" ? periodMovement : dailyMovement} outgoing={props.section === "cash" ? periodOutflow : manualExpense} incoming={props.section === "cash" ? periodInflow : 0} openReceivable={openReceivable} openPayable={openPayable} showOpen={props.section !== "cash"} />
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
           <input className={styles.packageFilterSelect} aria-label="Buscar lançamentos" placeholder="Buscar descrição, documento ou contraparte" value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -251,11 +254,12 @@ export function CashManager(props: CashManagerProps) {
   </div>;
 }
 
-function CashStats({ balance, dailyMovement, outgoing, openReceivable, openPayable, showOpen = true }: { balance: number; dailyMovement: number; outgoing: number; openReceivable: number; openPayable: number; showOpen?: boolean }) {
+function CashStats({ balance, dailyMovement, outgoing, incoming, openReceivable, openPayable, showOpen = true }: { balance: number; dailyMovement: number; outgoing: number; incoming: number; openReceivable: number; openPayable: number; showOpen?: boolean }) {
   return <section className={`${styles.stats} ${showOpen ? "" : styles.statsCash}`}>
     <article className={styles.stat}><span>Saldo em contas</span><strong>{formatCents(balance)}</strong><small>saldo inicial + movimentações</small></article>
-    <article className={styles.stat}><span>Movimentações do dia</span><strong>{formatCents(dailyMovement)}</strong><small>saldo líquido do dia</small></article>
-    <article className={styles.stat}><span>Saídas realizadas</span><strong>{formatCents(outgoing)}</strong><small>despesas liquidadas</small></article>
+    <article className={`${styles.stat} ${dailyMovement < 0 ? styles.statDanger : ""}`}><span>Movimentação no período</span><strong>{formatCents(dailyMovement)}</strong><small>Saldo do período</small></article>
+    <article className={`${styles.stat} ${styles.statDanger}`}><span>Saídas realizadas</span><strong>{formatCents(outgoing)}</strong><small>saídas liquidadas no período</small></article>
+    {!showOpen && <article className={`${styles.stat} ${styles.statInfo}`}><span>Entradas realizadas</span><strong>{formatCents(incoming)}</strong><small>entradas liquidadas no período</small></article>}
     {showOpen && <article className={styles.stat}><span>Em aberto</span><strong>{formatCents(openReceivable - openPayable)}</strong><small>{formatCents(openReceivable)} a receber · {formatCents(openPayable)} a pagar</small></article>}
   </section>;
 }
