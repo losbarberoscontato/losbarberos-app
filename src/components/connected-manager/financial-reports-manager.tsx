@@ -17,7 +17,7 @@ type BasisFilter = "ALL" | FinancialFactBasis;
 const reportTabs: Array<{ id: FinancialReportType; label: string }> = [
   { id: "DASHBOARD", label: "Dashboard" }, { id: "PAYABLES", label: "Contas a pagar" },
   { id: "RECEIVABLES", label: "Contas a receber" }, { id: "CUSTOMERS", label: "Por cliente" },
-  { id: "COMMISSIONS", label: "Comissões" }, { id: "FORECAST", label: "Previsão" },
+  { id: "FORECAST", label: "Previsão" },
   { id: "CASH_FLOW", label: "Fluxo de caixa" }, { id: "INCOME_STATEMENT", label: "DRE" }, { id: "BUDGET", label: "Orçamento" },
 ];
 
@@ -28,8 +28,8 @@ function csvCell(value: unknown) {
 
 function sum(rows: Props["facts"]) { return rows.reduce((total, row) => total + row.signed_cents, 0); }
 
-export function FinancialReportsManager(props: Props) {
-  const [report, setReport] = useState<FinancialReportType>("DASHBOARD");
+export function FinancialReportsManager(props: Props & { initialReport?: FinancialReportType }) {
+  const [report, setReport] = useState<FinancialReportType>(props.initialReport ?? "DASHBOARD");
   const [basis, setBasis] = useState<BasisFilter>("ALL");
   const [start, setStart] = useState(props.from);
   const [end, setEnd] = useState(props.to);
@@ -67,8 +67,8 @@ export function FinancialReportsManager(props: Props) {
 
   return <div className={styles.stack}>
     <PageHeader title="Relatórios financeiros" description="Visão gerencial por competência e caixa. Não substitui escrituração contábil oficial." actions={<div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => window.print()}><Printer size={16} /> Imprimir/PDF</button><button className={styles.button} type="button" onClick={exportCsv}><Download size={16} /> CSV</button></div>} />
-    <FinanceSubnav active="reports" />
-    <nav className={styles.tabs} aria-label="Relatórios financeiros">{reportTabs.map((tab) => <button key={tab.id} type="button" className={`${styles.tab} ${report === tab.id ? styles.tabActive : ""}`} onClick={() => setReport(tab.id)}>{tab.label}</button>)}</nav>
+    <FinanceSubnav active={props.initialReport === "COMMISSIONS" ? "commissions" : "reports"} />
+    {props.initialReport !== "COMMISSIONS" && <nav className={styles.tabs} aria-label="Relatórios financeiros">{reportTabs.map((tab) => <button key={tab.id} type="button" className={`${styles.tab} ${report === tab.id ? styles.tabActive : ""}`} onClick={() => setReport(tab.id)}>{tab.label}</button>)}</nav>}
     <section className={styles.toolbar}>
       <div className={styles.toolbarGroup}>
         <input className={styles.packageFilterSelect} type="date" aria-label="Data inicial" value={start} onChange={(event) => setStart(event.target.value)} />

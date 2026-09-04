@@ -30,6 +30,7 @@ import styles from "./connected-manager.module.css";
 const financeSections: Array<{ id: FinanceSection; label: string; href: string }> = [
   { id: "overview", label: "Visão geral", href: "/gestor/financeiro" },
   { id: "cash", label: "Caixa", href: "/gestor/financeiro/caixa" },
+  { id: "commissions", label: "Comissões", href: "/gestor/financeiro/comissoes" },
   { id: "payables", label: "Contas a pagar", href: "/gestor/financeiro/contas-pagar" },
   { id: "receivables", label: "Contas a receber", href: "/gestor/financeiro/contas-receber" },
   { id: "accounts", label: "Bancos", href: "/gestor/financeiro/bancos" },

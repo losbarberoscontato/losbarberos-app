@@ -265,7 +265,7 @@ export interface SubscriptionRecord {
   retention_ends_at: string | null;
 }
 
-export type FinanceSection = "overview" | "cash" | "payables" | "receivables" | "accounts" | "suppliers" | "catalogs" | "reports";
+export type FinanceSection = "overview" | "cash" | "commissions" | "payables" | "receivables" | "accounts" | "suppliers" | "catalogs" | "reports";
 
 export type FinancialFactBasis = "FORECAST" | "ACCRUAL" | "CASH" | "BUDGET";
 export type FinancialReportType = "DASHBOARD" | "PAYABLES" | "RECEIVABLES" | "CUSTOMERS" | "COMMISSIONS" | "FORECAST" | "CASH_FLOW" | "INCOME_STATEMENT" | "BUDGET";

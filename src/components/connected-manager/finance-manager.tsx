@@ -43,10 +43,11 @@ export function FinanceManager(props: Props) {
   const manualReceived = props.financialSettlements.reduce((sum, settlement) => { const entry = props.financialEntries.find((candidate) => candidate.id === settlement.entry_id); return entry?.kind === "REVENUE" && settlement.kind === "SETTLEMENT" && new Date(settlement.settled_on) >= periodStart ? sum + settlement.amount_cents : sum; }, 0);
   const totalReceived = appointmentReceived + manualReceived;
   const inNextThirtyDays = (date: string) => { const parsed = new Date(`${date}T23:59:59`); return parsed >= today && parsed <= periodEnd; };
+  const dueByEndOfPeriod = (date: string) => new Date(`${date}T23:59:59`) <= periodEnd;
   const accountsReceivable = props.financialEntries.filter((entry) => entry.kind === "REVENUE" && entry.remaining_cents > 0 && (entry.status === "OPEN" || inNextThirtyDays(entry.due_date))).reduce((sum, entry) => sum + entry.remaining_cents, 0);
   const scheduledReceivable = props.appointments.reduce((sum, appointment) => { const item = financialById.get(appointment.id); return appointment.status === "COMPLETED" && item && item.outstanding_cents > 0 && new Date(appointment.created_at) <= periodEnd ? sum + item.outstanding_cents : sum; }, 0);
   const commission = Math.max(0, props.ledger.reduce((sum, item) => sum + item.amount_cents, 0) - props.payouts.reduce((sum, item) => sum + item.amount_cents, 0));
-  const accountsPayable = props.financialEntries.filter((entry) => entry.kind === "EXPENSE" && entry.remaining_cents > 0 && (entry.status === "OPEN" || inNextThirtyDays(entry.due_date))).reduce((sum, entry) => sum + entry.remaining_cents, 0);
+  const accountsPayable = props.financialEntries.filter((entry) => entry.kind === "EXPENSE" && entry.remaining_cents > 0 && dueByEndOfPeriod(entry.due_date)).reduce((sum, entry) => sum + entry.remaining_cents, 0);
   const eligibleAppointments = props.appointments.filter((appointment) => {
     const financial = financialById.get(appointment.id);
     return (financial?.outstanding_cents ?? 0) > 0 || (financial?.net_paid_cents ?? 0) > 0;

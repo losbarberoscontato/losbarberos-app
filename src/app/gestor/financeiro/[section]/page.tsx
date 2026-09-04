@@ -7,6 +7,7 @@ import { hasSupabaseConfig } from "@/lib/env";
 
 const sections: Record<string, FinanceSection> = {
   caixa: "cash",
+  comissoes: "commissions",
   "contas-pagar": "payables",
   "contas-receber": "receivables",
   bancos: "accounts",
@@ -43,6 +44,12 @@ export default async function FinanceSectionPage({ params }: { params: Promise<{
     const data = await loadFinancialReportsData();
     if (data.billingStatus === "CANCELED_RETENTION" || data.billingStatus === "CLOSED") redirect("/regularizacao");
     return <FinancialReportsManager {...data} />;
+  }
+  if (rawSection === "comissoes") {
+    if (!hasSupabaseConfig) notFound();
+    const data = await loadFinancialReportsData();
+    if (data.billingStatus === "CANCELED_RETENTION" || data.billingStatus === "CLOSED") redirect("/regularizacao");
+    return <FinancialReportsManager {...data} initialReport="COMMISSIONS" />;
   }
   const section = sections[rawSection];
   if (!section) notFound();
