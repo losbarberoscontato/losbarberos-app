@@ -392,6 +392,7 @@ export interface FinancialSettlementRecord {
   entry_id: string;
   financial_account_id: string;
   kind: "SETTLEMENT" | "REVERSAL";
+  source_settlement_id?: string | null;
   amount_cents: number;
   settled_on: string;
   payment_method: string;

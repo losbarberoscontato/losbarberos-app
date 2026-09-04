@@ -167,10 +167,13 @@ export function CashManager(props: CashManagerProps) {
     return props.section !== "cash" && futureControl && (sectionKind === "ALL" || entry.kind === sectionKind) && (statusFilter === "ALL" || entry.status === statusFilter) && (!accountFilter || accountFilter === "ALL" || entry.preferred_financial_account_id === accountFilter) && isDateInRange(entry.due_date, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
   }), [props.entries, props.section, customerById, supplierById, chartById, tagNamesByEntry, sectionKind, statusFilter, accountFilter, startDate, endDate, query]);
 
-  const cashSettlementMovements = useMemo(() => props.settlements.flatMap((settlement): CashSettlementMovement[] => {
+  const cashSettlementMovements = useMemo(() => {
+    const reversedSettlementIds = new Set(props.settlements.filter((item) => item.kind === "REVERSAL" && item.source_settlement_id).map((item) => item.source_settlement_id));
+    return props.settlements.filter((settlement) => settlement.kind === "SETTLEMENT" && !reversedSettlementIds.has(settlement.id)).flatMap((settlement): CashSettlementMovement[] => {
     const entry = entryById.get(settlement.entry_id);
     return entry && entry.status !== "CANCELED" ? [{ entry, settlement }] : [];
-  }), [props.settlements, entryById]);
+    });
+  }, [props.settlements, entryById]);
 
   const visibleSettlements = useMemo(() => cashSettlementMovements.filter(({ entry, settlement }) => {
     const counterparty = counterpartName(entry, customerById, supplierById);
