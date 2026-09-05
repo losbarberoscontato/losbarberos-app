@@ -14,6 +14,7 @@ describe("automação WhatsApp QR v2", () => {
   const agendaStatusMigration = read("supabase/migrations/20260821115548_whatsapp_agenda_response_statuses.sql");
   const dailyConfirmationMigration = read("supabase/migrations/20260821145726_whatsapp_evolution_single_daily_confirmation.sql");
   const reconnectionRecoveryMigration = read("supabase/migrations/20260831201500_whatsapp_v2_reconnection_recovery.sql");
+  const safeReconnectionMigration = read("supabase/migrations/20260905134350_whatsapp_v2_reconnection_safe_jobs.sql");
   const perAppointmentMigration = read("supabase/migrations/20260831213000_whatsapp_v2_per_appointment_t45.sql");
   const automationControlsMigration = read("supabase/migrations/20260901144842_whatsapp_v2_automation_controls_implementation.sql");
   const dispatcher = read("supabase/functions/whatsapp-v2-dispatcher/index.ts");
@@ -149,6 +150,18 @@ describe("automação WhatsApp QR v2", () => {
     expect(reconnectionRecoveryMigration).toContain("processing_status = 'DEAD'");
     expect(reconnectionRecoveryMigration).toContain("mode = 'ACTIVE'");
     expect(reconnectionRecoveryMigration).toContain("dispatch_paused = false");
+  });
+
+  it("preserva lembretes futuros durante a reconexão e mantém a conexão selecionada", () => {
+    expect(safeReconnectionMigration).toContain("scheduled_for > now()");
+    expect(safeReconnectionMigration).toContain("scheduled_for <= now()");
+    expect(safeReconnectionMigration).toContain("status in ('PENDING', 'RETRY')");
+    expect(safeReconnectionMigration).toContain("QR_CONNECTION_RECONNECTED");
+    expect(safeReconnectionMigration).toContain("is_active = case when v_status = 'CONNECTED' then v_should_activate else is_active end");
+    expect(safeReconnectionMigration).toContain("v_should_activate := v_connection.is_active");
+    expect(safeReconnectionMigration).toContain("status = 'CANCELED'");
+    expect(safeReconnectionMigration).not.toContain("set status = 'CANCELED'");
+    expect(safeReconnectionMigration).not.toContain("set status = 'EXPIRED'");
   });
 
   it("impede outbox legado e respeita configuração de avisos ao barbeiro", () => {
