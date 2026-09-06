@@ -40,6 +40,7 @@ import type {
   WorkIntervalRecord,
 } from "./types";
 import type { WhatsAppSettingsStatus } from "./whatsapp-settings";
+import { appointmentServiceDateKey, DEFAULT_FINANCIAL_TIMEZONE, isReceivableAppointmentStatus } from "@/lib/domain/financial-receivables";
 
 const MANAGER_ROW_LIMIT = 1_000;
 
@@ -173,9 +174,9 @@ export async function loadAgendaData() {
 
 export async function loadFinanceData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [financial, appointments, customers, barbers, ledger, payouts, refunds, outbox, accounts, entries, settlements] = await Promise.all([
+  const [financial, appointments, customers, barbers, ledger, payouts, refunds, outbox, accounts, entries, settlements, organization] = await Promise.all([
     supabase.from("appointment_financial_summary").select("*").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
-    supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(250),
+    supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("customers").select("id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("*").eq("organization_id", organizationId).order("display_name"),
     supabase.from("commission_ledger").select("id,source_entry_id,barber_id,appointment_id,kind,amount_cents,reason,earned_at").eq("organization_id", organizationId).order("earned_at", { ascending: false }).limit(500),
@@ -183,11 +184,14 @@ export async function loadFinanceData() {
     supabase.from("refund_jobs").select("id,appointment_id,amount_cents,status,attempts,next_attempt_at,last_error,created_at").eq("organization_id", organizationId).in("status", ["PENDING", "PROCESSING", "FAILED", "SEND_UNKNOWN"]).order("created_at", { ascending: false }).limit(100),
     supabase.from("notification_outbox").select("id,appointment_id,template_key,recipient_e164,status,attempts,next_attempt_at,last_error,created_at").eq("organization_id", organizationId).in("status", ["FAILED", "SEND_UNKNOWN"]).order("created_at", { ascending: false }).limit(100),
     supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).eq("active", true).order("name"),
-    supabase.from("financial_entry_summary").select("id,organization_id,kind,due_date,remaining_cents,status").eq("organization_id", organizationId).is("canceled_at", null).limit(MANAGER_ROW_LIMIT),
+    supabase.from("financial_entry_summary").select("id,organization_id,source,kind,due_date,remaining_cents,status").eq("organization_id", organizationId).eq("source", "MANUAL").is("canceled_at", null).limit(MANAGER_ROW_LIMIT),
     supabase.from("financial_settlements").select("entry_id,kind,amount_cents,settled_on").eq("organization_id", organizationId).order("settled_on", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("organizations").select("timezone").eq("id", organizationId).maybeSingle(),
   ]);
+  const timezone = (requireData(organization, "Organização financeira") as { timezone?: string } | null)?.timezone ?? DEFAULT_FINANCIAL_TIMEZONE;
   return {
     organizationId,
+    timezone,
     billingStatus: context.billingStatus,
     financial: requireData(financial, "Resumo financeiro") as FinancialSummaryRecord[],
     appointments: requireData(appointments, "Agendamentos") as AppointmentRecord[],
@@ -198,14 +202,14 @@ export async function loadFinanceData() {
     refundJobs: requireData(refunds, "Reembolsos pendentes") as RefundJobRecord[],
     outboxIssues: requireData(outbox, "Mensagens pendentes") as OutboxRecord[],
     financialAccounts: requireData(accounts, "Contas para comissão") as FinancialAccountRecord[],
-    financialEntries: requireData(entries, "Contas financeiras") as Array<{ id: string; organization_id: string; kind: "REVENUE" | "EXPENSE"; due_date: string; remaining_cents: number; status: string }>,
+    financialEntries: requireData(entries, "Contas financeiras") as Array<{ id: string; organization_id: string; source: "MANUAL" | "APPOINTMENT"; kind: "REVENUE" | "EXPENSE"; due_date: string; remaining_cents: number; status: string }>,
     financialSettlements: requireData(settlements, "Liquidações financeiras") as Array<{ entry_id: string; kind: "SETTLEMENT" | "REVERSAL"; amount_cents: number; settled_on: string }>,
   };
 }
 
 export async function loadCashData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [accounts, balances, suppliers, chartAccounts, costCenters, tags, customers, entries, entryTags, settlements, appointmentActivity, mappings, appointmentFinancial, appointments, appointmentItems, barbers, statusEvents] = await Promise.all([
+  const [accounts, balances, suppliers, chartAccounts, costCenters, tags, customers, entries, entryTags, settlements, appointmentActivity, mappings, appointmentFinancial, appointments, appointmentItems, barbers, organization] = await Promise.all([
     supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
     supabase.from("financial_account_balances").select("financial_account_id,balance_cents").eq("organization_id", organizationId),
     supabase.from("suppliers").select("id,organization_id,person_kind,name,document,phone_e164,email,address,notes,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
@@ -213,33 +217,32 @@ export async function loadCashData() {
     supabase.from("cost_centers").select("id,organization_id,name,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
     supabase.from("financial_tags").select("id,organization_id,name,color,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
     supabase.from("customers").select("id,organization_id,full_name,active").eq("organization_id", organizationId).is("merged_into_customer_id", null).order("full_name").limit(MANAGER_ROW_LIMIT),
-    supabase.from("financial_entry_summary").select("id,organization_id,kind,description,issue_date,due_date,total_cents,settled_cents,remaining_cents,status,chart_account_id,cost_center_id,preferred_financial_account_id,counterparty_kind,customer_id,supplier_id,document_number,canceled_at,cancellation_reason").eq("organization_id", organizationId).order("due_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("financial_entry_summary").select("id,organization_id,source,kind,description,issue_date,due_date,total_cents,settled_cents,remaining_cents,status,chart_account_id,cost_center_id,preferred_financial_account_id,counterparty_kind,customer_id,supplier_id,document_number,canceled_at,cancellation_reason").eq("organization_id", organizationId).eq("source", "MANUAL").order("due_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("financial_entry_tags").select("entry_id,tag_id").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("financial_settlements").select("id,entry_id,financial_account_id,kind,source_settlement_id,amount_cents,settled_on,payment_method,reference").eq("organization_id", organizationId).order("settled_on", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_cash_activity").select("payment_transaction_id,organization_id,appointment_id,customer_id,payment_mode,provider,kind,amount_cents,signed_cents,occurred_at,financial_account_id,needs_reconciliation").eq("organization_id", organizationId).order("occurred_at", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("payment_account_mappings").select("id,organization_id,provider,payment_mode,financial_account_id").eq("organization_id", organizationId),
     supabase.from("appointment_financial_summary").select("appointment_id,captured_cents,refunded_cents,net_paid_cents,outstanding_cents,financial_status").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
-    supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,payment_mode,total_cents_snapshot,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,payment_mode,service_period,total_cents_snapshot,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_items").select("appointment_id,service_name_snapshot,position").eq("organization_id", organizationId).order("position").limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("id,display_name").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
-    supabase.from("appointment_status_events").select("appointment_id,to_status,created_at").eq("organization_id", organizationId).eq("to_status", "COMPLETED").order("created_at", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("organizations").select("timezone").eq("id", organizationId).maybeSingle(),
   ]);
+  const timezone = (requireData(organization, "Organização financeira") as { timezone?: string } | null)?.timezone ?? DEFAULT_FINANCIAL_TIMEZONE;
   const activityRows = requireData(appointmentActivity, "Recebimentos de agendamento") as AppointmentCashActivityRecord[];
   const financialRows = requireData(appointmentFinancial, "Resumo de pagamentos") as Array<{ appointment_id: string; captured_cents: number; refunded_cents: number; net_paid_cents: number; outstanding_cents: number; financial_status: string }>;
+  const financialByAppointment = new Map(financialRows.map((item) => [item.appointment_id, item]));
   const statusByAppointment = new Map(financialRows.map((item) => [item.appointment_id, item.financial_status]));
-  const appointmentRows = requireData(appointments, "Agendamentos financeiros") as Array<{ id: string; organization_id: string; customer_id: string; barber_id: string; status: string; payment_mode: string; total_cents_snapshot: number; created_at: string }>;
+  const appointmentRows = requireData(appointments, "Agendamentos financeiros") as Array<{ id: string; organization_id: string; customer_id: string; barber_id: string; status: string; payment_mode: string; service_period: string; total_cents_snapshot: number; created_at: string }>;
   const appointmentById = new Map(appointmentRows.map((item) => [item.id, item]));
   const barberById = new Map((requireData(barbers, "Profissionais financeiros") as Array<{ id: string; display_name: string }>).map((item) => [item.id, item.display_name]));
   const itemNamesByAppointment = new Map<string, string[]>();
   (requireData(appointmentItems, "Itens financeiros") as Array<{ appointment_id: string; service_name_snapshot: string }>).forEach((item) => itemNamesByAppointment.set(item.appointment_id, [...(itemNamesByAppointment.get(item.appointment_id) ?? []), item.service_name_snapshot]));
-  const completedAtByAppointment = new Map<string, string>();
-  (requireData(statusEvents, "Histórico de atendimentos") as Array<{ appointment_id: string; created_at: string }>).forEach((item) => {
-    if (!completedAtByAppointment.has(item.appointment_id)) completedAtByAppointment.set(item.appointment_id, item.created_at);
-  });
   const customerById = new Map((requireData(customers, "Clientes financeiros") as Array<{ id: string; full_name: string }>).map((item) => [item.id, item.full_name]));
   const appointmentReceivables: AppointmentReceivableRecord[] = appointmentRows.flatMap((appointment) => {
-    const financial = financialRows.find((item) => item.appointment_id === appointment.id);
-    if (appointment.status !== "COMPLETED" || appointment.payment_mode !== "COUNTER" || !financial || financial.outstanding_cents <= 0) return [];
+    const financial = financialByAppointment.get(appointment.id);
+    const dueDate = appointmentServiceDateKey(appointment.service_period, timezone);
+    if (!isReceivableAppointmentStatus(appointment.status) || !dueDate || !financial || financial.outstanding_cents <= 0) return [];
     const services = itemNamesByAppointment.get(appointment.id)?.filter(Boolean).join(" + ") || "Atendimento";
     return [{
       appointment_id: appointment.id,
@@ -248,8 +251,8 @@ export async function loadCashData() {
       customer_name: customerById.get(appointment.customer_id) ?? "Cliente",
       description: `${services} · Profissional: ${barberById.get(appointment.barber_id) ?? "Não informado"}`,
       amount_cents: appointment.total_cents_snapshot,
-      issue_date: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(appointment.created_at)),
-      due_date: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(completedAtByAppointment.get(appointment.id) ?? new Date().toISOString())),
+      issue_date: new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date(appointment.created_at)),
+      due_date: dueDate,
       document_number: `ATD-${appointment.id.slice(0, 8).toUpperCase()}`,
       outstanding_cents: financial.outstanding_cents,
       net_paid_cents: financial.net_paid_cents,
@@ -257,6 +260,7 @@ export async function loadCashData() {
   });
   return {
     organizationId,
+    timezone,
     billingStatus: context.billingStatus,
     accounts: requireData(accounts, "Contas financeiras") as FinancialAccountRecord[],
     balances: requireData(balances, "Saldos das contas") as FinancialAccountBalanceRecord[],

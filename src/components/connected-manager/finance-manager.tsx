@@ -9,6 +9,7 @@ import { centsFromInput, formatCents, formatRange } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { FinanceSubnav } from "./cash-manager";
+import { addDateKey, appointmentServiceDateKey, DEFAULT_FINANCIAL_TIMEZONE, isDateKeyAtOrBefore, isReceivableAppointmentStatus, localDateKey } from "@/lib/domain/financial-receivables";
 import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadFinanceData>;
@@ -35,17 +36,18 @@ export function FinanceManager(props: Props) {
     }
     return totals;
   }, [props.ledger]);
+  const timezone = props.timezone ?? DEFAULT_FINANCIAL_TIMEZONE;
   const today = new Date();
-  const periodStart = new Date(today); periodStart.setDate(today.getDate() - 30);
-  const periodEnd = new Date(today); periodEnd.setDate(today.getDate() + 30);
+  const todayKey = localDateKey(today, timezone) ?? localDateKey(today, DEFAULT_FINANCIAL_TIMEZONE)!;
+  const periodStartKey = addDateKey(todayKey, -30)!;
+  const periodEndKey = addDateKey(todayKey, 30)!;
   const captured = props.financial.reduce((sum, item) => sum + item.net_paid_cents, 0);
-  const appointmentReceived = props.financial.reduce((sum, item) => { const appointment = props.appointments.find((candidate) => candidate.id === item.appointment_id); return appointment && new Date(appointment.created_at) >= periodStart ? sum + item.net_paid_cents : sum; }, 0);
-  const manualReceived = props.financialSettlements.reduce((sum, settlement) => { const entry = props.financialEntries.find((candidate) => candidate.id === settlement.entry_id); return entry?.kind === "REVENUE" && settlement.kind === "SETTLEMENT" && new Date(settlement.settled_on) >= periodStart ? sum + settlement.amount_cents : sum; }, 0);
+  const appointmentReceived = props.financial.reduce((sum, item) => { const appointment = props.appointments.find((candidate) => candidate.id === item.appointment_id); return appointment && (localDateKey(appointment.created_at, timezone) ?? "") >= periodStartKey ? sum + item.net_paid_cents : sum; }, 0);
+  const manualReceived = props.financialSettlements.reduce((sum, settlement) => { const entry = props.financialEntries.find((candidate) => candidate.id === settlement.entry_id); return entry?.kind === "REVENUE" && (entry.source ?? "MANUAL") === "MANUAL" && settlement.kind === "SETTLEMENT" && (localDateKey(`${settlement.settled_on}T12:00:00`, timezone) ?? "") >= periodStartKey ? sum + settlement.amount_cents : sum; }, 0);
   const totalReceived = appointmentReceived + manualReceived;
-  const inNextThirtyDays = (date: string) => { const parsed = new Date(`${date}T23:59:59`); return parsed >= today && parsed <= periodEnd; };
-  const dueByEndOfPeriod = (date: string) => new Date(`${date}T23:59:59`) <= periodEnd;
-  const accountsReceivable = props.financialEntries.filter((entry) => entry.kind === "REVENUE" && entry.remaining_cents > 0 && (entry.status === "OPEN" || inNextThirtyDays(entry.due_date))).reduce((sum, entry) => sum + entry.remaining_cents, 0);
-  const scheduledReceivable = props.appointments.reduce((sum, appointment) => { const item = financialById.get(appointment.id); return appointment.status === "COMPLETED" && item && item.outstanding_cents > 0 && new Date(appointment.created_at) <= periodEnd ? sum + item.outstanding_cents : sum; }, 0);
+  const dueByEndOfPeriod = (date: string) => isDateKeyAtOrBefore(date, periodEndKey);
+  const accountsReceivable = props.financialEntries.filter((entry) => (entry.source ?? "MANUAL") === "MANUAL" && entry.kind === "REVENUE" && entry.remaining_cents > 0 && !["SETTLED", "CANCELED"].includes(entry.status)).reduce((sum, entry) => sum + entry.remaining_cents, 0);
+  const scheduledReceivable = props.appointments.reduce((sum, appointment) => { const item = financialById.get(appointment.id); const dueDate = appointmentServiceDateKey(appointment.service_period, timezone); return isReceivableAppointmentStatus(appointment.status) && item && item.outstanding_cents > 0 && dueDate && dueByEndOfPeriod(dueDate) ? sum + item.outstanding_cents : sum; }, 0);
   const commission = Math.max(0, props.ledger.reduce((sum, item) => sum + item.amount_cents, 0) - props.payouts.reduce((sum, item) => sum + item.amount_cents, 0));
   const accountsPayable = props.financialEntries.filter((entry) => entry.kind === "EXPENSE" && entry.remaining_cents > 0 && dueByEndOfPeriod(entry.due_date)).reduce((sum, entry) => sum + entry.remaining_cents, 0);
   const eligibleAppointments = props.appointments.filter((appointment) => {

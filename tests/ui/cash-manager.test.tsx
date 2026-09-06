@@ -167,6 +167,48 @@ describe("cash manager", () => {
     expect(screen.queryByText("Despesa já paga")).not.toBeInTheDocument();
   });
 
+  it("exibe atendimento ativo ainda não recebido e não repete recebimento no contas a receber", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} section="receivables" entries={[...props.entries, {
+        ...props.entries[0],
+        id: "manual-receivable",
+        kind: "REVENUE" as const,
+        description: "Mensalidade cliente",
+        chart_account_id: "chart-revenue",
+        counterparty_kind: "CUSTOMER" as const,
+        customer_id: "customer-1",
+        supplier_id: null,
+        due_date: "2026-08-15",
+        total_cents: 4500,
+        remaining_cents: 4500,
+        status: "OPEN" as const,
+      }]} appointmentActivity={[{
+        ...props.appointmentActivity[0],
+        display_description: "Corte já recebido · Profissional: Alef",
+      }]} appointmentReceivables={[{
+        appointment_id: "appointment-future",
+        organization_id: "org-1",
+        customer_id: "customer-1",
+        customer_name: "Cliente Real",
+        description: "Barba amanhã · Profissional: Alef",
+        amount_cents: 13500,
+        issue_date: "2026-08-15",
+        due_date: "2026-08-16",
+        document_number: "ATD-FUTURE",
+        outstanding_cents: 13500,
+      }]} />);
+
+      expect(screen.queryByText("Corte já recebido · Profissional: Alef")).toBeNull();
+      expect(screen.getByText("Mensalidade cliente")).toBeTruthy();
+      expect(screen.getByText("Barba amanhã · Profissional: Alef")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Receber" })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("opens a cash entry form without calling Supabase in advance", () => {
     render(<CashManager {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
@@ -180,7 +222,7 @@ describe("cash manager", () => {
     expect(screen.queryByLabelText("Filtrar tipo")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
     const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
-    expect(within(dialog).getByLabelText("Tipo de despesa")).toHaveValue("SINGLE");
+    expect(within(dialog).getByLabelText("Tipo de conta")).toHaveValue("SINGLE");
     fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Energia" } });
     fireEvent.change(within(dialog).getByLabelText("Valor (R$)"), { target: { value: "120,00" } });
     fireEvent.change(within(dialog).getByLabelText("Plano de conta"), { target: { value: "chart-expense" } });
@@ -229,7 +271,7 @@ describe("cash manager", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
     const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
-    fireEvent.change(within(dialog).getByLabelText("Tipo de despesa"), { target: { value: "INSTALLMENT" } });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de conta"), { target: { value: "INSTALLMENT" } });
     fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Cadeira" } });
     fireEvent.change(within(dialog).getByLabelText("Valor da parcela (R$)"), { target: { value: "250,00" } });
     fireEvent.change(within(dialog).getByLabelText("Qtd. de parcelas"), { target: { value: "4" } });
@@ -238,7 +280,23 @@ describe("cash manager", () => {
     fireEvent.submit(within(dialog).getByRole("button", { name: "Adicionar" }).closest("form")!);
 
     expect(rpc).toHaveBeenCalledWith("create_financial_series", expect.objectContaining({ p_organization_id: "org-1", p_kind: "INSTALLMENT", p_cadence: "MONTHLY", p_occurrence_count: 4, p_total_cents: 100000 }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).toBeNull());
+  });
+
+  it("cria série de contas a receber com a natureza de receita", async () => {
+    render(<CashManager {...props} section="receivables" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de conta"), { target: { value: "INSTALLMENT" } });
+    fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Plano mensal" } });
+    fireEvent.change(within(dialog).getByLabelText("Valor da parcela (R$)"), { target: { value: "50,00" } });
+    fireEvent.change(within(dialog).getByLabelText("Qtd. de parcelas"), { target: { value: "3" } });
+    fireEvent.change(within(dialog).getByLabelText("Plano de conta"), { target: { value: "chart-revenue" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Adicionar" }).closest("form")!);
+
+    expect(rpc).toHaveBeenCalledWith("create_financial_series", expect.objectContaining({ p_organization_id: "org-1", p_kind: "INSTALLMENT", p_entry_kind: "REVENUE", p_cadence: "MONTHLY", p_occurrence_count: 3, p_total_cents: 15000, p_amount_cents: null }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).toBeNull());
   });
 
   it("cria recorrência quinzenal e filtra despesas por período e status", async () => {
@@ -252,7 +310,7 @@ describe("cash manager", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
     const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
-    fireEvent.change(within(dialog).getByLabelText("Tipo de despesa"), { target: { value: "RECURRING" } });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de conta"), { target: { value: "RECURRING" } });
     fireEvent.change(within(dialog).getByLabelText("Tipo de recorrência"), { target: { value: "BIWEEKLY" } });
     fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Internet" } });
     fireEvent.change(within(dialog).getByLabelText("Valor por vencimento (R$)"), { target: { value: "99,90" } });
