@@ -84,6 +84,10 @@ export interface BarberRecord {
   commission_payment_first_day?: number | null;
   commission_payment_second_day?: number | null;
   whatsapp_e164: string | null;
+  login_email?: string | null;
+  app_access_enabled?: boolean;
+  agenda_access_scope?: "OWN" | "FULL";
+  cash_access_enabled?: boolean;
   active: boolean;
 }
 

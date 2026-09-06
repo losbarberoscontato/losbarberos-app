@@ -8,7 +8,16 @@ import { TeamManager } from "@/components/connected-manager/team-manager";
 import type { WhatsAppSettingsStatus } from "@/components/connected-manager/whatsapp-settings";
 
 const refresh = vi.fn();
-const mutationMocks = vi.hoisted(() => ({ update: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })) })), rpc: vi.fn(() => Promise.resolve({ error: null, data: null })) }));
+const mutationMocks = vi.hoisted(() => ({
+  update: vi.fn(() => ({
+    eq: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        select: vi.fn(() => ({ maybeSingle: vi.fn(() => Promise.resolve({ data: { id: "barber-1", agenda_access_scope: "OWN" }, error: null })) })),
+      })),
+    })),
+  })),
+  rpc: vi.fn(() => Promise.resolve({ error: null, data: null })),
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/components/connected-manager/mutation-utils", () => ({
   connectedClient: () => ({ from: () => ({ update: mutationMocks.update }), rpc: mutationMocks.rpc }),

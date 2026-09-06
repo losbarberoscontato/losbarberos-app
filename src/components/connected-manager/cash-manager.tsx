@@ -10,6 +10,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import type { AppointmentReceiptDraft } from "./appointment-receipt";
 import { DEFAULT_FINANCIAL_TIMEZONE } from "@/lib/domain/financial-receivables";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
+import { BarberCashSessionReconciliation, type BarberCashSession } from "./barber-cash-reconciliation";
 import type {
   AppointmentCashActivityRecord,
   AppointmentReceivableRecord,
@@ -58,6 +59,8 @@ export type CashManagerProps = {
   appointmentActivity: AppointmentCashActivityRecord[];
   mappings: PaymentAccountMappingRecord[];
   appointmentReceivables?: AppointmentReceivableRecord[];
+  barberCashSessions?: BarberCashSession[];
+  barberNames?: Record<string, string>;
   demoMode?: boolean;
 };
 
@@ -233,6 +236,7 @@ export function CashManager(props: CashManagerProps) {
       <Panel title="Próximo passo" description="Controle despesas, recebimentos e contas bancárias sem duplicar pagamentos de agendamento.">
         <Link className={styles.button} href="/gestor/financeiro/caixa">Abrir Caixa <ChevronRight size={16} /></Link>
       </Panel>
+      <Panel title="Caixas dos Barbeiros" description="Concilie o caixa diário individual antes de confirmar os recebimentos nas contas financeiras."><BarberCashSessionReconciliation sessions={props.barberCashSessions ?? []} barberNames={props.barberNames ?? {}} demoMode={props.demoMode} setMessage={setMessage} onSaved={() => router.refresh()} /></Panel>
     </>}
     {(props.section === "cash" || props.section === "payables" || props.section === "receivables") && <>
       <CashStats balance={balance} dailyMovement={props.section === "cash" ? periodMovement : dailyMovement} outgoing={props.section === "cash" ? periodOutflow : manualExpense} incoming={props.section === "cash" ? periodInflow : 0} openReceivable={openReceivable} openPayable={openPayable} showOpen={props.section !== "cash"} />

@@ -27,7 +27,9 @@ export async function configureEvolutionQrWebhook(
   apiKey: string,
 ): Promise<void> {
   await providerFetch<unknown>(
-    `${baseUrl.replace(/\/$/u, "")}/webhook/set/${encodeURIComponent(instanceName)}`,
+    `${baseUrl.replace(/\/$/u, "")}/webhook/set/${
+      encodeURIComponent(instanceName)
+    }`,
     {
       method: "POST",
       headers: { apikey: apiKey, "content-type": "application/json" },

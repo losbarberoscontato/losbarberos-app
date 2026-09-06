@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { clientAuthDestination, clientOAuthCompletionDestination } from "@/lib/client-auth";
+import { barberAuthDestination } from "@/lib/barber-auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSystemAuthDestination } from "@/lib/system-auth";
 
@@ -15,6 +16,8 @@ export async function GET(request: NextRequest) {
   const isGoogleFlow = requestedProviders.length === 1 && requestedProviders[0] === "google";
   const isClientDestination = requestedNextValues.length === 1
     && (requestedNext === "/cliente" || requestedNext.startsWith("/cliente/"));
+  const isBarberDestination = requestedNextValues.length === 1
+    && (requestedNext === "/barbeiro" || requestedNext.startsWith("/barbeiro/"));
   const destination = requestedNextValues.length !== 1
     ? "/gestor"
     : isClientDestination
@@ -22,6 +25,8 @@ export async function GET(request: NextRequest) {
       next: requestedNext,
       slug: requestedSlug,
     })
+    : isBarberDestination
+    ? barberAuthDestination({ next: requestedNext, slug: requestedSlug })
     : resolveSystemAuthDestination(requestedNext);
   const supabase = await getSupabaseServerClient();
 

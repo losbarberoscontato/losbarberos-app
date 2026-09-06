@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_temp;
 
-select plan(125);
+select plan(128);
 
 insert into auth.users (
   id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -36,8 +36,8 @@ select is((select parent.code from public.chart_of_accounts child join public.ch
 select is((select parent.code from public.chart_of_accounts child join public.chart_of_accounts parent on parent.id = child.parent_id where child.organization_id = '20000000-0000-4000-8000-000000000001' and child.code = '2.8.2'), '2.8', 'expense leaf resolves tenant-scoped parent');
 select is(public.replace_chart_of_accounts_from_default('20000000-0000-4000-8000-000000000001'), 42, 'empty tenant chart can be replaced from default');
 select ok(not has_function_privilege('authenticated', 'public.replace_chart_of_accounts_from_default(uuid)', 'EXECUTE'), 'browser cannot replace a tenant chart');
-insert into public.financial_entries (organization_id, kind, description, issue_date, due_date, total_cents, chart_account_id)
-values ('20000000-0000-4000-8000-000000000001', 'REVENUE', 'Receita de guarda', current_date, current_date, 100, (select id from public.chart_of_accounts where organization_id = '20000000-0000-4000-8000-000000000001' and code = '1.1.1'));
+insert into public.financial_entries (organization_id, kind, description, issue_date, due_date, competence_date, total_cents, chart_account_id)
+values ('20000000-0000-4000-8000-000000000001', 'REVENUE', 'Receita de guarda', current_date, current_date, current_date, 100, (select id from public.chart_of_accounts where organization_id = '20000000-0000-4000-8000-000000000001' and code = '1.1.1'));
 select throws_ok($$select public.replace_chart_of_accounts_from_default('20000000-0000-4000-8000-000000000001')$$, '22023', 'financial entries reference the current chart of accounts', 'chart replacement rejects tenant financial history');
 
 insert into public.platform_admins (user_id)
@@ -602,6 +602,13 @@ insert into public.notification_outbox (
   '70000000-0000-4000-8000-000000000001',
   'test_send_unknown', '+5511999990001', 'send-unknown-test',
   'PROCESSING', 'worker-test', now(), now() + interval '1 minute', 1
+);
+insert into public.consent_events (
+  organization_id, customer_id, kind, action, source, proof
+) values (
+  '20000000-0000-4000-8000-000000000001',
+  '40000000-0000-4000-8000-000000000001',
+  'WHATSAPP_TRANSACTIONAL', 'REVOKED', 'PGTAP', '{"proof":"revoke for send guard"}'::jsonb
 );
 select ok(
   not public.begin_notification_send('90000000-0000-4000-8000-000000000001', 'worker-test'),

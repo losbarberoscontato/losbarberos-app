@@ -103,7 +103,7 @@ export async function loadCatalogData() {
 
 export async function loadTeamData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [organization, locations, barbers, services, links, intervals, exceptions, rules] = await Promise.all([
+  const [organization, locations, barbers, services, links, intervals, exceptions, rules, financialAccounts, barberAccountPermissions] = await Promise.all([
     supabase.from("organizations").select("timezone").eq("id", organizationId).single(),
     supabase.from("locations").select("*").eq("organization_id", organizationId).order("active", { ascending: false }),
     supabase.from("barbers").select("*").eq("organization_id", organizationId).order("active", { ascending: false }).order("display_name"),
@@ -112,6 +112,8 @@ export async function loadTeamData() {
     supabase.from("work_intervals").select("*").eq("organization_id", organizationId).order("weekday").order("starts_at"),
     supabase.from("availability_exceptions").select("*").eq("organization_id", organizationId).order("service_period"),
     supabase.from("commission_rules").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("financial_accounts").select("id,organization_id,kind,name,active").eq("organization_id", organizationId).eq("active", true).order("name"),
+    supabase.from("barber_financial_account_permissions").select("barber_id,financial_account_id").eq("organization_id", organizationId).eq("active", true),
   ]);
   return {
     organizationId,
@@ -124,6 +126,8 @@ export async function loadTeamData() {
     workIntervals: requireData(intervals, "Escalas") as WorkIntervalRecord[],
     exceptions: requireData(exceptions, "Exceções") as AvailabilityExceptionRecord[],
     commissionRules: requireData(rules, "Comissões") as CommissionRuleRecord[],
+    financialAccounts: financialAccounts.error ? [] : requireData(financialAccounts, "Contas permitidas") as { id: string; organization_id: string; kind: "BANK" | "CASH"; name: string; active: boolean }[],
+    barberAccountPermissions: barberAccountPermissions.error ? [] : requireData(barberAccountPermissions, "Permissões de conta") as { barber_id: string; financial_account_id: string }[],
   };
 }
 
@@ -174,7 +178,7 @@ export async function loadAgendaData() {
 
 export async function loadFinanceData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [financial, appointments, customers, barbers, ledger, payouts, refunds, outbox, accounts, entries, settlements, organization] = await Promise.all([
+  const [financial, appointments, customers, barbers, ledger, payouts, refunds, outbox, accounts, entries, settlements, organization, barberCashSessions] = await Promise.all([
     supabase.from("appointment_financial_summary").select("*").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("customers").select("id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
@@ -187,6 +191,7 @@ export async function loadFinanceData() {
     supabase.from("financial_entry_summary").select("id,organization_id,source,kind,due_date,remaining_cents,status").eq("organization_id", organizationId).eq("source", "MANUAL").is("canceled_at", null).limit(MANAGER_ROW_LIMIT),
     supabase.from("financial_settlements").select("entry_id,kind,amount_cents,settled_on").eq("organization_id", organizationId).order("settled_on", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("organizations").select("timezone").eq("id", organizationId).maybeSingle(),
+    supabase.from("barber_cash_sessions").select("id,barber_id,business_date,status,expected_cents,reconciled_cents,variance_cents,variance_reason").eq("organization_id", organizationId).order("business_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
   ]);
   const timezone = (requireData(organization, "Organização financeira") as { timezone?: string } | null)?.timezone ?? DEFAULT_FINANCIAL_TIMEZONE;
   return {
@@ -204,12 +209,14 @@ export async function loadFinanceData() {
     financialAccounts: requireData(accounts, "Contas para comissão") as FinancialAccountRecord[],
     financialEntries: requireData(entries, "Contas financeiras") as Array<{ id: string; organization_id: string; source: "MANUAL" | "APPOINTMENT"; kind: "REVENUE" | "EXPENSE"; due_date: string; remaining_cents: number; status: string }>,
     financialSettlements: requireData(settlements, "Liquidações financeiras") as Array<{ entry_id: string; kind: "SETTLEMENT" | "REVERSAL"; amount_cents: number; settled_on: string }>,
+    barberCashSessions: barberCashSessions.error ? [] : requireData(barberCashSessions, "Caixas dos profissionais") as Array<{ id: string; barber_id: string; business_date: string; status: "OPEN" | "RECONCILED"; expected_cents: number; reconciled_cents: number | null; variance_cents: number | null; variance_reason: string | null }> ,
+    barberNames: Object.fromEntries((requireData(barbers, "Equipe") as BarberRecord[]).map((barber) => [barber.id, barber.display_name])),
   };
 }
 
 export async function loadCashData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [accounts, balances, suppliers, chartAccounts, costCenters, tags, customers, entries, entryTags, settlements, appointmentActivity, mappings, appointmentFinancial, appointments, appointmentItems, barbers, organization] = await Promise.all([
+  const [accounts, balances, suppliers, chartAccounts, costCenters, tags, customers, entries, entryTags, settlements, appointmentActivity, mappings, appointmentFinancial, appointments, appointmentItems, barbers, organization, barberCashSessions] = await Promise.all([
     supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
     supabase.from("financial_account_balances").select("financial_account_id,balance_cents").eq("organization_id", organizationId),
     supabase.from("suppliers").select("id,organization_id,person_kind,name,document,phone_e164,email,address,notes,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
@@ -227,6 +234,7 @@ export async function loadCashData() {
     supabase.from("appointment_items").select("appointment_id,service_name_snapshot,position").eq("organization_id", organizationId).order("position").limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("id,display_name").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("organizations").select("timezone").eq("id", organizationId).maybeSingle(),
+    supabase.from("barber_cash_sessions").select("id,organization_id,barber_id,business_date,status,expected_cents,reconciled_cents,variance_cents,variance_reason").eq("organization_id", organizationId).order("business_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
   ]);
   const timezone = (requireData(organization, "Organização financeira") as { timezone?: string } | null)?.timezone ?? DEFAULT_FINANCIAL_TIMEZONE;
   const activityRows = requireData(appointmentActivity, "Recebimentos de agendamento") as AppointmentCashActivityRecord[];
@@ -280,6 +288,8 @@ export async function loadCashData() {
     }),
     mappings: requireData(mappings, "Mapeamentos de recebimento") as PaymentAccountMappingRecord[],
     appointmentReceivables,
+    barberCashSessions: barberCashSessions.error ? [] : requireData(barberCashSessions, "Caixas dos profissionais") as Array<{ id: string; organization_id: string; barber_id: string; business_date: string; status: "OPEN" | "RECONCILED"; expected_cents: number; reconciled_cents: number | null; variance_cents: number | null; variance_reason: string | null }> ,
+    barberNames: Object.fromEntries(barberById),
   };
 }
 

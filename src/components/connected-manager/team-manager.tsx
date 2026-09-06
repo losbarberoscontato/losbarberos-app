@@ -14,7 +14,8 @@ import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
-type Props = AwaitedReturn<typeof loadTeamData>;
+type TeamData = AwaitedReturn<typeof loadTeamData>;
+type Props = Omit<TeamData, "financialAccounts" | "barberAccountPermissions"> & Partial<Pick<TeamData, "financialAccounts" | "barberAccountPermissions">>;
 type ProfessionalFilter = "ACTIVE" | "INACTIVE";
 type OperationForm = "SCHEDULE" | "EXCEPTION" | "COMMISSION" | "PAYMENT" | null;
 type CommissionPaymentFrequency = "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
@@ -84,6 +85,10 @@ export function TeamManager(props: Props) {
       display_name: String(data.get("display_name") ?? "").trim(),
       bio: String(data.get("bio") ?? "").trim() || null,
       whatsapp_e164: whatsappE164,
+      login_email: String(data.get("login_email") ?? "").trim().toLowerCase() || null,
+      app_access_enabled: data.get("app_access_enabled") === "on",
+      agenda_access_scope: String(data.get("agenda_access_scope") ?? "OWN"),
+      cash_access_enabled: data.get("cash_access_enabled") === "on",
     };
     const saved = await runMutation(setMessage, async () => {
       if (!payload.location_id) throw new Error("Cadastre uma unidade ativa antes da equipe.");
@@ -91,13 +96,21 @@ export function TeamManager(props: Props) {
       const client = connectedClient();
       let barberId = editing?.id;
       if (editing) {
-        await assertResult(await client.from("barbers").update(payload).eq("id", editing.id).eq("organization_id", props.organizationId));
+        const result = await client.from("barbers").update(payload).eq("id", editing.id).eq("organization_id", props.organizationId).select("id,agenda_access_scope").maybeSingle();
+        await assertResult(result);
+        if (!result.data) throw new Error("Não foi possível confirmar a atualização do profissional.");
+        if (result.data.agenda_access_scope !== payload.agenda_access_scope) throw new Error("O nível de acesso à agenda não foi salvo. Tente novamente.");
       } else {
         const result = await client.from("barbers").insert(payload).select("id").single();
         await assertResult(result);
         barberId = result.data?.id;
       }
       if (!barberId) throw new Error("Não foi possível identificar o profissional salvo.");
+      const financialAccountIds = data.getAll("financial_account_ids").map(String).filter(Boolean);
+      await assertResult(await client.rpc("set_barber_financial_accounts", {
+        p_barber_id: barberId,
+        p_financial_account_ids: financialAccountIds,
+      }));
       if (preparedPhoto) {
         const path = `${props.organizationId}/${barberId}/${crypto.randomUUID()}.webp`;
         await assertResult(await client.storage.from("barber-avatars").upload(path, preparedPhoto, { contentType: "image/webp", cacheControl: "31536000" }));
@@ -221,9 +234,15 @@ export function TeamManager(props: Props) {
         <form className="form-modal" role="dialog" aria-modal="true" aria-label={barberForm === "new" ? "Novo profissional" : "Editar profissional"} onSubmit={saveBarber} key={barberForm === "new" ? "new" : barberForm.id}>
           <div className="form-modal__head"><span><small>{barberForm === "new" ? "Novo profissional" : "Editar profissional"}</small><strong>{barberForm === "new" ? "Cadastre um profissional" : "Atualize os dados"}</strong></span><button type="button" className="icon-button" onClick={() => setBarberForm(null)} aria-label="Fechar"><X size={19} /></button></div>
           <div className="form-modal__body">
+            {message && <ActionMessage message={message} tone={message.includes("atualizado") || message.includes("Salvando") ? "info" : "error"} />}
             <Field label="Nome completo"><input name="display_name" required minLength={2} defaultValue={barberForm === "new" ? "" : barberForm.display_name} /></Field>
             <Field label="Unidade"><select name="location_id" required defaultValue={barberForm === "new" ? activeLocation?.id : barberForm.location_id}>{props.locations.filter((item) => item.active).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></Field>
             <Field label="WhatsApp do profissional"><><input name="whatsapp_e164" inputMode="tel" required placeholder="47999999999 ou +5547999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={barberForm === "new" ? "" : barberForm.whatsapp_e164 ?? ""} onBlur={(event) => { const normalized = normalizePhoneE164(event.currentTarget.value); if (normalized) event.currentTarget.value = normalized; }} /><small>Usado somente para avisos transacionais dos próprios agendamentos.</small></></Field>
+            <Field label="E-mail de acesso do Barbeiro"><><input name="login_email" type="email" defaultValue={barberForm === "new" ? "" : barberForm.login_email ?? ""} /><small>Deve ser igual ao e-mail usado no login. Sem este cadastro, o App do Barbeiro não libera acesso.</small></></Field>
+            <Field label="Agenda no App do Barbeiro"><select name="agenda_access_scope" defaultValue={barberForm === "new" ? "OWN" : barberForm.agenda_access_scope ?? "OWN"}><option value="OWN">Somente a própria agenda</option><option value="FULL">Agenda completa da barbearia</option></select></Field>
+            <Field label="Acesso ao App"><label className={styles.check}><input name="app_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.app_access_enabled)} />Liberar login do Barbeiro</label></Field>
+            <Field label="Acesso ao Caixa"><label className={styles.check}><input name="cash_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.cash_access_enabled)} />Permitir recebimentos no Caixa individual</label></Field>
+            <Field label="Contas que pode receber"><select name="financial_account_ids" multiple defaultValue={barberForm === "new" ? [] : (props.barberAccountPermissions ?? []).filter((item) => item.barber_id === barberForm.id).map((item) => item.financial_account_id)}>{(props.financialAccounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} · {account.kind === "CASH" ? "Caixa" : "Banco"}</option>)}</select></Field>
             <Field label="Apresentação"><textarea name="bio" defaultValue={barberForm === "new" ? "" : barberForm.bio ?? ""} /></Field>
             <div className={styles.field}><span>Foto de perfil</span><div className={styles.profilePhotoField}><span className={styles.profilePhotoPreview}>{barberForm !== "new" && barberForm.avatar_url ? <Image src={barberForm.avatar_url} alt="" width={64} height={64} sizes="64px" /> : initials(barberForm === "new" ? "Profissional" : barberForm.display_name)}</span><span><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => photoInputRef.current?.click()}>Adicionar foto</button><input ref={photoInputRef} className={styles.fileInput} type="file" name="avatar" accept="image/png,image/jpeg,image/webp" /><small>Será centralizada e salva em 320 × 320 pixels.</small></span></div></div>
           </div>
