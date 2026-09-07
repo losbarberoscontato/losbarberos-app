@@ -10,6 +10,7 @@ import type { AwaitedReturn } from "./utility-types";
 import { humanizeError } from "./format";
 import { ActionMessage, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
+import { normalizePhoneE164 } from "@/lib/phone";
 import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadSettingsData>;
@@ -42,6 +43,12 @@ export function SettingsManager(props: Props) {
   async function saveOrganization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const rawWhatsApp = String(data.get("public_contact_phone_e164") ?? "").trim();
+    const publicContactPhone = rawWhatsApp ? normalizePhoneE164(rawWhatsApp) : null;
+    if (rawWhatsApp && !publicContactPhone) {
+      setMessage("Informe um WhatsApp válido.");
+      return;
+    }
     const saved = await runMutation(setMessage, async () => {
       await assertResult(await connectedClient().from("organizations").update({
         name: String(data.get("name") ?? "").trim(),
@@ -49,7 +56,7 @@ export function SettingsManager(props: Props) {
         timezone: props.organization.timezone,
         cancellation_lead_minutes: props.organization.cancellation_lead_minutes,
         slot_interval_minutes: props.organization.slot_interval_minutes,
-        public_contact_phone_e164: String(data.get("public_contact_phone_e164") ?? "").trim() || null,
+        public_contact_phone_e164: publicContactPhone,
         logo_path: logoPath || null,
       }).eq("id", props.organizationId));
     }, "Regras da organização atualizadas.");
@@ -183,7 +190,7 @@ export function SettingsManager(props: Props) {
           <Field label="Nome"><input name="name" required minLength={2} defaultValue={props.organization.name} /></Field>
           <Field label="Nome de usuário"><input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" defaultValue={props.organization.slug} /></Field>
           <Field label="E-mail"><input value={props.accountEmail ?? "Não disponível"} readOnly aria-readonly="true" /></Field>
-          <Field label="WhatsApp público"><input name="public_contact_phone_e164" inputMode="tel" placeholder="+5511999999999" defaultValue={props.organization.public_contact_phone_e164 ?? ""} /></Field>
+          <Field label="WhatsApp público"><input name="public_contact_phone_e164" inputMode="tel" placeholder="11999999999 ou +5511999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={props.organization.public_contact_phone_e164 ?? ""} onBlur={(event) => { const normalized = normalizePhoneE164(event.currentTarget.value); if (normalized) event.currentTarget.value = normalized; }} /></Field>
           <Field label="Logomarca"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void uploadLogo(event.target.files?.[0])} /><small>{logoPath ? "Logo cadastrada" : "PNG, JPEG ou WebP até 2 MB"}</small></Field>
           <button className={`${styles.button} ${styles.formWide}`} type="submit">Salvar regras</button>
         </form>

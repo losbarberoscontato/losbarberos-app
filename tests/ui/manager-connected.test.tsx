@@ -194,6 +194,26 @@ describe("connected manager UI", () => {
     expect(screen.getByText("Gerenciar minha assinatura")).toBeInTheDocument();
   });
 
+  it("normaliza WhatsApp público antes de salvar", async () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
+      organization={organization}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+      whatsapp={null}
+    />);
+
+    fireEvent.change(screen.getByLabelText("WhatsApp público"), { target: { value: "47 99978-2545" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar regras" }));
+
+    await waitFor(() => expect(mutationMocks.update).toHaveBeenCalledWith(expect.objectContaining({
+      public_contact_phone_e164: "+5547999782545",
+    })));
+  });
+
   it("exibe WhatsApp conectado quando há canal ativo e saudável", () => {
     render(<SettingsManager
       organizationId="org-1"
