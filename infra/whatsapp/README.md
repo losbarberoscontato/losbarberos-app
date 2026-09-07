@@ -8,7 +8,7 @@ O cron existente permanece recuperação de baixa frequência. Ambos usam os mes
 1. Inventariar Evolution, PostgreSQL/Redis do gateway, proxy, volumes, backup e uso de CPU/RAM antes de alterar a VPS.
 2. Testar o endpoint `chat/getBase64FromMediaMessage` na versão instalada com número controlado.
 3. Construir worker com uma imagem Node >=22.18 aprovada e fixada por digest em `NODE_IMAGE`.
-4. Criar `/etc/los-barberos/whatsapp-worker.env` com permissão 0600, contendo `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`. Nunca versionar o arquivo.
+4. Criar `/etc/los-barberos/whatsapp-worker.env` com permissão 0600, contendo `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`. Nunca versionar o arquivo. Em VPS onde o operador só tem `sudo docker`, definir `WHATSAPP_WORKER_ENV_FILE` no `.env` local do Compose para um arquivo `0600` em `/home/lbadmin/.config/los-barberos/`.
 5. Configurar `WHATSAPP_ALERT_URL` como endpoint HTTPS independente da Evolution. Recebe apenas código operacional e instante, sem telefone, corpo ou chave. A autenticação, se exigida, usa `WHATSAPP_ALERT_TOKEN`.
 6. Aplicar migration, publicar Functions e UI compatíveis, iniciar worker, conferir heartbeat. Ativar tenant somente após testes shadow e número controlado.
 
