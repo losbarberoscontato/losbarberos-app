@@ -379,6 +379,8 @@ export async function loadWhatsAppSettingsData() {
       };
     })();
 
+  const runtimeResult = await supabase.rpc("get_whatsapp_runtime_status", { p_organization_id: organizationId });
+  if (!runtimeResult.error && runtimeResult.data) status.runtime = runtimeResult.data;
   return { organizationId, billingStatus: context.billingStatus, organization, status, schemaReady: !result.error };
 }
 

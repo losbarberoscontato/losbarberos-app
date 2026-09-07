@@ -445,16 +445,18 @@ export async function getCustomerPrivacy(
   supabase: SupabaseClient,
   organizationId: string,
   customerId: string,
-): Promise<{ whatsappGranted: boolean; requests: PrivacyRequest[] }> {
-  const [{ data: consents, error: consentError }, { data: requests, error: requestError }] = await Promise.all([
+): Promise<{ whatsappGranted: boolean; marketingGranted: boolean; requests: PrivacyRequest[] }> {
+  const [{ data: consents, error: consentError }, { data: marketing, error: marketingError }, { data: requests, error: requestError }] = await Promise.all([
     supabase
       .from("consent_events")
       .select("action,occurred_at")
       .eq("organization_id", organizationId)
       .eq("customer_id", customerId)
       .eq("kind", "WHATSAPP_TRANSACTIONAL")
-      .order("occurred_at", { ascending: false })
-      .limit(1),
+      .order("occurred_at", { ascending: false }).order("id", { ascending: false }).limit(1),
+    supabase.from("consent_events").select("action,occurred_at")
+      .eq("organization_id", organizationId).eq("customer_id", customerId).eq("kind", "MARKETING")
+      .order("occurred_at", { ascending: false }).order("id", { ascending: false }).limit(1),
     supabase
       .from("privacy_requests")
       .select("id,kind,status,requested_at,due_at")
@@ -464,21 +466,23 @@ export async function getCustomerPrivacy(
   ]);
   if (consentError) throw new Error(consentError.message);
   if (requestError) throw new Error(requestError.message);
-  const latest = (consents as { action: "GRANTED" | "REVOKED" }[] | null)?.[0];
+  if (marketingError) throw new Error(marketingError.message);
+  const latest = (consents as { action: string }[] | null)?.[0];
   return {
     whatsappGranted: latest?.action === "GRANTED",
+    marketingGranted: (marketing as { action: string }[] | null)?.[0]?.action === "GRANTED",
     requests: (requests as PrivacyRequest[] | null) ?? [],
   };
 }
 
 export async function recordWhatsappConsent(
   supabase: SupabaseClient,
-  input: { organizationId: string; customerId: string; granted: boolean; source?: "PWA_PROFILE" | "PWA_BOOKING" },
+  input: { organizationId: string; customerId: string; granted: boolean; kind?: "WHATSAPP_TRANSACTIONAL" | "MARKETING"; source?: "PWA_PROFILE" | "PWA_BOOKING" },
 ): Promise<string> {
   const { data, error } = await supabase.rpc("record_consent_event", {
     p_organization_id: input.organizationId,
     p_customer_id: input.customerId,
-    p_kind: "WHATSAPP_TRANSACTIONAL",
+    p_kind: input.kind ?? "WHATSAPP_TRANSACTIONAL",
     p_action: input.granted ? "GRANTED" : "REVOKED",
     p_source: input.source ?? "PWA_PROFILE",
     p_proof: { interface: "connected-client", locale: "pt-BR", explicit_control: true },

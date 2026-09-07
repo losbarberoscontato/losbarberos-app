@@ -2,7 +2,27 @@
 
 > Fonte técnica para manutenção do canal WhatsApp via Evolution API. Leia este documento antes de alterar agenda, lembretes, QR, webhooks, jobs ou notificações do WhatsApp.
 
-## Atualização — 01/09/2026
+## Implementação local — 06/09/2026
+
+O runtime novo está em implementação e validação local. A migration `20260906230249_whatsapp_reliable_runtime.sql` ainda não foi aplicada remotamente. As seções históricas abaixo descrevem o motor anterior; personalizadas permanecem bloqueadas em organizações LEGACY/SHADOW.
+
+- A fila V2 existente recebe tokens de lease, isolamento por conexão, prioridade operacional, deduplicação de recibos e estado `SEND_UNKNOWN`. Timeout ou falha após possível aceitação nunca gera reenvio automático.
+- Worker Node em `scripts/whatsapp-worker.mjs`; ciclos separados para envio e recebimento de mídia. Supabase persiste todo trabalho; Edge dispatcher continua como recuperação. O agendador de personalizadas tem intervalo mínimo de 30 segundos e lotes limitados.
+- Contratos e adaptadores ficam em `supabase/functions/_shared/whatsapp-*.ts` e RPCs `whatsapp_runtime_*`. Agenda, contato e consentimento registram eventos na própria transação. Leituras e comandos de agenda ficam nos adaptadores SQL.
+- A promoção por organização é explícita: LEGACY → SHADOW → ACTIVE. SHADOW mantém o produtor atual e oferece relatório de inspeção; ainda é necessário comparar os jobs esperados antes da promoção. Nunca habilitar dois consumidores para a mesma organização.
+- O painel preserva cards e controles. ACTIVE libera textos e toggles personalizados, modal de data/horário/público/prévia e cancelamento de campanhas pendentes. Desativação cancela pendências; a validação imediatamente anterior ao transporte reavalia preferências.
+- MARKETING é separado de WHATSAPP_TRANSACTIONAL. Conforme decisão do usuário, inicia ativo apenas no primeiro vínculo autenticado sem preferência anterior; recusas e contas antigas não recebem backfill. O perfil oferece dois controles independentes.
+- Pós-serviço usa a última conclusão registrada em `appointment_status_events`; dados legados sem esse evento usam o fim do atendimento. Nova reserva futura ou retorno concluído suprime recuperação. Limites: uma personalizada/dia e duas/semana civil no fuso da organização; aniversário precede pós-serviço, que precede campanhas.
+- Respostas ambíguas geram escolha `RESERVA n`; mensagens citadas identificam a solicitação original. Comando final valida organização, cliente, versão e validade.
+- Imagens entram somente pelo endpoint autenticado da Evolution, sem download de URLs fornecidas no webhook. Bucket privado, validação de estrutura JPEG/PNG/WebP, 10 MB e retenção de sete dias. A validação estrutural não equivale a decodificação completa. Interface de agente existe, mas IA não é instanciada nem recebe fotos.
+- Novas instâncias usam UUID completo; conexões existentes preservam seu identificador.
+- Segunda VPS: **25 usuários pagantes**, corrigindo o marco antigo de primeiros pagantes. Cadastro de servidores e vínculo da conexão estão preparados; transferência exige bloquear a sessão antiga na infraestrutura.
+
+Operação, rollback e instalação administrativa separada do Evolution Manager: [infra/whatsapp/README.md](../infra/whatsapp/README.md). Astra Campaign permanece referência conceitual, sem código incorporado.
+
+Validação e bloqueios: [whatsapp-runtime-validation.md](whatsapp-runtime-validation.md). Nenhuma entrega em aparelho, recuperação de VPS ou capacidade de produção pode ser inferida dos testes locais.
+
+## Histórico — 01/09/2026
 
 - Foi criado o controle individual das mensagens transacionais V2 na tela `/gestor/configuracoes/whatsapp`: confirmação ao cliente, confirmação ao barbeiro, presença às 08:00, presença T-180 e presença T-45.
 - Para preservar o comportamento já publicado, os quatro fluxos existentes iniciam ativos. O novo T-180 começa inativo e só agenda mensagens para novos agendamentos confirmados depois de sua ativação.

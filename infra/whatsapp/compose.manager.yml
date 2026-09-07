@@ -1,0 +1,15 @@
+services:
+  # Technical administration only; publish through authenticated reverse proxy
+  # or SSH tunnel, never directly to the Internet or tenant UI.
+  evolution-manager:
+    profiles: [admin]
+    image: ${EVOLUTION_MANAGER_IMAGE:?Use a reviewed image pinned by digest}
+    ports: ["127.0.0.1:8081:80"]
+    restart: unless-stopped
+    mem_limit: 128m
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "2"

@@ -1,9 +1,9 @@
-import { requiredEnv } from "../_shared/env.ts";
 import {
-  type EvolutionMessageKey,
-  isGroupOrBroadcastMessage,
-  senderPhoneFromMessageKey,
-} from "../_shared/evolution-message.ts";
+  eventIdentity,
+  normalizeEvolutionMessages,
+} from "../_shared/whatsapp-normalize.ts";
+import { requiredEnv } from "../_shared/env.ts";
+import { type EvolutionMessageKey } from "../_shared/evolution-message.ts";
 import { endpoint, json } from "../_shared/http.ts";
 import { providerFetch } from "../_shared/provider-http.ts";
 import {
@@ -88,11 +88,6 @@ async function syncConnectedPhone(
   }
 }
 
-function text(data: EvolutionPayload["data"]): string | null {
-  return data?.message?.conversation?.trim() ||
-    data?.message?.extendedTextMessage?.text?.trim() || null;
-}
-
 async function triggerV2Dispatcher(): Promise<void> {
   try {
     const baseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/u, "");
@@ -171,32 +166,28 @@ Deno.serve((request) =>
     if (
       event !== "MESSAGES_UPSERT" && event !== "MESSAGES_UPDATE"
     ) return json(request, { received: true });
-    const key = payload.data?.key;
-    if (key?.fromMe || isGroupOrBroadcastMessage(key)) {
-      return json(request, { received: true });
+    const events = normalizeEvolutionMessages(
+      event,
+      payload.instance!,
+      payload.data,
+    );
+    let queued = false;
+    for (const item of events) {
+      const fingerprint = await sha256Hex(eventIdentity(item));
+      const eventId = await rpc<string | null>(
+        "record_whatsapp_v2_webhook_event",
+        {
+          p_gateway_instance_id: payload.instance,
+          p_event_name: item.event_name,
+          p_provider_event_id: item.external_id,
+          p_fingerprint: fingerprint,
+          p_payload: item,
+        },
+      );
+      queued = queued || Boolean(eventId);
     }
-    const externalId = key?.id ?? null;
-    const normalized = {
-      gateway_instance_id: payload.instance,
-      sender_e164: senderPhoneFromMessageKey(key),
-      text: text(payload.data),
-      from_me: Boolean(key?.fromMe),
-    };
-    const fingerprint = await sha256Hex(
-      `${event}:${payload.instance}:${externalId ?? raw}`,
-    );
-    const eventId = await rpc<string | null>(
-      "record_whatsapp_v2_webhook_event",
-      {
-        p_gateway_instance_id: payload.instance,
-        p_event_name: event,
-        p_provider_event_id: externalId,
-        p_fingerprint: fingerprint,
-        p_payload: normalized,
-      },
-    );
     // Low-latency path. The minute cron remains the durable fallback.
-    if (eventId) {
+    if (queued) {
       const dispatch = triggerV2Dispatcher();
       const edgeRuntime = (globalThis as typeof globalThis & {
         EdgeRuntime?: EdgeRuntimeWithWaitUntil;

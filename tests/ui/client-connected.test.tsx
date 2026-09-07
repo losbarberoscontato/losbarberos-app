@@ -905,7 +905,7 @@ describe("cliente conectado", () => {
     expect(screen.getByLabelText("Data de nascimento")).toHaveAttribute("type", "text");
     expect(screen.getByLabelText("Data de nascimento")).toHaveAttribute("inputmode", "numeric");
     expect(screen.getByLabelText("Aceito os termos de uso e a política de privacidade")).toBeRequired();
-    expect(screen.getByText("Avisos no WhatsApp começam ativos.")).toBeInTheDocument();
+    expect(screen.getByText("Avisos no WhatsApp e marketing começam ativos, separadamente.")).toBeInTheDocument();
   });
 
   it("inicia Google com callback allowlisted e contexto da barbearia", async () => {

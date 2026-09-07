@@ -461,7 +461,7 @@ export function ClientAuthForm({
             </label>
             <p className={styles.authWhatsappDefault}>
               <MessageCircle size={17} aria-hidden="true" />
-              <span><strong>Avisos no WhatsApp começam ativos.</strong> Você pode desativá-los depois no perfil.</span>
+              <span><strong>Avisos no WhatsApp e marketing começam ativos, separadamente.</strong> Você pode desativar cada preferência no perfil.</span>
             </p>
           </>
         )}

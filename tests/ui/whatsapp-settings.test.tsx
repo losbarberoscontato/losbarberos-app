@@ -37,6 +37,19 @@ const status: WhatsAppSettingsStatus = {
 };
 
 describe("WhatsApp settings", () => {
+  it("libera personalizadas apenas com runtime pronto e persiste escolhas", async () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={{ ...status, runtime: { ready: true, pending: 2, failed: 1 } }} />);
+    expect(screen.queryByText("FUNÇÃO EM BREVE")).not.toBeInTheDocument();
+    const toggle = screen.getByLabelText("Ativar 14 dias após o serviço");
+    expect(toggle).toBeEnabled();
+    fireEvent.click(toggle);
+    fireEvent.change(screen.getByLabelText("Texto de 14 dias após o serviço"), { target: { value: "Olá {cliente}, vamos agendar?" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Salvar automações" })[1]);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalled());
+    expect(JSON.stringify(rpcMock.mock.calls)).toContain("Olá {cliente}, vamos agendar?");
+    expect(screen.getByText(/Mensagens pendentes: 2/)).toHaveAttribute("role", "status");
+  });
+
   it("exibe somente WhatsApp Web e automações transacionais", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 

@@ -1,0 +1,24 @@
+services:
+  whatsapp-worker:
+    build:
+      context: ../..
+      dockerfile: infra/whatsapp/Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:?Use a tested Node >=22.18 image pinned by digest}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    mem_limit: 256m
+    cpus: 0.5
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    env_file: /etc/los-barberos/whatsapp-worker.env
+    tmpfs: [/tmp:size=16m]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+

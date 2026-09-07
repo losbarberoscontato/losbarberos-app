@@ -1,5 +1,6 @@
 "use client";
 
+import { WhatsAppCampaignDialog } from "./whatsapp-campaign-dialog";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/ui";
@@ -31,6 +32,7 @@ export type WhatsAppConnection = {
 };
 
 export type WhatsAppSettingsStatus = {
+  runtime?: { ready: boolean; pending: number; failed: number; campaigns?: Array<{ id: string; message_key: string; scheduled_for: string; status: string }> };
   connections: WhatsAppConnection[];
   managerNotification: {
     phoneE164: string | null;
@@ -165,7 +167,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [qrCodeOverride, setQrCodeOverride] = useState<string | null | undefined>(undefined);
   const initialAutomation = { ...defaultAutomationRules, ...status.automation };
   const [automationRules, setAutomationRules] = useState(initialAutomation);
-  const [customMessages] = useState(() => customMessageDefaults(initialAutomation.custom_messages));
+  const [customMessages, setCustomMessages] = useState(() => customMessageDefaults(initialAutomation.custom_messages));
   const managerNotification = status.managerNotification ?? { phoneE164: null, matchesQrPhone: false };
   const [managerNotificationPhone, setManagerNotificationPhone] = useState(managerNotification.phoneE164 ?? "");
   const [managerNotificationMatchesQr, setManagerNotificationMatchesQr] = useState(managerNotification.matchesQrPhone);
@@ -174,6 +176,9 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   );
   const [savingManagerNotification, setSavingManagerNotification] = useState(false);
   const refreshInFlight = useRef(false);
+  const [campaignKey, setCampaignKey] = useState<string | null>(null);
+  const customReady = schemaReady && status.runtime?.ready === true;
+  const updateCustom = (key: WhatsAppCustomMessageKey, patch: Partial<WhatsAppCustomMessage>) => setCustomMessages((current) => current.map((item) => item.key === key ? { ...item, ...patch } : item));
 
   const connectionByProvider = new Map(status.connections.map((connection) => [connection.provider, connection]));
   const qrConnection = connectionByProvider.get("QR_WEB");
@@ -226,7 +231,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
         p_custom_messages: customMessages,
       }));
     }, "Automações atualizadas.");
-    if (saved) setMessage("Automações atualizadas. Regras ativas valem somente para novos agendamentos confirmados; mensagens personalizadas continuam salvas sem envio nesta etapa.");
+    if (saved) setMessage(customReady ? "Automações atualizadas. Mensagens personalizadas respeitarão consentimento, horário e limites de frequência." : "Automações atualizadas. Regras ativas valem somente para novos agendamentos confirmados; mensagens personalizadas continuam salvas sem envio nesta etapa.");
   }
 
   async function setActive(connection: WhatsAppConnection) {
@@ -420,10 +425,10 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
 
     <Panel
       title="Mensagens Personalizadas"
-      titleAdornment={<StatusChip active={false} tone="danger" label="FUNÇÃO EM BREVE" />}
-      description="Estas automações ainda não estão disponíveis para configuração ou envio."
+      titleAdornment={customReady ? undefined : <StatusChip active={false} tone="danger" label="FUNÇÃO EM BREVE" />}
+      description={customReady ? "Pós-serviço, felicitações e campanhas. Até uma mensagem por dia e duas por semana para cada cliente." : "Estas automações ainda não estão disponíveis para configuração ou envio."}
     >
-      <form onSubmit={(event) => event.preventDefault()} className={styles.stack}>
+      <form onSubmit={saveAutomation} className={styles.stack}>
         {customMessageGroups.map((group) => <section className={styles.customMessageGroup} key={group.title} aria-labelledby={`custom-${group.title}`}>
           <h3 id={`custom-${group.title}`}>{group.title}</h3>
           <div className={styles.automationList}>
@@ -431,22 +436,34 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
               const messageDefinition = customMessages.find((message) => message.key === definition.key)!;
               return <article className={styles.customMessageRow} key={definition.key}>
                 <div className={styles.automationRow}>
-                  <div><strong>{definition.title}</strong><small>Disponível em uma próxima atualização.</small></div>
+                  <div><strong>{definition.title}</strong><small>{customReady ? "Exige preferência de marketing ativa." : "Disponível em uma próxima atualização."}</small></div>
                   <label className={styles.automationSwitch}>
                     <span className="sr-only">Ativar {definition.title}</span>
-                    <input type="checkbox" checked={messageDefinition.enabled} disabled />
+                    <input type="checkbox" checked={messageDefinition.enabled} disabled={!customReady} onChange={(event) => updateCustom(definition.key, { enabled: event.target.checked })} />
                   </label>
                 </div>
                 <Field label={`Texto de ${definition.title}`} wide>
-                  <textarea aria-label={`Texto de ${definition.title}`} value={messageDefinition.body} disabled maxLength={4096} />
+                  <textarea aria-label={`Texto de ${definition.title}`} value={messageDefinition.body} disabled={!customReady} maxLength={4096} onChange={(event) => updateCustom(definition.key, { body: event.target.value })} />
                 </Field>
-                <small className={styles.muted}>Variáveis e personalização serão liberadas junto da função.</small>
+                <small className={styles.muted}>{customReady ? "Use {cliente} para incluir o nome. Salve antes de agendar." : "Variáveis e personalização serão liberadas junto da função."}</small>
+                {customReady && ["SPECIAL_DATES", "MARKETING_CAMPAIGNS"].includes(definition.key) && <button type="button" className={styles.button} disabled={!messageDefinition.enabled || !messageDefinition.body.trim()} onClick={() => setCampaignKey(definition.key)}>Agendar {definition.title}</button>}
               </article>;
             })}
           </div>
         </section>)}
-        <div className={styles.rowActions}><button className={styles.button} type="submit" disabled>Salvar automações</button></div>
+        <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!customReady}>Salvar automações</button></div>
       </form>
     </Panel>
+    {!!status.runtime?.campaigns?.length && <Panel title="Mensagens agendadas" description="Cancelar interrompe os envios que ainda não começaram.">
+      {status.runtime.campaigns.map((campaign) => <div key={campaign.id} className={styles.automationRow}>
+        <div><strong>{campaign.message_key === "SPECIAL_DATES" ? "Data especial" : "Campanha"}</strong><small>{new Date(campaign.scheduled_for).toLocaleString("pt-BR")} · {campaign.status === "CANCELED" ? "Cancelada" : campaign.status === "ENQUEUED" ? "Processada" : "Agendada"}</small></div>
+        {campaign.status === "SCHEDULED" && <button type="button" className={styles.button} onClick={async () => {
+          const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("cancel_whatsapp_campaign", { p_organization_id: organizationId, p_id: campaign.id })); }, "Campanha cancelada.");
+          if (saved) router.refresh();
+        }}>Cancelar campanha</button>}
+      </div>)}
+    </Panel>}
+    {status.runtime && <p role="status">Mensagens pendentes: {status.runtime.pending}. Falhas que precisam de revisão: {status.runtime.failed}.</p>}
+    {campaignKey && <WhatsAppCampaignDialog key={`${organizationId}:${campaignKey}`} organizationId={organizationId} messageKey={campaignKey} body={customMessages.find((m) => m.key === campaignKey)?.body ?? ""} onClose={() => { setCampaignKey(null); router.refresh(); }} />}
   </div>;
 }

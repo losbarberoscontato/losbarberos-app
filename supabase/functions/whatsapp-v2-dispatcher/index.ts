@@ -1,3 +1,9 @@
+import { requiredEnv } from "../_shared/env.ts";
+import { runWhatsAppRuntime } from "../_shared/whatsapp-runtime.ts";
+import {
+  deleteExpiredImages,
+  runtimeHttp,
+} from "../_shared/whatsapp-runtime-http.ts";
 import { endpoint, json } from "../_shared/http.ts";
 import { IntegrationError } from "../_shared/security.ts";
 import { requireServiceInvocation, rpc } from "../_shared/supabase.ts";
@@ -315,6 +321,21 @@ Deno.serve((request) =>
       throw new IntegrationError(405, "METHOD_NOT_ALLOWED");
     }
     requireServiceInvocation(request);
+    const runtime = runtimeHttp(
+      requiredEnv("SUPABASE_URL"),
+      requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+    );
+    // A missing v3 schema never interrupts the legacy dispatcher during staged deployment.
+    try {
+      await runWhatsAppRuntime(runtime);
+      await deleteExpiredImages(
+        runtime,
+        requiredEnv("SUPABASE_URL"),
+        requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+      );
+    } catch {
+      console.error("WHATSAPP_RUNTIME_TICK_FAILED");
+    }
     const payload = await request.json().catch(() => ({})) as {
       limit?: unknown;
     };
