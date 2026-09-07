@@ -221,7 +221,7 @@ export async function loadFinanceData() {
 
 export async function loadCashData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [accounts, balances, suppliers, chartAccounts, costCenters, tags, customers, entries, entryTags, settlements, appointmentActivity, mappings, appointmentFinancial, appointments, appointmentItems, barbers, organization, barberCashSessions] = await Promise.all([
+  const [accounts, balances, suppliers, chartAccounts, costCenters, tags, customers, entries, entryTags, settlements, appointmentActivity, commissionSettlements, commissionPayouts, mappings, appointmentFinancial, appointments, appointmentItems, barbers, organization, barberCashSessions] = await Promise.all([
     supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
     supabase.from("financial_account_balances").select("financial_account_id,balance_cents").eq("organization_id", organizationId),
     supabase.from("suppliers").select("id,organization_id,person_kind,name,document,phone_e164,email,address,notes,active").eq("organization_id", organizationId).order("active", { ascending: false }).order("name"),
@@ -233,6 +233,8 @@ export async function loadCashData() {
     supabase.from("financial_entry_tags").select("entry_id,tag_id").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("financial_settlements").select("id,entry_id,financial_account_id,kind,source_settlement_id,amount_cents,settled_on,payment_method,reference").eq("organization_id", organizationId).order("settled_on", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointment_cash_activity").select("payment_transaction_id,organization_id,appointment_id,customer_id,payment_mode,provider,kind,amount_cents,signed_cents,occurred_at,financial_account_id,needs_reconciliation").eq("organization_id", organizationId).order("occurred_at", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("commission_payout_settlements").select("id,organization_id,payout_id,financial_account_id,amount_cents,paid_on,document_number,tags,payment_method,reference").eq("organization_id", organizationId).order("paid_on", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("commission_payouts").select("id,barber_id").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("payment_account_mappings").select("id,organization_id,provider,payment_mode,financial_account_id").eq("organization_id", organizationId),
     supabase.from("appointment_financial_summary").select("appointment_id,captured_cents,refunded_cents,net_paid_cents,outstanding_cents,financial_status").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,payment_mode,service_period,total_cents_snapshot,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
@@ -243,6 +245,9 @@ export async function loadCashData() {
   ]);
   const timezone = (requireData(organization, "Organização financeira") as { timezone?: string } | null)?.timezone ?? DEFAULT_FINANCIAL_TIMEZONE;
   const activityRows = requireData(appointmentActivity, "Recebimentos de agendamento") as AppointmentCashActivityRecord[];
+  const commissionSettlementRows = requireData(commissionSettlements, "Pagamentos de comissão") as Array<{ id: string; organization_id: string; payout_id: string; financial_account_id: string; amount_cents: number; paid_on: string; document_number: string | null; tags: string | null; payment_method: string; reference: string | null }>;
+  const commissionPayoutRows = requireData(commissionPayouts, "Lotes de comissão") as Array<{ id: string; barber_id: string }>;
+  const barberByPayoutId = new Map(commissionPayoutRows.map((item) => [item.id, item.barber_id]));
   const financialRows = requireData(appointmentFinancial, "Resumo de pagamentos") as Array<{ appointment_id: string; captured_cents: number; refunded_cents: number; net_paid_cents: number; outstanding_cents: number; financial_status: string }>;
   const financialByAppointment = new Map(financialRows.map((item) => [item.appointment_id, item]));
   const statusByAppointment = new Map(financialRows.map((item) => [item.appointment_id, item.financial_status]));
@@ -291,6 +296,7 @@ export async function loadCashData() {
       const barber = appointment ? barberById.get(appointment.barber_id) : undefined;
       return { ...item, display_description: `${services} · Profissional: ${barber ?? "Não informado"}`, financial_status: statusByAppointment.get(item.appointment_id) ?? "UNPAID" };
     }),
+    commissionSettlements: commissionSettlementRows.map((item) => ({ ...item, barber_id: barberByPayoutId.get(item.payout_id) ?? "" })),
     mappings: requireData(mappings, "Mapeamentos de recebimento") as PaymentAccountMappingRecord[],
     appointmentReceivables,
     barberCashSessions: barberCashSessions.error ? [] : requireData(barberCashSessions, "Caixas dos profissionais") as Array<{ id: string; organization_id: string; barber_id: string; business_date: string; status: "OPEN" | "RECONCILED"; expected_cents: number; reconciled_cents: number | null; variance_cents: number | null; variance_reason: string | null }> ,

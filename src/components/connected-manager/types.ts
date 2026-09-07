@@ -231,6 +231,20 @@ export interface CommissionPayoutRecord {
   created_at: string;
 }
 
+export interface CommissionPayoutSettlementRecord {
+  id: string;
+  organization_id: string;
+  payout_id: string;
+  barber_id: string;
+  financial_account_id: string;
+  amount_cents: number;
+  paid_on: string;
+  document_number: string | null;
+  tags: string | null;
+  payment_method: string;
+  reference: string | null;
+}
+
 export interface MerchantAccountRecord {
   status: "PENDING" | "CONNECTED" | "REAUTH_REQUIRED" | "DISCONNECTED";
   external_account_id: string | null;

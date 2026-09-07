@@ -27,6 +27,7 @@ const props = {
   entryTags: [],
   settlements: [],
   appointmentActivity: [{ payment_transaction_id: "payment-1", organization_id: "org-1", appointment_id: "appointment-1", customer_id: "customer-1", payment_mode: "COUNTER", provider: "MANUAL" as const, kind: "CAPTURE" as const, amount_cents: 8000, signed_cents: 8000, occurred_at: "2026-08-09T10:00:00.000Z", financial_account_id: "account-1", needs_reconciliation: false, display_description: "Corte clássico · Profissional: Alef", financial_status: "PAID" }],
+  commissionSettlements: [],
   mappings: [],
 };
 
@@ -164,6 +165,37 @@ describe("cash manager", () => {
       fireEvent.change(screen.getByLabelText("Filtrar conta financeira"), { target: { value: "account-2" } });
       expect(screen.queryByText("Corte adicional")).not.toBeInTheDocument();
       expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it("exibe pagamento de comissão como saída na conta financeira correta", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} barberNames={{ "barber-1": "Alef Gonçalves" }} commissionSettlements={[{
+        id: "commission-settlement-1",
+        organization_id: "org-1",
+        payout_id: "payout-1",
+        barber_id: "barber-1",
+        financial_account_id: "account-1",
+        amount_cents: 3500,
+        paid_on: "2026-08-15",
+        document_number: "COM-ABC123",
+        tags: "Controle",
+        payment_method: "PIX",
+        reference: "COM-ABC123",
+      }]} />);
+
+      expect(screen.getByText("Alef Gonçalves")).toBeInTheDocument();
+      expect(screen.getByText("Pagamento de comissão · Controle")).toBeInTheDocument();
+      expect(screen.getByText("−R$ 35,00")).toBeInTheDocument();
+      expect(screen.getAllByText("Banco Principal").length).toBeGreaterThan(0);
+      expect(screen.getByText(/Saídas realizadas/).parentElement).toHaveTextContent(/-R\$\s*35,00/);
+      expect(screen.getByText(/Movimentação no período/).parentElement).toHaveTextContent(/R\$\s*45,00/);
     } finally {
       cleanup();
       vi.clearAllTimers();
