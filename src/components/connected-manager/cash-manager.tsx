@@ -173,6 +173,7 @@ export function CashManager(props: CashManagerProps) {
   const sectionKind: "ALL" | EntryKind = props.section === "payables" ? "EXPENSE" : props.section === "receivables" ? "REVENUE" : "ALL";
 
   const accountById = useMemo(() => new Map(props.accounts.map((item) => [item.id, item])), [props.accounts]);
+  const cashAccountId = useMemo(() => props.accounts.find((item) => item.kind === "CASH" || /caixa físico/i.test(item.name))?.id ?? "", [props.accounts]);
   const supplierById = useMemo(() => new Map(props.suppliers.map((item) => [item.id, item])), [props.suppliers]);
   const customerById = useMemo(() => new Map(props.customers.map((item) => [item.id, item])), [props.customers]);
   const chartById = useMemo(() => new Map(props.chartAccounts.map((item) => [item.id, item])), [props.chartAccounts]);
@@ -189,7 +190,7 @@ export function CashManager(props: CashManagerProps) {
     const counterparty = counterpartName(entry, customerById, supplierById);
     const haystack = [entry.description, entry.document_number, counterparty, chartById.get(entry.chart_account_id)?.name, ...(tagNamesByEntry.get(entry.id) ?? [])].join(" ").toLocaleLowerCase("pt-BR");
     const futureControl = entry.status !== "SETTLED" && entry.status !== "CANCELED";
-    const matchesStatus = props.section === "payables" || statusFilter === "ALL" || entry.status === statusFilter;
+    const matchesStatus = props.section === "payables" || props.section === "receivables" || statusFilter === "ALL" || entry.status === statusFilter;
     return props.section !== "cash" && (entry.source ?? "MANUAL") === "MANUAL" && futureControl && (sectionKind === "ALL" || entry.kind === sectionKind) && matchesStatus && (!accountFilter || accountFilter === "ALL" || entry.preferred_financial_account_id === accountFilter) && isDateInRange(entry.due_date, startDate, endDate, timezone) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
   }), [props.entries, props.section, customerById, supplierById, chartById, tagNamesByEntry, sectionKind, statusFilter, accountFilter, startDate, endDate, query, timezone]);
 
@@ -224,9 +225,8 @@ export function CashManager(props: CashManagerProps) {
   const visibleCommissionSettlementReversals: CommissionPayoutSettlementReversalRecord[] = [];
   const visibleAppointmentReceivables = useMemo(() => (props.appointmentReceivables ?? []).filter((item) => {
     const haystack = `${item.customer_name} ${item.description} ${item.document_number}`.toLocaleLowerCase("pt-BR");
-    const status = item.due_date < today(timezone) ? "OVERDUE" : "OPEN";
-    return props.section === "receivables" && isDateInRange(item.due_date, startDate, endDate, timezone) && (statusFilter === "ALL" || statusFilter === status) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.appointmentReceivables, props.section, startDate, endDate, statusFilter, query, timezone]);
+    return props.section === "receivables" && (accountFilter === "ALL" || accountFilter === cashAccountId) && isDateInRange(item.due_date, startDate, endDate, timezone) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.appointmentReceivables, props.section, startDate, endDate, accountFilter, cashAccountId, query, timezone]);
 
   const manualExpense = props.entries.filter((item) => item.kind === "EXPENSE").reduce((total, item) => total + item.settled_cents, 0);
   const dailyMovement = cashSettlementMovements.filter(({ settlement }) => movementDate(settlement.settled_on, timezone) === today(timezone)).reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + props.appointmentActivity.filter((item) => movementDate(item.occurred_at, timezone) === today(timezone)).reduce((total, item) => total + item.signed_cents, 0) - activeCommissionSettlements.filter((item) => movementDate(item.paid_on, timezone) === today(timezone)).reduce((total, item) => total + item.amount_cents, 0);
@@ -241,6 +241,11 @@ export function CashManager(props: CashManagerProps) {
   const payablesInPeriod = props.section === "payables" ? visibleEntries.reduce((total, item) => total + item.remaining_cents, 0) : 0;
   const payablesNextMonth = props.section === "payables" ? sumPayablesInRange(futureMonthRange(1, 1, timezone)) : 0;
   const payablesNextSixMonths = props.section === "payables" ? sumPayablesInRange(futureMonthRange(1, 6, timezone)) : 0;
+  const isOpenReceivable = (item: FinancialEntryRecord) => item.kind === "REVENUE" && (item.source ?? "MANUAL") === "MANUAL" && !["SETTLED", "CANCELED"].includes(item.status) && (accountFilter === "ALL" || item.preferred_financial_account_id === accountFilter);
+  const sumReceivablesInRange = (range: { start: string; end: string }) => props.entries.filter((item) => isOpenReceivable(item) && isDateInRange(item.due_date, range.start, range.end, timezone)).reduce((total, item) => total + item.remaining_cents, 0) + (props.appointmentReceivables ?? []).filter((item) => (accountFilter === "ALL" || accountFilter === cashAccountId) && isDateInRange(item.due_date, range.start, range.end, timezone)).reduce((total, item) => total + item.outstanding_cents, 0);
+  const receivablesInPeriod = props.section === "receivables" ? visibleEntries.reduce((total, item) => total + item.remaining_cents, 0) + visibleAppointmentReceivables.reduce((total, item) => total + item.outstanding_cents, 0) : 0;
+  const receivablesNextMonth = props.section === "receivables" ? sumReceivablesInRange(futureMonthRange(1, 1, timezone)) : 0;
+  const receivablesNextSixMonths = props.section === "receivables" ? sumReceivablesInRange(futureMonthRange(1, 6, timezone)) : 0;
 
   async function reverseAppointmentReceipt() {
     if (!reversePayment) return;
@@ -271,7 +276,7 @@ export function CashManager(props: CashManagerProps) {
   }
 
   const title = props.section === "overview" ? "Financeiro" : props.section === "cash" ? "Controle de caixa" : financeSections.find((item) => item.id === props.section)?.label ?? "Financeiro";
-  const description = props.demoMode ? "Modo demonstração: dados locais, sem escrita no Supabase." : props.section === "cash" ? "Entradas e saídas efetivamente movimentadas." : props.section === "payables" ? undefined : "Lançamentos auditáveis; valores liquidados não são apagados.";
+  const description = props.demoMode ? "Modo demonstração: dados locais, sem escrita no Supabase." : props.section === "cash" ? "Entradas e saídas efetivamente movimentadas." : props.section === "payables" || props.section === "receivables" ? undefined : "Lançamentos auditáveis; valores liquidados não são apagados.";
 
   return <div className={styles.stack}>
     <PageHeader title={title} description={description} actions={props.section === "cash" ? <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button> : undefined} />
@@ -286,13 +291,13 @@ export function CashManager(props: CashManagerProps) {
       <Panel title="Caixas dos Barbeiros" description="Concilie o caixa diário individual antes de confirmar os recebimentos nas contas financeiras."><BarberCashSessionReconciliation sessions={props.barberCashSessions ?? []} barberNames={props.barberNames ?? {}} demoMode={props.demoMode} setMessage={setMessage} onSaved={() => router.refresh()} /></Panel>
     </>}
     {(props.section === "cash" || props.section === "payables" || props.section === "receivables") && <>
-      <CashStats balance={balance} dailyMovement={props.section === "cash" ? periodMovement : dailyMovement} outgoing={props.section === "cash" ? periodOutflow : manualExpense} incoming={props.section === "cash" ? periodInflow : 0} openReceivable={openReceivable} openPayable={openPayable} payables={props.section === "payables" ? { inPeriod: payablesInPeriod, nextMonth: payablesNextMonth, nextSixMonths: payablesNextSixMonths } : undefined} showOpen={props.section !== "cash"} />
+      <CashStats balance={balance} dailyMovement={props.section === "cash" ? periodMovement : dailyMovement} outgoing={props.section === "cash" ? periodOutflow : manualExpense} incoming={props.section === "cash" ? periodInflow : 0} openReceivable={openReceivable} openPayable={openPayable} payables={props.section === "payables" ? { inPeriod: payablesInPeriod, nextMonth: payablesNextMonth, nextSixMonths: payablesNextSixMonths } : undefined} receivables={props.section === "receivables" ? { inPeriod: receivablesInPeriod, nextMonth: receivablesNextMonth, nextSixMonths: receivablesNextSixMonths } : undefined} showOpen={props.section !== "cash"} />
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
           <input className={styles.packageFilterSelect} aria-label="Buscar lançamentos" placeholder="Buscar descrição, documento ou contraparte" value={query} onChange={(event) => setQuery(event.target.value)} />
           <input className={styles.packageFilterSelect} aria-label="Data inicial" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
           <input className={styles.packageFilterSelect} aria-label="Data final" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-          {props.section === "cash" || props.section === "payables" ? <select className={styles.packageFilterSelect} aria-label="Filtrar conta financeira" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}><option value="ALL">Todas as contas</option>{props.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select> : <select className={styles.packageFilterSelect} aria-label="Filtrar status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "ALL" | EntryStatus)}><option value="ALL">Todos status</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}
+          {props.section === "cash" || props.section === "payables" || props.section === "receivables" ? <select className={styles.packageFilterSelect} aria-label="Filtrar conta financeira" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}><option value="ALL">Todas as contas</option>{props.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select> : <select className={styles.packageFilterSelect} aria-label="Filtrar status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "ALL" | EntryStatus)}><option value="ALL">Todos status</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}
         </div>
         {props.section !== "cash" && <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button>}
       </div>
@@ -318,13 +323,17 @@ export function CashManager(props: CashManagerProps) {
   </div>;
 }
 
-function CashStats({ balance, dailyMovement, outgoing, incoming, openReceivable, openPayable, payables, showOpen = true }: { balance: number; dailyMovement: number; outgoing: number; incoming: number; openReceivable: number; openPayable: number; payables?: { inPeriod: number; nextMonth: number; nextSixMonths: number }; showOpen?: boolean }) {
-  if (payables) return <section className={styles.stats}>
+function CashStats({ balance, dailyMovement, outgoing, incoming, openReceivable, openPayable, payables, receivables, showOpen = true }: { balance: number; dailyMovement: number; outgoing: number; incoming: number; openReceivable: number; openPayable: number; payables?: { inPeriod: number; nextMonth: number; nextSixMonths: number }; receivables?: { inPeriod: number; nextMonth: number; nextSixMonths: number }; showOpen?: boolean }) {
+  if (payables || receivables) {
+    const values = payables ?? receivables!;
+    const green = Boolean(receivables);
+    return <section className={styles.stats}>
     <article className={styles.stat}><span>Saldo em contas</span><strong>{formatCents(balance)}</strong><small>saldo inicial + movimentações</small></article>
-    <article className={styles.stat}><span>Contas à pagar no período</span><strong>{formatCents(payables.inPeriod)}</strong></article>
-    <article className={`${styles.stat} ${styles.statDanger}`}><span>Contas à pagar - próximo mês</span><strong>{formatCents(payables.nextMonth)}</strong></article>
-    <article className={`${styles.stat} ${styles.statDangerDark}`}><span>Contas à pagar - 6 meses</span><strong>{formatCents(payables.nextSixMonths)}</strong></article>
+    <article className={styles.stat}><span>Contas à {green ? "receber" : "pagar"} no período</span><strong>{formatCents(values.inPeriod)}</strong></article>
+    <article className={`${styles.stat} ${green ? styles.statSuccess : styles.statDanger}`}><span>Contas à {green ? "receber" : "pagar"} - próximo mês</span><strong>{formatCents(values.nextMonth)}</strong></article>
+    <article className={`${styles.stat} ${green ? styles.statSuccessDark : styles.statDangerDark}`}><span>Contas à {green ? "receber" : "pagar"} - 6 meses</span><strong>{formatCents(values.nextSixMonths)}</strong></article>
   </section>;
+  }
   return <section className={`${styles.stats} ${showOpen ? "" : styles.statsCash}`}>
     <article className={styles.stat}><span>Saldo em contas</span><strong>{formatCents(balance)}</strong><small>saldo inicial + movimentações</small></article>
     <article className={`${styles.stat} ${dailyMovement < 0 ? styles.statDanger : ""}`}><span>Movimentação no período</span><strong>{formatCents(dailyMovement)}</strong><small>Saldo do período</small></article>

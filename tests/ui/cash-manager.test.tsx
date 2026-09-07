@@ -315,6 +315,11 @@ describe("cash manager", () => {
       expect(screen.getByText("Mensalidade cliente")).toBeTruthy();
       expect(screen.getByText("Barba amanhã · Profissional: Alef")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Receber" })).toBeTruthy();
+      expect(screen.queryByLabelText("Filtrar status")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Filtrar conta financeira")).toHaveValue("ALL");
+      expect(screen.getByText("Contas à receber no período")).toBeInTheDocument();
+      expect(screen.getByText("Contas à receber - próximo mês")).toBeInTheDocument();
+      expect(screen.getByText("Contas à receber - 6 meses")).toBeInTheDocument();
     } finally {
       cleanup();
       vi.clearAllTimers();
