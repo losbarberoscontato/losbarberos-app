@@ -15,6 +15,13 @@ import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadFinanceData>;
 
+export function calculateOpenCommissionCents(
+  ledger: ReadonlyArray<{ amount_cents: number }>,
+  payouts: ReadonlyArray<{ amount_cents: number; status: "OPEN" | "PAID" | "CANCELED" }>,
+) {
+  return Math.max(0, ledger.reduce((sum, item) => sum + item.amount_cents, 0) - payouts.filter((item) => item.status === "PAID").reduce((sum, item) => sum + item.amount_cents, 0));
+}
+
 function csvCell(value: unknown): string {
   const text = String(value ?? "");
   const spreadsheetSafe = /^[=+\-@]/u.test(text) ? `'${text}` : text;
@@ -50,7 +57,7 @@ export function FinanceManager(props: Props) {
   const dueByEndOfPeriod = (date: string) => isDateKeyAtOrBefore(date, periodEndKey);
   const accountsReceivable = props.financialEntries.filter((entry) => (entry.source ?? "MANUAL") === "MANUAL" && entry.kind === "REVENUE" && entry.remaining_cents > 0 && !["SETTLED", "CANCELED"].includes(entry.status)).reduce((sum, entry) => sum + entry.remaining_cents, 0);
   const scheduledReceivable = props.appointments.reduce((sum, appointment) => { const item = financialById.get(appointment.id); const dueDate = appointmentServiceDateKey(appointment.service_period, timezone); return isReceivableAppointmentStatus(appointment.status) && item && item.outstanding_cents > 0 && dueDate && dueByEndOfPeriod(dueDate) ? sum + item.outstanding_cents : sum; }, 0);
-  const commission = Math.max(0, props.ledger.reduce((sum, item) => sum + item.amount_cents, 0) - props.payouts.reduce((sum, item) => sum + item.amount_cents, 0));
+  const commission = calculateOpenCommissionCents(props.ledger, props.payouts);
   const accountsPayable = props.financialEntries.filter((entry) => entry.kind === "EXPENSE" && entry.remaining_cents > 0 && dueByEndOfPeriod(entry.due_date)).reduce((sum, entry) => sum + entry.remaining_cents, 0);
   const eligibleAppointments = props.appointments.filter((appointment) => {
     const financial = financialById.get(appointment.id);

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FinancialReportsManager } from "@/components/connected-manager/financial-reports-manager";
+import { calculateOpenCommissionCents } from "@/components/connected-manager/finance-manager";
 
 const refresh = vi.fn();
 const rpc = vi.fn(() => Promise.resolve({ data: "settlement-1", error: null }));
@@ -34,6 +35,13 @@ const props = {
 
 describe("manager commissions", () => {
   beforeEach(() => { cleanup(); refresh.mockReset(); rpc.mockClear(); });
+
+  it("does not subtract canceled commission payouts from the open total", () => {
+    expect(calculateOpenCommissionCents(
+      [{ amount_cents: 44825 }],
+      [{ amount_cents: 3500, status: "CANCELED" }],
+    )).toBe(44825);
+  });
 
   it("selects open commissions, locks paid rows, and sends only the selection to payment", async () => {
     render(<FinancialReportsManager {...props} initialReport="COMMISSIONS" />);
