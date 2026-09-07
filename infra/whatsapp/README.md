@@ -12,7 +12,7 @@ O cron existente permanece recuperação de baixa frequência. Ambos usam os mes
 5. Configurar `WHATSAPP_ALERT_URL` como endpoint HTTPS independente da Evolution. Recebe apenas código operacional e instante, sem telefone, corpo ou chave. A autenticação, se exigida, usa `WHATSAPP_ALERT_TOKEN`.
 6. Aplicar migration, publicar Functions e UI compatíveis, iniciar worker, conferir heartbeat. Ativar tenant somente após testes shadow e número controlado.
 
-`docker compose -f infra/whatsapp/compose.yml up -d whatsapp-worker` inicia apenas o worker. Este comando NÃO foi executado pelo agente.
+O worker está instalado em produção na VPS principal, sem porta pública, com filesystem somente leitura, limite de 256 MiB, 0,5 CPU e reinício automático. Seu arquivo de ambiente permanece privado no host. O comando acima inicia somente o worker e é a referência para reinstalação controlada.
 
 ## Manager e licenças
 
