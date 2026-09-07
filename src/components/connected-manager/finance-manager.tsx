@@ -30,6 +30,7 @@ export function FinanceManager(props: Props) {
   const customerById = useMemo(() => new Map(props.customers.map((item) => [item.id, item])), [props.customers]);
   const barberById = useMemo(() => new Map(props.barbers.map((item) => [item.id, item])), [props.barbers]);
   const financialById = useMemo(() => new Map(props.financial.map((item) => [item.appointment_id, item])), [props.financial]);
+  const balanceByAccountId = useMemo(() => new Map(props.financialAccountBalances.map((item) => [item.financial_account_id, item.balance_cents])), [props.financialAccountBalances]);
   const correctionsBySource = useMemo(() => {
     const totals = new Map<string, number>();
     for (const entry of props.ledger) {
@@ -162,6 +163,9 @@ export function FinanceManager(props: Props) {
       <article className={`${styles.stat} ${styles.statDanger}`}><span>Comissões à pagar</span><strong>{formatCents(commission)}</strong><small>Todas as comissões à pagar</small></article>
       <article className={`${styles.stat} ${styles.statDangerDark}`}><span>Contas à pagar</span><strong>{formatCents(accountsPayable)}</strong><small>Aberto + próximos 30 dias</small></article>
     </section>
+    <Panel title="Saldo das contas" description="Saldo atual de cada conta financeira, incluindo o caixa físico.">
+      {props.financialAccounts.length === 0 ? <EmptyState title="Nenhuma conta financeira">Cadastre um banco ou caixa para acompanhar seus saldos.</EmptyState> : <div className={styles.accountBalances}>{props.financialAccounts.map((account) => <article className={styles.accountBalance} key={account.id}><span>{account.name}</span><strong>{formatCents(balanceByAccountId.get(account.id) ?? 0)}</strong><small>{account.kind === "CASH" ? "Caixa físico" : "Conta bancária"}</small></article>)}</div>}
+    </Panel>
     <Panel title="Conferência de Caixa" description="Caixas abertos devem ser conciliados por esta aba.">
       <section className={styles.list} aria-label="Caixas diários dos Barbeiros"><h3>Caixas diários dos Barbeiros</h3><BarberCashSessionReconciliation sessions={props.barberCashSessions} barberNames={props.barberNames} setMessage={setMessage} onSaved={() => router.refresh()} /></section>
       {props.refundJobs.length > 0 || props.outboxIssues.length > 0 ? <div className={styles.grid}>

@@ -37,6 +37,11 @@
 .statSuccessDark strong { color: #286437; }
 .statDangerDark { background: linear-gradient(150deg, #fff1ee, #ffe4df); border-color: rgba(139, 53, 42, .28); }
 .statDangerDark strong { color: #8b352a; }
+.accountBalances { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; }
+.accountBalance { display: grid; gap: .45rem; min-height: 108px; align-content: space-between; padding: 1rem; border: 1px solid #e1e8de; border-radius: 16px; background: linear-gradient(150deg, #fbfcfa, #f1f6ef); }
+.accountBalance span { color: #56635c; font-size: .84rem; font-weight: 700; }
+.accountBalance strong { color: #286437; font-family: var(--font-display, serif); font-size: 1.55rem; }
+.accountBalance small { color: #7d857f; font-size: .76rem; }
 .hidden { display: none; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
 .toolbarGroup { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
@@ -227,7 +232,7 @@
 @media (max-width: 680px) {
   .agendaHeader { align-items: flex-start; flex-direction: column; gap: .35rem; }
   .panel { padding: 1rem; border-radius: 16px; }
-  .stats, .cards, .form, .definition, .commercialToggles { grid-template-columns: 1fr; }
+  .stats, .cards, .accountBalances, .form, .definition, .commercialToggles { grid-template-columns: 1fr; }
   .chartColumns { grid-template-columns: 1fr; }
   .chartColumnHeader { align-items: flex-start; flex-direction: column; }
   .chartColumnHeader .button { width: 100%; }

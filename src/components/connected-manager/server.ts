@@ -178,7 +178,7 @@ export async function loadAgendaData() {
 
 export async function loadFinanceData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [financial, appointments, customers, barbers, ledger, payouts, refunds, outbox, accounts, entries, settlements, organization, barberCashSessions] = await Promise.all([
+  const [financial, appointments, customers, barbers, ledger, payouts, refunds, outbox, accounts, accountBalances, entries, settlements, organization, barberCashSessions] = await Promise.all([
     supabase.from("appointment_financial_summary").select("*").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("appointments").select("id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("customers").select("id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
@@ -188,6 +188,7 @@ export async function loadFinanceData() {
     supabase.from("refund_jobs").select("id,appointment_id,amount_cents,status,attempts,next_attempt_at,last_error,created_at").eq("organization_id", organizationId).in("status", ["PENDING", "PROCESSING", "FAILED", "SEND_UNKNOWN"]).order("created_at", { ascending: false }).limit(100),
     supabase.from("notification_outbox").select("id,appointment_id,template_key,recipient_e164,status,attempts,next_attempt_at,last_error,created_at").eq("organization_id", organizationId).in("status", ["FAILED", "SEND_UNKNOWN"]).order("created_at", { ascending: false }).limit(100),
     supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).eq("active", true).order("name"),
+    supabase.from("financial_account_balances").select("financial_account_id,balance_cents").eq("organization_id", organizationId),
     supabase.from("financial_entry_summary").select("id,organization_id,source,kind,due_date,remaining_cents,status").eq("organization_id", organizationId).eq("source", "MANUAL").is("canceled_at", null).limit(MANAGER_ROW_LIMIT),
     supabase.from("financial_settlements").select("entry_id,kind,amount_cents,settled_on").eq("organization_id", organizationId).order("settled_on", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("organizations").select("timezone").eq("id", organizationId).maybeSingle(),
@@ -207,6 +208,7 @@ export async function loadFinanceData() {
     refundJobs: requireData(refunds, "Reembolsos pendentes") as RefundJobRecord[],
     outboxIssues: requireData(outbox, "Mensagens pendentes") as OutboxRecord[],
     financialAccounts: requireData(accounts, "Contas para comissão") as FinancialAccountRecord[],
+    financialAccountBalances: requireData(accountBalances, "Saldos das contas") as FinancialAccountBalanceRecord[],
     financialEntries: requireData(entries, "Contas financeiras") as Array<{ id: string; organization_id: string; source: "MANUAL" | "APPOINTMENT"; kind: "REVENUE" | "EXPENSE"; due_date: string; remaining_cents: number; status: string }>,
     financialSettlements: requireData(settlements, "Liquidações financeiras") as Array<{ entry_id: string; kind: "SETTLEMENT" | "REVERSAL"; amount_cents: number; settled_on: string }>,
     barberCashSessions: barberCashSessions.error ? [] : requireData(barberCashSessions, "Caixas dos profissionais") as Array<{ id: string; barber_id: string; business_date: string; status: "OPEN" | "RECONCILED"; expected_cents: number; reconciled_cents: number | null; variance_cents: number | null; variance_reason: string | null }> ,
