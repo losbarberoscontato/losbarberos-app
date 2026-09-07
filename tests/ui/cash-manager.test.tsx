@@ -346,7 +346,7 @@ describe("cash manager", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("abre contas a pagar e receber no mês atual, com todos os status", () => {
+  it("abre contas a pagar no mês atual com filtro de conta e cards de projeção", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
     try {
@@ -354,7 +354,11 @@ describe("cash manager", () => {
 
       expect(screen.getByLabelText("Data inicial")).toHaveValue("2026-08-01");
       expect(screen.getByLabelText("Data final")).toHaveValue("2026-08-31");
-      expect(screen.getByLabelText("Filtrar status")).toHaveValue("ALL");
+      expect(screen.queryByLabelText("Filtrar status")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Filtrar conta financeira")).toHaveValue("ALL");
+      expect(screen.getByText("Contas à pagar no período")).toBeInTheDocument();
+      expect(screen.getByText("Contas à pagar - próximo mês")).toBeInTheDocument();
+      expect(screen.getByText("Contas à pagar - 6 meses")).toBeInTheDocument();
     } finally {
       cleanup();
       vi.clearAllTimers();
@@ -414,12 +418,11 @@ describe("cash manager", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).toBeNull());
   });
 
-  it("cria recorrência quinzenal e filtra despesas por período e status", async () => {
+  it("cria recorrência quinzenal e filtra despesas por período", async () => {
     render(<CashManager {...props} section="payables" entries={[...props.entries, { ...props.entries[0], id: "entry-canceled", description: "Água", due_date: "2026-08-15", status: "CANCELED", canceled_at: "2026-08-01T00:00:00Z", cancellation_reason: "Teste" }]} />);
 
     fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-08-15" } });
     fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-08-15" } });
-    fireEvent.change(screen.getByLabelText("Filtrar status"), { target: { value: "CANCELED" } });
     expect(screen.queryByText("Água")).not.toBeInTheDocument();
     expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
 
