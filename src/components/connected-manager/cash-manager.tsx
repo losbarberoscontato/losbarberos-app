@@ -198,15 +198,16 @@ export function CashManager(props: CashManagerProps) {
     const haystack = `${customer} ${item.display_description} ${item.provider} ${item.payment_mode}`.toLocaleLowerCase("pt-BR");
     return props.section === "cash" && (accountFilter === "ALL" || item.financial_account_id === accountFilter) && isDateInRange(item.occurred_at, startDate, endDate, timezone) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
   }), [props.appointmentActivity, customerById, props.section, accountFilter, startDate, endDate, query, timezone]);
-  const visibleCommissionSettlements = useMemo(() => (props.commissionSettlements ?? []).filter((item) => {
+  const activeCommissionSettlements = useMemo(() => {
+    const reversedSettlementIds = new Set((props.commissionSettlementReversals ?? []).map((item) => item.settlement_id));
+    return (props.commissionSettlements ?? []).filter((item) => !reversedSettlementIds.has(item.id));
+  }, [props.commissionSettlements, props.commissionSettlementReversals]);
+  const visibleCommissionSettlements = useMemo(() => activeCommissionSettlements.filter((item) => {
     const barber = props.barberNames?.[item.barber_id] ?? "Profissional";
     const haystack = [barber, "Pagamento de comissão", item.document_number, item.tags, item.reference].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
     return props.section === "cash" && (accountFilter === "ALL" || item.financial_account_id === accountFilter) && isDateInRange(item.paid_on, startDate, endDate, timezone) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.commissionSettlements, props.barberNames, props.section, accountFilter, startDate, endDate, query, timezone]);
-  const visibleCommissionSettlementReversals = useMemo(() => (props.commissionSettlementReversals ?? []).filter((item) => {
-    const settlement = (props.commissionSettlements ?? []).find((candidate) => candidate.id === item.settlement_id);
-    return props.section === "cash" && settlement && (accountFilter === "ALL" || settlement.financial_account_id === accountFilter) && isDateInRange(item.reversed_on, startDate, endDate, timezone) && (!query || `${item.reason} Estorno de comissão`.toLocaleLowerCase("pt-BR").includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.commissionSettlementReversals, props.commissionSettlements, props.section, accountFilter, startDate, endDate, query, timezone]);
+  }), [activeCommissionSettlements, props.barberNames, props.section, accountFilter, startDate, endDate, query, timezone]);
+  const visibleCommissionSettlementReversals: CommissionPayoutSettlementReversalRecord[] = [];
   const visibleAppointmentReceivables = useMemo(() => (props.appointmentReceivables ?? []).filter((item) => {
     const haystack = `${item.customer_name} ${item.description} ${item.document_number}`.toLocaleLowerCase("pt-BR");
     const status = item.due_date < today(timezone) ? "OVERDUE" : "OPEN";
@@ -214,10 +215,10 @@ export function CashManager(props: CashManagerProps) {
   }), [props.appointmentReceivables, props.section, startDate, endDate, statusFilter, query, timezone]);
 
   const manualExpense = props.entries.filter((item) => item.kind === "EXPENSE").reduce((total, item) => total + item.settled_cents, 0);
-  const dailyMovement = cashSettlementMovements.filter(({ settlement }) => movementDate(settlement.settled_on, timezone) === today(timezone)).reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + props.appointmentActivity.filter((item) => movementDate(item.occurred_at, timezone) === today(timezone)).reduce((total, item) => total + item.signed_cents, 0) - (props.commissionSettlements ?? []).filter((item) => movementDate(item.paid_on, timezone) === today(timezone)).reduce((total, item) => total + item.amount_cents, 0) + (props.commissionSettlementReversals ?? []).filter((item) => movementDate(item.reversed_on, timezone) === today(timezone)).reduce((total, item) => total + item.amount_cents, 0);
+  const dailyMovement = cashSettlementMovements.filter(({ settlement }) => movementDate(settlement.settled_on, timezone) === today(timezone)).reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + props.appointmentActivity.filter((item) => movementDate(item.occurred_at, timezone) === today(timezone)).reduce((total, item) => total + item.signed_cents, 0) - activeCommissionSettlements.filter((item) => movementDate(item.paid_on, timezone) === today(timezone)).reduce((total, item) => total + item.amount_cents, 0);
   const periodMovement = visibleSettlements.reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + visibleActivity.reduce((total, item) => total + item.signed_cents, 0) - visibleCommissionSettlements.reduce((total, item) => total + item.amount_cents, 0) + visibleCommissionSettlementReversals.reduce((total, item) => total + item.amount_cents, 0);
-  const periodOutflow = visibleSettlements.reduce((total, { entry, settlement }) => { const value = settlementSignedCents(entry.kind, settlement); return total + (value < 0 ? value : 0); }, 0) + visibleActivity.reduce((total, item) => total + (item.signed_cents < 0 ? item.signed_cents : 0), 0) - visibleCommissionSettlements.reduce((total, item) => total + item.amount_cents, 0);
-  const periodInflow = visibleSettlements.reduce((total, { entry, settlement }) => { const value = settlementSignedCents(entry.kind, settlement); return total + (value > 0 ? value : 0); }, 0) + visibleActivity.reduce((total, item) => total + (item.signed_cents > 0 ? item.signed_cents : 0), 0) + visibleCommissionSettlementReversals.reduce((total, item) => total + item.amount_cents, 0);
+  const periodOutflow = visibleSettlements.reduce((total, { entry, settlement }) => { const value = settlementSignedCents(entry.kind, settlement); return total + (value < 0 ? value : 0); }, 0) + visibleActivity.reduce((total, item) => total + (item.signed_cents < 0 ? item.signed_cents : 0), 0) - visibleCommissionSettlements.reduce((total, item) => total + item.amount_cents, 0) + visibleCommissionSettlementReversals.reduce((total, item) => total + item.amount_cents, 0);
+  const periodInflow = visibleSettlements.reduce((total, { entry, settlement }) => { const value = settlementSignedCents(entry.kind, settlement); return total + (value > 0 ? value : 0); }, 0) + visibleActivity.reduce((total, item) => total + (item.signed_cents > 0 ? item.signed_cents : 0), 0) - visibleCommissionSettlementReversals.reduce((total, item) => total + item.amount_cents, 0);
   const balance = props.balances.reduce((total, item) => total + item.balance_cents, 0);
   const openReceivable = props.entries.filter((item) => item.kind === "REVENUE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0) + (props.appointmentReceivables ?? []).reduce((total, item) => total + item.outstanding_cents, 0);
   const openPayable = props.entries.filter((item) => item.kind === "EXPENSE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0);

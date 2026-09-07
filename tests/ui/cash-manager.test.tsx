@@ -236,6 +236,42 @@ describe("cash manager", () => {
     }
   });
 
+  it("remove comissão estornada da lista e dos totais do caixa", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} barberNames={{ "barber-1": "Alef Gonçalves" }} commissionSettlements={[{
+        id: "commission-settlement-reversed",
+        organization_id: "org-1",
+        payout_id: "payout-1",
+        barber_id: "barber-1",
+        financial_account_id: "account-1",
+        amount_cents: 3500,
+        paid_on: "2026-08-15",
+        document_number: "COM-REVERSED",
+        tags: "Controle",
+        payment_method: "PIX",
+        reference: "COM-REVERSED",
+      }]} commissionSettlementReversals={[{
+        id: "commission-reversal-1",
+        organization_id: "org-1",
+        settlement_id: "commission-settlement-reversed",
+        amount_cents: 3500,
+        reversed_on: "2026-08-15",
+        reason: "Pagamento duplicado",
+      }]} />);
+
+      expect(screen.queryByText("Pagamento de comissão · Controle")).not.toBeInTheDocument();
+      expect(screen.queryByText("Estorno de comissão · Pagamento duplicado")).not.toBeInTheDocument();
+      expect(screen.getByText("Saídas realizadas").parentElement).toHaveTextContent(/R\$\s*0,00/);
+      expect(screen.getByText("Entradas realizadas").parentElement).toHaveTextContent(/R\$\s*80,00/);
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it("oculta lançamentos liquidados das contas a pagar", () => {
     const settled = { ...props.entries[0], id: "settled-payable", description: "Despesa já paga", kind: "EXPENSE" as const, status: "SETTLED" as const, settled_cents: 1000, remaining_cents: 0 };
     render(<CashManager {...props} section="payables" entries={[settled]} />);
