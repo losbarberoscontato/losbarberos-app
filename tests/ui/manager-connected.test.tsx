@@ -138,6 +138,7 @@ describe("connected manager UI", () => {
     render(<SettingsManager
       organizationId="org-1"
       billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
       organization={organization}
       locations={[]}
       merchant={null}
@@ -157,6 +158,7 @@ describe("connected manager UI", () => {
     render(<SettingsManager
       organizationId="org-1"
       billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
       organization={organization}
       locations={[]}
       merchant={null}
@@ -169,10 +171,34 @@ describe("connected manager UI", () => {
     expect(screen.queryByLabelText("Duração do hold")).not.toBeInTheDocument();
   });
 
+  it("exibe dados da barbearia e oculta configurações operacionais", () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
+      organization={organization}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+      whatsapp={null}
+    />);
+
+    expect(screen.getByRole("heading", { name: "Dados da Barbearia" })).toBeInTheDocument();
+    expect(screen.queryByText("Valores usados para novos agendamentos")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Nome de usuário")).toHaveValue("barbearia-real");
+    expect(screen.getByLabelText("E-mail")).toHaveValue("gestor@example.com");
+    expect(screen.getByLabelText("E-mail")).toHaveAttribute("readonly");
+    expect(screen.queryByLabelText("Timezone")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Prazo de cancelamento (horas)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Intervalo dos slots")).not.toBeInTheDocument();
+    expect(screen.getByText("Gerenciar minha assinatura")).toBeInTheDocument();
+  });
+
   it("exibe WhatsApp conectado quando há canal ativo e saudável", () => {
     render(<SettingsManager
       organizationId="org-1"
       billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
       organization={organization}
       locations={[]}
       merchant={null}
@@ -189,6 +215,7 @@ describe("connected manager UI", () => {
     render(<SettingsManager
       organizationId="org-1"
       billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
       organization={organization}
       locations={[]}
       merchant={null}

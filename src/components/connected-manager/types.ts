@@ -245,6 +245,15 @@ export interface CommissionPayoutSettlementRecord {
   reference: string | null;
 }
 
+export interface CommissionPayoutSettlementReversalRecord {
+  id: string;
+  organization_id: string;
+  settlement_id: string;
+  amount_cents: number;
+  reversed_on: string;
+  reason: string;
+}
+
 export interface MerchantAccountRecord {
   status: "PENDING" | "CONNECTED" | "REAUTH_REQUIRED" | "DISCONNECTED";
   external_account_id: string | null;

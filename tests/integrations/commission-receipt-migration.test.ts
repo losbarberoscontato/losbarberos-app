@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const migrationPath = resolve(process.cwd(), "supabase/migrations/20260907134240_commissions_paid_after_receipt.sql");
 const partialPayoutMigrationPath = resolve(process.cwd(), "supabase/migrations/20260907143410_commission_partial_payout.sql");
 const paymentDatesMigrationPath = resolve(process.cwd(), "supabase/migrations/20260907145830_commission_payment_dates.sql");
+const reversalMigrationPath = resolve(process.cwd(), "supabase/migrations/20260907163049_reverse_commission_payout.sql");
 
 describe("commission receipt migration contract", () => {
   it("gates earned commission by full appointment receipt and keeps the operation idempotent", () => {
@@ -56,5 +57,15 @@ describe("commission receipt migration contract", () => {
     expect(sql).toContain("p_tags text");
     expect(sql).toContain("nullif(btrim(p_document_number), '')");
     expect(sql).toContain("nullif(btrim(p_tags), '')");
+  });
+
+  it("keeps commission reversals append-only and releases the amount for a new payment", () => {
+    expect(existsSync(reversalMigrationPath)).toBe(true);
+    const sql = readFileSync(reversalMigrationPath, "utf8");
+    expect(sql).toContain("create table public.commission_payout_settlement_reversals");
+    expect(sql).toContain("commission_payout_settlement_reversals_append_only");
+    expect(sql).toContain("create or replace function public.reverse_commission_payout");
+    expect(sql).toContain("drop constraint if exists commission_payout_items_organization_id_ledger_entry_id_key");
+    expect(sql).toContain("reversal.amount_cents::bigint");
   });
 });
