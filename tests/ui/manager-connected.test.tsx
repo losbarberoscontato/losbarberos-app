@@ -226,8 +226,33 @@ describe("connected manager UI", () => {
     expect(screen.getByRole("button", { name: "Não compareceu" })).toBeEnabled();
     expect(screen.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("href", "https://web.whatsapp.com/send?phone=5511999999999");
     expect(screen.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("target", "_blank");
-    expect(screen.getByText("Pgto Pendente")).toBeInTheDocument();
+    expect(screen.getByText("Pagamento pendente")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeEnabled();
+  });
+
+  it("shows the payment account and translates the payment status in appointment details", () => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const start = new Date(`${today}T14:00:00-03:00`);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    render(<AgendaManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      customers={[customer]}
+      barbers={[barber]}
+      services={[service]}
+      packages={[]}
+      barberServices={[]}
+      financial={[{ appointment_id: "appointment-paid", captured_cents: 5000, refunded_cents: 0, net_paid_cents: 5000, outstanding_cents: 0, financial_status: "PAID" }]}
+      appointmentActivity={[{ payment_transaction_id: "payment-paid", organization_id: "org-1", appointment_id: "appointment-paid", customer_id: customer.id, payment_mode: "COUNTER", provider: "MANUAL", kind: "CAPTURE", amount_cents: 5000, signed_cents: 5000, occurred_at: start.toISOString(), financial_account_id: "account-1", needs_reconciliation: false, display_description: "Corte · Profissional: Alef", financial_status: "PAID" }]}
+      receiptCatalogs={{ accounts: [{ id: "account-1", organization_id: "org-1", kind: "BANK", name: "Banco Principal", bank_code: null, branch: null, account_number: null, description: null, opening_balance_cents: 0, active: true }], chartAccounts: [], costCenters: [], tags: [], mappings: [] }}
+      appointments={[{ id: "appointment-paid", organization_id: "org-1", customer_id: customer.id, barber_id: barber.id, status: "COMPLETED", source: "MANAGER", service_period: `[${start.toISOString()},${end.toISOString()})`, payment_mode: "COUNTER", currency: "BRL", total_cents_snapshot: 5000, notes: null, schedule_override_reason: null, created_at: start.toISOString() }]}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Cliente Real" }));
+    expect(screen.getByText("Gestor")).toBeInTheDocument();
+    expect(screen.getByText("Pago")).toBeInTheDocument();
+    expect(screen.getByText("Conta: Banco Principal")).toBeInTheDocument();
   });
 
   it("carrega os catálogos financeiros ao abrir recebimento pela agenda", async () => {

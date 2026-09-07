@@ -330,6 +330,7 @@ export interface FinancialCommissionDetailRecord {
   service_name: string;
   location_id: string;
   service_date: string;
+  received_on: string | null;
   service_value_paid_cents: number;
   financial_account_names: string | null;
   commission_cents: number;

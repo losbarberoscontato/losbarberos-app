@@ -26,9 +26,9 @@ const props = {
   accounts: [{ id: "account-1", organization_id: "org-1", kind: "BANK" as const, name: "Conta principal", bank_code: null, branch: null, account_number: null, description: null, opening_balance_cents: 0, active: true }],
   budgetVersions: [],
   commissionDetails: [
-    { organization_id: "org-1", appointment_id: "appointment-1", appointment_item_id: "item-1", customer_id: "customer-1", customer_name: "Cliente Um", barber_id: "barber-1", service_id: "service-1", service_name: "Barba", location_id: "location-1", service_date: "2026-09-06", service_value_paid_cents: 7000, financial_account_names: "Nubank", commission_cents: 3500, paid_commission_cents: 0, payable_commission_cents: 3500 },
-    { organization_id: "org-1", appointment_id: "appointment-2", appointment_item_id: "item-2", customer_id: "customer-2", customer_name: "Cliente Dois", barber_id: "barber-1", service_id: "service-2", service_name: "Acabamento", location_id: "location-1", service_date: "2026-09-04", service_value_paid_cents: 2000, financial_account_names: "Nubank", commission_cents: 1000, paid_commission_cents: 0, payable_commission_cents: 1000 },
-    { organization_id: "org-1", appointment_id: "appointment-3", appointment_item_id: "item-3", customer_id: "customer-3", customer_name: "Cliente Três", barber_id: "barber-1", service_id: "service-3", service_name: "Corte", location_id: "location-1", service_date: "2026-09-03", service_value_paid_cents: 7000, financial_account_names: "Caixa Físico", commission_cents: 3500, paid_commission_cents: 3500, payable_commission_cents: 0 },
+    { organization_id: "org-1", appointment_id: "appointment-1", appointment_item_id: "item-1", customer_id: "customer-1", customer_name: "Cliente Um", barber_id: "barber-1", service_id: "service-1", service_name: "Barba", location_id: "location-1", service_date: "2026-09-06", received_on: "2026-09-06", service_value_paid_cents: 7000, financial_account_names: "Nubank", commission_cents: 3500, paid_commission_cents: 0, payable_commission_cents: 3500 },
+    { organization_id: "org-1", appointment_id: "appointment-2", appointment_item_id: "item-2", customer_id: "customer-2", customer_name: "Cliente Dois", barber_id: "barber-1", service_id: "service-2", service_name: "Acabamento", location_id: "location-1", service_date: "2026-09-04", received_on: "2026-09-04", service_value_paid_cents: 2000, financial_account_names: "Nubank", commission_cents: 1000, paid_commission_cents: 0, payable_commission_cents: 1000 },
+    { organization_id: "org-1", appointment_id: "appointment-3", appointment_item_id: "item-3", customer_id: "customer-3", customer_name: "Cliente Três", barber_id: "barber-1", service_id: "service-3", service_name: "Corte", location_id: "location-1", service_date: "2026-09-03", received_on: "2026-09-03", service_value_paid_cents: 7000, financial_account_names: "Caixa Físico", commission_cents: 3500, paid_commission_cents: 3500, payable_commission_cents: 0 },
   ],
 } as unknown as Parameters<typeof FinancialReportsManager>[0];
 
@@ -49,11 +49,23 @@ describe("manager commissions", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Pagar Comissão" }));
     expect(screen.getByDisplayValue("R$ 45,00")).toHaveAttribute("readonly");
+    const documentNumber = screen.getByLabelText("Número do documento");
+    const generatedDocumentNumber = (documentNumber as HTMLInputElement).value;
+    expect(generatedDocumentNumber).toMatch(/^COM-[A-Z0-9]{10}$/);
+    expect(documentNumber).toHaveAttribute("readonly");
+    fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "Comissão setembro" } });
+    expect(screen.getByLabelText("Data do lançamento")).toHaveValue("2026-09-06");
+    expect(screen.getByLabelText("Vencimento")).not.toHaveAttribute("readonly");
+    fireEvent.change(screen.getByLabelText("Vencimento"), { target: { value: "2026-09-09" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Banco ou caixa" }), { target: { value: "account-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Adicionar" }));
 
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("pay_commission", expect.objectContaining({
       p_appointment_item_ids: ["item-1", "item-2"],
+      p_launch_on: "2026-09-06",
+      p_due_on: "2026-09-09",
+      p_document_number: generatedDocumentNumber,
+      p_tags: "Comissão setembro",
     })));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });

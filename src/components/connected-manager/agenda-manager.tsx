@@ -52,7 +52,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type AgendaData = AwaitedReturn<typeof loadAgendaData>;
-type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"] };
+type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"] };
 type View = "day" | "week" | "month";
 
 const hours = Array.from({ length: 14 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
@@ -68,6 +68,27 @@ function shiftMonth(dateKey: string, amount: number) {
   const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
   date.setUTCDate(Math.min(day, lastDay));
   return date.toISOString().slice(0, 10);
+}
+
+function financialStatusLabel(status: string | undefined) {
+  switch (status) {
+    case "PAID": return "Pago";
+    case "PARTIAL": return "Parcialmente pago";
+    case "REFUND_PENDING": return "Reembolso pendente";
+    case "PARTIALLY_REFUNDED": return "Parcialmente reembolsado";
+    case "REFUNDED": return "Reembolsado";
+    default: return "Pagamento pendente";
+  }
+}
+
+function appointmentSourceLabel(source: string) {
+  switch (source) {
+    case "CUSTOMER": return "Cliente";
+    case "MANAGER": return "Gestor";
+    case "WHATSAPP": return "WhatsApp";
+    case "SYSTEM": return "Sistema";
+    default: return source;
+  }
 }
 
 export function AgendaManager(props: Props) {
@@ -97,6 +118,17 @@ export function AgendaManager(props: Props) {
   const customerById = useMemo(() => new Map(availableCustomers.map((item) => [item.id, item])), [availableCustomers]);
   const barberById = useMemo(() => new Map(props.barbers.map((item) => [item.id, item])), [props.barbers]);
   const financialById = useMemo(() => new Map(props.financial.map((item) => [item.appointment_id, item])), [props.financial]);
+  const accountNameById = useMemo(() => new Map((props.receiptCatalogs?.accounts ?? []).map((account) => [account.id, account.name])), [props.receiptCatalogs?.accounts]);
+  const paymentAccountsByAppointment = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const activity of props.appointmentActivity ?? []) {
+      if (!['CAPTURE', 'ADJUSTMENT'].includes(activity.kind) || activity.signed_cents <= 0 || !activity.financial_account_id) continue;
+      const accountName = accountNameById.get(activity.financial_account_id) ?? "Conta não encontrada";
+      const names = map.get(activity.appointment_id) ?? [];
+      if (!names.includes(accountName)) map.set(activity.appointment_id, [...names, accountName]);
+    }
+    return map;
+  }, [accountNameById, props.appointmentActivity]);
   const itemsByAppointment = useMemo(() => {
     const appointmentItems = props.appointmentItems ?? [];
     const map = new Map<string, string[]>();
@@ -321,6 +353,8 @@ export function AgendaManager(props: Props) {
   const selectedCustomerRecord = selected ? customerById.get(selected.customer_id) : null;
   const selectedBarberRecord = selected ? barberById.get(selected.barber_id) : null;
   const selectedFinancial = selected ? financialById.get(selected.id) : null;
+  const selectedPaymentAccounts = selected ? paymentAccountsByAppointment.get(selected.id) ?? [] : [];
+  const selectedPaymentStatus = financialStatusLabel(selectedFinancial?.financial_status);
 
   return <div className={styles.stack}>
     <div className={styles.agendaHeader}>
@@ -395,9 +429,9 @@ export function AgendaManager(props: Props) {
           <span><CalendarDays size={17} /><div><small>Data e horário</small><strong>{formatRange(selected.service_period, timezone)}</strong></div></span>
           <span><Scissors size={17} /><div><small>Serviço ou pacote</small><strong>{serviceLabel(selected.id)}</strong></div></span>
           <span><UserRound size={17} /><div><small>Profissional</small><strong>{selectedBarberRecord?.display_name ?? "Profissional"}</strong></div></span>
-          <span><MapPin size={17} /><div><small>Origem</small><strong>{selected.source}</strong></div></span>
+          <span><MapPin size={17} /><div><small>Origem</small><strong>{appointmentSourceLabel(selected.source)}</strong></div></span>
         </div>
-        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span><small>{selectedFinancial?.financial_status === "UNPAID" ? "Pgto Pendente" : selectedFinancial?.financial_status ?? "Pgto Pendente"}</small></div><strong>{formatCents(selected.total_cents_snapshot)}</strong><span>Saldo: {formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}</span></div>
+        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span><small>{selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</div><strong>{formatCents(selected.total_cents_snapshot)}</strong><span>Saldo: {formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}</span></div>
         {selectedCustomerRecord?.phone_e164 && <div className="appointment-detail__contact"><a href={`https://web.whatsapp.com/send?phone=${selectedCustomerRecord.phone_e164.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a></div>}
       </div>
       <div className="appointment-detail__actions">

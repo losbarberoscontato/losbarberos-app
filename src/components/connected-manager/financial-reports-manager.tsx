@@ -30,6 +30,11 @@ function csvCell(value: unknown) {
 
 function sum(rows: Props["facts"]) { return rows.reduce((total, row) => total + row.signed_cents, 0); }
 
+function createInternalDocumentNumber() {
+  const random = crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase();
+  return `COM-${random}`;
+}
+
 function GeneralFinancialReportsManager(props: Props & { initialReport?: FinancialReportType }) {
   const [report, setReport] = useState<FinancialReportType>(props.initialReport ?? "DASHBOARD");
   const [basis, setBasis] = useState<BasisFilter>("ALL");
@@ -113,6 +118,7 @@ function CommissionReport({ props }: { props: CommissionProps }) {
   const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null);
   const [selectedCommissionIds, setSelectedCommissionIds] = useState<string[]>([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentDocumentNumber, setPaymentDocumentNumber] = useState("");
   const [message, setMessage] = useState("");
 
   const filteredDetails = useMemo(() => props.commissionDetails.filter((detail) =>
@@ -137,6 +143,13 @@ function CommissionReport({ props }: { props: CommissionProps }) {
   const selectedPayable = selectedBarber?.payable ?? 0;
   const selectedTotal = useMemo(() => selectedDetails.reduce((total, detail) => selectedCommissionIds.includes(detail.appointment_item_id) ? total + Math.max(detail.payable_commission_cents, 0) : total, 0), [selectedDetails, selectedCommissionIds]);
   const activeAccounts = props.accounts.filter((account) => account.active);
+  const selectedReceivedOn = useMemo(() => selectedDetails
+    .filter((detail) => selectedCommissionIds.includes(detail.appointment_item_id))
+    .map((detail) => detail.received_on)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()), [selectedDetails, selectedCommissionIds]);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
   function resetCommissionSelection() {
     setSelectedCommissionIds([]);
@@ -159,9 +172,12 @@ function CommissionReport({ props }: { props: CommissionProps }) {
         p_period_end: end,
         p_appointment_item_ids: selectedCommissionIds,
         p_financial_account_id: String(data.get("financial_account_id") ?? ""),
-        p_paid_on: String(data.get("paid_on") ?? end),
+        p_launch_on: String(data.get("launch_on") ?? selectedReceivedOn),
+        p_due_on: String(data.get("due_on") ?? today),
         p_payment_method: String(data.get("payment_method") ?? "TRANSFER"),
-        p_reference: String(data.get("reference") ?? "") || null,
+        p_document_number: paymentDocumentNumber,
+        p_tags: String(data.get("tags") ?? "").trim() || null,
+        p_reference: paymentDocumentNumber,
         p_idempotency_key: `manager:commission-payment:${selectedBarber.barberId}:${start}:${end}:${crypto.randomUUID()}`,
       }));
     }, "Comissão paga e lançada no Caixa.");
@@ -202,7 +218,7 @@ function CommissionReport({ props }: { props: CommissionProps }) {
             return <div className={styles.commissionServiceRow} role="row" key={detail.appointment_item_id}><span>{detail.customer_name}</span><span>{detail.service_name}</span><span>{formatServiceDate(detail.service_date)}</span><span><strong>{formatCents(detail.service_value_paid_cents)}</strong><small>{detail.financial_account_names ?? "Conta não vinculada"}</small></span><span className={styles.commissionSelectionCell}><input type="checkbox" aria-label={`Selecionar comissão de ${detail.service_name}`} checked={isSelected} disabled={isPaid || detail.payable_commission_cents <= 0} onChange={(event) => setSelectedCommissionIds((current) => event.target.checked ? [...current, detail.appointment_item_id] : current.filter((id) => id !== detail.appointment_item_id))} /><span><strong>{formatCents(detail.payable_commission_cents || detail.paid_commission_cents)}</strong><small>{isPaid ? "Pago" : "Em aberto"}</small></span></span></div>;
           })}
         </div>
-        <div className={styles.commissionModalFooter}><div className={styles.commissionSummary}><strong>À pagar: {formatCents(selectedPayable)}</strong><strong>Total selecionado: {formatCents(selectedTotal)}</strong></div><button className={styles.button} type="button" disabled={selectedTotal <= 0 || !activeAccounts.length} onClick={() => setPaymentOpen(true)}>Pagar Comissão</button></div>
+        <div className={styles.commissionModalFooter}><div className={styles.commissionSummary}><strong>À pagar: {formatCents(selectedPayable)}</strong><strong>Total selecionado: {formatCents(selectedTotal)}</strong></div><button className={styles.button} type="button" disabled={selectedTotal <= 0 || !activeAccounts.length} onClick={() => { setPaymentDocumentNumber(createInternalDocumentNumber()); setPaymentOpen(true); }}>Pagar Comissão</button></div>
         {!activeAccounts.length && <p className={styles.muted}>Cadastre uma conta financeira ativa antes de pagar.</p>}
       </div>
     </Dialog>}
@@ -211,15 +227,15 @@ function CommissionReport({ props }: { props: CommissionProps }) {
         <Field label="Tipo de conta"><input value="Única" readOnly /></Field>
         <Field label="Descrição"><input value={`Pagamento de comissão · ${selectedBarber.name}`} readOnly /></Field>
         <Field label="Valor (R$)"><input value={formatCents(selectedTotal)} readOnly aria-readonly="true" /></Field>
-        <Field label="Data do lançamento"><input name="paid_on" type="date" defaultValue={end} required /></Field>
-        <Field label="Vencimento"><input value={end} type="date" readOnly /></Field>
+        <Field label="Data do lançamento"><input name="launch_on" type="date" value={selectedReceivedOn} readOnly required /></Field>
+        <Field label="Vencimento"><input name="due_on" type="date" defaultValue={today} required /></Field>
         <Field label="Plano de conta"><input value="Custo de serviços · Comissão" readOnly /></Field>
         <Field label="Banco ou caixa"><select name="financial_account_id" required defaultValue=""><option value="" disabled>Selecione</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></Field>
         <Field label="Centro de custo"><input value="Não informar" readOnly /></Field>
-        <Field label="Número do documento"><input name="reference" placeholder="Opcional" /></Field>
+        <Field label="Número do documento"><input name="document_number" value={paymentDocumentNumber} readOnly aria-readonly="true" /></Field>
         <Field label="Profissional"><input value={selectedBarber.name} readOnly /></Field>
         <Field label="Forma de pagamento"><select name="payment_method" defaultValue="TRANSFER"><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="CASH">Dinheiro</option><option value="BOLETO">Boleto</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outra</option></select></Field>
-        <Field label="Tags" wide><textarea value="Pagamento de comissão" readOnly /></Field>
+        <Field label="Tags" wide><textarea name="tags" defaultValue="Pagamento de comissão" /></Field>
         <p className={styles.muted}>Pagamento reduz “À Pagar”, soma “Pago” e registra saída na conta selecionada.</p>
         <div className={styles.toolbarGroup}><button className={styles.button} type="submit">Adicionar</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setPaymentOpen(false)}>Cancelar</button></div>
       </form>
