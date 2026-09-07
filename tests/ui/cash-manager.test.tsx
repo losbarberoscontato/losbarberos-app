@@ -52,6 +52,8 @@ describe("cash manager", () => {
       expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
       expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -74,6 +76,8 @@ describe("cash manager", () => {
       expect(screen.getByText("Movimentação no período")).toBeInTheDocument();
       expect(screen.getByText(/R\$\s*149,00/)).toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -106,6 +110,8 @@ describe("cash manager", () => {
       expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
       expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -122,6 +128,8 @@ describe("cash manager", () => {
       expect(screen.getByRole("option", { name: "Caixa físico" })).toBeInTheDocument();
       expect(screen.queryByLabelText("Filtrar status")).not.toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -157,6 +165,8 @@ describe("cash manager", () => {
       expect(screen.queryByText("Corte adicional")).not.toBeInTheDocument();
       expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -205,6 +215,8 @@ describe("cash manager", () => {
       expect(screen.getByText("Barba amanhã · Profissional: Alef")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Receber" })).toBeTruthy();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -243,6 +255,8 @@ describe("cash manager", () => {
       expect(screen.getByLabelText("Data final")).toHaveValue("2026-08-31");
       expect(screen.getByLabelText("Filtrar status")).toHaveValue("ALL");
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -363,6 +377,8 @@ describe("cash manager", () => {
       expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_appointment_id: "appointment-2", p_amount_cents: 6500, p_chart_account_id: "chart-revenue", p_financial_account_id: "account-1", p_document_number: "ATD-APPOINT2", p_tag_ids: ["tag-1"] }));
       expect(rpc).not.toHaveBeenCalledWith("create_financial_entry", expect.anything());
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -390,6 +406,8 @@ describe("cash manager", () => {
       expect(rpc).toHaveBeenLastCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_amount_cents: 7100, p_adjustment_reason: "Ajuste automático do valor final no recebimento" }));
       expect(screen.queryByLabelText("Motivo do ajuste")).not.toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
