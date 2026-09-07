@@ -111,6 +111,7 @@ function CommissionReport({ props }: { props: CommissionProps }) {
   const [barberId, setBarberId] = useState("");
   const [locationId, setLocationId] = useState("");
   const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null);
+  const [selectedCommissionIds, setSelectedCommissionIds] = useState<string[]>([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -134,7 +135,13 @@ function CommissionReport({ props }: { props: CommissionProps }) {
   const selectedBarber = rows.find((row) => row.barberId === selectedBarberId) ?? null;
   const selectedDetails = useMemo(() => filteredDetails.filter((detail) => detail.barber_id === selectedBarberId), [filteredDetails, selectedBarberId]);
   const selectedPayable = selectedBarber?.payable ?? 0;
+  const selectedTotal = useMemo(() => selectedDetails.reduce((total, detail) => selectedCommissionIds.includes(detail.appointment_item_id) ? total + Math.max(detail.payable_commission_cents, 0) : total, 0), [selectedDetails, selectedCommissionIds]);
   const activeAccounts = props.accounts.filter((account) => account.active);
+
+  function resetCommissionSelection() {
+    setSelectedCommissionIds([]);
+    setPaymentOpen(false);
+  }
 
   function formatServiceDate(value: string) {
     return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(`${value}T12:00:00`));
@@ -142,7 +149,7 @@ function CommissionReport({ props }: { props: CommissionProps }) {
 
   async function payCommission(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedBarber || selectedPayable <= 0) return;
+    if (!selectedBarber || selectedTotal <= 0 || !selectedCommissionIds.length) return;
     const data = new FormData(event.currentTarget);
     const saved = await runMutation(setMessage, async () => {
       await assertResult(await connectedClient().rpc("pay_commission", {
@@ -150,6 +157,7 @@ function CommissionReport({ props }: { props: CommissionProps }) {
         p_barber_id: selectedBarber.barberId,
         p_period_start: start,
         p_period_end: end,
+        p_appointment_item_ids: selectedCommissionIds,
         p_financial_account_id: String(data.get("financial_account_id") ?? ""),
         p_paid_on: String(data.get("paid_on") ?? end),
         p_payment_method: String(data.get("payment_method") ?? "TRANSFER"),
@@ -159,6 +167,7 @@ function CommissionReport({ props }: { props: CommissionProps }) {
     }, "Comissão paga e lançada no Caixa.");
     if (saved) {
       setPaymentOpen(false);
+      setSelectedCommissionIds([]);
       setSelectedBarberId(null);
       router.refresh();
     }
@@ -169,27 +178,31 @@ function CommissionReport({ props }: { props: CommissionProps }) {
     <FinanceSubnav active="commissions" />
     <section className={styles.toolbar}>
       <div className={styles.toolbarGroup}>
-        <input className={styles.packageFilterSelect} type="date" aria-label="Data inicial" value={start} onChange={(event) => setStart(event.target.value)} />
-        <input className={styles.packageFilterSelect} type="date" aria-label="Data final" value={end} onChange={(event) => setEnd(event.target.value)} />
-        <select className={styles.packageFilterSelect} aria-label="Profissional" value={barberId} onChange={(event) => setBarberId(event.target.value)}><option value="">Todos profissionais</option>{props.barbers.filter((barber) => barber.active).map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select>
-        <select className={styles.packageFilterSelect} aria-label="Unidade" value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="">Todas unidades</option>{props.locations.filter((location) => location.active).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select>
+        <input className={styles.packageFilterSelect} type="date" aria-label="Data inicial" value={start} onChange={(event) => { resetCommissionSelection(); setStart(event.target.value); }} />
+        <input className={styles.packageFilterSelect} type="date" aria-label="Data final" value={end} onChange={(event) => { resetCommissionSelection(); setEnd(event.target.value); }} />
+        <select className={styles.packageFilterSelect} aria-label="Profissional" value={barberId} onChange={(event) => { resetCommissionSelection(); setBarberId(event.target.value); }}><option value="">Todos profissionais</option>{props.barbers.filter((barber) => barber.active).map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select>
+        <select className={styles.packageFilterSelect} aria-label="Unidade" value={locationId} onChange={(event) => { resetCommissionSelection(); setLocationId(event.target.value); }}><option value="">Todas unidades</option>{props.locations.filter((location) => location.active).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select>
       </div>
     </section>
     {message && <p className={styles.message} role="status">{message}</p>}
     <Panel title="Comissões por profissional" description="Clique no profissional para ver serviços e pagar o saldo em aberto.">
       {rows.length ? <div className={styles.commissionTable} role="table" aria-label="Comissões por profissional">
         <div className={`${styles.commissionRow} ${styles.commissionHeader}`} role="row"><strong>Profissional</strong><strong>À Pagar</strong><strong>Pago</strong><strong>Total</strong></div>
-        {rows.map((row) => <button key={row.barberId} type="button" className={styles.commissionRow} role="row" onClick={() => setSelectedBarberId(row.barberId)}><strong>{row.name}</strong><strong>{formatCents(row.payable)}</strong><strong>{formatCents(row.paid)}</strong><strong>{formatCents(row.total)}</strong></button>)}
+        {rows.map((row) => <button key={row.barberId} type="button" className={styles.commissionRow} role="row" onClick={() => { resetCommissionSelection(); setSelectedBarberId(row.barberId); }}><strong>{row.name}</strong><strong>{formatCents(row.payable)}</strong><strong>{formatCents(row.paid)}</strong><strong>{formatCents(row.total)}</strong></button>)}
         <div className={`${styles.commissionRow} ${styles.commissionTotal}`} role="row"><strong>Total</strong><strong>{formatCents(rows.reduce((sum, row) => sum + row.payable, 0))}</strong><strong>{formatCents(rows.reduce((sum, row) => sum + row.paid, 0))}</strong><strong>{formatCents(rows.reduce((sum, row) => sum + row.total, 0))}</strong></div>
       </div> : <EmptyState title="Sem comissões no período">Ajuste o período, profissional ou unidade.</EmptyState>}
     </Panel>
-    {selectedBarber && <Dialog title={`Comissões · ${selectedBarber.name}`} wide onClose={() => setSelectedBarberId(null)}>
+    {selectedBarber && <Dialog title={`Comissões · ${selectedBarber.name}`} wide modalClassName={styles.commissionDialog} onClose={() => setSelectedBarberId(null)}>
       <div className={styles.commissionModalBody}>
         <div className={styles.commissionTable} role="table" aria-label={`Serviços de ${selectedBarber.name}`}>
           <div className={`${styles.commissionServiceRow} ${styles.commissionHeader}`} role="row"><strong>Cliente</strong><strong>Serviço</strong><strong>Data</strong><strong>Valor</strong><strong>Comissão</strong></div>
-          {selectedDetails.map((detail) => <div className={styles.commissionServiceRow} role="row" key={detail.appointment_item_id}><span>{detail.customer_name}</span><span>{detail.service_name}</span><span>{formatServiceDate(detail.service_date)}</span><span><strong>{formatCents(detail.service_value_paid_cents)}</strong><small>{detail.financial_account_names ?? "Conta não vinculada"}</small></span><span><strong>{formatCents(detail.payable_commission_cents)}</strong><small>{detail.paid_commission_cents > 0 && detail.payable_commission_cents === 0 ? "Pago" : "Em aberto"}</small></span></div>)}
+          {selectedDetails.map((detail) => {
+            const isPaid = detail.payable_commission_cents <= 0 && detail.paid_commission_cents > 0;
+            const isSelected = selectedCommissionIds.includes(detail.appointment_item_id);
+            return <div className={styles.commissionServiceRow} role="row" key={detail.appointment_item_id}><span>{detail.customer_name}</span><span>{detail.service_name}</span><span>{formatServiceDate(detail.service_date)}</span><span><strong>{formatCents(detail.service_value_paid_cents)}</strong><small>{detail.financial_account_names ?? "Conta não vinculada"}</small></span><span className={styles.commissionSelectionCell}><input type="checkbox" aria-label={`Selecionar comissão de ${detail.service_name}`} checked={isSelected} disabled={isPaid || detail.payable_commission_cents <= 0} onChange={(event) => setSelectedCommissionIds((current) => event.target.checked ? [...current, detail.appointment_item_id] : current.filter((id) => id !== detail.appointment_item_id))} /><span><strong>{formatCents(detail.payable_commission_cents || detail.paid_commission_cents)}</strong><small>{isPaid ? "Pago" : "Em aberto"}</small></span></span></div>;
+          })}
         </div>
-        <div className={styles.commissionModalFooter}><strong>À pagar: {formatCents(selectedPayable)}</strong><button className={styles.button} type="button" disabled={selectedPayable <= 0 || !activeAccounts.length} onClick={() => setPaymentOpen(true)}>Pagar Comissão</button></div>
+        <div className={styles.commissionModalFooter}><div className={styles.commissionSummary}><strong>À pagar: {formatCents(selectedPayable)}</strong><strong>Total selecionado: {formatCents(selectedTotal)}</strong></div><button className={styles.button} type="button" disabled={selectedTotal <= 0 || !activeAccounts.length} onClick={() => setPaymentOpen(true)}>Pagar Comissão</button></div>
         {!activeAccounts.length && <p className={styles.muted}>Cadastre uma conta financeira ativa antes de pagar.</p>}
       </div>
     </Dialog>}
@@ -197,7 +210,7 @@ function CommissionReport({ props }: { props: CommissionProps }) {
       <form className={styles.form} onSubmit={payCommission}>
         <Field label="Tipo de conta"><input value="Única" readOnly /></Field>
         <Field label="Descrição"><input value={`Pagamento de comissão · ${selectedBarber.name}`} readOnly /></Field>
-        <Field label="Valor (R$)"><input value={formatCents(selectedPayable)} readOnly /></Field>
+        <Field label="Valor (R$)"><input value={formatCents(selectedTotal)} readOnly aria-readonly="true" /></Field>
         <Field label="Data do lançamento"><input name="paid_on" type="date" defaultValue={end} required /></Field>
         <Field label="Vencimento"><input value={end} type="date" readOnly /></Field>
         <Field label="Plano de conta"><input value="Custo de serviços · Comissão" readOnly /></Field>
