@@ -50,15 +50,13 @@ export function SettingsManager(props: Props) {
       return;
     }
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().from("organizations").update({
-        name: String(data.get("name") ?? "").trim(),
-        slug: String(data.get("slug") ?? "").trim().toLowerCase(),
-        timezone: props.organization.timezone,
-        cancellation_lead_minutes: props.organization.cancellation_lead_minutes,
-        slot_interval_minutes: props.organization.slot_interval_minutes,
-        public_contact_phone_e164: publicContactPhone,
-        logo_path: logoPath || null,
-      }).eq("id", props.organizationId));
+      await assertResult(await connectedClient().rpc("update_organization_settings", {
+        p_organization_id: props.organizationId,
+        p_name: String(data.get("name") ?? "").trim(),
+        p_slug: String(data.get("slug") ?? "").trim().toLowerCase(),
+        p_public_contact_phone_e164: publicContactPhone,
+        p_logo_path: logoPath || null,
+      }));
     }, "Regras da organização atualizadas.");
     if (saved) router.refresh();
   }
