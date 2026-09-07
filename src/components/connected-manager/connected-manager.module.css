@@ -144,6 +144,17 @@
 .panelTitleRow { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
 .packageFilterSelect { min-width: 7rem; border: 1px solid #d9dfd7; border-radius: 10px; padding: .42rem 2rem .42rem .65rem; background: #fff; color: #222823; font: inherit; font-size: .78rem; font-weight: 700; }
 .packageFilterSelect:focus { outline: 3px solid rgba(106, 133, 98, .18); border-color: #789070; }
+.commissionTable { display: grid; gap: .55rem; }
+.commissionRow { display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(3, minmax(7rem, 1fr)); gap: 1rem; align-items: center; width: 100%; padding: .95rem 1rem; border: 1px solid #e7ebe5; border-radius: 14px; background: #fff; color: #222823; text-align: left; font: inherit; }
+button.commissionRow { cursor: pointer; }
+button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
+.commissionHeader { border-color: transparent; background: #f7f8f5; color: #667168; font-size: .76rem; text-transform: uppercase; letter-spacing: .04em; }
+.commissionTotal { margin-top: .25rem; border-color: #cbd8c9; background: #f0f6ee; }
+.commissionModalBody { display: grid; gap: 1rem; padding: 1rem; }
+.commissionServiceRow { display: grid; grid-template-columns: 1.15fr 1.25fr .75fr 1fr 1fr; gap: .75rem; align-items: center; padding: .8rem .9rem; border: 1px solid #e7ebe5; border-radius: 12px; background: #fff; font-size: .83rem; }
+.commissionServiceRow span { min-width: 0; overflow-wrap: anywhere; }
+.commissionServiceRow small { display: block; margin-top: .22rem; color: #778078; font-size: .72rem; }
+.commissionModalFooter { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-top: .35rem; }
 .timeline { display: grid; gap: .65rem; }
 .appointment { display: grid; grid-template-columns: 150px minmax(150px, 1.3fr) minmax(130px, 1fr) minmax(110px, .8fr) auto; align-items: center; gap: .75rem; border: 1px solid #e8ece6; border-radius: 14px; padding: .85rem; }
 .appointmentTime { font-weight: 800; color: #293029; font-size: .85rem; }
@@ -239,6 +250,11 @@
   .chartRow { grid-template-columns: 1fr auto; }
   .chartRow > :not(.rowTitle):not(.rowActions) { display: none; }
   .formWide { grid-column: auto; }
+  .commissionRow { grid-template-columns: 1fr 1fr; gap: .55rem; }
+  .commissionRow strong:first-child { grid-column: 1 / -1; }
+  .commissionServiceRow { grid-template-columns: 1fr 1fr; }
+  .commissionServiceRow strong:first-child { grid-column: 1 / -1; }
+  .commissionModalFooter { align-items: stretch; flex-direction: column; }
   .row { grid-template-columns: 1fr auto; }
   .row > :not(.rowTitle):not(.rowActions) { display: none; }
   .cashHeader { display: none; }

@@ -319,6 +319,24 @@ export interface FinancialAccountRecord {
   active: boolean;
 }
 
+export interface FinancialCommissionDetailRecord {
+  organization_id: string;
+  appointment_id: string;
+  appointment_item_id: string;
+  customer_id: string;
+  customer_name: string;
+  barber_id: string;
+  service_id: string | null;
+  service_name: string;
+  location_id: string;
+  service_date: string;
+  service_value_paid_cents: number;
+  financial_account_names: string | null;
+  commission_cents: number;
+  paid_commission_cents: number;
+  payable_commission_cents: number;
+}
+
 export interface FinancialAccountBalanceRecord {
   financial_account_id: string;
   balance_cents: number;

@@ -16,6 +16,7 @@ import type {
   FinancialSummaryRecord,
   FinancialAccountBalanceRecord,
   FinancialAccountRecord,
+  FinancialCommissionDetailRecord,
   FinancialEntryRecord,
   FinancialEntryTagRecord,
   FinancialSettlementRecord,
@@ -300,7 +301,7 @@ export async function loadFinancialReportsData() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().slice(0, 10);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-  const [facts, customers, barbers, locations, chartAccounts, costCenters, accounts, budgetVersions] = await Promise.all([
+  const [facts, customers, barbers, locations, chartAccounts, costCenters, accounts, budgetVersions, commissionDetails] = await Promise.all([
     supabase.from("financial_reporting_facts").select("*").eq("organization_id", organizationId).gte("fact_date", from).lte("fact_date", to).order("fact_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("customers").select("id,organization_id,full_name,active").eq("organization_id", organizationId).is("merged_into_customer_id", null).order("full_name").limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("id,organization_id,location_id,display_name,bio,avatar_url,whatsapp_e164,active").eq("organization_id", organizationId).order("display_name").limit(MANAGER_ROW_LIMIT),
@@ -309,6 +310,7 @@ export async function loadFinancialReportsData() {
     supabase.from("cost_centers").select("id,organization_id,name,active").eq("organization_id", organizationId).order("name"),
     supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).order("name"),
     supabase.from("financial_budget_versions").select("id,organization_id,budget_id,version_number,status,approved_at").eq("organization_id", organizationId).order("version_number", { ascending: false }).limit(100),
+    supabase.from("commission_service_details").select("*").eq("organization_id", organizationId).order("service_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
   ]);
   return {
     organizationId,
@@ -323,6 +325,7 @@ export async function loadFinancialReportsData() {
     costCenters: requireData(costCenters, "Centros de custo") as CostCenterRecord[],
     accounts: requireData(accounts, "Contas financeiras") as FinancialAccountRecord[],
     budgetVersions: requireData(budgetVersions, "Versões de orçamento") as FinancialBudgetVersionRecord[],
+    commissionDetails: requireData(commissionDetails, "Detalhes de comissão") as FinancialCommissionDetailRecord[],
   };
 }
 
