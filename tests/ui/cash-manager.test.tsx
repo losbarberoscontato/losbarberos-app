@@ -556,6 +556,7 @@ describe("cash manager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mostrar planos de receitas" }));
     const revenuePlans = screen.getByRole("list", { name: "Planos de receitas" });
     expect(within(revenuePlans).getAllByRole("listitem").map((item) => item.textContent)).toEqual([expect.stringContaining("1 · Serviços"), expect.stringContaining("1.2 · Corte"), expect.stringContaining("1.10 · Barba")]);
+    fireEvent.click(screen.getByRole("button", { name: "Novo Plano de Conta" }));
     expect(within(screen.getByLabelText("Conta superior")).getByRole("option", { name: "1 · Serviços" })).toBeInTheDocument();
     expect(within(screen.getByLabelText("Conta superior")).queryByRole("option", { name: "2 · Estrutura" })).not.toBeInTheDocument();
 
@@ -564,14 +565,55 @@ describe("cash manager", () => {
     expect(screen.getByRole("list", { name: "Planos de receitas" })).toBeInTheDocument();
   });
 
+  it("opens the chart account registration in a modal", () => {
+    render(<CashManager {...props} section="catalogs" />);
+
+    expect(screen.getByRole("heading", { name: "Plano de contas" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Novo Plano de Conta" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Novo Plano de Conta" });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Código")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Nome")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("dialog", { name: "Novo Plano de Conta" })).not.toBeInTheDocument();
+  });
+
   it("gives chart accounts and cost centers full-width stacked panels", () => {
     render(<CashManager {...props} section="catalogs" />);
 
     const chartPanel = screen.getByRole("heading", { name: "Plano de contas" }).closest("section");
-    const costCenterPanel = screen.getByRole("heading", { name: "Centro de custo" }).closest("section");
+    const costCenterPanel = screen.getByRole("heading", { name: "Centros de Custos" }).closest("section");
+    const tagsPanel = screen.getByRole("heading", { name: "Tags" }).closest("section");
 
     expect(chartPanel).toHaveClass(styles.span12);
     expect(costCenterPanel).toHaveClass(styles.span12);
+    expect(tagsPanel).toHaveClass(styles.span12);
+    expect(screen.queryByRole("heading", { name: "Estrutura financeira" })).not.toBeInTheDocument();
     expect(chartPanel?.compareDocumentPosition(costCenterPanel!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("opens the cost center registration in a modal", () => {
+    render(<CashManager {...props} section="catalogs" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo Centro de Custo" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Novo Centro de Custo" });
+    expect(within(dialog).getByLabelText("Nome")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("dialog", { name: "Novo Centro de Custo" })).not.toBeInTheDocument();
+  });
+
+  it("offers a visual tag palette and applies the saved color to the tag name", () => {
+    render(<CashManager {...props} section="catalogs" tags={[{ id: "tag-1", organization_id: "org-1", name: "Cliente recorrente", color: "#2563eb", active: true }]} />);
+
+    expect(screen.getByText("Cliente recorrente")).toHaveStyle({ color: "#2563eb" });
+    fireEvent.click(screen.getByText("Escolher cor"));
+    expect(screen.getByRole("radiogroup", { name: "Paleta de cores da tag" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Azul" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    fireEvent.click(screen.getByText("Escolher cor"));
+    fireEvent.click(screen.getByRole("button", { name: "Azul" }));
+    expect(screen.getByRole("button", { name: "Azul" })).toHaveAttribute("aria-pressed", "true");
   });
 });

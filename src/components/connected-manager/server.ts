@@ -2,6 +2,7 @@ import "server-only";
 
 import { getAccessContext } from "@/lib/auth/context";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { parsePostgresRange } from "./format";
 import type {
   AppointmentRecord,
   AppointmentItemRecord,
@@ -312,7 +313,7 @@ export async function loadFinancialReportsData() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().slice(0, 10);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-  const [facts, customers, barbers, locations, chartAccounts, costCenters, accounts, budgetVersions, commissionDetails] = await Promise.all([
+  const [facts, customers, barbers, locations, chartAccounts, costCenters, accounts, budgetVersions, commissionDetails, tags, entryTags, settlements, receiptClassifications] = await Promise.all([
     supabase.from("financial_reporting_facts").select("*").eq("organization_id", organizationId).gte("fact_date", from).lte("fact_date", to).order("fact_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
     supabase.from("customers").select("id,organization_id,full_name,active").eq("organization_id", organizationId).is("merged_into_customer_id", null).order("full_name").limit(MANAGER_ROW_LIMIT),
     supabase.from("barbers").select("id,organization_id,location_id,display_name,bio,avatar_url,whatsapp_e164,active").eq("organization_id", organizationId).order("display_name").limit(MANAGER_ROW_LIMIT),
@@ -322,13 +323,32 @@ export async function loadFinancialReportsData() {
     supabase.from("financial_accounts").select("id,organization_id,kind,name,bank_code,branch,account_number,description,opening_balance_cents,active").eq("organization_id", organizationId).order("name"),
     supabase.from("financial_budget_versions").select("id,organization_id,budget_id,version_number,status,approved_at").eq("organization_id", organizationId).order("version_number", { ascending: false }).limit(100),
     supabase.from("commission_service_details").select("*").eq("organization_id", organizationId).order("service_date", { ascending: false }).limit(MANAGER_ROW_LIMIT),
+    supabase.from("financial_tags").select("id,name").eq("organization_id", organizationId),
+    supabase.from("financial_entry_tags").select("entry_id,tag_id").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("financial_settlements").select("id,entry_id").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("appointment_receipt_classifications").select("payment_transaction_id,tag_ids").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
   ]);
+  const tagNames = new Map((requireData(tags, "Tags dos relatórios") as Array<{ id: string; name: string }>).map((tag) => [tag.id, tag.name]));
+  const entryTagNames = new Map<string, string[]>();
+  (requireData(entryTags, "Tags dos lançamentos") as Array<{ entry_id: string; tag_id: string }>).forEach((item) => {
+    const name = tagNames.get(item.tag_id);
+    if (name) entryTagNames.set(item.entry_id, [...(entryTagNames.get(item.entry_id) ?? []), name]);
+  });
+  const settlementEntryIds = new Map((requireData(settlements, "Liquidações dos relatórios") as Array<{ id: string; entry_id: string }>).map((item) => [item.id, item.entry_id]));
+  const receiptTagNames = new Map<string, string[]>();
+  (requireData(receiptClassifications, "Tags dos recebimentos") as Array<{ payment_transaction_id: string; tag_ids: string[] | null }>).forEach((item) => receiptTagNames.set(item.payment_transaction_id, (item.tag_ids ?? []).map((id) => tagNames.get(id)).filter((name): name is string => Boolean(name))));
+  const reportFacts = (requireData(facts, "Fatos financeiros") as FinancialReportingFactRecord[]).map((fact) => ({
+    ...fact,
+    tag_names: fact.source_type === "APPOINTMENT_PAYMENT"
+      ? receiptTagNames.get(fact.source_id) ?? []
+      : entryTagNames.get(fact.source_type === "FINANCIAL_SETTLEMENT" ? settlementEntryIds.get(fact.source_id) ?? "" : fact.source_id) ?? [],
+  }));
   return {
     organizationId,
     billingStatus: context.billingStatus,
     from,
     to,
-    facts: requireData(facts, "Fatos financeiros") as FinancialReportingFactRecord[],
+    facts: reportFacts,
     customers: requireData(customers, "Clientes financeiros") as Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">[],
     barbers: requireData(barbers, "Profissionais financeiros") as BarberRecord[],
     locations: requireData(locations, "Unidades financeiras") as LocationRecord[],
@@ -406,7 +426,7 @@ export async function loadDashboardData() {
   const { context, supabase, organizationId } = await managerClient();
   const from = new Date(Date.now() - 31 * 86_400_000).toISOString();
   const to = new Date(Date.now() + 93 * 86_400_000).toISOString();
-  const [organization, appointments, customers, barbers, financial, payouts, whatsappResult] = await Promise.all([
+  const [organization, appointments, customers, barbers, financial, payouts, whatsappResult, payableEntries, appointmentItems, accountBalances] = await Promise.all([
     supabase.from("organizations").select("*").eq("id", organizationId).single(),
     supabase.from("appointments").select("*").eq("organization_id", organizationId).overlaps("service_period", `[${from},${to})`).order("service_period").limit(500),
     supabase.from("customers").select("id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
@@ -414,16 +434,31 @@ export async function loadDashboardData() {
     supabase.from("appointment_financial_summary").select("*").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
     supabase.from("commission_payouts").select("*").eq("organization_id", organizationId).eq("status", "OPEN"),
     supabase.rpc("get_whatsapp_connection_status", { p_organization_id: organizationId }),
+    supabase.from("financial_entry_summary").select("kind,due_date,remaining_cents,status").eq("organization_id", organizationId).eq("kind", "EXPENSE").limit(MANAGER_ROW_LIMIT),
+    supabase.from("appointment_items").select("appointment_id,charged_price_cents_snapshot,quantity,commission_mode_snapshot,commission_percentage_bps_snapshot,commission_fixed_cents_snapshot").eq("organization_id", organizationId).limit(MANAGER_ROW_LIMIT),
+    supabase.from("financial_account_balances").select("balance_cents").eq("organization_id", organizationId),
   ]);
+  const organizationData = requireData(organization, "Organização") as OrganizationRecord;
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: organizationData.timezone }).format(new Date());
+  const todayAppointmentIds = new Set((requireData(appointments, "Agenda") as AppointmentRecord[]).filter((appointment) => {
+    const period = parsePostgresRange(appointment.service_period);
+    return period && new Intl.DateTimeFormat("en-CA", { timeZone: organizationData.timezone }).format(period.start) === todayKey && !["CANCELED", "NO_SHOW", "EXPIRED"].includes(appointment.status);
+  }).map((appointment) => appointment.id));
+  const commissionsTodayCents = (requireData(appointmentItems, "Itens da agenda") as Array<{ appointment_id: string; charged_price_cents_snapshot: number; quantity: number; commission_mode_snapshot: "PERCENT" | "FIXED" | null; commission_percentage_bps_snapshot: number | null; commission_fixed_cents_snapshot: number | null }>).filter((item) => todayAppointmentIds.has(item.appointment_id)).reduce((total, item) => total + (item.commission_mode_snapshot === "PERCENT"
+    ? Math.round(item.charged_price_cents_snapshot * item.quantity * (item.commission_percentage_bps_snapshot ?? 0) / 10000)
+    : item.commission_mode_snapshot === "FIXED" ? (item.commission_fixed_cents_snapshot ?? 0) * item.quantity : 0), 0);
   return {
     organizationId,
     billingStatus: context.billingStatus,
-    organization: requireData(organization, "Organização") as OrganizationRecord,
+    organization: organizationData,
     appointments: requireData(appointments, "Agenda") as AppointmentRecord[],
     customers: requireData(customers, "Clientes") as CustomerRecord[],
     barbers: requireData(barbers, "Equipe") as BarberRecord[],
     financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],
     openPayouts: requireData(payouts, "Comissões") as CommissionPayoutRecord[],
     whatsapp: whatsappResult.error ? null : whatsappResult.data as WhatsAppSettingsStatus,
+    payablesTodayCents: (requireData(payableEntries, "Contas a pagar") as Array<{ due_date: string; remaining_cents: number; status: string }>).filter((entry) => entry.due_date === todayKey && entry.status !== "CANCELED").reduce((total, entry) => total + Math.max(entry.remaining_cents, 0), 0),
+    commissionsTodayCents,
+    cashBalanceCents: (requireData(accountBalances, "Saldos das contas") as Array<{ balance_cents: number }>).reduce((total, account) => total + account.balance_cents, 0),
   };
 }

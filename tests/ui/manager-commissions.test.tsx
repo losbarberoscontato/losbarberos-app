@@ -43,6 +43,35 @@ describe("manager commissions", () => {
     )).toBe(44825);
   });
 
+  it("shows only DFC and budget reports with the requested filters", () => {
+    render(<FinancialReportsManager {...props} />);
+
+    expect(screen.getByRole("button", { name: "Fluxo de caixa (DFC)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Orçamento" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Dashboard" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "DRE" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Data inicial")).toBeInTheDocument();
+    expect(screen.getByLabelText("Data final")).toBeInTheDocument();
+    expect(screen.getByLabelText("Plano de conta")).toBeInTheDocument();
+    expect(screen.getByLabelText("Centro de custo")).toBeInTheDocument();
+    expect(screen.getByLabelText("Unidade")).toBeInTheDocument();
+    expect(screen.getByLabelText("Pesquisar por tag")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Cliente")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Profissional")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Serviço")).not.toBeInTheDocument();
+  });
+
+  it("filters DFC facts by tag text", () => {
+    render(<FinancialReportsManager {...props} facts={[
+      { organization_id: "org-1", basis: "CASH", source_type: "FINANCIAL_SETTLEMENT", source_id: "settlement-1", fact_date: "2026-09-06", competence_date: null, due_date: null, settlement_date: "2026-09-06", location_id: "location-1", customer_id: null, barber_id: null, service_id: null, service_name_snapshot: "Receita marcada", chart_account_id: null, cost_center_id: null, financial_account_id: "account-1", dre_group: "GROSS_REVENUE", cash_flow_activity: "OPERATING", signed_cents: 7000, status: "SETTLEMENT", tag_names: ["Prioridade"] },
+      { organization_id: "org-1", basis: "CASH", source_type: "FINANCIAL_SETTLEMENT", source_id: "settlement-2", fact_date: "2026-09-05", competence_date: null, due_date: null, settlement_date: "2026-09-05", location_id: "location-1", customer_id: null, barber_id: null, service_id: null, service_name_snapshot: "Receita comum", chart_account_id: null, cost_center_id: null, financial_account_id: "account-1", dre_group: "GROSS_REVENUE", cash_flow_activity: "OPERATING", signed_cents: 3000, status: "SETTLEMENT", tag_names: ["Rotina"] },
+    ]} />);
+
+    fireEvent.change(screen.getByLabelText("Pesquisar por tag"), { target: { value: "prior" } });
+    expect(screen.getAllByText("R$ 70,00")).not.toHaveLength(0);
+    expect(screen.queryByText("R$ 100,00")).not.toBeInTheDocument();
+  });
+
   it("selects open commissions, locks paid rows, and sends only the selection to payment", async () => {
     render(<FinancialReportsManager {...props} initialReport="COMMISSIONS" />);
 

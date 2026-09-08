@@ -82,6 +82,14 @@ describe("connected manager UI", () => {
     render(<ManagerDashboard organizationId="org-1" billingStatus="ACTIVE" organization={organization} appointments={[]} customers={[customer]} barbers={[barber]} financial={[]} openPayouts={[]} />);
     expect(screen.getByText(/Barbearia Real/)).toBeInTheDocument();
     expect(screen.getByText("Dia livre")).toBeInTheDocument();
+    expect(screen.getByText("À Receber hoje")).toBeInTheDocument();
+    expect(screen.getByText("À Pagar hoje")).toBeInTheDocument();
+    expect(screen.getByText("Comissões hoje")).toBeInTheDocument();
+    expect(screen.getByText("Saldo em caixa")).toBeInTheDocument();
+    expect(screen.getByText("Assinatura")).toBeInTheDocument();
+    expect(screen.getByText("Ativa")).toBeInTheDocument();
+    expect(screen.queryByText("Próximas reservas")).not.toBeInTheDocument();
+    expect(screen.queryByText("Indicadores calculados somente com dados reais da sua organização.")).not.toBeInTheDocument();
     expect(screen.queryByText("Guilherme")).not.toBeInTheDocument();
     expect(screen.queryByText("R$ 1.845")).not.toBeInTheDocument();
   });

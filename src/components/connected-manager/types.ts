@@ -318,6 +318,7 @@ export interface FinancialReportingFactRecord {
   cash_flow_activity: "OPERATING" | "INVESTING" | "FINANCING" | null;
   signed_cents: number;
   status: string;
+  tag_names?: string[];
 }
 
 export interface FinancialBudgetVersionRecord {

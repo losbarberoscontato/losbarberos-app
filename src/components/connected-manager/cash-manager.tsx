@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
-import { ArrowLeftRight, Building2, ChevronRight, CircleDollarSign, Landmark, Plus, ReceiptText, Tags, X } from "lucide-react";
+import { ArrowLeftRight, Building2, ChevronRight, Plus, ReceiptText, Tags, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { centsFromInput, formatCents } from "./format";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
@@ -30,6 +30,18 @@ import type {
   SupplierRecord,
 } from "./types";
 import styles from "./connected-manager.module.css";
+
+const TAG_PALETTE = [
+  { name: "Verde floresta", value: "#2f6b5d" },
+  { name: "Verde escuro", value: "#17483d" },
+  { name: "Azul", value: "#2563eb" },
+  { name: "Roxo", value: "#7c3aed" },
+  { name: "Vinho", value: "#a1264f" },
+  { name: "Vermelho", value: "#c0392b" },
+  { name: "Laranja", value: "#c46a13" },
+  { name: "Dourado", value: "#9a6b00" },
+  { name: "Cinza", value: "#59635c" },
+] as const;
 
 const financeSections: Array<{ id: FinanceSection; label: string; href: string }> = [
   { id: "overview", label: "Visão geral", href: "/gestor/financeiro" },
@@ -311,7 +323,7 @@ export function CashManager(props: CashManagerProps) {
     </>}
     {props.section === "accounts" && <AccountsSection {...props} balanceById={balanceById} accountById={accountById} setMessage={setMessage} />}
     {props.section === "suppliers" && <SuppliersSection organizationId={props.organizationId} suppliers={props.suppliers} demoMode={props.demoMode} setMessage={setMessage} />}
-    {props.section === "catalogs" && <CatalogsSection organizationId={props.organizationId} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} accounts={props.accounts} mappings={props.mappings} demoMode={props.demoMode} setMessage={setMessage} />}
+    {props.section === "catalogs" && <CatalogsSection organizationId={props.organizationId} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} demoMode={props.demoMode} setMessage={setMessage} />}
 
     {entryEditor && <EntryDialog entry={entryEditor === "new" ? null : entryEditor} defaultKind={sectionKind === "ALL" ? "REVENUE" : sectionKind} settleImmediately={props.section === "cash"} {...props} onClose={() => setEntryEditor(null)} onSaved={() => { setEntryEditor(null); router.refresh(); }} setMessage={setMessage} />}
     {cashEdit && <EntryDialog entry={cashEdit.entry} defaultKind={cashEdit.entry.kind} replacementSettlementId={cashEdit.settlement.id} {...props} onClose={() => setCashEdit(null)} onSaved={() => { setCashEdit(null); router.refresh(); }} setMessage={setMessage} />}
@@ -405,7 +417,7 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     <Field label="Banco ou caixa"><select name="financial_account_id" aria-label="Banco ou caixa" required defaultValue={defaultAccount}><option value="" disabled>Selecione</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Centro de custo"><select name="cost_center_id" defaultValue=""><option value="">Não informar</option>{costCenters.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Número do documento"><input name="document_number" defaultValue={documentNumber} required /></Field>
-    <Field label="Tags"><select name="tag_ids" aria-label="Tags" multiple size={Math.min(Math.max(activeTags.length, 2), 4)} disabled={activeTags.length === 0}>{activeTags.length === 0 ? <option>Nenhuma tag cadastrada</option> : activeTags.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+    <Field label="Tags"><select name="tag_ids" aria-label="Tags" multiple size={Math.min(Math.max(activeTags.length, 2), 4)} disabled={activeTags.length === 0}>{activeTags.length === 0 ? <option>Nenhuma tag cadastrada</option> : activeTags.map((item) => <option key={item.id} value={item.id} style={item.color ? { color: item.color } : undefined}>{item.name}</option>)}</select></Field>
     <Field label="Forma de recebimento"><select name="payment_method" defaultValue="CASH"><option value="CASH">Dinheiro</option><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field>
     <Field label="Observações"><input name="reference" placeholder="PIX, NSU ou comprovante" /></Field>
     <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar recebimento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
@@ -477,7 +489,7 @@ function EntryDialog({ entry, defaultKind, settleImmediately = false, replacemen
     <Field label="Contraparte"><select aria-label="Tipo de contraparte" value={counterpartyKind} onChange={(event) => setCounterpartyKind(event.target.value as "" | "CUSTOMER" | "SUPPLIER")}><option value="">Não informar</option><option value="CUSTOMER">Cliente</option><option value="SUPPLIER">Fornecedor</option></select></Field>
     {counterpartyKind === "CUSTOMER" && <Field label="Cliente"><select name="customer_id" defaultValue={entry?.customer_id ?? ""}><option value="">Selecione</option>{customers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("CUSTOMER")}>Novo cliente</button></Field>}
     {counterpartyKind === "SUPPLIER" && <Field label="Fornecedor"><select name="supplier_id" defaultValue={entry?.supplier_id ?? ""}><option value="">Selecione</option>{suppliers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("SUPPLIER")}>Novo fornecedor</button></Field>}
-    <Field label="Tags" wide><select name="tag_ids" multiple defaultValue={[...selectedTags]}>{tags.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("TAG")}>Nova tag</button></Field>
+    <Field label="Tags" wide><select name="tag_ids" multiple defaultValue={[...selectedTags]}>{tags.filter((item) => item.active).map((item) => <option key={item.id} value={item.id} style={item.color ? { color: item.color } : undefined}>{item.name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("TAG")}>Nova tag</button></Field>
     {(settleImmediately || replacementSettlementId) && <><Field label="Forma de pagamento"><select name="payment_method" defaultValue="CASH"><option value="CASH">Dinheiro</option><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field><Field label="Observações"><input name="reference" placeholder="PIX, NSU ou comprovante" /></Field></>}
     <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{entry ? "Salvar" : settleImmediately ? "Lançar no Caixa" : "Adicionar"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button>{replacementSettlementId && <button className={`${styles.button} ${styles.buttonDanger}`} type="button" onClick={async () => { if (!window.confirm("Excluir este lançamento do Caixa? O estorno será registrado no histórico.")) return; const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("delete_manual_cash_entry", { p_settlement_id: replacementSettlementId, p_idempotency_key: `manager:cash-delete:${replacementSettlementId}:${crypto.randomUUID()}` })); }, "Lançamento excluído por estorno."); if (saved) onSaved(); }}>Excluir</button>}</div>
   </form>{quickCreate && <QuickFinancialCatalogDialog kind={quickCreate} organizationId={organizationId} demoMode={demoMode} onClose={() => setQuickCreate(null)} onCreated={() => { setQuickCreate(null); router.refresh(); }} setMessage={setMessage} />}</Dialog>;
@@ -620,22 +632,47 @@ export function buildChartAccountTree(items: ChartAccountRecord[]): ChartAccount
   return visit(null, 0, new Set());
 }
 
-function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, accounts, mappings, demoMode, setMessage }: Pick<CashManagerProps, "chartAccounts" | "costCenters" | "tags" | "accounts" | "mappings" | "demoMode"> & { organizationId: string; setMessage: (value: string) => void }) {
+function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, demoMode, setMessage }: Pick<CashManagerProps, "chartAccounts" | "costCenters" | "tags" | "demoMode"> & { organizationId: string; setMessage: (value: string) => void }) {
   const router = useRouter();
   const [editingChart, setEditingChart] = useState<ChartAccountRecord | null>(null);
+  const [chartDialogOpen, setChartDialogOpen] = useState(false);
   const [chartKind, setChartKind] = useState<ChartAccountRecord["kind"]>("REVENUE");
   const [editingCost, setEditingCost] = useState<CostCenterRecord | null>(null);
+  const [costDialogOpen, setCostDialogOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<FinancialTagRecord | null>(null);
+  const [tagColor, setTagColor] = useState<string>(TAG_PALETTE[0].value);
   const chartParentOptions = buildChartAccountTree(chartAccounts.filter((item) => item.active && item.kind === chartKind && item.id !== editingChart?.id));
 
   function editChart(account: ChartAccountRecord) {
     setEditingChart(account);
     setChartKind(account.kind);
+    setChartDialogOpen(true);
   }
 
   function cancelChartEdit() {
     setEditingChart(null);
     setChartKind("REVENUE");
+    setChartDialogOpen(false);
+  }
+
+  function editCost(cost: CostCenterRecord) {
+    setEditingCost(cost);
+    setCostDialogOpen(true);
+  }
+
+  function cancelCostEdit() {
+    setEditingCost(null);
+    setCostDialogOpen(false);
+  }
+
+  function editTag(tag: FinancialTagRecord) {
+    setEditingTag(tag);
+    setTagColor(tag.color ?? TAG_PALETTE[0].value);
+  }
+
+  function cancelTagEdit() {
+    setEditingTag(null);
+    setTagColor(TAG_PALETTE[0].value);
   }
 
   async function submitCatalog(event: FormEvent<HTMLFormElement>) {
@@ -657,7 +694,7 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
         p_cash_flow_activity: safeText(data.get("cash_flow_activity")) || null,
       }));
     }, "Cadastro financeiro salvo.");
-    if (saved) { cancelChartEdit(); setEditingCost(null); setEditingTag(null); router.refresh(); }
+    if (saved) { if (catalog === "chart") cancelChartEdit(); if (catalog === "cost") cancelCostEdit(); if (catalog === "tag") cancelTagEdit(); router.refresh(); }
   }
 
   async function toggleCatalog(catalog: CatalogKind, item: { id: string; active: boolean }) {
@@ -668,36 +705,35 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
   }
 
   return <div className={styles.grid}>
-    <Panel title={editingChart ? "Editar plano de contas" : "Plano de contas"} description="Crie grupos e subcontas por receita ou despesa." className={styles.span12}>
-      <form className={styles.form} key={`chart-${editingChart?.id ?? "new"}`} onSubmit={submitCatalog}>
-        <input type="hidden" name="catalog" value="chart" />
-        <Field label="Código"><input name="code" defaultValue={editingChart?.code ?? ""} /></Field>
-        <Field label="Nome"><input name="name" required defaultValue={editingChart?.name ?? ""} /></Field>
-        <Field label="Natureza"><select name="kind" value={chartKind} onChange={(event) => setChartKind(event.target.value as ChartAccountRecord["kind"])}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>
-        <Field label="Conta superior"><select name="parent_id" defaultValue={editingChart?.parent_id ?? ""}><option value="">Nenhuma</option>{chartParentOptions.map((item) => <option key={item.id} value={item.id}>{`${"  ".repeat(item.depth)}${chartAccountLabel(item)}`}</option>)}</select></Field>
-        {editingChart && <><Field label="Grupo DRE"><select name="dre_group" defaultValue={editingChart.dre_group ?? ""}><option value="">Não classificado</option><option value="GROSS_REVENUE">Receita bruta</option><option value="REVENUE_DEDUCTIONS">Deduções da receita</option><option value="SERVICE_COST">Custo do serviço</option><option value="OPERATING_EXPENSE">Despesa operacional</option><option value="FINANCIAL_RESULT">Resultado financeiro</option><option value="OTHER_RESULT">Outros resultados</option><option value="INCOME_TAX">Imposto sobre resultado</option></select></Field><Field label="Atividade DFC"><select name="cash_flow_activity" defaultValue={editingChart.cash_flow_activity ?? ""}><option value="">Não classificado</option><option value="OPERATING">Operacional</option><option value="INVESTING">Investimento</option><option value="FINANCING">Financiamento</option></select></Field></>}
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><ReceiptText size={15} /> {editingChart ? "Salvar" : "Adicionar conta"}</button>{editingChart && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelChartEdit}>Cancelar</button>}</div>
-      </form>
+    <Panel title="Plano de contas" description="Crie grupos e subcontas por receita ou despesa." className={styles.span12} action={<button type="button" className={styles.button} onClick={() => { setEditingChart(null); setChartKind("REVENUE"); setChartDialogOpen(true); }}><ReceiptText size={15} /> Novo Plano de Conta</button>}>
       <ChartAccountColumns accounts={chartAccounts} onEdit={editChart} onToggle={(item) => void toggleCatalog("chart", item)} />
     </Panel>
-    <Panel title={editingCost ? "Editar centro de custo" : "Centro de custo"} description="Classifique responsabilidade operacional." className={styles.span12}>
-      <form className={styles.form} key={`cost-${editingCost?.id ?? "new"}`} onSubmit={submitCatalog}>
-        <input type="hidden" name="catalog" value="cost" />
-        <Field label="Nome" wide><input name="name" required defaultValue={editingCost?.name ?? ""} /></Field>
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Building2 size={15} /> {editingCost ? "Salvar" : "Adicionar centro"}</button>{editingCost && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingCost(null)}>Cancelar</button>}</div>
-      </form>
-      <CatalogRows items={costCenters} onEdit={setEditingCost} onToggle={(item) => void toggleCatalog("cost", item)} />
+    <Panel title="Centros de Custos" description="Classifique responsabilidade operacional." className={styles.span12} action={<button type="button" className={styles.button} onClick={() => { setEditingCost(null); setCostDialogOpen(true); }}><Building2 size={15} /> Novo Centro de Custo</button>}>
+      <CatalogRows items={costCenters} onEdit={editCost} onToggle={(item) => void toggleCatalog("cost", item)} />
     </Panel>
-    <Panel title={editingTag ? "Editar tag" : "Tags"} description="Marcadores complementares para filtros futuros." className={styles.span6}>
+    <Panel title={editingTag ? "Editar tag" : "Tags"} description="Marcadores complementares para filtros futuros." className={styles.span12}>
       <form className={styles.form} key={`tag-${editingTag?.id ?? "new"}`} onSubmit={submitCatalog}>
         <input type="hidden" name="catalog" value="tag" />
         <Field label="Nome"><input name="name" required defaultValue={editingTag?.name ?? ""} /></Field>
-        <Field label="Cor"><input name="color" placeholder="#2f6b5d" defaultValue={editingTag?.color ?? ""} /></Field>
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Tags size={15} /> {editingTag ? "Salvar" : "Adicionar tag"}</button>{editingTag && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingTag(null)}>Cancelar</button>}</div>
+        <Field label="Cor"><input type="hidden" name="color" value={tagColor} /><TagColorPalette value={tagColor} onChange={setTagColor} /></Field>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Tags size={15} /> {editingTag ? "Salvar" : "Adicionar tag"}</button>{editingTag && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelTagEdit}>Cancelar</button>}</div>
       </form>
-      <CatalogRows items={tags} onEdit={setEditingTag} onToggle={(item) => void toggleCatalog("tag", item)} />
+      <CatalogRows items={tags} onEdit={editTag} onToggle={(item) => void toggleCatalog("tag", item)} />
     </Panel>
-    <Panel title="Estrutura financeira" description="Cadastre contas e fornecedores nas seções próprias." className={styles.span6}><div className={styles.cards}><article className={styles.card}><Landmark size={20} /><strong>{accounts.length} contas</strong><small>Bancos e caixas físicos</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Gerenciar</Link></article>{SHOW_APPOINTMENT_RECEIPT_MAPPINGS && <article className={styles.card}><CircleDollarSign size={20} /><strong>{mappings.length} mapeamentos</strong><small>Recebimentos de agendamento</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Configurar</Link></article>}</div></Panel>
+    {chartDialogOpen && <Dialog title={editingChart ? "Editar plano de contas" : "Novo Plano de Conta"} onClose={cancelChartEdit} wide><form className={styles.form} key={`chart-${editingChart?.id ?? "new"}`} onSubmit={submitCatalog}>
+      <input type="hidden" name="catalog" value="chart" />
+      <Field label="Código"><input name="code" defaultValue={editingChart?.code ?? ""} /></Field>
+      <Field label="Nome"><input name="name" required autoFocus defaultValue={editingChart?.name ?? ""} /></Field>
+      <Field label="Natureza"><select name="kind" value={chartKind} onChange={(event) => setChartKind(event.target.value as ChartAccountRecord["kind"])}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>
+      <Field label="Conta superior"><select name="parent_id" defaultValue={editingChart?.parent_id ?? ""}><option value="">Nenhuma</option>{chartParentOptions.map((item) => <option key={item.id} value={item.id}>{`${"  ".repeat(item.depth)}${chartAccountLabel(item)}`}</option>)}</select></Field>
+      {editingChart && <><Field label="Grupo DRE"><select name="dre_group" defaultValue={editingChart.dre_group ?? ""}><option value="">Não classificado</option><option value="GROSS_REVENUE">Receita bruta</option><option value="REVENUE_DEDUCTIONS">Deduções da receita</option><option value="SERVICE_COST">Custo do serviço</option><option value="OPERATING_EXPENSE">Despesa operacional</option><option value="FINANCIAL_RESULT">Resultado financeiro</option><option value="OTHER_RESULT">Outros resultados</option><option value="INCOME_TAX">Imposto sobre resultado</option></select></Field><Field label="Atividade DFC"><select name="cash_flow_activity" defaultValue={editingChart.cash_flow_activity ?? ""}><option value="">Não classificado</option><option value="OPERATING">Operacional</option><option value="INVESTING">Investimento</option><option value="FINANCING">Financiamento</option></select></Field></>}
+      <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><ReceiptText size={15} /> {editingChart ? "Salvar" : "Adicionar conta"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelChartEdit}>Cancelar</button></div>
+    </form></Dialog>}
+    {costDialogOpen && <Dialog title={editingCost ? "Editar centro de custo" : "Novo Centro de Custo"} onClose={cancelCostEdit}><form className={styles.form} key={`cost-${editingCost?.id ?? "new"}`} onSubmit={submitCatalog}>
+      <input type="hidden" name="catalog" value="cost" />
+      <Field label="Nome" wide><input name="name" required autoFocus defaultValue={editingCost?.name ?? ""} /></Field>
+      <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Building2 size={15} /> {editingCost ? "Salvar" : "Adicionar centro"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelCostEdit}>Cancelar</button></div>
+    </form></Dialog>}
   </div>;
 }
 
@@ -729,8 +765,12 @@ function ChartAccountColumn({ title, buttonLabel, accounts, onEdit, onToggle }: 
   </section>;
 }
 
-function CatalogRows<T extends { id: string; name: string; active: boolean }>({ items, onEdit, onToggle }: { items: T[]; onEdit: (item: T) => void; onToggle: (item: T) => void }) {
-  return !items.length ? <p className={styles.muted}>Nenhum item cadastrado.</p> : <div className={styles.list}>{items.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong>{item.name}</strong></span><StatusChip active={item.active} /><span /><span /><span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onEdit(item)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onToggle(item)}>{item.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>;
+function TagColorPalette({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return <details className={styles.tagColorPicker}><summary><span className={styles.tagColorPreview} style={{ color: value }} aria-hidden="true" />Escolher cor</summary><div className={styles.tagColorPalette} role="radiogroup" aria-label="Paleta de cores da tag">{TAG_PALETTE.map((color) => <button key={color.value} type="button" className={`${styles.tagColorSwatch} ${value === color.value ? styles.tagColorSwatchSelected : ""}`} style={{ color: color.value }} aria-label={color.name} aria-pressed={value === color.value} onClick={() => onChange(color.value)}><span aria-hidden="true" /></button>)}</div></details>;
+}
+
+function CatalogRows<T extends { id: string; name: string; active: boolean; color?: string | null }>({ items, onEdit, onToggle }: { items: T[]; onEdit: (item: T) => void; onToggle: (item: T) => void }) {
+  return !items.length ? <p className={styles.muted}>Nenhum item cadastrado.</p> : <div className={styles.list}>{items.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong style={item.color ? { color: item.color } : undefined}>{item.name}</strong></span><StatusChip active={item.active} /><span /><span /><span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onEdit(item)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onToggle(item)}>{item.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>;
 }
 
 export function Dialog({ title, children, onClose, wide = false, modalClassName = "", layerClassName = "" }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean; modalClassName?: string; layerClassName?: string }) { const titleId = `dialog-${title.replaceAll(/\s+/gu, "-").toLocaleLowerCase("pt-BR")}`; return <div className={`${styles.modalLayer} ${layerClassName}`} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar" onClick={onClose} /><section className={`${styles.modal} ${wide ? styles.modalWide : ""} ${modalClassName}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className={styles.modalHeader}><h2 id={titleId}>{title}</h2><button className={styles.modalClose} type="button" onClick={onClose} aria-label={`Fechar ${title}`}><X size={18} /></button></div>{children}</section></div>; }
