@@ -338,7 +338,7 @@ function CashStats({ balance, dailyMovement, outgoing, incoming, openReceivable,
     <article className={styles.stat}><span>Saldo em contas</span><strong>{formatCents(balance)}</strong><small>saldo inicial + movimentações</small></article>
     <article className={`${styles.stat} ${dailyMovement < 0 ? styles.statDanger : ""}`}><span>Movimentação no período</span><strong>{formatCents(dailyMovement)}</strong><small>Saldo do período</small></article>
     <article className={`${styles.stat} ${styles.statDanger}`}><span>Saídas realizadas</span><strong>{formatCents(outgoing)}</strong><small>saídas liquidadas no período</small></article>
-    {!showOpen && <article className={`${styles.stat} ${styles.statInfo}`}><span>Entradas realizadas</span><strong>{formatCents(incoming)}</strong><small>entradas liquidadas no período</small></article>}
+    {!showOpen && <article className={`${styles.stat} ${styles.statSuccess}`}><span>Entradas realizadas</span><strong>{formatCents(incoming)}</strong><small>entradas liquidadas no período</small></article>}
     {showOpen && <article className={styles.stat}><span>Em aberto</span><strong>{formatCents(openReceivable - openPayable)}</strong><small>{formatCents(openReceivable)} a receber · {formatCents(openPayable)} a pagar</small></article>}
   </section>;
 }
