@@ -557,28 +557,26 @@ function FinancialAccountDialog({ account, onClose, onSubmit }: { account: Finan
 }
 
 function SuppliersSection({ organizationId, suppliers, demoMode, setMessage }: { organizationId: string; suppliers: SupplierRecord[]; demoMode?: boolean; setMessage: (value: string) => void }) {
-  const router = useRouter(); const [editing, setEditing] = useState<SupplierRecord | null>(null);
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_supplier", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_person_kind: safeText(data.get("person_kind")), p_name: safeText(data.get("name")), p_document: safeText(data.get("document")) || null, p_phone_e164: safeText(data.get("phone")) || null, p_email: safeText(data.get("email")) || null, p_address: {}, p_notes: safeText(data.get("notes")) || null })); }, editing ? "Fornecedor atualizado." : "Fornecedor criado."); if (saved) { setEditing(null); router.refresh(); } }
+  const router = useRouter(); const [editing, setEditing] = useState<SupplierRecord | null>(null); const [dialogOpen, setDialogOpen] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_supplier", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_person_kind: safeText(data.get("person_kind")), p_name: safeText(data.get("name")), p_document: safeText(data.get("document")) || null, p_phone_e164: safeText(data.get("phone")) || null, p_email: safeText(data.get("email")) || null, p_address: {}, p_notes: safeText(data.get("notes")) || null })); }, editing ? "Fornecedor atualizado." : "Fornecedor criado."); if (saved) { setEditing(null); setDialogOpen(false); router.refresh(); } }
   async function toggleActive(supplier: SupplierRecord) { if (blockDemoWrite(demoMode, setMessage)) return; const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("set_financial_catalog_active", { p_catalog: "SUPPLIER", p_id: supplier.id, p_active: !supplier.active })); }, supplier.active ? "Fornecedor inativado; histórico preservado." : "Fornecedor reativado."); if (saved) router.refresh(); }
   return <div className={styles.grid}>
-    <Panel title={editing ? "Editar fornecedor" : "Novo fornecedor"} className={styles.span5}>
-      <form className={styles.form} onSubmit={submit}>
-        <Field label="Tipo"><select name="person_kind" defaultValue={editing?.person_kind ?? "COMPANY"}><option value="COMPANY">Pessoa jurídica</option><option value="INDIVIDUAL">Pessoa física</option></select></Field>
-        <Field label="Nome"><input name="name" required defaultValue={editing?.name ?? ""} /></Field>
-        <Field label="CPF/CNPJ"><input name="document" defaultValue={editing?.document ?? ""} /></Field>
-        <Field label="Telefone"><input name="phone" defaultValue={editing?.phone_e164 ?? ""} placeholder="+5511999999999" /></Field>
-        <Field label="E-mail"><input name="email" type="email" defaultValue={editing?.email ?? ""} /></Field>
-        <Field label="Observações" wide><textarea name="notes" defaultValue={editing?.notes ?? ""} /></Field>
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{editing ? "Salvar" : "Adicionar"}</button>{editing && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditing(null)}>Cancelar</button>}</div>
-      </form>
-    </Panel>
-    <Panel title="Fornecedores" description="Usados nas despesas e mantidos no histórico." className={styles.span7}>
+    <Panel title="Fornecedores" description="Usados nas despesas e mantidos no histórico." className={styles.span12} action={<button className={styles.button} type="button" onClick={() => { setEditing(null); setDialogOpen(true); }}>Novo fornecedor</button>}>
       {!suppliers.length ? <EmptyState title="Sem fornecedores">Cadastre fornecedores antes de lançar despesas vinculadas.</EmptyState> : <div className={styles.list}>{suppliers.map((supplier) => <article key={supplier.id} className={styles.row}>
         <span className={styles.rowTitle}><strong>{supplier.name}</strong><small>{supplier.document ?? "Sem documento"} · {supplier.email ?? "Sem e-mail"}</small></span>
         <span>{supplier.person_kind === "COMPANY" ? "PJ" : "PF"}</span><StatusChip active={supplier.active} /><span />
-        <span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => setEditing(supplier)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => void toggleActive(supplier)}>{supplier.active ? "Inativar" : "Reativar"}</button></span>
+        <span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => { setEditing(supplier); setDialogOpen(true); }}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => void toggleActive(supplier)}>{supplier.active ? "Inativar" : "Reativar"}</button></span>
       </article>)}</div>}
     </Panel>
+    {dialogOpen && <Dialog title={editing ? "Editar fornecedor" : "Novo fornecedor"} onClose={() => { setEditing(null); setDialogOpen(false); }}><form className={styles.form} onSubmit={submit}>
+      <Field label="Tipo"><select name="person_kind" defaultValue={editing?.person_kind ?? "COMPANY"}><option value="COMPANY">Pessoa jurídica</option><option value="INDIVIDUAL">Pessoa física</option></select></Field>
+      <Field label="Nome"><input name="name" required defaultValue={editing?.name ?? ""} /></Field>
+      <Field label="CPF/CNPJ"><input name="document" defaultValue={editing?.document ?? ""} /></Field>
+      <Field label="Telefone"><input name="phone" defaultValue={editing?.phone_e164 ?? ""} placeholder="+5511999999999" /></Field>
+      <Field label="E-mail"><input name="email" type="email" defaultValue={editing?.email ?? ""} /></Field>
+      <Field label="Observações" wide><textarea name="notes" defaultValue={editing?.notes ?? ""} /></Field>
+      <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{editing ? "Salvar" : "Adicionar"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => { setEditing(null); setDialogOpen(false); }}>Cancelar</button></div>
+    </form></Dialog>}
   </div>;
 }
 
