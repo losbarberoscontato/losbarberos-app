@@ -48,7 +48,7 @@ export default async function GestorLayout({ children }: { children: React.React
   }
 
   return (
-    <ManagerShell agendaCount={agendaCount} demoMode={!hasSupabaseConfig} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} organizationLogoUrl={organizationLogoUrl} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"}>
+    <ManagerShell agendaCount={agendaCount} organizationId={context?.organizationId} demoMode={!hasSupabaseConfig} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} organizationLogoUrl={organizationLogoUrl} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"}>
       {children}
     </ManagerShell>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/ui";
@@ -16,8 +17,14 @@ export function SubscriptionPlansManager(props: Props) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [formKey, setFormKey] = useState(0);
   const [contractPlanId, setContractPlanId] = useState<string | null>(null);
   const [contractBody, setContractBody] = useState("");
+  function clearForm() {
+    setSelected([]);
+    setMessage("");
+    setFormKey((current) => current + 1);
+  }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -34,7 +41,7 @@ export function SubscriptionPlansManager(props: Props) {
         p_services: selected.map((service_id, position) => ({ service_id, position })),
       }));
     }, "Plano criado.");
-    if (saved) { setSelected([]); event.currentTarget.reset(); router.refresh(); }
+    if (saved) { clearForm(); router.refresh(); }
   }
   async function saveContract(planId: string) {
     const saved = await runMutation(setMessage, async () => {
@@ -50,7 +57,7 @@ export function SubscriptionPlansManager(props: Props) {
     <PageHeader title="Planos de Assinatura" description="Crie planos compostos por serviços. Pacotes não entram na composição da assinatura na V1." />
     <ActionMessage message={message} />
     <Panel title="Novo plano" description="Online aparece como opção futura; a V1 registra pagamento manual ou presencial.">
-      <form className={styles.form} onSubmit={save}>
+      <form key={formKey} className={styles.form} onSubmit={save}>
         <Field label="Nome"><input name="name" required minLength={2} /></Field>
         <Field label="Valor do ciclo (R$)"><input name="price" required inputMode="decimal" /></Field>
         <Field label="Periodicidade"><select name="billing_period" defaultValue="MONTHLY"><option value="MONTHLY">Mensal</option><option value="BIWEEKLY">Quinzenal (15 dias)</option></select></Field>
@@ -61,7 +68,11 @@ export function SubscriptionPlansManager(props: Props) {
         <Field label="Regra de cancelamento" wide><textarea name="cancellation_policy" required defaultValue="Cancelamento encerra no fim do ciclo pago; ciclos futuros são cancelados sem renovação automática." /></Field>
         <Field label="Política de cancelamento de sessão" wide><textarea name="session_cancellation_policy" required defaultValue="Cancelamento dentro do prazo devolve a sessão. Cancelamento tardio ou no-show consome a sessão, sem cobrança adicional." /></Field>
         <div className={styles.formWide}><span className={styles.muted}>Serviços da sessão (combo completo)</span><div className={styles.inlineMeta}>{props.services.map((service) => <label className={styles.check} key={service.id}><input type="checkbox" checked={selected.includes(service.id)} onChange={(e) => setSelected((current) => e.target.checked ? [...current, service.id] : current.filter((id) => id !== service.id))} />{service.name} · {formatCents(service.price_cents)}</label>)}</div></div>
-        <button className={`${styles.button} ${styles.formWide}`} type="submit" disabled={!props.services.length}>Criar plano</button>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}>
+          <Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/catalogo">Voltar para serviços</Link>
+          <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={clearForm}>Cancelar</button>
+          <button className={styles.button} type="submit" disabled={!props.services.length}>Criar plano</button>
+        </div>
       </form>
     </Panel>
     <Panel title="Planos cadastrados" description={`${props.plans.length} planos`}>

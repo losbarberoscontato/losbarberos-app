@@ -38,6 +38,14 @@ type Cycle = {
     appointment?: { status: string } | null;
   }[];
 };
+
+function formatDate(value: string | null) {
+  if (!value) return "—";
+  const [year, month, day] = value.split("-").map(Number);
+  return year && month && day
+    ? new Intl.DateTimeFormat("pt-BR").format(new Date(year, month - 1, day))
+    : value;
+}
 type AvailablePlan = {
   id: string;
   name: string;
@@ -121,16 +129,42 @@ export function ConnectedSubscriptions() {
       if (!subscriptions.length) return;
       const { data: cycleRows, error: cycleError } = await client
         .from("customer_subscription_cycles")
-        .select(
-          "id,subscription_id,cycle_number,starts_on,ends_on,due_on,amount_cents,status,sessions:customer_subscription_sessions(id,session_number,status,appointment_id,appointment:appointments(status))",
-        )
+        .select("id,subscription_id,cycle_number,starts_on,ends_on,due_on,amount_cents,status")
         .eq("organization_id", context.organization.id)
         .in(
           "subscription_id",
           subscriptions.map((item) => item.id),
         )
         .order("cycle_number");
-      if (!cycleError) setCycles((cycleRows ?? []) as unknown as Cycle[]);
+      if (cycleError) {
+        setMessage(cycleError.message);
+        return;
+      }
+      const normalizedCycles = (cycleRows ?? []) as unknown as Omit<Cycle, "sessions">[];
+      const { data: sessionRows, error: sessionError } = await client
+        .from("customer_subscription_sessions")
+        .select("id,subscription_id,cycle_id,session_number,status,appointment_id")
+        .eq("organization_id", context.organization.id)
+        .in("subscription_id", subscriptions.map((item) => item.id))
+        .order("session_number");
+      if (sessionError) {
+        setMessage(sessionError.message);
+        return;
+      }
+      const appointmentIds = (sessionRows ?? []).map((session) => session.appointment_id).filter(Boolean) as string[];
+      const appointmentResult = appointmentIds.length
+        ? await client.from("appointments").select("id,status").in("id", appointmentIds)
+        : { data: [] as Array<{ id: string; status: string }> };
+      const appointmentStatus = new Map((appointmentResult.data ?? []).map((appointment) => [appointment.id, appointment.status]));
+      setCycles(normalizedCycles.map((cycle) => ({
+        ...cycle,
+        sessions: (sessionRows ?? []).filter((session) => session.cycle_id === cycle.id).map((session) => ({
+          id: session.id,
+          session_number: session.session_number,
+          status: session.status,
+          appointment: session.appointment_id ? { status: appointmentStatus.get(session.appointment_id) ?? "CONFIRMED" } : null,
+        })),
+      })));
     });
   }, [context, customer, user]);
   async function requestPlan(plan: AvailablePlan) {
@@ -224,21 +258,21 @@ export function ConnectedSubscriptions() {
                 }).format(row.plan_version.price_cents / 100)
               : "—"}
           </strong>
-          <small>
+          <small className={styles.subscriptionMeta}>
             {row.plan_version?.billing_period === "BIWEEKLY"
               ? "Quinzenal"
               : "Mensal"}{" "}
-            · venc. {row.first_due_date ?? "—"} · pagamento:{" "}
+            · venc. {formatDate(row.first_due_date)} · pagamento:{" "}
             {paymentMethodLabel[row.payment_method] ?? row.payment_method} · {row.status}
           </small>
           <div>
             {cycles
               .filter((cycle) => cycle.subscription_id === row.id)
               .map((cycle) => (
-                <div key={cycle.id}>
-                  <p>
+                <div className={styles.subscriptionCycle} key={cycle.id}>
+                  <p className={styles.subscriptionCycleHeader}>
                     <strong>Ciclo {cycle.cycle_number}</strong> · venc.{" "}
-                    {cycle.due_on} · {cycle.status} ·{" "}
+                    {formatDate(cycle.due_on)} · {cycle.status} ·{" "}
                     {
                       cycle.sessions.filter(
                         (session) => session.status === "AVAILABLE",
@@ -269,7 +303,7 @@ export function ConnectedSubscriptions() {
                           marginRight: ".75rem",
                         }}
                       >
-                        <Link
+                        <Link className={styles.subscriptionAction}
                           href={`/cliente/agendar?subscriptionSession=${encodeURIComponent(session.id)}`}
                         >
                           Agendar sessão {session.session_number}
@@ -282,21 +316,23 @@ export function ConnectedSubscriptions() {
                       <button
                         key={session.id}
                         type="button"
+                        className={styles.subscriptionSecondary}
                         onClick={() => void cancelSession(session.id)}
                       >
                         Cancelar sessão {session.session_number}
                       </button>
                     ))}
+                  {cycle.status === "PAID" && cycle.sessions.every((session) => session.status !== "AVAILABLE") && <small className={styles.subscriptionHint}>Todas as sessões deste ciclo já foram utilizadas ou agendadas.</small>}
                 </div>
               ))}
           </div>
           {contractBody && (
-            <button type="button" onClick={() => window.alert(row.contract_body_snapshot ?? contractBody)}>
+            <button className={styles.subscriptionSecondary} type="button" onClick={() => window.alert(row.contract_body_snapshot ?? contractBody)}>
               Acessar contrato
             </button>
           )}
           {row.status === "ACTIVE" && (
-            <button
+            <button className={styles.subscriptionSecondary}
               type="button"
               onClick={() => void cancelSubscription(row.id)}
             >
@@ -324,7 +360,7 @@ export function ConnectedSubscriptions() {
                     }).format(plan.version.price_cents / 100)
                   : "—"}
               </small>
-              <button type="button" onClick={() => void requestPlan(plan)}>
+              <button className={styles.subscriptionAction} type="button" onClick={() => void requestPlan(plan)}>
                 Solicitar plano
               </button>
             </article>

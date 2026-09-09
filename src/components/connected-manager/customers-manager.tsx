@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
@@ -41,6 +41,8 @@ const inactivationReasons = [
   ["LOST_CONTACT", "Perda de contato"],
   ["OTHER", "Outro motivo"],
 ] as const;
+
+type ApprovalDraft = { subscriptionId: string; startDate: string; dueDate: string };
 
 function birthdayReminder(birthDate: string | null): string | null {
   if (!birthDate) return null;
@@ -101,6 +103,7 @@ export function CustomersManager({
     useState<CustomerRecord | null>(null);
   const [inactivationReason, setInactivationReason] = useState("");
   const [customInactivationReason, setCustomInactivationReason] = useState("");
+  const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
   const [todayTimestamp] = useState(() => Date.now());
   const filtered = customers.filter(
     (customer) =>
@@ -138,6 +141,17 @@ export function CustomersManager({
       ),
     [statusEvents],
   );
+
+  useEffect(() => {
+    const customerId = new URLSearchParams(window.location.search).get("cliente");
+    if (!customerId) return;
+    const customer = customers.find((item) => item.id === customerId);
+    if (customer) {
+      setEditing(customer);
+      setFormOpen(true);
+      setHistoryCustomer(null);
+    }
+  }, [customers]);
 
   function customerAppointments(customerId: string) {
     return appointments
@@ -375,16 +389,13 @@ export function CustomersManager({
     if (saved) router.refresh();
   }
 
-  async function approveSubscription(subscriptionId: string) {
-    const startDate = window.prompt(
-      "Data de início (AAAA-MM-DD)",
-      new Date().toISOString().slice(0, 10),
-    );
-    const dueDate = window.prompt(
-      "Primeiro vencimento (AAAA-MM-DD)",
-      startDate ?? new Date().toISOString().slice(0, 10),
-    );
-    if (!startDate || !dueDate) return;
+  async function approveSubscription() {
+    if (!approvalDraft) return;
+    const { subscriptionId, startDate, dueDate } = approvalDraft;
+    if (!startDate || !dueDate) {
+      setMessage("Informe a data de início e o primeiro vencimento.");
+      return;
+    }
     const saved = await runMutation(
       setMessage,
       async () => {
@@ -400,7 +411,10 @@ export function CustomersManager({
       },
       "Assinatura aprovada. Registre a primeira parcela para liberar as sessões.",
     );
-    if (saved) router.refresh();
+    if (saved) {
+      setApprovalDraft(null);
+      router.refresh();
+    }
   }
 
   async function recordFirstPayment(
@@ -1055,11 +1069,11 @@ export function CustomersManager({
                                       <button
                                         type="button"
                                         className={`${styles.button} ${styles.buttonSmall}`}
-                                        onClick={() =>
-                                          void approveSubscription(
-                                            String(subscription.id),
-                                          )
-                                        }
+                                        onClick={() => {
+                                          const today = new Date().toISOString().slice(0, 10);
+                                          setApprovalDraft({ subscriptionId: String(subscription.id), startDate: today, dueDate: today });
+                                          setMessage("");
+                                        }}
                                       >
                                         Aprovar
                                       </button>
@@ -1158,6 +1172,26 @@ export function CustomersManager({
                 >
                   Fechar
                 </button>
+              </div>
+            </section>
+          </div>
+        )}
+        {approvalDraft && (
+          <div className="modal-layer" role="presentation">
+            <button className="modal-layer__backdrop" type="button" aria-label="Fechar aprovação" onClick={() => setApprovalDraft(null)} />
+            <section className="form-modal" role="dialog" aria-modal="true" aria-labelledby="subscription-approval-title">
+              <div className="form-modal__head">
+                <span><small>Assinatura</small><strong id="subscription-approval-title">Aprovar plano</strong></span>
+                <button type="button" className="icon-button" onClick={() => setApprovalDraft(null)} aria-label="Fechar"><X size={19} /></button>
+              </div>
+              <div className="form-modal__body">
+                <p>Defina as datas da primeira cobrança. O formato exibido segue o padrão brasileiro.</p>
+                <Field label="Data de início"><input type="date" value={approvalDraft.startDate} onChange={(event) => setApprovalDraft((current) => current ? { ...current, startDate: event.target.value } : current)} /></Field>
+                <Field label="Primeiro vencimento"><input type="date" value={approvalDraft.dueDate} onChange={(event) => setApprovalDraft((current) => current ? { ...current, dueDate: event.target.value } : current)} /></Field>
+              </div>
+              <div className="form-modal__footer">
+                <button className="button button--ghost" type="button" onClick={() => setApprovalDraft(null)}>Cancelar</button>
+                <button className="button button--dark" type="button" onClick={() => void approveSubscription()}>Aprovar plano</button>
               </div>
             </section>
           </div>
