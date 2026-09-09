@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
-import { ArrowLeftRight, Building2, ChevronRight, CircleDollarSign, Landmark, Plus, ReceiptText, Tags, X } from "lucide-react";
+import { ArrowLeftRight, Building2, ChevronRight, Plus, ReceiptText, Tags, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { centsFromInput, formatCents } from "./format";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import type { AppointmentReceiptDraft } from "./appointment-receipt";
+import { DEFAULT_FINANCIAL_TIMEZONE } from "@/lib/domain/financial-receivables";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { BarberCashSessionReconciliation, type BarberCashSession } from "./barber-cash-reconciliation";
 import type {
@@ -21,6 +22,8 @@ import type {
   FinancialEntryRecord,
   FinancialEntryTagRecord,
   FinancialSettlementRecord,
+  CommissionPayoutSettlementRecord,
+  CommissionPayoutSettlementReversalRecord,
   FinancialTagRecord,
   FinanceSection,
   PaymentAccountMappingRecord,
@@ -28,9 +31,22 @@ import type {
 } from "./types";
 import styles from "./connected-manager.module.css";
 
+const TAG_PALETTE = [
+  { name: "Verde floresta", value: "#2f6b5d" },
+  { name: "Verde escuro", value: "#17483d" },
+  { name: "Azul", value: "#2563eb" },
+  { name: "Roxo", value: "#7c3aed" },
+  { name: "Vinho", value: "#a1264f" },
+  { name: "Vermelho", value: "#c0392b" },
+  { name: "Laranja", value: "#c46a13" },
+  { name: "Dourado", value: "#9a6b00" },
+  { name: "Cinza", value: "#59635c" },
+] as const;
+
 const financeSections: Array<{ id: FinanceSection; label: string; href: string }> = [
   { id: "overview", label: "Visão geral", href: "/gestor/financeiro" },
   { id: "cash", label: "Caixa", href: "/gestor/financeiro/caixa" },
+  { id: "commissions", label: "Comissões", href: "/gestor/financeiro/comissoes" },
   { id: "payables", label: "Contas a pagar", href: "/gestor/financeiro/contas-pagar" },
   { id: "receivables", label: "Contas a receber", href: "/gestor/financeiro/contas-receber" },
   { id: "accounts", label: "Bancos", href: "/gestor/financeiro/bancos" },
@@ -42,6 +58,7 @@ const financeSections: Array<{ id: FinanceSection; label: string; href: string }
 export type CashManagerProps = {
   section: FinanceSection;
   organizationId: string;
+  timezone?: string;
   billingStatus: string | null;
   accounts: FinancialAccountRecord[];
   balances: FinancialAccountBalanceRecord[];
@@ -54,6 +71,8 @@ export type CashManagerProps = {
   entryTags: FinancialEntryTagRecord[];
   settlements: FinancialSettlementRecord[];
   appointmentActivity: AppointmentCashActivityRecord[];
+  commissionSettlements?: CommissionPayoutSettlementRecord[];
+  commissionSettlementReversals?: CommissionPayoutSettlementReversalRecord[];
   mappings: PaymentAccountMappingRecord[];
   appointmentReceivables?: AppointmentReceivableRecord[];
   barberCashSessions?: BarberCashSession[];
@@ -79,28 +98,41 @@ const statusLabel: Record<EntryStatus, string> = {
   CANCELED: "Cancelado",
 };
 
-function today() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+function today(timezone = DEFAULT_FINANCIAL_TIMEZONE) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
 }
 
-function currentMonthRange() {
-  const [year, month] = today().split("-").map(Number);
+function currentMonthRange(timezone = DEFAULT_FINANCIAL_TIMEZONE) {
+  const [year, month] = today(timezone).split("-").map(Number);
   const first = `${year}-${String(month).padStart(2, "0")}-01`;
   const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return { start: first, end: `${year}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}` };
 }
 
-function movementDate(value: string) {
-  return value.includes("T") ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(value)) : value;
+function futureMonthRange(monthOffset: number, monthCount: number, timezone = DEFAULT_FINANCIAL_TIMEZONE) {
+  const [year, month] = today(timezone).split("-").map(Number);
+  const startIndex = year * 12 + (month - 1) + monthOffset;
+  const endIndex = startIndex + monthCount - 1;
+  const startYear = Math.floor(startIndex / 12);
+  const startMonth = (startIndex % 12) + 1;
+  const endYear = Math.floor(endIndex / 12);
+  const endMonth = (endIndex % 12) + 1;
+  const start = `${startYear}-${String(startMonth).padStart(2, "0")}-01`;
+  const last = new Date(Date.UTC(endYear, endMonth, 0)).getUTCDate();
+  return { start, end: `${endYear}-${String(endMonth).padStart(2, "0")}-${String(last).padStart(2, "0")}` };
 }
 
-function formatMovementDate(value: string) {
-  const [year, month, day] = movementDate(value).split("-");
+function movementDate(value: string, timezone = DEFAULT_FINANCIAL_TIMEZONE) {
+  return value.includes("T") ? new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date(value)) : value;
+}
+
+function formatMovementDate(value: string, timezone = DEFAULT_FINANCIAL_TIMEZONE) {
+  const [year, month, day] = movementDate(value, timezone).split("-");
   return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
-function isDateInRange(value: string, start: string, end: string) {
-  const date = movementDate(value);
+function isDateInRange(value: string, start: string, end: string, timezone = DEFAULT_FINANCIAL_TIMEZONE) {
+  const date = movementDate(value, timezone);
   return (!start || date >= start) && (!end || date <= end);
 }
 
@@ -139,17 +171,21 @@ export function CashManager(props: CashManagerProps) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | EntryStatus>("ALL");
   const [accountFilter, setAccountFilter] = useState("ALL");
-  const periodDefault = props.section === "cash" || props.section === "payables" || props.section === "receivables" ? currentMonthRange() : null;
+  const timezone = props.timezone ?? DEFAULT_FINANCIAL_TIMEZONE;
+  const periodDefault = props.section === "cash" || props.section === "payables" || props.section === "receivables" ? currentMonthRange(timezone) : null;
   const [startDate, setStartDate] = useState(() => periodDefault?.start ?? "");
   const [endDate, setEndDate] = useState(() => periodDefault?.end ?? "");
   const [entryEditor, setEntryEditor] = useState<FinancialEntryRecord | "new" | null>(null);
+  const [cashEdit, setCashEdit] = useState<CashSettlementMovement | null>(null);
   const [settlementEntry, setSettlementEntry] = useState<FinancialEntryRecord | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [reversePayment, setReversePayment] = useState<AppointmentCashActivityRecord | null>(null);
+  const [reverseCommission, setReverseCommission] = useState<CommissionPayoutSettlementRecord | null>(null);
   const [appointmentReceipt, setAppointmentReceipt] = useState<AppointmentReceivableRecord | AppointmentReceiptDraft | null>(null);
   const sectionKind: "ALL" | EntryKind = props.section === "payables" ? "EXPENSE" : props.section === "receivables" ? "REVENUE" : "ALL";
 
   const accountById = useMemo(() => new Map(props.accounts.map((item) => [item.id, item])), [props.accounts]);
+  const cashAccountId = useMemo(() => props.accounts.find((item) => item.kind === "CASH" || /caixa físico/i.test(item.name))?.id ?? "", [props.accounts]);
   const supplierById = useMemo(() => new Map(props.suppliers.map((item) => [item.id, item])), [props.suppliers]);
   const customerById = useMemo(() => new Map(props.customers.map((item) => [item.id, item])), [props.customers]);
   const chartById = useMemo(() => new Map(props.chartAccounts.map((item) => [item.id, item])), [props.chartAccounts]);
@@ -165,31 +201,63 @@ export function CashManager(props: CashManagerProps) {
   const visibleEntries = useMemo(() => props.entries.filter((entry) => {
     const counterparty = counterpartName(entry, customerById, supplierById);
     const haystack = [entry.description, entry.document_number, counterparty, chartById.get(entry.chart_account_id)?.name, ...(tagNamesByEntry.get(entry.id) ?? [])].join(" ").toLocaleLowerCase("pt-BR");
-    return props.section !== "cash" && (sectionKind === "ALL" || entry.kind === sectionKind) && (statusFilter === "ALL" || entry.status === statusFilter) && (!accountFilter || accountFilter === "ALL" || entry.preferred_financial_account_id === accountFilter) && isDateInRange(entry.due_date, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.entries, props.section, customerById, supplierById, chartById, tagNamesByEntry, sectionKind, statusFilter, accountFilter, startDate, endDate, query]);
+    const futureControl = entry.status !== "SETTLED" && entry.status !== "CANCELED";
+    const matchesStatus = props.section === "payables" || props.section === "receivables" || statusFilter === "ALL" || entry.status === statusFilter;
+    return props.section !== "cash" && (entry.source ?? "MANUAL") === "MANUAL" && futureControl && (sectionKind === "ALL" || entry.kind === sectionKind) && matchesStatus && (!accountFilter || accountFilter === "ALL" || entry.preferred_financial_account_id === accountFilter) && isDateInRange(entry.due_date, startDate, endDate, timezone) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.entries, props.section, customerById, supplierById, chartById, tagNamesByEntry, sectionKind, statusFilter, accountFilter, startDate, endDate, query, timezone]);
 
-  const cashSettlementMovements = useMemo(() => props.settlements.flatMap((settlement): CashSettlementMovement[] => {
+  const cashSettlementMovements = useMemo(() => {
+    const reversedSettlementIds = new Set(props.settlements.filter((item) => item.kind === "REVERSAL" && item.source_settlement_id).map((item) => item.source_settlement_id));
+    return props.settlements.filter((settlement) => settlement.kind === "SETTLEMENT" && !reversedSettlementIds.has(settlement.id)).flatMap((settlement): CashSettlementMovement[] => {
     const entry = entryById.get(settlement.entry_id);
     return entry && entry.status !== "CANCELED" ? [{ entry, settlement }] : [];
-  }), [props.settlements, entryById]);
+    });
+  }, [props.settlements, entryById]);
 
   const visibleSettlements = useMemo(() => cashSettlementMovements.filter(({ entry, settlement }) => {
     const counterparty = counterpartName(entry, customerById, supplierById);
     const haystack = [entry.description, entry.document_number, counterparty, chartById.get(entry.chart_account_id)?.name, ...(tagNamesByEntry.get(entry.id) ?? [])].join(" ").toLocaleLowerCase("pt-BR");
-    return (accountFilter === "ALL" || settlement.financial_account_id === accountFilter) && isDateInRange(settlement.settled_on, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [cashSettlementMovements, customerById, supplierById, chartById, tagNamesByEntry, accountFilter, startDate, endDate, query]);
+    return (accountFilter === "ALL" || settlement.financial_account_id === accountFilter) && isDateInRange(settlement.settled_on, startDate, endDate, timezone) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [cashSettlementMovements, customerById, supplierById, chartById, tagNamesByEntry, accountFilter, startDate, endDate, query, timezone]);
 
   const visibleActivity = useMemo(() => props.appointmentActivity.filter((item) => {
     const customer = customerById.get(item.customer_id)?.full_name ?? "Cliente";
     const haystack = `${customer} ${item.display_description} ${item.provider} ${item.payment_mode}`.toLocaleLowerCase("pt-BR");
-    return sectionKind !== "EXPENSE" && (accountFilter === "ALL" || item.financial_account_id === accountFilter) && isDateInRange(item.occurred_at, startDate, endDate) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
-  }), [props.appointmentActivity, customerById, sectionKind, accountFilter, startDate, endDate, query]);
+    return props.section === "cash" && (accountFilter === "ALL" || item.financial_account_id === accountFilter) && isDateInRange(item.occurred_at, startDate, endDate, timezone) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.appointmentActivity, customerById, props.section, accountFilter, startDate, endDate, query, timezone]);
+  const activeCommissionSettlements = useMemo(() => {
+    const reversedSettlementIds = new Set((props.commissionSettlementReversals ?? []).map((item) => item.settlement_id));
+    return (props.commissionSettlements ?? []).filter((item) => !reversedSettlementIds.has(item.id));
+  }, [props.commissionSettlements, props.commissionSettlementReversals]);
+  const visibleCommissionSettlements = useMemo(() => activeCommissionSettlements.filter((item) => {
+    const barber = props.barberNames?.[item.barber_id] ?? "Profissional";
+    const haystack = [barber, "Pagamento de comissão", item.document_number, item.tags, item.reference].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
+    return props.section === "cash" && (accountFilter === "ALL" || item.financial_account_id === accountFilter) && isDateInRange(item.paid_on, startDate, endDate, timezone) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [activeCommissionSettlements, props.barberNames, props.section, accountFilter, startDate, endDate, query, timezone]);
+  const visibleCommissionSettlementReversals: CommissionPayoutSettlementReversalRecord[] = [];
+  const visibleAppointmentReceivables = useMemo(() => (props.appointmentReceivables ?? []).filter((item) => {
+    const haystack = `${item.customer_name} ${item.description} ${item.document_number}`.toLocaleLowerCase("pt-BR");
+    return props.section === "receivables" && (accountFilter === "ALL" || accountFilter === cashAccountId) && isDateInRange(item.due_date, startDate, endDate, timezone) && (!query || haystack.includes(query.toLocaleLowerCase("pt-BR")));
+  }), [props.appointmentReceivables, props.section, startDate, endDate, accountFilter, cashAccountId, query, timezone]);
 
   const manualExpense = props.entries.filter((item) => item.kind === "EXPENSE").reduce((total, item) => total + item.settled_cents, 0);
-  const dailyMovement = cashSettlementMovements.filter(({ settlement }) => movementDate(settlement.settled_on) === today()).reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + props.appointmentActivity.filter((item) => movementDate(item.occurred_at) === today()).reduce((total, item) => total + item.signed_cents, 0);
+  const dailyMovement = cashSettlementMovements.filter(({ settlement }) => movementDate(settlement.settled_on, timezone) === today(timezone)).reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + props.appointmentActivity.filter((item) => movementDate(item.occurred_at, timezone) === today(timezone)).reduce((total, item) => total + item.signed_cents, 0) - activeCommissionSettlements.filter((item) => movementDate(item.paid_on, timezone) === today(timezone)).reduce((total, item) => total + item.amount_cents, 0);
+  const periodMovement = visibleSettlements.reduce((total, { entry, settlement }) => total + settlementSignedCents(entry.kind, settlement), 0) + visibleActivity.reduce((total, item) => total + item.signed_cents, 0) - visibleCommissionSettlements.reduce((total, item) => total + item.amount_cents, 0) + visibleCommissionSettlementReversals.reduce((total, item) => total + item.amount_cents, 0);
+  const periodOutflow = visibleSettlements.reduce((total, { entry, settlement }) => { const value = settlementSignedCents(entry.kind, settlement); return total + (value < 0 ? value : 0); }, 0) + visibleActivity.reduce((total, item) => total + (item.signed_cents < 0 ? item.signed_cents : 0), 0) - visibleCommissionSettlements.reduce((total, item) => total + item.amount_cents, 0) + visibleCommissionSettlementReversals.reduce((total, item) => total + item.amount_cents, 0);
+  const periodInflow = visibleSettlements.reduce((total, { entry, settlement }) => { const value = settlementSignedCents(entry.kind, settlement); return total + (value > 0 ? value : 0); }, 0) + visibleActivity.reduce((total, item) => total + (item.signed_cents > 0 ? item.signed_cents : 0), 0) - visibleCommissionSettlementReversals.reduce((total, item) => total + item.amount_cents, 0);
   const balance = props.balances.reduce((total, item) => total + item.balance_cents, 0);
   const openReceivable = props.entries.filter((item) => item.kind === "REVENUE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0) + (props.appointmentReceivables ?? []).reduce((total, item) => total + item.outstanding_cents, 0);
   const openPayable = props.entries.filter((item) => item.kind === "EXPENSE" && !["SETTLED", "CANCELED"].includes(item.status)).reduce((total, item) => total + item.remaining_cents, 0);
+  const isOpenPayable = (item: FinancialEntryRecord) => item.kind === "EXPENSE" && (item.source ?? "MANUAL") === "MANUAL" && !["SETTLED", "CANCELED"].includes(item.status) && (accountFilter === "ALL" || item.preferred_financial_account_id === accountFilter);
+  const sumPayablesInRange = (range: { start: string; end: string }) => props.entries.filter((item) => isOpenPayable(item) && isDateInRange(item.due_date, range.start, range.end, timezone)).reduce((total, item) => total + item.remaining_cents, 0);
+  const payablesInPeriod = props.section === "payables" ? visibleEntries.reduce((total, item) => total + item.remaining_cents, 0) : 0;
+  const payablesNextMonth = props.section === "payables" ? sumPayablesInRange(futureMonthRange(1, 1, timezone)) : 0;
+  const payablesNextSixMonths = props.section === "payables" ? sumPayablesInRange(futureMonthRange(1, 6, timezone)) : 0;
+  const isOpenReceivable = (item: FinancialEntryRecord) => item.kind === "REVENUE" && (item.source ?? "MANUAL") === "MANUAL" && !["SETTLED", "CANCELED"].includes(item.status) && (accountFilter === "ALL" || item.preferred_financial_account_id === accountFilter);
+  const sumReceivablesInRange = (range: { start: string; end: string }) => props.entries.filter((item) => isOpenReceivable(item) && isDateInRange(item.due_date, range.start, range.end, timezone)).reduce((total, item) => total + item.remaining_cents, 0) + (props.appointmentReceivables ?? []).filter((item) => (accountFilter === "ALL" || accountFilter === cashAccountId) && isDateInRange(item.due_date, range.start, range.end, timezone)).reduce((total, item) => total + item.outstanding_cents, 0);
+  const receivablesInPeriod = props.section === "receivables" ? visibleEntries.reduce((total, item) => total + item.remaining_cents, 0) + visibleAppointmentReceivables.reduce((total, item) => total + item.outstanding_cents, 0) : 0;
+  const receivablesNextMonth = props.section === "receivables" ? sumReceivablesInRange(futureMonthRange(1, 1, timezone)) : 0;
+  const receivablesNextSixMonths = props.section === "receivables" ? sumReceivablesInRange(futureMonthRange(1, 6, timezone)) : 0;
 
   async function reverseAppointmentReceipt() {
     if (!reversePayment) return;
@@ -206,8 +274,21 @@ export function CashManager(props: CashManagerProps) {
     if (saved) { setReversePayment(null); router.refresh(); }
   }
 
+  async function reverseCommissionPayment(reason: string) {
+    if (!reverseCommission || !reason.trim()) return;
+    if (blockDemoWrite(props.demoMode, setMessage)) { setReverseCommission(null); return; }
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("reverse_commission_payout", {
+        p_settlement_id: reverseCommission.id,
+        p_reason: reason.trim(),
+        p_idempotency_key: `manager:commission-reversal:${reverseCommission.id}:${crypto.randomUUID()}`,
+      }));
+    }, "Comissão estornada. O valor foi liberado novamente para pagamento.");
+    if (saved) { setReverseCommission(null); router.refresh(); }
+  }
+
   const title = props.section === "overview" ? "Financeiro" : props.section === "cash" ? "Controle de caixa" : financeSections.find((item) => item.id === props.section)?.label ?? "Financeiro";
-  const description = props.demoMode ? "Modo demonstração: dados locais, sem escrita no Supabase." : props.section === "cash" ? "Entradas e saídas efetivamente movimentadas." : "Lançamentos auditáveis; valores liquidados não são apagados.";
+  const description = props.demoMode ? "Modo demonstração: dados locais, sem escrita no Supabase." : props.section === "cash" ? "Entradas e saídas efetivamente movimentadas." : props.section === "payables" || props.section === "receivables" ? undefined : "Lançamentos auditáveis; valores liquidados não são apagados.";
 
   return <div className={styles.stack}>
     <PageHeader title={title} description={description} actions={props.section === "cash" ? <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button> : undefined} />
@@ -215,24 +296,24 @@ export function CashManager(props: CashManagerProps) {
     <ActionMessage message={message} />
 
     {props.section === "overview" && <>
-      <CashStats balance={balance} dailyMovement={dailyMovement} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} />
+      <CashStats balance={balance} dailyMovement={dailyMovement} outgoing={manualExpense} incoming={0} openReceivable={openReceivable} openPayable={openPayable} />
       <Panel title="Próximo passo" description="Controle despesas, recebimentos e contas bancárias sem duplicar pagamentos de agendamento.">
         <Link className={styles.button} href="/gestor/financeiro/caixa">Abrir Caixa <ChevronRight size={16} /></Link>
       </Panel>
       <Panel title="Caixas dos Barbeiros" description="Concilie o caixa diário individual antes de confirmar os recebimentos nas contas financeiras."><BarberCashSessionReconciliation sessions={props.barberCashSessions ?? []} barberNames={props.barberNames ?? {}} demoMode={props.demoMode} setMessage={setMessage} onSaved={() => router.refresh()} /></Panel>
     </>}
     {(props.section === "cash" || props.section === "payables" || props.section === "receivables") && <>
-      <CashStats balance={balance} dailyMovement={dailyMovement} outgoing={manualExpense} openReceivable={openReceivable} openPayable={openPayable} showOpen={props.section !== "cash"} />
+      <CashStats balance={balance} dailyMovement={props.section === "cash" ? periodMovement : dailyMovement} outgoing={props.section === "cash" ? periodOutflow : manualExpense} incoming={props.section === "cash" ? periodInflow : 0} openReceivable={openReceivable} openPayable={openPayable} payables={props.section === "payables" ? { inPeriod: payablesInPeriod, nextMonth: payablesNextMonth, nextSixMonths: payablesNextSixMonths } : undefined} receivables={props.section === "receivables" ? { inPeriod: receivablesInPeriod, nextMonth: receivablesNextMonth, nextSixMonths: receivablesNextSixMonths } : undefined} showOpen={props.section !== "cash"} />
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
           <input className={styles.packageFilterSelect} aria-label="Buscar lançamentos" placeholder="Buscar descrição, documento ou contraparte" value={query} onChange={(event) => setQuery(event.target.value)} />
           <input className={styles.packageFilterSelect} aria-label="Data inicial" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
           <input className={styles.packageFilterSelect} aria-label="Data final" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-          {props.section === "cash" ? <select className={styles.packageFilterSelect} aria-label="Filtrar conta financeira" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}><option value="ALL">Todas as contas</option>{props.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select> : <select className={styles.packageFilterSelect} aria-label="Filtrar status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "ALL" | EntryStatus)}><option value="ALL">Todos status</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}
+          {props.section === "cash" || props.section === "payables" || props.section === "receivables" ? <select className={styles.packageFilterSelect} aria-label="Filtrar conta financeira" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}><option value="ALL">Todas as contas</option>{props.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select> : <select className={styles.packageFilterSelect} aria-label="Filtrar status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "ALL" | EntryStatus)}><option value="ALL">Todos status</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}
         </div>
         {props.section !== "cash" && <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button>}
       </div>
-      <CashList cashOnly={props.section === "cash"} entries={visibleEntries} settlements={props.section === "cash" ? visibleSettlements : []} activity={visibleActivity} receivables={props.section === "receivables" ? (props.appointmentReceivables ?? []) : []} accountById={accountById} supplierById={supplierById} customerById={customerById} onEdit={setEntryEditor} onSettle={setSettlementEntry} onReceive={setAppointmentReceipt} onCancel={async (entry) => {
+      <CashList cashOnly={props.section === "cash"} payables={props.section === "payables"} timezone={timezone} entries={visibleEntries} settlements={props.section === "cash" ? visibleSettlements : []} commissionSettlements={visibleCommissionSettlements} commissionSettlementReversals={visibleCommissionSettlementReversals} activity={visibleActivity} receivables={visibleAppointmentReceivables} accountById={accountById} supplierById={supplierById} customerById={customerById} barberNames={props.barberNames ?? {}} onEdit={setEntryEditor} onEditSettlement={setCashEdit} onSettle={setSettlementEntry} onReceive={setAppointmentReceipt} onReverseCommission={setReverseCommission} onCancel={async (entry) => {
         if (blockDemoWrite(props.demoMode, setMessage)) return;
         const reason = window.prompt("Motivo obrigatório do cancelamento:");
         if (!reason?.trim()) return;
@@ -242,35 +323,50 @@ export function CashManager(props: CashManagerProps) {
     </>}
     {props.section === "accounts" && <AccountsSection {...props} balanceById={balanceById} accountById={accountById} setMessage={setMessage} />}
     {props.section === "suppliers" && <SuppliersSection organizationId={props.organizationId} suppliers={props.suppliers} demoMode={props.demoMode} setMessage={setMessage} />}
-    {props.section === "catalogs" && <CatalogsSection organizationId={props.organizationId} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} accounts={props.accounts} mappings={props.mappings} demoMode={props.demoMode} setMessage={setMessage} />}
+    {props.section === "catalogs" && <CatalogsSection organizationId={props.organizationId} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} demoMode={props.demoMode} setMessage={setMessage} />}
 
-    {entryEditor && <EntryDialog entry={entryEditor === "new" ? null : entryEditor} defaultKind={sectionKind === "ALL" ? "REVENUE" : sectionKind} {...props} onClose={() => setEntryEditor(null)} onSaved={() => { setEntryEditor(null); router.refresh(); }} setMessage={setMessage} />}
+    {entryEditor && <EntryDialog entry={entryEditor === "new" ? null : entryEditor} defaultKind={sectionKind === "ALL" ? "REVENUE" : sectionKind} settleImmediately={props.section === "cash"} {...props} onClose={() => setEntryEditor(null)} onSaved={() => { setEntryEditor(null); router.refresh(); }} setMessage={setMessage} />}
+    {cashEdit && <EntryDialog entry={cashEdit.entry} defaultKind={cashEdit.entry.kind} replacementSettlementId={cashEdit.settlement.id} {...props} onClose={() => setCashEdit(null)} onSaved={() => { setCashEdit(null); router.refresh(); }} setMessage={setMessage} />}
     {appointmentReceipt && <AppointmentReceiptDialog receipt={appointmentReceipt} accounts={props.accounts} chartAccounts={props.chartAccounts} costCenters={props.costCenters} tags={props.tags} mappings={props.mappings} demoMode={props.demoMode} onClose={() => setAppointmentReceipt(null)} onSaved={() => { setAppointmentReceipt(null); router.refresh(); }} setMessage={setMessage} />}
     {settlementEntry && <SettlementDialog entry={settlementEntry} accounts={props.accounts} demoMode={props.demoMode} onClose={() => setSettlementEntry(null)} onSaved={() => { setSettlementEntry(null); router.refresh(); }} setMessage={setMessage} />}
     {transferOpen && <TransferDialog accounts={props.accounts} demoMode={props.demoMode} onClose={() => setTransferOpen(false)} onSaved={() => { setTransferOpen(false); router.refresh(); }} setMessage={setMessage} />}
     {reversePayment && <ConfirmDialog title="Estornar recebimento do agendamento?" description="O valor será estornado ao cliente e o saldo do agendamento será reaberto. Serviço e agendamento continuam concluídos." confirmLabel="Confirmar estorno" onClose={() => setReversePayment(null)} onConfirm={() => void reverseAppointmentReceipt()} />}
+    {reverseCommission && <ConfirmDialog title="Estornar comissão?" description="Esta ação não poderá ser desfeita. O pagamento será compensado na conta financeira e a comissão ficará disponível novamente para seleção." confirmLabel="Confirmar estorno" requireReason onClose={() => setReverseCommission(null)} onConfirm={(reason) => void reverseCommissionPayment(reason ?? "")} />}
   </div>;
 }
 
-function CashStats({ balance, dailyMovement, outgoing, openReceivable, openPayable, showOpen = true }: { balance: number; dailyMovement: number; outgoing: number; openReceivable: number; openPayable: number; showOpen?: boolean }) {
+function CashStats({ balance, dailyMovement, outgoing, incoming, openReceivable, openPayable, payables, receivables, showOpen = true }: { balance: number; dailyMovement: number; outgoing: number; incoming: number; openReceivable: number; openPayable: number; payables?: { inPeriod: number; nextMonth: number; nextSixMonths: number }; receivables?: { inPeriod: number; nextMonth: number; nextSixMonths: number }; showOpen?: boolean }) {
+  if (payables || receivables) {
+    const values = payables ?? receivables!;
+    const green = Boolean(receivables);
+    return <section className={styles.stats}>
+    <article className={styles.stat}><span>Saldo em contas</span><strong>{formatCents(balance)}</strong><small>saldo inicial + movimentações</small></article>
+    <article className={styles.stat}><span>Contas à {green ? "receber" : "pagar"} no período</span><strong>{formatCents(values.inPeriod)}</strong></article>
+    <article className={`${styles.stat} ${green ? styles.statSuccess : styles.statDanger}`}><span>Contas à {green ? "receber" : "pagar"} - próximo mês</span><strong>{formatCents(values.nextMonth)}</strong></article>
+    <article className={`${styles.stat} ${green ? styles.statSuccessDark : styles.statDangerDark}`}><span>Contas à {green ? "receber" : "pagar"} - 6 meses</span><strong>{formatCents(values.nextSixMonths)}</strong></article>
+  </section>;
+  }
   return <section className={`${styles.stats} ${showOpen ? "" : styles.statsCash}`}>
     <article className={styles.stat}><span>Saldo em contas</span><strong>{formatCents(balance)}</strong><small>saldo inicial + movimentações</small></article>
-    <article className={styles.stat}><span>Movimentações do dia</span><strong>{formatCents(dailyMovement)}</strong><small>saldo líquido do dia</small></article>
-    <article className={styles.stat}><span>Saídas realizadas</span><strong>{formatCents(outgoing)}</strong><small>despesas liquidadas</small></article>
+    <article className={`${styles.stat} ${dailyMovement < 0 ? styles.statDanger : ""}`}><span>Movimentação no período</span><strong>{formatCents(dailyMovement)}</strong><small>Saldo do período</small></article>
+    <article className={`${styles.stat} ${styles.statDanger}`}><span>Saídas realizadas</span><strong>{formatCents(outgoing)}</strong><small>saídas liquidadas no período</small></article>
+    {!showOpen && <article className={`${styles.stat} ${styles.statSuccess}`}><span>Entradas realizadas</span><strong>{formatCents(incoming)}</strong><small>entradas liquidadas no período</small></article>}
     {showOpen && <article className={styles.stat}><span>Em aberto</span><strong>{formatCents(openReceivable - openPayable)}</strong><small>{formatCents(openReceivable)} a receber · {formatCents(openPayable)} a pagar</small></article>}
   </section>;
 }
 
-function CashList({ cashOnly, entries, settlements, activity, receivables, accountById, supplierById, customerById, onEdit, onSettle, onReceive, onCancel, onTransfer, onReverseAppointment }: { cashOnly: boolean; entries: FinancialEntryRecord[]; settlements: CashSettlementMovement[]; activity: AppointmentCashActivityRecord[]; receivables: AppointmentReceivableRecord[]; accountById: Map<string, FinancialAccountRecord>; supplierById: Map<string, SupplierRecord>; customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>; onEdit: (entry: FinancialEntryRecord) => void; onSettle: (entry: FinancialEntryRecord) => void; onReceive: (entry: AppointmentReceivableRecord) => void; onCancel: (entry: FinancialEntryRecord) => void; onTransfer: () => void; onReverseAppointment: (entry: AppointmentCashActivityRecord) => void }) {
-  return <Panel title="Movimentações" description={cashOnly ? undefined : "Registros de agendamento são vinculados ao ledger existente e não podem ser editados aqui."} action={<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onTransfer}><ArrowLeftRight size={15} /> Transferir</button>}>
-    {!entries.length && !settlements.length && !activity.length && !receivables.length ? <EmptyState title="Sem movimentações">Registre um recebimento ou pagamento para acompanhar o caixa.</EmptyState> : <div className={`${styles.cashTable} ${cashOnly ? styles.cashTableOnly : ""}`} role="table" aria-label="Movimentações financeiras">
+function CashList({ cashOnly, payables, timezone, entries, settlements, commissionSettlements, commissionSettlementReversals, activity, receivables, accountById, supplierById, customerById, barberNames, onEdit, onEditSettlement, onSettle, onReceive, onCancel, onTransfer, onReverseAppointment, onReverseCommission }: { cashOnly: boolean; payables: boolean; timezone: string; entries: FinancialEntryRecord[]; settlements: CashSettlementMovement[]; commissionSettlements: CommissionPayoutSettlementRecord[]; commissionSettlementReversals: CommissionPayoutSettlementReversalRecord[]; activity: AppointmentCashActivityRecord[]; receivables: AppointmentReceivableRecord[]; accountById: Map<string, FinancialAccountRecord>; supplierById: Map<string, SupplierRecord>; customerById: Map<string, Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "active">>; barberNames: Record<string, string>; onEdit: (entry: FinancialEntryRecord) => void; onEditSettlement: (movement: CashSettlementMovement) => void; onSettle: (entry: FinancialEntryRecord) => void; onReceive: (entry: AppointmentReceivableRecord) => void; onCancel: (entry: FinancialEntryRecord) => void; onTransfer: () => void; onReverseAppointment: (entry: AppointmentCashActivityRecord) => void; onReverseCommission: (settlement: CommissionPayoutSettlementRecord) => void }) {
+  return <Panel title="Movimentações" description={cashOnly || payables ? undefined : "Registros de agendamento são vinculados ao ledger existente e não podem ser editados aqui."} action={<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onTransfer}><ArrowLeftRight size={15} /> Transferir</button>}>
+    {!entries.length && !settlements.length && !commissionSettlements.length && !commissionSettlementReversals.length && !activity.length && !receivables.length ? <EmptyState title="Sem movimentações">Registre um recebimento ou pagamento para acompanhar o caixa.</EmptyState> : <div className={`${styles.cashTable} ${cashOnly ? styles.cashTableOnly : ""}`} role="table" aria-label="Movimentações financeiras">
       <div className={styles.cashHeader} role="row"><span role="columnheader">Cliente/Fornecedor</span><span role="columnheader">Data</span><span role="columnheader">Valor</span><span role="columnheader">Conta financeira</span>{!cashOnly && <span role="columnheader">Situação do pagamento</span>}<span className={styles.cashHeaderAction} role="columnheader">Ações</span></div>
       {entries.map((entry) => {
         const counterpart = counterpartName(entry, customerById, supplierById);
-        return <article key={entry.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpart}</strong><small className={styles.cashDescription}>{entry.description}</small></span><span role="cell">{formatMovementDate(entry.due_date)}</span><strong role="cell">{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span role="cell">{accountById.get(entry.preferred_financial_account_id ?? "")?.name ?? "Não definida"}</span>{!cashOnly && <span role="cell"><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /></span>}<span className={styles.rowActions} role="cell">{!cashOnly && !["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>Liquidar</button>}{!cashOnly && (entry.status === "OPEN" || entry.status === "OVERDUE") ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : null}</span></article>;
+        return <article key={entry.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpart}</strong><small className={styles.cashDescription}>{entry.description}</small></span><span role="cell">{formatMovementDate(entry.due_date)}</span><strong role="cell">{entry.kind === "REVENUE" ? "+" : "−"}{formatCents(entry.total_cents)}</strong><span role="cell">{accountById.get(entry.preferred_financial_account_id ?? "")?.name ?? "Não definida"}</span>{!cashOnly && <span role="cell"><StatusChip active={boolActive(entry.status)} label={statusLabel[entry.status]} /></span>}<span className={styles.rowActions} role="cell">{!cashOnly && !["SETTLED", "CANCELED"].includes(entry.status) && <button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onSettle(entry)}>{payables ? "Pagar" : "Liquidar"}</button>}{!cashOnly && (entry.status === "OPEN" || entry.status === "OVERDUE") ? <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(entry)}>Editar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onCancel(entry)}>Excluir</button></> : null}</span></article>;
       })}
-      {settlements.map(({ entry, settlement }) => { const signedCents = settlementSignedCents(entry.kind, settlement); return <article key={settlement.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpartName(entry, customerById, supplierById)}</strong><small className={styles.cashDescription}>{settlement.kind === "REVERSAL" ? `Estorno · ${entry.description}` : entry.description}</small></span><span role="cell">{formatMovementDate(settlement.settled_on)}</span><strong role="cell">{signedCents >= 0 ? "+" : "−"}{formatCents(Math.abs(signedCents))}</strong><span role="cell">{accountById.get(settlement.financial_account_id)?.name ?? "Conta não encontrada"}</span><span className={styles.rowActions} role="cell" /> </article>; })}
-      {activity.map((item) => <article key={item.payment_transaction_id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{customerById.get(item.customer_id)?.full_name ?? "Cliente"}</strong><small className={styles.cashDescription}>{item.display_description}</small></span><span role="cell">{formatMovementDate(item.occurred_at)}</span><strong role="cell">{item.signed_cents >= 0 ? "+" : "−"}{formatCents(Math.abs(item.signed_cents))}</strong><span role="cell">{item.needs_reconciliation ? "Não vinculada" : accountById.get(item.financial_account_id ?? "")?.name ?? "Conta não encontrada"}</span><span className={styles.rowActions} role="cell">{item.kind === "CAPTURE" && item.provider === "MANUAL" && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseAppointment(item)}>Estornar recebimento</button>}</span></article>)}
+      {settlements.map((movement) => { const { entry, settlement } = movement; const signedCents = settlementSignedCents(entry.kind, settlement); return <article key={settlement.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{counterpartName(entry, customerById, supplierById)}</strong><small className={styles.cashDescription}>{settlement.kind === "REVERSAL" ? `Estorno · ${entry.description}` : entry.description}</small></span><span role="cell">{formatMovementDate(settlement.settled_on)}</span><strong role="cell">{signedCents >= 0 ? "+" : "−"}{formatCents(Math.abs(signedCents))}</strong><span role="cell">{accountById.get(settlement.financial_account_id)?.name ?? "Conta não encontrada"}</span><span className={styles.rowActions} role="cell">{settlement.kind === "SETTLEMENT" && <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEditSettlement(movement)}>Editar</button>}</span> </article>; })}
+      {commissionSettlements.map((settlement) => { const reversal = commissionSettlementReversals.find((item) => item.settlement_id === settlement.id); return <article key={settlement.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{barberNames[settlement.barber_id] ?? "Profissional"}</strong><small className={styles.cashDescription}>Pagamento de comissão{settlement.tags ? ` · ${settlement.tags}` : ""}</small></span><span role="cell">{formatMovementDate(settlement.paid_on, timezone)}</span><strong role="cell">−{formatCents(settlement.amount_cents)}</strong><span role="cell">{accountById.get(settlement.financial_account_id)?.name ?? "Conta não encontrada"}</span><span className={styles.rowActions} role="cell">{!reversal && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseCommission(settlement)}>Estornar comissão</button>}</span></article>; })}
+      {commissionSettlementReversals.map((reversal) => { const settlement = commissionSettlements.find((item) => item.id === reversal.settlement_id); return <article key={reversal.id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{settlement ? barberNames[settlement.barber_id] ?? "Profissional" : "Profissional"}</strong><small className={styles.cashDescription}>Estorno de comissão · {reversal.reason}</small></span><span role="cell">{formatMovementDate(reversal.reversed_on, timezone)}</span><strong role="cell">+{formatCents(reversal.amount_cents)}</strong><span role="cell">{settlement ? accountById.get(settlement.financial_account_id)?.name ?? "Conta não encontrada" : "Conta não encontrada"}</span><span className={styles.rowActions} role="cell" /></article>; })}
+      {activity.map((item) => <article key={item.payment_transaction_id} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{customerById.get(item.customer_id)?.full_name ?? "Cliente"}</strong><small className={styles.cashDescription}>{item.display_description}</small></span><span role="cell">{formatMovementDate(item.occurred_at, timezone)}</span><strong role="cell">{item.signed_cents >= 0 ? "+" : "−"}{formatCents(Math.abs(item.signed_cents))}</strong><span role="cell">{item.needs_reconciliation ? "Não vinculada" : accountById.get(item.financial_account_id ?? "")?.name ?? "Conta não encontrada"}</span><span className={styles.rowActions} role="cell">{item.kind === "CAPTURE" && item.provider === "MANUAL" && <button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => onReverseAppointment(item)}>Estornar recebimento</button>}</span></article>)}
       {receivables.map((item) => <article key={`receivable-${item.appointment_id}`} className={styles.cashRow} role="row"><span className={styles.rowTitle} role="cell"><strong className={styles.cashCounterparty}>{item.customer_name}</strong><small className={styles.cashDescription}>{item.description}</small></span><span role="cell">{formatMovementDate(item.due_date)}</span><strong role="cell">+{formatCents(item.outstanding_cents)}</strong><span role="cell">Caixa Físico</span><span role="cell"><StatusChip active={false} label="A receber" /></span><span className={styles.rowActions} role="cell"><button className={`${styles.button} ${styles.buttonSmall}`} type="button" onClick={() => onReceive(item)}>Receber</button></span></article>)}
     </div>}
   </Panel>;
@@ -321,24 +417,24 @@ export function AppointmentReceiptDialog({ receipt, accounts = [], chartAccounts
     <Field label="Banco ou caixa"><select name="financial_account_id" aria-label="Banco ou caixa" required defaultValue={defaultAccount}><option value="" disabled>Selecione</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Centro de custo"><select name="cost_center_id" defaultValue=""><option value="">Não informar</option>{costCenters.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Número do documento"><input name="document_number" defaultValue={documentNumber} required /></Field>
-    <Field label="Tags"><select name="tag_ids" aria-label="Tags" multiple size={Math.min(Math.max(activeTags.length, 2), 4)} disabled={activeTags.length === 0}>{activeTags.length === 0 ? <option>Nenhuma tag cadastrada</option> : activeTags.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+    <Field label="Tags"><select name="tag_ids" aria-label="Tags" multiple size={Math.min(Math.max(activeTags.length, 2), 4)} disabled={activeTags.length === 0}>{activeTags.length === 0 ? <option>Nenhuma tag cadastrada</option> : activeTags.map((item) => <option key={item.id} value={item.id} style={item.color ? { color: item.color } : undefined}>{item.name}</option>)}</select></Field>
     <Field label="Forma de recebimento"><select name="payment_method" defaultValue="CASH"><option value="CASH">Dinheiro</option><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field>
     <Field label="Observações"><input name="reference" placeholder="PIX, NSU ou comprovante" /></Field>
     <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar recebimento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
   </form></Dialog>;
 }
 
-function EntryDialog({ entry, defaultKind, organizationId, accounts, suppliers, chartAccounts, costCenters, tags, customers, entryTags, demoMode, onClose, onSaved, setMessage }: Omit<CashManagerProps, "section" | "billingStatus" | "balances" | "entries" | "settlements" | "appointmentActivity" | "mappings" | "appointmentReceivables"> & { entry: FinancialEntryRecord | null; defaultKind: EntryKind; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
+function EntryDialog({ entry, defaultKind, settleImmediately = false, replacementSettlementId, organizationId, timezone, accounts, suppliers, chartAccounts, costCenters, tags, customers, entryTags, demoMode, onClose, onSaved, setMessage }: Omit<CashManagerProps, "section" | "billingStatus" | "balances" | "entries" | "settlements" | "appointmentActivity" | "mappings" | "appointmentReceivables"> & { entry: FinancialEntryRecord | null; defaultKind: EntryKind; settleImmediately?: boolean; replacementSettlementId?: string; onClose: () => void; onSaved: () => void; setMessage: (value: string) => void }) {
   const router = useRouter();
   const [counterpartyKind, setCounterpartyKind] = useState<"" | "CUSTOMER" | "SUPPLIER">(entry?.counterparty_kind ?? "");
   const [kind, setKind] = useState<EntryKind>(entry?.kind ?? defaultKind);
-  const [expenseType, setExpenseType] = useState<"SINGLE" | "RECURRING" | "INSTALLMENT">("SINGLE");
+  const [entryType, setEntryType] = useState<"SINGLE" | "RECURRING" | "INSTALLMENT">("SINGLE");
   const [recurrence, setRecurrence] = useState<"BIWEEKLY" | "MONTHLY">("MONTHLY");
   const [amount, setAmount] = useState(entry ? (entry.total_cents / 100).toFixed(2).replace(".", ",") : "");
   const [installments, setInstallments] = useState("2");
   const [quickCreate, setQuickCreate] = useState<"CUSTOMER" | "SUPPLIER" | "TAG" | null>(null);
   const selectedTags = new Set(entry ? entryTags.filter((item) => item.entry_id === entry.id).map((item) => item.tag_id) : []);
-  const isSeries = !entry && kind === "EXPENSE" && expenseType !== "SINGLE";
+  const isSeries = !entry && !settleImmediately && entryType !== "SINGLE";
   const installmentTotalCents = useMemo(() => {
     try { return centsFromInput(amount) * Math.max(0, Number.parseInt(installments, 10) || 0); } catch { return 0; }
   }, [amount, installments]);
@@ -348,19 +444,20 @@ function EntryDialog({ entry, defaultKind, organizationId, accounts, suppliers, 
     const data = new FormData(event.currentTarget);
     const params = { p_description: safeText(data.get("description")), p_issue_date: safeText(data.get("issue_date")), p_due_date: safeText(data.get("due_date")), p_total_cents: centsFromInput(data.get("amount")), p_chart_account_id: safeText(data.get("chart_account_id")), p_cost_center_id: safeText(data.get("cost_center_id")) || null, p_preferred_financial_account_id: safeText(data.get("account_id")) || null, p_counterparty_kind: counterpartyKind || null, p_customer_id: counterpartyKind === "CUSTOMER" ? safeText(data.get("customer_id")) || null : null, p_supplier_id: counterpartyKind === "SUPPLIER" ? safeText(data.get("supplier_id")) || null : null, p_document_number: safeText(data.get("document_number")) || null, p_tag_ids: data.getAll("tag_ids").map(String) };
     const saved = await runMutation(setMessage, async () => {
-      if (entry) await assertResult(await connectedClient().rpc("update_financial_entry", { p_entry_id: entry.id, ...params }));
+      if (replacementSettlementId) { const { p_preferred_financial_account_id: _unusedPreferredAccount, ...replacementParams } = params; await assertResult(await connectedClient().rpc("edit_manual_cash_entry_with_reversal", { p_settlement_id: replacementSettlementId, ...replacementParams, p_financial_account_id: safeText(data.get("account_id")), p_payment_method: safeText(data.get("payment_method")), p_reference: safeText(data.get("reference")) || null, p_idempotency_key: `manager:cash-edit:${replacementSettlementId}:${crypto.randomUUID()}` })); }
+      else if (entry) await assertResult(await connectedClient().rpc("update_financial_entry", { p_entry_id: entry.id, ...params }));
       else if (isSeries) await assertResult(await connectedClient().rpc("create_financial_series", {
         p_organization_id: organizationId,
-        p_kind: expenseType === "INSTALLMENT" ? "INSTALLMENT" : "RECURRING",
-        p_cadence: expenseType === "INSTALLMENT" ? "MONTHLY" : recurrence,
-        p_entry_kind: "EXPENSE",
+        p_kind: entryType === "INSTALLMENT" ? "INSTALLMENT" : "RECURRING",
+        p_cadence: entryType === "INSTALLMENT" ? "MONTHLY" : recurrence,
+        p_entry_kind: kind,
         p_description: params.p_description,
         p_start_date: params.p_due_date,
         p_chart_account_id: params.p_chart_account_id,
-        p_occurrence_count: expenseType === "INSTALLMENT" ? Number.parseInt(installments, 10) : null,
+        p_occurrence_count: entryType === "INSTALLMENT" ? Number.parseInt(installments, 10) : null,
         p_end_date: null,
-        p_total_cents: expenseType === "INSTALLMENT" ? installmentTotalCents : null,
-        p_amount_cents: expenseType === "RECURRING" ? params.p_total_cents : null,
+        p_total_cents: entryType === "INSTALLMENT" ? installmentTotalCents : null,
+        p_amount_cents: entryType === "RECURRING" ? params.p_total_cents : null,
         p_cost_center_id: params.p_cost_center_id,
         p_location_id: null,
         p_preferred_financial_account_id: params.p_preferred_financial_account_id,
@@ -370,29 +467,31 @@ function EntryDialog({ entry, defaultKind, organizationId, accounts, suppliers, 
         p_document_number: params.p_document_number,
         p_tag_ids: params.p_tag_ids,
       }));
+      else if (settleImmediately) await assertResult(await connectedClient().rpc("create_and_settle_financial_entry", { p_organization_id: organizationId, p_kind: kind, ...params, p_financial_account_id: safeText(data.get("account_id")), p_payment_method: safeText(data.get("payment_method")), p_reference: safeText(data.get("reference")) || null, p_idempotency_key: `manager:cash-entry:${crypto.randomUUID()}` }));
       else await assertResult(await connectedClient().rpc("create_financial_entry", { p_organization_id: organizationId, p_kind: kind, ...params }));
-    }, entry ? "Lançamento aberto atualizado." : isSeries ? "Série de despesas criada." : "Lançamento criado.");
+    }, replacementSettlementId ? "Lançamento revertido e substituído no Caixa." : entry ? "Lançamento aberto atualizado." : isSeries ? `Série de ${kind === "REVENUE" ? "receitas" : "despesas"} criada.` : settleImmediately ? "Lançamento liquidado e registrado no Caixa." : "Lançamento criado.");
     if (saved) onSaved();
   }
   return <Dialog title={entry ? "Editar lançamento" : "Novo lançamento"} onClose={onClose} wide><form className={styles.form} onSubmit={submit}>
     {!entry && defaultKind === "REVENUE" && <Field label="Tipo"><select name="kind" value={kind} onChange={(event) => setKind(event.target.value as EntryKind)}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>}
-    {!entry && kind === "EXPENSE" && <Field label="Tipo de despesa"><select value={expenseType} onChange={(event) => setExpenseType(event.target.value as "SINGLE" | "RECURRING" | "INSTALLMENT")}><option value="SINGLE">Única</option><option value="RECURRING">Recorrente</option><option value="INSTALLMENT">Parcelada</option></select></Field>}
+    {!entry && !settleImmediately && <Field label="Tipo de conta"><select value={entryType} onChange={(event) => setEntryType(event.target.value as "SINGLE" | "RECURRING" | "INSTALLMENT")}><option value="SINGLE">Única</option><option value="RECURRING">Recorrente</option><option value="INSTALLMENT">Parcelada</option></select></Field>}
     <Field label="Descrição"><input name="description" required defaultValue={entry?.description ?? ""} /></Field>
-    <Field label={expenseType === "INSTALLMENT" ? "Valor da parcela (R$)" : isSeries ? "Valor por vencimento (R$)" : "Valor (R$)"}><input name="amount" required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></Field>
-    <Field label="Data do lançamento"><input type="date" name="issue_date" required defaultValue={entry?.issue_date ?? today()} /></Field>
-    {expenseType === "RECURRING" && <Field label="Tipo de recorrência"><select value={recurrence} onChange={(event) => setRecurrence(event.target.value as "BIWEEKLY" | "MONTHLY")}><option value="BIWEEKLY">Quinzenal</option><option value="MONTHLY">Mensal</option></select></Field>}
-    {expenseType === "INSTALLMENT" && <Field label="Qtd. de parcelas"><input type="number" min="2" max="360" value={installments} onChange={(event) => setInstallments(event.target.value)} required /></Field>}
-    <Field label={isSeries ? "1º vencimento" : "Vencimento"}><input type="date" name="due_date" required defaultValue={entry?.due_date ?? today()} /></Field>
-    {expenseType === "INSTALLMENT" && <Field label="Total (R$)"><input value={formatCents(installmentTotalCents)} readOnly /></Field>}
+    <Field label={entryType === "INSTALLMENT" ? "Valor da parcela (R$)" : isSeries ? "Valor por vencimento (R$)" : "Valor (R$)"}><input name="amount" required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></Field>
+    <Field label="Data do lançamento"><input type="date" name="issue_date" required defaultValue={entry?.issue_date ?? today(timezone)} /></Field>
+    {entryType === "RECURRING" && <Field label="Tipo de recorrência"><select value={recurrence} onChange={(event) => setRecurrence(event.target.value as "BIWEEKLY" | "MONTHLY")}><option value="BIWEEKLY">Quinzenal</option><option value="MONTHLY">Mensal</option></select></Field>}
+    {entryType === "INSTALLMENT" && <Field label="Qtd. de parcelas"><input type="number" min="2" max="360" value={installments} onChange={(event) => setInstallments(event.target.value)} required /></Field>}
+    <Field label={isSeries ? "1º vencimento" : "Vencimento"}><input type="date" name="due_date" required defaultValue={entry?.due_date ?? today(timezone)} /></Field>
+    {entryType === "INSTALLMENT" && <Field label="Total (R$)"><input value={formatCents(installmentTotalCents)} readOnly /></Field>}
     <Field label="Plano de conta"><select name="chart_account_id" required defaultValue={entry?.chart_account_id ?? ""}><option value="" disabled>Selecione</option>{chartAccounts.filter((item) => item.active && item.kind === kind).map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select></Field>
-    <Field label="Banco ou caixa"><select name="account_id" defaultValue={entry?.preferred_financial_account_id ?? ""}><option value="">Definir na liquidação</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+    <Field label="Banco ou caixa"><select name="account_id" required={settleImmediately || Boolean(replacementSettlementId)} defaultValue={entry?.preferred_financial_account_id ?? ""}><option value="">{settleImmediately || replacementSettlementId ? "Selecione" : "Definir na liquidação"}</option>{accounts.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Centro de custo"><select name="cost_center_id" defaultValue={entry?.cost_center_id ?? ""}><option value="">Não informar</option>{costCenters.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
     <Field label="Número do documento"><input name="document_number" defaultValue={entry?.document_number ?? ""} /></Field>
     <Field label="Contraparte"><select aria-label="Tipo de contraparte" value={counterpartyKind} onChange={(event) => setCounterpartyKind(event.target.value as "" | "CUSTOMER" | "SUPPLIER")}><option value="">Não informar</option><option value="CUSTOMER">Cliente</option><option value="SUPPLIER">Fornecedor</option></select></Field>
     {counterpartyKind === "CUSTOMER" && <Field label="Cliente"><select name="customer_id" defaultValue={entry?.customer_id ?? ""}><option value="">Selecione</option>{customers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("CUSTOMER")}>Novo cliente</button></Field>}
     {counterpartyKind === "SUPPLIER" && <Field label="Fornecedor"><select name="supplier_id" defaultValue={entry?.supplier_id ?? ""}><option value="">Selecione</option>{suppliers.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("SUPPLIER")}>Novo fornecedor</button></Field>}
-    <Field label="Tags" wide><select name="tag_ids" multiple defaultValue={[...selectedTags]}>{tags.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("TAG")}>Nova tag</button></Field>
-    <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{entry ? "Salvar" : "Adicionar"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div>
+    <Field label="Tags" wide><select name="tag_ids" multiple defaultValue={[...selectedTags]}>{tags.filter((item) => item.active).map((item) => <option key={item.id} value={item.id} style={item.color ? { color: item.color } : undefined}>{item.name}</option>)}</select><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setQuickCreate("TAG")}>Nova tag</button></Field>
+    {(settleImmediately || replacementSettlementId) && <><Field label="Forma de pagamento"><select name="payment_method" defaultValue="CASH"><option value="CASH">Dinheiro</option><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field><Field label="Observações"><input name="reference" placeholder="PIX, NSU ou comprovante" /></Field></>}
+    <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{entry ? "Salvar" : settleImmediately ? "Lançar no Caixa" : "Adicionar"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button>{replacementSettlementId && <button className={`${styles.button} ${styles.buttonDanger}`} type="button" onClick={async () => { if (!window.confirm("Excluir este lançamento do Caixa? O estorno será registrado no histórico.")) return; const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("delete_manual_cash_entry", { p_settlement_id: replacementSettlementId, p_idempotency_key: `manager:cash-delete:${replacementSettlementId}:${crypto.randomUUID()}` })); }, "Lançamento excluído por estorno."); if (saved) onSaved(); }}>Excluir</button>}</div>
   </form>{quickCreate && <QuickFinancialCatalogDialog kind={quickCreate} organizationId={organizationId} demoMode={demoMode} onClose={() => setQuickCreate(null)} onCreated={() => { setQuickCreate(null); router.refresh(); }} setMessage={setMessage} />}</Dialog>;
 }
 
@@ -470,28 +569,26 @@ function FinancialAccountDialog({ account, onClose, onSubmit }: { account: Finan
 }
 
 function SuppliersSection({ organizationId, suppliers, demoMode, setMessage }: { organizationId: string; suppliers: SupplierRecord[]; demoMode?: boolean; setMessage: (value: string) => void }) {
-  const router = useRouter(); const [editing, setEditing] = useState<SupplierRecord | null>(null);
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_supplier", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_person_kind: safeText(data.get("person_kind")), p_name: safeText(data.get("name")), p_document: safeText(data.get("document")) || null, p_phone_e164: safeText(data.get("phone")) || null, p_email: safeText(data.get("email")) || null, p_address: {}, p_notes: safeText(data.get("notes")) || null })); }, editing ? "Fornecedor atualizado." : "Fornecedor criado."); if (saved) { setEditing(null); router.refresh(); } }
+  const router = useRouter(); const [editing, setEditing] = useState<SupplierRecord | null>(null); const [dialogOpen, setDialogOpen] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (blockDemoWrite(demoMode, setMessage)) return; const data = new FormData(event.currentTarget); const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("save_supplier", { p_organization_id: organizationId, p_id: editing?.id ?? null, p_person_kind: safeText(data.get("person_kind")), p_name: safeText(data.get("name")), p_document: safeText(data.get("document")) || null, p_phone_e164: safeText(data.get("phone")) || null, p_email: safeText(data.get("email")) || null, p_address: {}, p_notes: safeText(data.get("notes")) || null })); }, editing ? "Fornecedor atualizado." : "Fornecedor criado."); if (saved) { setEditing(null); setDialogOpen(false); router.refresh(); } }
   async function toggleActive(supplier: SupplierRecord) { if (blockDemoWrite(demoMode, setMessage)) return; const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("set_financial_catalog_active", { p_catalog: "SUPPLIER", p_id: supplier.id, p_active: !supplier.active })); }, supplier.active ? "Fornecedor inativado; histórico preservado." : "Fornecedor reativado."); if (saved) router.refresh(); }
   return <div className={styles.grid}>
-    <Panel title={editing ? "Editar fornecedor" : "Novo fornecedor"} className={styles.span5}>
-      <form className={styles.form} onSubmit={submit}>
-        <Field label="Tipo"><select name="person_kind" defaultValue={editing?.person_kind ?? "COMPANY"}><option value="COMPANY">Pessoa jurídica</option><option value="INDIVIDUAL">Pessoa física</option></select></Field>
-        <Field label="Nome"><input name="name" required defaultValue={editing?.name ?? ""} /></Field>
-        <Field label="CPF/CNPJ"><input name="document" defaultValue={editing?.document ?? ""} /></Field>
-        <Field label="Telefone"><input name="phone" defaultValue={editing?.phone_e164 ?? ""} placeholder="+5511999999999" /></Field>
-        <Field label="E-mail"><input name="email" type="email" defaultValue={editing?.email ?? ""} /></Field>
-        <Field label="Observações" wide><textarea name="notes" defaultValue={editing?.notes ?? ""} /></Field>
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{editing ? "Salvar" : "Adicionar"}</button>{editing && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditing(null)}>Cancelar</button>}</div>
-      </form>
-    </Panel>
-    <Panel title="Fornecedores" description="Usados nas despesas e mantidos no histórico." className={styles.span7}>
+    <Panel title="Fornecedores" description="Usados nas despesas e mantidos no histórico." className={styles.span12} action={<button className={styles.button} type="button" onClick={() => { setEditing(null); setDialogOpen(true); }}>Novo fornecedor</button>}>
       {!suppliers.length ? <EmptyState title="Sem fornecedores">Cadastre fornecedores antes de lançar despesas vinculadas.</EmptyState> : <div className={styles.list}>{suppliers.map((supplier) => <article key={supplier.id} className={styles.row}>
         <span className={styles.rowTitle}><strong>{supplier.name}</strong><small>{supplier.document ?? "Sem documento"} · {supplier.email ?? "Sem e-mail"}</small></span>
         <span>{supplier.person_kind === "COMPANY" ? "PJ" : "PF"}</span><StatusChip active={supplier.active} /><span />
-        <span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => setEditing(supplier)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => void toggleActive(supplier)}>{supplier.active ? "Inativar" : "Reativar"}</button></span>
+        <span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => { setEditing(supplier); setDialogOpen(true); }}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => void toggleActive(supplier)}>{supplier.active ? "Inativar" : "Reativar"}</button></span>
       </article>)}</div>}
     </Panel>
+    {dialogOpen && <Dialog title={editing ? "Editar fornecedor" : "Novo fornecedor"} onClose={() => { setEditing(null); setDialogOpen(false); }}><form className={styles.form} onSubmit={submit}>
+      <Field label="Tipo"><select name="person_kind" defaultValue={editing?.person_kind ?? "COMPANY"}><option value="COMPANY">Pessoa jurídica</option><option value="INDIVIDUAL">Pessoa física</option></select></Field>
+      <Field label="Nome"><input name="name" required defaultValue={editing?.name ?? ""} /></Field>
+      <Field label="CPF/CNPJ"><input name="document" defaultValue={editing?.document ?? ""} /></Field>
+      <Field label="Telefone"><input name="phone" defaultValue={editing?.phone_e164 ?? ""} placeholder="+5511999999999" /></Field>
+      <Field label="E-mail"><input name="email" type="email" defaultValue={editing?.email ?? ""} /></Field>
+      <Field label="Observações" wide><textarea name="notes" defaultValue={editing?.notes ?? ""} /></Field>
+      <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>{editing ? "Salvar" : "Adicionar"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => { setEditing(null); setDialogOpen(false); }}>Cancelar</button></div>
+    </form></Dialog>}
   </div>;
 }
 
@@ -535,22 +632,47 @@ export function buildChartAccountTree(items: ChartAccountRecord[]): ChartAccount
   return visit(null, 0, new Set());
 }
 
-function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, accounts, mappings, demoMode, setMessage }: Pick<CashManagerProps, "chartAccounts" | "costCenters" | "tags" | "accounts" | "mappings" | "demoMode"> & { organizationId: string; setMessage: (value: string) => void }) {
+function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, demoMode, setMessage }: Pick<CashManagerProps, "chartAccounts" | "costCenters" | "tags" | "demoMode"> & { organizationId: string; setMessage: (value: string) => void }) {
   const router = useRouter();
   const [editingChart, setEditingChart] = useState<ChartAccountRecord | null>(null);
+  const [chartDialogOpen, setChartDialogOpen] = useState(false);
   const [chartKind, setChartKind] = useState<ChartAccountRecord["kind"]>("REVENUE");
   const [editingCost, setEditingCost] = useState<CostCenterRecord | null>(null);
+  const [costDialogOpen, setCostDialogOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<FinancialTagRecord | null>(null);
+  const [tagColor, setTagColor] = useState<string>(TAG_PALETTE[0].value);
   const chartParentOptions = buildChartAccountTree(chartAccounts.filter((item) => item.active && item.kind === chartKind && item.id !== editingChart?.id));
 
   function editChart(account: ChartAccountRecord) {
     setEditingChart(account);
     setChartKind(account.kind);
+    setChartDialogOpen(true);
   }
 
   function cancelChartEdit() {
     setEditingChart(null);
     setChartKind("REVENUE");
+    setChartDialogOpen(false);
+  }
+
+  function editCost(cost: CostCenterRecord) {
+    setEditingCost(cost);
+    setCostDialogOpen(true);
+  }
+
+  function cancelCostEdit() {
+    setEditingCost(null);
+    setCostDialogOpen(false);
+  }
+
+  function editTag(tag: FinancialTagRecord) {
+    setEditingTag(tag);
+    setTagColor(tag.color ?? TAG_PALETTE[0].value);
+  }
+
+  function cancelTagEdit() {
+    setEditingTag(null);
+    setTagColor(TAG_PALETTE[0].value);
   }
 
   async function submitCatalog(event: FormEvent<HTMLFormElement>) {
@@ -572,7 +694,7 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
         p_cash_flow_activity: safeText(data.get("cash_flow_activity")) || null,
       }));
     }, "Cadastro financeiro salvo.");
-    if (saved) { cancelChartEdit(); setEditingCost(null); setEditingTag(null); router.refresh(); }
+    if (saved) { if (catalog === "chart") cancelChartEdit(); if (catalog === "cost") cancelCostEdit(); if (catalog === "tag") cancelTagEdit(); router.refresh(); }
   }
 
   async function toggleCatalog(catalog: CatalogKind, item: { id: string; active: boolean }) {
@@ -583,36 +705,35 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, acc
   }
 
   return <div className={styles.grid}>
-    <Panel title={editingChart ? "Editar plano de contas" : "Plano de contas"} description="Crie grupos e subcontas por receita ou despesa." className={styles.span12}>
-      <form className={styles.form} key={`chart-${editingChart?.id ?? "new"}`} onSubmit={submitCatalog}>
-        <input type="hidden" name="catalog" value="chart" />
-        <Field label="Código"><input name="code" defaultValue={editingChart?.code ?? ""} /></Field>
-        <Field label="Nome"><input name="name" required defaultValue={editingChart?.name ?? ""} /></Field>
-        <Field label="Natureza"><select name="kind" value={chartKind} onChange={(event) => setChartKind(event.target.value as ChartAccountRecord["kind"])}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>
-        <Field label="Conta superior"><select name="parent_id" defaultValue={editingChart?.parent_id ?? ""}><option value="">Nenhuma</option>{chartParentOptions.map((item) => <option key={item.id} value={item.id}>{`${"  ".repeat(item.depth)}${chartAccountLabel(item)}`}</option>)}</select></Field>
-        {editingChart && <><Field label="Grupo DRE"><select name="dre_group" defaultValue={editingChart.dre_group ?? ""}><option value="">Não classificado</option><option value="GROSS_REVENUE">Receita bruta</option><option value="REVENUE_DEDUCTIONS">Deduções da receita</option><option value="SERVICE_COST">Custo do serviço</option><option value="OPERATING_EXPENSE">Despesa operacional</option><option value="FINANCIAL_RESULT">Resultado financeiro</option><option value="OTHER_RESULT">Outros resultados</option><option value="INCOME_TAX">Imposto sobre resultado</option></select></Field><Field label="Atividade DFC"><select name="cash_flow_activity" defaultValue={editingChart.cash_flow_activity ?? ""}><option value="">Não classificado</option><option value="OPERATING">Operacional</option><option value="INVESTING">Investimento</option><option value="FINANCING">Financiamento</option></select></Field></>}
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><ReceiptText size={15} /> {editingChart ? "Salvar" : "Adicionar conta"}</button>{editingChart && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelChartEdit}>Cancelar</button>}</div>
-      </form>
+    <Panel title="Plano de contas" description="Crie grupos e subcontas por receita ou despesa." className={styles.span12} action={<button type="button" className={styles.button} onClick={() => { setEditingChart(null); setChartKind("REVENUE"); setChartDialogOpen(true); }}><ReceiptText size={15} /> Novo Plano de Conta</button>}>
       <ChartAccountColumns accounts={chartAccounts} onEdit={editChart} onToggle={(item) => void toggleCatalog("chart", item)} />
     </Panel>
-    <Panel title={editingCost ? "Editar centro de custo" : "Centro de custo"} description="Classifique responsabilidade operacional." className={styles.span12}>
-      <form className={styles.form} key={`cost-${editingCost?.id ?? "new"}`} onSubmit={submitCatalog}>
-        <input type="hidden" name="catalog" value="cost" />
-        <Field label="Nome" wide><input name="name" required defaultValue={editingCost?.name ?? ""} /></Field>
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Building2 size={15} /> {editingCost ? "Salvar" : "Adicionar centro"}</button>{editingCost && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingCost(null)}>Cancelar</button>}</div>
-      </form>
-      <CatalogRows items={costCenters} onEdit={setEditingCost} onToggle={(item) => void toggleCatalog("cost", item)} />
+    <Panel title="Centros de Custos" description="Classifique responsabilidade operacional." className={styles.span12} action={<button type="button" className={styles.button} onClick={() => { setEditingCost(null); setCostDialogOpen(true); }}><Building2 size={15} /> Novo Centro de Custo</button>}>
+      <CatalogRows items={costCenters} onEdit={editCost} onToggle={(item) => void toggleCatalog("cost", item)} />
     </Panel>
-    <Panel title={editingTag ? "Editar tag" : "Tags"} description="Marcadores complementares para filtros futuros." className={styles.span6}>
+    <Panel title={editingTag ? "Editar tag" : "Tags"} description="Marcadores complementares para filtros futuros." className={styles.span12}>
       <form className={styles.form} key={`tag-${editingTag?.id ?? "new"}`} onSubmit={submitCatalog}>
         <input type="hidden" name="catalog" value="tag" />
         <Field label="Nome"><input name="name" required defaultValue={editingTag?.name ?? ""} /></Field>
-        <Field label="Cor"><input name="color" placeholder="#2f6b5d" defaultValue={editingTag?.color ?? ""} /></Field>
-        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Tags size={15} /> {editingTag ? "Salvar" : "Adicionar tag"}</button>{editingTag && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingTag(null)}>Cancelar</button>}</div>
+        <Field label="Cor"><input type="hidden" name="color" value={tagColor} /><TagColorPalette value={tagColor} onChange={setTagColor} /></Field>
+        <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Tags size={15} /> {editingTag ? "Salvar" : "Adicionar tag"}</button>{editingTag && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelTagEdit}>Cancelar</button>}</div>
       </form>
-      <CatalogRows items={tags} onEdit={setEditingTag} onToggle={(item) => void toggleCatalog("tag", item)} />
+      <CatalogRows items={tags} onEdit={editTag} onToggle={(item) => void toggleCatalog("tag", item)} />
     </Panel>
-    <Panel title="Estrutura financeira" description="Cadastre contas e fornecedores nas seções próprias." className={styles.span6}><div className={styles.cards}><article className={styles.card}><Landmark size={20} /><strong>{accounts.length} contas</strong><small>Bancos e caixas físicos</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Gerenciar</Link></article>{SHOW_APPOINTMENT_RECEIPT_MAPPINGS && <article className={styles.card}><CircleDollarSign size={20} /><strong>{mappings.length} mapeamentos</strong><small>Recebimentos de agendamento</small><Link href="/gestor/financeiro/bancos" className={`${styles.button} ${styles.buttonSoft}`}>Configurar</Link></article>}</div></Panel>
+    {chartDialogOpen && <Dialog title={editingChart ? "Editar plano de contas" : "Novo Plano de Conta"} onClose={cancelChartEdit} wide><form className={styles.form} key={`chart-${editingChart?.id ?? "new"}`} onSubmit={submitCatalog}>
+      <input type="hidden" name="catalog" value="chart" />
+      <Field label="Código"><input name="code" defaultValue={editingChart?.code ?? ""} /></Field>
+      <Field label="Nome"><input name="name" required autoFocus defaultValue={editingChart?.name ?? ""} /></Field>
+      <Field label="Natureza"><select name="kind" value={chartKind} onChange={(event) => setChartKind(event.target.value as ChartAccountRecord["kind"])}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>
+      <Field label="Conta superior"><select name="parent_id" defaultValue={editingChart?.parent_id ?? ""}><option value="">Nenhuma</option>{chartParentOptions.map((item) => <option key={item.id} value={item.id}>{`${"  ".repeat(item.depth)}${chartAccountLabel(item)}`}</option>)}</select></Field>
+      {editingChart && <><Field label="Grupo DRE"><select name="dre_group" defaultValue={editingChart.dre_group ?? ""}><option value="">Não classificado</option><option value="GROSS_REVENUE">Receita bruta</option><option value="REVENUE_DEDUCTIONS">Deduções da receita</option><option value="SERVICE_COST">Custo do serviço</option><option value="OPERATING_EXPENSE">Despesa operacional</option><option value="FINANCIAL_RESULT">Resultado financeiro</option><option value="OTHER_RESULT">Outros resultados</option><option value="INCOME_TAX">Imposto sobre resultado</option></select></Field><Field label="Atividade DFC"><select name="cash_flow_activity" defaultValue={editingChart.cash_flow_activity ?? ""}><option value="">Não classificado</option><option value="OPERATING">Operacional</option><option value="INVESTING">Investimento</option><option value="FINANCING">Financiamento</option></select></Field></>}
+      <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><ReceiptText size={15} /> {editingChart ? "Salvar" : "Adicionar conta"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelChartEdit}>Cancelar</button></div>
+    </form></Dialog>}
+    {costDialogOpen && <Dialog title={editingCost ? "Editar centro de custo" : "Novo Centro de Custo"} onClose={cancelCostEdit}><form className={styles.form} key={`cost-${editingCost?.id ?? "new"}`} onSubmit={submitCatalog}>
+      <input type="hidden" name="catalog" value="cost" />
+      <Field label="Nome" wide><input name="name" required autoFocus defaultValue={editingCost?.name ?? ""} /></Field>
+      <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><Building2 size={15} /> {editingCost ? "Salvar" : "Adicionar centro"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelCostEdit}>Cancelar</button></div>
+    </form></Dialog>}
   </div>;
 }
 
@@ -644,10 +765,17 @@ function ChartAccountColumn({ title, buttonLabel, accounts, onEdit, onToggle }: 
   </section>;
 }
 
-function CatalogRows<T extends { id: string; name: string; active: boolean }>({ items, onEdit, onToggle }: { items: T[]; onEdit: (item: T) => void; onToggle: (item: T) => void }) {
-  return !items.length ? <p className={styles.muted}>Nenhum item cadastrado.</p> : <div className={styles.list}>{items.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong>{item.name}</strong></span><StatusChip active={item.active} /><span /><span /><span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onEdit(item)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onToggle(item)}>{item.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>;
+function TagColorPalette({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return <details className={styles.tagColorPicker}><summary><span className={styles.tagColorPreview} style={{ color: value }} aria-hidden="true" />Escolher cor</summary><div className={styles.tagColorPalette} role="radiogroup" aria-label="Paleta de cores da tag">{TAG_PALETTE.map((color) => <button key={color.value} type="button" className={`${styles.tagColorSwatch} ${value === color.value ? styles.tagColorSwatchSelected : ""}`} style={{ color: color.value }} aria-label={color.name} aria-pressed={value === color.value} onClick={() => onChange(color.value)}><span aria-hidden="true" /></button>)}</div></details>;
 }
 
-function Dialog({ title, children, onClose, wide = false, modalClassName = "", layerClassName = "" }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean; modalClassName?: string; layerClassName?: string }) { const titleId = `dialog-${title.replaceAll(/\s+/gu, "-").toLocaleLowerCase("pt-BR")}`; return <div className={`${styles.modalLayer} ${layerClassName}`} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar" onClick={onClose} /><section className={`${styles.modal} ${wide ? styles.modalWide : ""} ${modalClassName}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className={styles.modalHeader}><h2 id={titleId}>{title}</h2><button className={styles.modalClose} type="button" onClick={onClose} aria-label={`Fechar ${title}`}><X size={18} /></button></div>{children}</section></div>; }
+function CatalogRows<T extends { id: string; name: string; active: boolean; color?: string | null }>({ items, onEdit, onToggle }: { items: T[]; onEdit: (item: T) => void; onToggle: (item: T) => void }) {
+  return !items.length ? <p className={styles.muted}>Nenhum item cadastrado.</p> : <div className={styles.list}>{items.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong style={item.color ? { color: item.color } : undefined}>{item.name}</strong></span><StatusChip active={item.active} /><span /><span /><span className={styles.rowActions}><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onEdit(item)}>Editar</button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => onToggle(item)}>{item.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>;
+}
 
-function ConfirmDialog({ title, description, confirmLabel, onClose, onConfirm }: { title: string; description: string; confirmLabel: string; onClose: () => void; onConfirm: () => void }) { return <Dialog title={title} onClose={onClose}><p>{description}</p><div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonDanger}`} type="button" onClick={onConfirm}>{confirmLabel}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div></Dialog>; }
+export function Dialog({ title, children, onClose, wide = false, modalClassName = "", layerClassName = "" }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean; modalClassName?: string; layerClassName?: string }) { const titleId = `dialog-${title.replaceAll(/\s+/gu, "-").toLocaleLowerCase("pt-BR")}`; return <div className={`${styles.modalLayer} ${layerClassName}`} role="presentation"><button type="button" className={styles.modalBackdrop} aria-label="Fechar" onClick={onClose} /><section className={`${styles.modal} ${wide ? styles.modalWide : ""} ${modalClassName}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className={styles.modalHeader}><h2 id={titleId}>{title}</h2><button className={styles.modalClose} type="button" onClick={onClose} aria-label={`Fechar ${title}`}><X size={18} /></button></div>{children}</section></div>; }
+
+function ConfirmDialog({ title, description, confirmLabel, requireReason = false, onClose, onConfirm }: { title: string; description: string; confirmLabel: string; requireReason?: boolean; onClose: () => void; onConfirm: (reason?: string) => void }) {
+  const [reason, setReason] = useState("");
+  return <Dialog title={title} onClose={onClose}><p className={styles.message}>{description}</p>{requireReason && <Field label="Motivo do estorno" wide><textarea aria-label="Motivo do estorno" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Informe o motivo obrigatório" required /></Field>}<div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonDanger}`} type="button" disabled={requireReason && !reason.trim()} onClick={() => onConfirm(requireReason ? reason : undefined)}>{confirmLabel}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={onClose}>Cancelar</button></div></Dialog>;
+}

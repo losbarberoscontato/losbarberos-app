@@ -9,10 +9,18 @@ import { centsFromInput, formatCents, formatRange } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { FinanceSubnav } from "./cash-manager";
+import { addDateKey, appointmentServiceDateKey, DEFAULT_FINANCIAL_TIMEZONE, isDateKeyAtOrBefore, isReceivableAppointmentStatus, localDateKey } from "@/lib/domain/financial-receivables";
 import { BarberCashSessionReconciliation } from "./barber-cash-reconciliation";
 import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadFinanceData>;
+
+export function calculateOpenCommissionCents(
+  ledger: ReadonlyArray<{ amount_cents: number }>,
+  payouts: ReadonlyArray<{ amount_cents: number; status: "OPEN" | "PAID" | "CANCELED" }>,
+) {
+  return Math.max(0, ledger.reduce((sum, item) => sum + item.amount_cents, 0) - payouts.filter((item) => item.status === "PAID").reduce((sum, item) => sum + item.amount_cents, 0));
+}
 
 function csvCell(value: unknown): string {
   const text = String(value ?? "");
@@ -29,6 +37,7 @@ export function FinanceManager(props: Props) {
   const customerById = useMemo(() => new Map(props.customers.map((item) => [item.id, item])), [props.customers]);
   const barberById = useMemo(() => new Map(props.barbers.map((item) => [item.id, item])), [props.barbers]);
   const financialById = useMemo(() => new Map(props.financial.map((item) => [item.appointment_id, item])), [props.financial]);
+  const balanceByAccountId = useMemo(() => new Map(props.financialAccountBalances.map((item) => [item.financial_account_id, item.balance_cents])), [props.financialAccountBalances]);
   const correctionsBySource = useMemo(() => {
     const totals = new Map<string, number>();
     for (const entry of props.ledger) {
@@ -36,10 +45,20 @@ export function FinanceManager(props: Props) {
     }
     return totals;
   }, [props.ledger]);
+  const timezone = props.timezone ?? DEFAULT_FINANCIAL_TIMEZONE;
+  const today = new Date();
+  const todayKey = localDateKey(today, timezone) ?? localDateKey(today, DEFAULT_FINANCIAL_TIMEZONE)!;
+  const periodStartKey = addDateKey(todayKey, -30)!;
+  const periodEndKey = addDateKey(todayKey, 30)!;
   const captured = props.financial.reduce((sum, item) => sum + item.net_paid_cents, 0);
-  const outstanding = props.financial.reduce((sum, item) => sum + item.outstanding_cents, 0);
-  const commission = props.ledger.reduce((sum, item) => sum + item.amount_cents, 0);
-  const openPayouts = props.payouts.filter((item) => item.status === "OPEN").reduce((sum, item) => sum + item.amount_cents, 0);
+  const appointmentReceived = props.financial.reduce((sum, item) => { const appointment = props.appointments.find((candidate) => candidate.id === item.appointment_id); return appointment && (localDateKey(appointment.created_at, timezone) ?? "") >= periodStartKey ? sum + item.net_paid_cents : sum; }, 0);
+  const manualReceived = props.financialSettlements.reduce((sum, settlement) => { const entry = props.financialEntries.find((candidate) => candidate.id === settlement.entry_id); return entry?.kind === "REVENUE" && (entry.source ?? "MANUAL") === "MANUAL" && settlement.kind === "SETTLEMENT" && (localDateKey(`${settlement.settled_on}T12:00:00`, timezone) ?? "") >= periodStartKey ? sum + settlement.amount_cents : sum; }, 0);
+  const totalReceived = appointmentReceived + manualReceived;
+  const dueByEndOfPeriod = (date: string) => isDateKeyAtOrBefore(date, periodEndKey);
+  const accountsReceivable = props.financialEntries.filter((entry) => (entry.source ?? "MANUAL") === "MANUAL" && entry.kind === "REVENUE" && entry.remaining_cents > 0 && !["SETTLED", "CANCELED"].includes(entry.status)).reduce((sum, entry) => sum + entry.remaining_cents, 0);
+  const scheduledReceivable = props.appointments.reduce((sum, appointment) => { const item = financialById.get(appointment.id); const dueDate = appointmentServiceDateKey(appointment.service_period, timezone); return isReceivableAppointmentStatus(appointment.status) && item && item.outstanding_cents > 0 && dueDate && dueByEndOfPeriod(dueDate) ? sum + item.outstanding_cents : sum; }, 0);
+  const commission = calculateOpenCommissionCents(props.ledger, props.payouts);
+  const accountsPayable = props.financialEntries.filter((entry) => entry.kind === "EXPENSE" && entry.remaining_cents > 0 && dueByEndOfPeriod(entry.due_date)).reduce((sum, entry) => sum + entry.remaining_cents, 0);
   const eligibleAppointments = props.appointments.filter((appointment) => {
     const financial = financialById.get(appointment.id);
     return (financial?.outstanding_cents ?? 0) > 0 || (financial?.net_paid_cents ?? 0) > 0;
@@ -142,31 +161,34 @@ export function FinanceManager(props: Props) {
   }
 
   return <div className={styles.stack}>
-    <PageHeader title="Financeiro e comissões" description="Saldo derivado do ledger; lançamentos passados nunca são editados." actions={<button className={`${styles.button} ${styles.buttonSoft}`} onClick={exportCsv} type="button">Exportar CSV real</button>} />
+    <PageHeader title="Financeiro e comissões" description="Saldo derivado do ledger; lançamentos passados nunca são editados." />
     <FinanceSubnav active="overview" />
     <ActionMessage message={message} />
     <section className={styles.stats}>
-      <article className={styles.stat}><span>Capturado líquido</span><strong>{formatCents(captured)}</strong><small>todos os registros carregados</small></article>
-      <article className={styles.stat}><span>Saldo a receber</span><strong>{formatCents(outstanding)}</strong><small>derivado por agendamento</small></article>
-      <article className={styles.stat}><span>Comissão acumulada</span><strong>{formatCents(commission)}</strong><small>ganhos, reversões e ajustes</small></article>
-      <article className={styles.stat}><span>Lotes abertos</span><strong>{formatCents(openPayouts)}</strong><small>repasse manual</small></article>
+      <article className={`${styles.stat} ${styles.statSuccess}`}><span>Total recebido</span><strong>{formatCents(totalReceived)}</strong><small>últimos 30 dias</small></article>
+      <article className={`${styles.stat} ${styles.statSuccessDark}`}><span>Contas à receber</span><strong>{formatCents(accountsReceivable + scheduledReceivable)}</strong><small>Próximos 30 dias<br />à receber + serviço agendados</small></article>
+      <article className={`${styles.stat} ${styles.statDanger}`}><span>Comissões à pagar</span><strong>{formatCents(commission)}</strong><small>Todas as comissões à pagar</small></article>
+      <article className={`${styles.stat} ${styles.statDangerDark}`}><span>Contas à pagar</span><strong>{formatCents(accountsPayable)}</strong><small>Aberto + próximos 30 dias</small></article>
     </section>
-    <Panel title="Conciliação" description="Feche primeiro os caixas diários dos Barbeiros. Reembolsos e mensagens permanecem auditáveis.">
+    <Panel title="Saldo das contas" description="Saldo atual de cada conta financeira, incluindo o caixa físico.">
+      {props.financialAccounts.length === 0 ? <EmptyState title="Nenhuma conta financeira">Cadastre um banco ou caixa para acompanhar seus saldos.</EmptyState> : <div className={styles.accountBalances}>{props.financialAccounts.map((account) => <article className={styles.accountBalance} key={account.id}><span>{account.name}</span><strong>{formatCents(balanceByAccountId.get(account.id) ?? 0)}</strong><small>{account.kind === "CASH" ? "Caixa físico" : "Conta bancária"}</small></article>)}</div>}
+    </Panel>
+    <Panel title="Conferência de Caixa" description="Caixas abertos devem ser conciliados por esta aba.">
       <section className={styles.list} aria-label="Caixas diários dos Barbeiros"><h3>Caixas diários dos Barbeiros</h3><BarberCashSessionReconciliation sessions={props.barberCashSessions} barberNames={props.barberNames} setMessage={setMessage} onSaved={() => router.refresh()} /></section>
       {props.refundJobs.length > 0 || props.outboxIssues.length > 0 ? <div className={styles.grid}>
         <section className={styles.span6}><h3>Reembolsos</h3><div className={styles.list}>{props.refundJobs.map((job) => <article className={styles.card} key={job.id}><div className={styles.cardTop}><strong>{formatCents(job.amount_cents)}</strong><span className={`${styles.chip} ${job.status === "SEND_UNKNOWN" ? styles.chipDanger : styles.chipWarn}`}>{job.status}</span></div><small className={styles.muted}>Tentativas: {job.attempts} · agendamento {job.appointment_id.slice(0, 8)}</small>{job.last_error && <small>{job.last_error}</small>}<p className={styles.muted}>{job.status === "SEND_UNKNOWN" ? "Confirme no Mercado Pago antes de qualquer nova ação. Não reenvie às cegas." : "O worker seguirá retry quando aplicável; acompanhe o próximo processamento."}</p></article>)}</div></section>
         <section className={styles.span6}><h3>WhatsApp</h3><div className={styles.list}>{props.outboxIssues.map((item) => <article className={styles.card} key={item.id}><div className={styles.cardTop}><strong>{item.template_key}</strong><span className={`${styles.chip} ${item.status === "SEND_UNKNOWN" ? styles.chipDanger : styles.chipWarn}`}>{item.status}</span></div><small className={styles.muted}>{item.recipient_e164} · tentativas {item.attempts}</small>{item.last_error && <small>{item.last_error}</small>}<p className={styles.muted}>{item.status === "SEND_UNKNOWN" ? "Entrega pode ter ocorrido. Confira no provedor e não dispare duplicado." : "Falha registrada; retry permanece responsabilidade do worker."}</p></article>)}</div></section>
       </div> : <p className={styles.muted}>Sem reembolsos ou mensagens em estado de conciliação.</p>}
     </Panel>
-    <Panel title="Saldos por agendamento" description="Pagamento e reembolso manual geram eventos compensatórios" action={<button className={styles.button} type="button" disabled={!eligibleAppointments.length} onClick={() => setShowManual((value) => !value)}>Registrar evento manual</button>}>
+    <Panel className={styles.hidden} title="Saldos por agendamento" description="Pagamento e reembolso manual geram eventos compensatórios" action={<button className={styles.button} type="button" disabled={!eligibleAppointments.length} onClick={() => setShowManual((value) => !value)}>Registrar evento manual</button>}>
       {showManual && <form className={styles.form} onSubmit={recordManual}><Field label="Ação"><select name="action"><option value="payment">Pagamento recebido</option><option value="refund">Reembolso realizado</option></select></Field><Field label="Agendamento"><select name="appointment_id">{eligibleAppointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{customerById.get(appointment.customer_id)?.full_name} · {formatRange(appointment.service_period)}</option>)}</select></Field><Field label="Valor (R$)"><input name="amount" required inputMode="decimal" /></Field><Field label="Referência"><input name="reference" required placeholder="PIX, comprovante ou protocolo" /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Registrar no ledger</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setShowManual(false)}>Cancelar</button></div></form>}
       {props.appointments.length === 0 ? <EmptyState title="Sem movimentação">O financeiro aparecerá após o primeiro agendamento real.</EmptyState> : <div className={styles.list}>{props.appointments.slice(0, 100).map((appointment) => { const item = financialById.get(appointment.id); return <article className={styles.row} key={appointment.id}><span className={styles.rowTitle}><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{formatRange(appointment.service_period)}</small></span><span>Pago {formatCents(item?.net_paid_cents)}</span><span>Saldo {formatCents(item?.outstanding_cents ?? appointment.total_cents_snapshot)}</span><StatusChip active={item?.financial_status === "PAID"} label={item?.financial_status ?? "UNPAID"} /><span /></article>; })}</div>}
     </Panel>
     <div className={styles.grid}>
-      <Panel title="Ledger de comissão" description="Append-only" className={styles.span7}>
+      <Panel className={`${styles.span7} ${styles.hidden}`} title="Ledger de comissão" description="Append-only">
         {props.ledger.length === 0 ? <EmptyState title="Sem comissão">A comissão nasce somente ao concluir um atendimento.</EmptyState> : <div className={styles.list}>{props.ledger.map((entry) => { const remaining = entry.kind === "EARNED" ? entry.amount_cents + (correctionsBySource.get(entry.id) ?? 0) : null; return <article className={styles.row} key={entry.id}><span className={styles.rowTitle}><strong>{barberById.get(entry.barber_id)?.display_name ?? "Profissional"}</strong><small>{new Date(entry.earned_at).toLocaleString("pt-BR")} · {entry.reason ?? entry.kind}{remaining !== null ? ` · vigente ${formatCents(remaining)}` : ""}</small></span><strong>{formatCents(entry.amount_cents)}</strong><StatusChip active={entry.kind === "EARNED"} label={entry.kind} /><span /><span className={styles.rowActions}>{entry.kind === "EARNED" && remaining !== null && remaining > 0 && <><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => correctCommission(entry, "ADJUSTMENT")}>Ajustar</button><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => correctCommission(entry, "REVERSAL")}>Reverter</button></>}</span></article>; })}</div>}
       </Panel>
-      <Panel title="Lotes de pagamento" description="Pagamento gera saída de caixa; não duplica despesa na DRE." className={styles.span5} action={<button className={styles.button} type="button" disabled={!props.barbers.length} onClick={() => setShowPayout((value) => !value)}>Criar lote</button>}>
+      <Panel className={`${styles.span5} ${styles.hidden}`} title="Lotes de pagamento" description="Pagamento gera saída de caixa; não duplica despesa na DRE." action={<button className={styles.button} type="button" disabled={!props.barbers.length} onClick={() => setShowPayout((value) => !value)}>Criar lote</button>}>
         {showPayout && <form className={styles.form} onSubmit={createPayout}><Field label="Profissional"><select name="barber_id">{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></Field><Field label="Início"><input type="date" name="period_start" required /></Field><Field label="Fim"><input type="date" name="period_end" required /></Field><button className={styles.button}>Fechar período</button></form>}
         {payPayout && <form className={styles.form} onSubmit={markPaid}><p className={styles.formWide}>Liquidação integral: <strong>{formatCents(payPayout.amount_cents)}</strong></p><Field label="Banco ou caixa"><select name="financial_account_id" required><option value="">Selecione</option>{props.financialAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></Field><Field label="Data"><input name="paid_on" type="date" required defaultValue={new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date())} /></Field><Field label="Método"><select name="payment_method"><option value="PIX">PIX</option><option value="TRANSFER">Transferência</option><option value="CASH">Dinheiro</option><option value="OTHER">Outro</option></select></Field><Field label="Referência"><input name="reference" placeholder="Comprovante ou protocolo" /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}>Confirmar pagamento</button><button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPayPayout(null)}>Cancelar</button></div></form>}
         {props.payouts.length === 0 ? <EmptyState title="Sem lotes">Crie um lote após existir comissão positiva não paga.</EmptyState> : <div className={styles.list}>{props.payouts.map((payout) => <article className={styles.card} key={payout.id}><div className={styles.cardTop}><span className={styles.rowTitle}><strong>{barberById.get(payout.barber_id)?.display_name}</strong><small>{payout.period_start} a {payout.period_end}</small></span><StatusChip active={payout.status === "PAID"} label={payout.status} /></div><strong>{formatCents(payout.amount_cents)}</strong>{payout.status === "OPEN" && <button className={`${styles.button} ${styles.buttonSmall}`} onClick={() => setPayPayout(payout)} type="button">Pagar no Caixa</button>}</article>)}</div>}

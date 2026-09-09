@@ -28,6 +28,7 @@ function ProfileContent() {
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [whatsappGranted, setWhatsappGranted] = useState(false);
+  const [marketingGranted, setMarketingGranted] = useState(false);
   const [requests, setRequests] = useState<PrivacyRequest[]>([]);
   const [loadingPrivacy, setLoadingPrivacy] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,12 +54,14 @@ function ProfileContent() {
     if (!supabase || !context || !customer) {
       setRequests([]);
       setWhatsappGranted(false);
+      setMarketingGranted(false);
       return;
     }
     setLoadingPrivacy(true);
     try {
       const result = await getCustomerPrivacy(supabase, context.organization.id, customer.id);
       setWhatsappGranted(result.whatsappGranted);
+      setMarketingGranted(result.marketingGranted);
       setRequests(result.requests);
     } catch (cause: unknown) {
       setError(toClientError(cause, "Não foi possível carregar privacidade."));
@@ -112,7 +115,7 @@ function ProfileContent() {
     }
   }
 
-  async function updateWhatsapp(next: boolean) {
+  async function updateWhatsapp(next: boolean, marketing = false) {
     if (!supabase || !customer) {
       setError("Salve dados pessoais antes de alterar consentimento.");
       return;
@@ -120,9 +123,9 @@ function ProfileContent() {
     setBusy(true);
     setError("");
     try {
-      await recordWhatsappConsent(supabase, { organizationId, customerId: customer.id, granted: next });
-      setWhatsappGranted(next);
-      setNotice(next ? "WhatsApp transacional autorizado." : "WhatsApp transacional retirado imediatamente.");
+      await recordWhatsappConsent(supabase, { organizationId, customerId: customer.id, granted: next, kind: marketing ? "MARKETING" : "WHATSAPP_TRANSACTIONAL" });
+      if (marketing) setMarketingGranted(next); else setWhatsappGranted(next);
+      setNotice(next ? "Preferência de comunicação ativada." : "Preferência de comunicação desativada.");
       await loadPrivacy();
     } catch (cause: unknown) {
       setError(toClientError(cause, "Não foi possível atualizar consentimento."));
@@ -158,7 +161,7 @@ function ProfileContent() {
     : null;
   return (
     <div className={styles.profile}>
-      <header className={styles.pageHeading}><span>Sua conta · {context.organization.name}</span><h1>Perfil e privacidade</h1><p>Dados ficam isolados neste tenant. Marketing não nasce de data de nascimento.</p></header>
+      <header className={styles.pageHeading}><span>Sua conta · {context.organization.name}</span><h1>Perfil e privacidade</h1><p>Gerencie seus dados e preferências de comunicação nesta barbearia.</p></header>
       {notice && <div className={styles.notice} role="status"><Check size={17} /><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Fechar aviso"><X size={15} /></button></div>}
       {error && <div className={styles.errorBox} role="alert"><strong>Ação não concluída</strong><span>{error}</span></div>}
       <div className={styles.profileGrid}>
@@ -191,9 +194,10 @@ function ProfileContent() {
             </div>
           </section>
           <section className={styles.panel}>
-            <div className={styles.sectionTitle}><MessageCircle /><div><h2>Comunicação</h2><p>Somente mensagens transacionais sobre reserva.</p></div></div>
+            <div className={styles.sectionTitle}><MessageCircle /><div><h2>Comunicação</h2><p>Controle avisos da reserva e mensagens personalizadas separadamente.</p></div></div>
             <div className={styles.consent}><div><strong>WhatsApp transacional</strong><p>Confirmação, lembrete e alteração de horário. Opt-out imediato.</p></div><label className={styles.switch}><input type="checkbox" checked={whatsappGranted} disabled={busy || loadingPrivacy || !customer} onChange={(event) => void updateWhatsapp(event.target.checked)} /><span /></label></div>
-            <p className={styles.privacyNote}><ShieldCheck size={16} /> Marketing permanece desativado. Consentimento transacional não habilita campanhas.</p>
+            <div className={styles.consent}><div><strong>Marketing e mensagens personalizadas</strong><p>Felicitações, retorno após atendimento e promoções. Pode desativar a qualquer momento.</p></div><label className={styles.switch}><input aria-label="Marketing e mensagens personalizadas" type="checkbox" checked={marketingGranted} disabled={busy || loadingPrivacy || !customer} onChange={(event) => void updateWhatsapp(event.target.checked, true)} /><span /></label></div>
+            <p className={styles.privacyNote}><ShieldCheck size={16} /> Preferências independentes. Desativar marketing mantém seus avisos de reserva.</p>
           </section>
           <section className={styles.panel}>
             <div className={styles.sectionTitle}><ShieldCheck /><div><h2>Direitos LGPD</h2><p>Pedidos ficam auditados e têm prazo operacional.</p></div></div>

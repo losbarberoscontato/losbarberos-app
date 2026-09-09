@@ -10,6 +10,7 @@ import {
   requireOrganizationOwner,
   requireUser,
   rpc,
+  serviceClient,
 } from "../_shared/supabase.ts";
 
 type RequestBody = { organizationId?: unknown };
@@ -56,7 +57,18 @@ Deno.serve((request) => {
       throw new IntegrationError(500, "SERVER_CONFIGURATION_ERROR");
     }
     const apiKey = requiredEnv("EVOLUTION_API_KEY");
-    const instanceName = `lb-${organizationId.slice(0, 8)}`;
+    const { data: existing, error: connectionError } = await serviceClient()
+      .from("whatsapp_business_connections")
+      .select("gateway_instance_id")
+      .eq("organization_id", organizationId)
+      .eq("provider", "QR_WEB")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (connectionError) {
+      throw new IntegrationError(500, "CONNECTION_LOOKUP_FAILED");
+    }
+    const instanceName = existing?.gateway_instance_id ||
+      `lb-${organizationId}`;
     let created: EvolutionQrPayload | null = null;
     try {
       created = await providerFetch<EvolutionQrPayload>(

@@ -10,6 +10,7 @@ import type { AwaitedReturn } from "./utility-types";
 import { humanizeError } from "./format";
 import { ActionMessage, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
+import { normalizePhoneE164 } from "@/lib/phone";
 import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadSettingsData>;
@@ -42,16 +43,20 @@ export function SettingsManager(props: Props) {
   async function saveOrganization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const rawWhatsApp = String(data.get("public_contact_phone_e164") ?? "").trim();
+    const publicContactPhone = rawWhatsApp ? normalizePhoneE164(rawWhatsApp) : null;
+    if (rawWhatsApp && !publicContactPhone) {
+      setMessage("Informe um WhatsApp válido.");
+      return;
+    }
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().from("organizations").update({
-        name: String(data.get("name") ?? "").trim(),
-        slug: String(data.get("slug") ?? "").trim().toLowerCase(),
-        timezone: String(data.get("timezone")),
-        cancellation_lead_minutes: Math.round(Number(data.get("cancellation_hours")) * 60),
-        slot_interval_minutes: Number(data.get("slot_interval_minutes")),
-        public_contact_phone_e164: String(data.get("public_contact_phone_e164") ?? "").trim() || null,
-        logo_path: logoPath || null,
-      }).eq("id", props.organizationId));
+      await assertResult(await connectedClient().rpc("update_organization_settings", {
+        p_organization_id: props.organizationId,
+        p_name: String(data.get("name") ?? "").trim(),
+        p_slug: String(data.get("slug") ?? "").trim().toLowerCase(),
+        p_public_contact_phone_e164: publicContactPhone,
+        p_logo_path: logoPath || null,
+      }));
     }, "Regras da organização atualizadas.");
     if (saved) router.refresh();
   }
@@ -178,15 +183,13 @@ export function SettingsManager(props: Props) {
             </article>
           </div>
         </Panel>}
-      <Panel title="Regras da barbearia" description="Valores usados para novos agendamentos" className={styles.span7}>
+      <Panel title="Dados da Barbearia" className={styles.span7}>
         <form className={styles.form} onSubmit={saveOrganization}>
           <Field label="Nome"><input name="name" required minLength={2} defaultValue={props.organization.name} /></Field>
-          <Field label="Slug público"><input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" defaultValue={props.organization.slug} /></Field>
-          <Field label="WhatsApp público"><input name="public_contact_phone_e164" inputMode="tel" placeholder="+5511999999999" defaultValue={props.organization.public_contact_phone_e164 ?? ""} /></Field>
+          <Field label="Nome de usuário"><input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" defaultValue={props.organization.slug} /></Field>
+          <Field label="E-mail"><input value={props.accountEmail ?? "Não disponível"} readOnly aria-readonly="true" /></Field>
+          <Field label="WhatsApp público"><input name="public_contact_phone_e164" inputMode="tel" placeholder="11999999999 ou +5511999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={props.organization.public_contact_phone_e164 ?? ""} onBlur={(event) => { const normalized = normalizePhoneE164(event.currentTarget.value); if (normalized) event.currentTarget.value = normalized; }} /></Field>
           <Field label="Logomarca"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void uploadLogo(event.target.files?.[0])} /><small>{logoPath ? "Logo cadastrada" : "PNG, JPEG ou WebP até 2 MB"}</small></Field>
-          <Field label="Timezone"><select name="timezone" defaultValue={props.organization.timezone}><option value="America/Sao_Paulo">America/Sao_Paulo</option><option value="America/Manaus">America/Manaus</option><option value="America/Fortaleza">America/Fortaleza</option><option value="America/Recife">America/Recife</option><option value="America/Bahia">America/Bahia</option><option value="America/Cuiaba">America/Cuiaba</option><option value="America/Rio_Branco">America/Rio_Branco</option></select></Field>
-          <Field label="Prazo de cancelamento (horas)"><input name="cancellation_hours" type="number" min={0} step="1" defaultValue={props.organization.cancellation_lead_minutes / 60} /></Field>
-          <Field label="Intervalo dos slots"><select name="slot_interval_minutes" defaultValue={15}><option value="15">15 minutos</option></select></Field>
           <button className={`${styles.button} ${styles.formWide}`} type="submit">Salvar regras</button>
         </form>
       </Panel>
@@ -210,7 +213,7 @@ export function SettingsManager(props: Props) {
     </section>}
     <Panel title="Integrações" description="Apenas IDs e estados públicos são exibidos; tokens ficam no Vault.">
       <div className={styles.list}>
-        <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Stripe Billing</strong><StatusChip active={["TRIALING", "ACTIVE", "GRACE"].includes(props.subscription?.status ?? "")} label={props.subscription?.status ?? "NÃO INICIADO"} /></span><p>Assinatura, trial, carência e cobrança geridos pelo Stripe.</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/regularizacao">Abrir cobrança</Link></article>
+        <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Gerenciar minha assinatura</strong><StatusChip active={["TRIALING", "ACTIVE", "GRACE"].includes(props.subscription?.status ?? "")} label={props.subscription?.status ?? "NÃO INICIADO"} /></span><p>Assinatura, trial, carência e cobrança geridos pelo Stripe.</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/regularizacao">Abrir cobrança</Link></article>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Mercado Pago</strong><StatusChip active={mpConnected} label={props.merchant?.status ?? "NÃO CONECTADO"} /></span><p>{props.merchant?.external_account_id ? `Conta ${props.merchant.external_account_id}` : "OAuth por tenant; credenciais nunca chegam ao navegador."}</p></div><button className={styles.button} type="button" onClick={connectMercadoPago} disabled={connecting}>{connecting ? "Abrindo…" : mpConnected ? "Reconectar" : "Conectar conta"}</button></article>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>WhatsApp</strong><StatusChip active={whatsappConnected} label={whatsappConnected ? "CONECTADO" : "PENDENTE"} /></span><p>{whatsappConnected ? "Integração ativa para confirmações, lembretes e ações seguras." : "Configure Meta Cloud API ou QR Web na página exclusiva da integração."}</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/configuracoes/whatsapp">Abrir integração</Link></article>
       </div>

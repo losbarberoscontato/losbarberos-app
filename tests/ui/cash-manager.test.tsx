@@ -27,6 +27,8 @@ const props = {
   entryTags: [],
   settlements: [],
   appointmentActivity: [{ payment_transaction_id: "payment-1", organization_id: "org-1", appointment_id: "appointment-1", customer_id: "customer-1", payment_mode: "COUNTER", provider: "MANUAL" as const, kind: "CAPTURE" as const, amount_cents: 8000, signed_cents: 8000, occurred_at: "2026-08-09T10:00:00.000Z", financial_account_id: "account-1", needs_reconciliation: false, display_description: "Corte clássico · Profissional: Alef", financial_status: "PAID" }],
+  commissionSettlements: [],
+  commissionSettlementReversals: [],
   mappings: [],
 };
 
@@ -39,8 +41,8 @@ describe("cash manager", () => {
     try {
       render(<CashManager {...props} />);
       expect(screen.getByRole("heading", { name: "Controle de caixa" })).toBeInTheDocument();
-      expect(screen.getByText("Movimentações do dia")).toBeInTheDocument();
-      expect(screen.queryByText("Entradas realizadas")).not.toBeInTheDocument();
+      expect(screen.getByText("Movimentação no período")).toBeInTheDocument();
+      expect(screen.getByText("Entradas realizadas")).toBeInTheDocument();
       expect(screen.getByRole("columnheader", { name: "Ações" }).className).toContain("cashHeaderAction");
       expect(screen.queryByText("Somente valores efetivamente recebidos ou pagos.")).not.toBeInTheDocument();
       expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
@@ -52,11 +54,13 @@ describe("cash manager", () => {
       expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
       expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
 
-  it("calcula o saldo líquido somente das movimentações do dia", () => {
+  it("calcula o saldo líquido de todas movimentações do período", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
     try {
@@ -71,9 +75,11 @@ describe("cash manager", () => {
         ]}
       />);
 
-      expect(screen.getByText("Movimentações do dia")).toBeInTheDocument();
-      expect(screen.getByText(/R\$\s*50,00/)).toBeInTheDocument();
+      expect(screen.getByText("Movimentação no período")).toBeInTheDocument();
+      expect(screen.getByText(/R\$\s*149,00/)).toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -106,6 +112,8 @@ describe("cash manager", () => {
       expect(screen.getByText("Corte clássico · Profissional: Alef")).toBeInTheDocument();
       expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -122,6 +130,8 @@ describe("cash manager", () => {
       expect(screen.getByRole("option", { name: "Caixa físico" })).toBeInTheDocument();
       expect(screen.queryByLabelText("Filtrar status")).not.toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -157,6 +167,162 @@ describe("cash manager", () => {
       expect(screen.queryByText("Corte adicional")).not.toBeInTheDocument();
       expect(screen.queryByText("Corte clássico · Profissional: Alef")).not.toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it("exibe pagamento de comissão como saída na conta financeira correta", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} barberNames={{ "barber-1": "Alef Gonçalves" }} commissionSettlements={[{
+        id: "commission-settlement-1",
+        organization_id: "org-1",
+        payout_id: "payout-1",
+        barber_id: "barber-1",
+        financial_account_id: "account-1",
+        amount_cents: 3500,
+        paid_on: "2026-08-15",
+        document_number: "COM-ABC123",
+        tags: "Controle",
+        payment_method: "PIX",
+        reference: "COM-ABC123",
+      }]} />);
+
+      expect(screen.getByText("Alef Gonçalves")).toBeInTheDocument();
+      expect(screen.getByText("Pagamento de comissão · Controle")).toBeInTheDocument();
+      expect(screen.getByText("−R$ 35,00")).toBeInTheDocument();
+      expect(screen.getAllByText("Banco Principal").length).toBeGreaterThan(0);
+      expect(screen.getByText(/Saídas realizadas/).parentElement).toHaveTextContent(/-R\$\s*35,00/);
+      expect(screen.getByText(/Movimentação no período/).parentElement).toHaveTextContent(/R\$\s*45,00/);
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it("confirma o estorno da comissão, exige motivo e mostra a compensação", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} barberNames={{ "barber-1": "Alef Gonçalves" }} commissionSettlements={[{
+      id: "commission-settlement-1",
+      organization_id: "org-1",
+      payout_id: "payout-1",
+      barber_id: "barber-1",
+      financial_account_id: "account-1",
+      amount_cents: 3500,
+      paid_on: "2026-08-15",
+      document_number: "COM-ABC123",
+      tags: "Controle",
+      payment_method: "PIX",
+      reference: "COM-ABC123",
+      }]} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Estornar comissão" }));
+      expect(screen.getByRole("dialog", { name: "Estornar comissão?" })).toBeInTheDocument();
+      expect(screen.getByText(/Esta ação não poderá ser desfeita/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Confirmar estorno" })).toBeDisabled();
+      fireEvent.change(screen.getByLabelText("Motivo do estorno"), { target: { value: "Pagamento duplicado" } });
+      fireEvent.click(screen.getByRole("button", { name: "Confirmar estorno" }));
+      expect(rpc).toHaveBeenCalledWith("reverse_commission_payout", expect.objectContaining({ p_settlement_id: "commission-settlement-1", p_reason: "Pagamento duplicado" }));
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it("remove comissão estornada da lista e dos totais do caixa", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} barberNames={{ "barber-1": "Alef Gonçalves" }} commissionSettlements={[{
+        id: "commission-settlement-reversed",
+        organization_id: "org-1",
+        payout_id: "payout-1",
+        barber_id: "barber-1",
+        financial_account_id: "account-1",
+        amount_cents: 3500,
+        paid_on: "2026-08-15",
+        document_number: "COM-REVERSED",
+        tags: "Controle",
+        payment_method: "PIX",
+        reference: "COM-REVERSED",
+      }]} commissionSettlementReversals={[{
+        id: "commission-reversal-1",
+        organization_id: "org-1",
+        settlement_id: "commission-settlement-reversed",
+        amount_cents: 3500,
+        reversed_on: "2026-08-15",
+        reason: "Pagamento duplicado",
+      }]} />);
+
+      expect(screen.queryByText("Pagamento de comissão · Controle")).not.toBeInTheDocument();
+      expect(screen.queryByText("Estorno de comissão · Pagamento duplicado")).not.toBeInTheDocument();
+      expect(screen.getByText("Saídas realizadas").parentElement).toHaveTextContent(/R\$\s*0,00/);
+      expect(screen.getByText("Entradas realizadas").parentElement).toHaveTextContent(/R\$\s*80,00/);
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it("oculta lançamentos liquidados das contas a pagar", () => {
+    const settled = { ...props.entries[0], id: "settled-payable", description: "Despesa já paga", kind: "EXPENSE" as const, status: "SETTLED" as const, settled_cents: 1000, remaining_cents: 0 };
+    render(<CashManager {...props} section="payables" entries={[settled]} />);
+    expect(screen.queryByText("Despesa já paga")).not.toBeInTheDocument();
+  });
+
+  it("exibe atendimento ativo ainda não recebido e não repete recebimento no contas a receber", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} section="receivables" entries={[...props.entries, {
+        ...props.entries[0],
+        id: "manual-receivable",
+        kind: "REVENUE" as const,
+        description: "Mensalidade cliente",
+        chart_account_id: "chart-revenue",
+        counterparty_kind: "CUSTOMER" as const,
+        customer_id: "customer-1",
+        supplier_id: null,
+        due_date: "2026-08-15",
+        total_cents: 4500,
+        remaining_cents: 4500,
+        status: "OPEN" as const,
+      }]} appointmentActivity={[{
+        ...props.appointmentActivity[0],
+        display_description: "Corte já recebido · Profissional: Alef",
+      }]} appointmentReceivables={[{
+        appointment_id: "appointment-future",
+        organization_id: "org-1",
+        customer_id: "customer-1",
+        customer_name: "Cliente Real",
+        description: "Barba amanhã · Profissional: Alef",
+        amount_cents: 13500,
+        issue_date: "2026-08-15",
+        due_date: "2026-08-16",
+        document_number: "ATD-FUTURE",
+        outstanding_cents: 13500,
+      }]} />);
+
+      expect(screen.queryByText("Corte já recebido · Profissional: Alef")).toBeNull();
+      expect(screen.getByText("Mensalidade cliente")).toBeTruthy();
+      expect(screen.getByText("Barba amanhã · Profissional: Alef")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Receber" })).toBeTruthy();
+      expect(screen.queryByLabelText("Filtrar status")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Filtrar conta financeira")).toHaveValue("ALL");
+      expect(screen.getByText("Contas à receber no período")).toBeInTheDocument();
+      expect(screen.getByText("Contas à receber - próximo mês")).toBeInTheDocument();
+      expect(screen.getByText("Contas à receber - 6 meses")).toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -174,7 +340,7 @@ describe("cash manager", () => {
     expect(screen.queryByLabelText("Filtrar tipo")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
     const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
-    expect(within(dialog).getByLabelText("Tipo de despesa")).toHaveValue("SINGLE");
+    expect(within(dialog).getByLabelText("Tipo de conta")).toHaveValue("SINGLE");
     fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Energia" } });
     fireEvent.change(within(dialog).getByLabelText("Valor (R$)"), { target: { value: "120,00" } });
     fireEvent.change(within(dialog).getByLabelText("Plano de conta"), { target: { value: "chart-expense" } });
@@ -185,7 +351,7 @@ describe("cash manager", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("abre contas a pagar e receber no mês atual, com todos os status", () => {
+  it("abre contas a pagar no mês atual com filtro de conta e cards de projeção", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
     try {
@@ -193,8 +359,14 @@ describe("cash manager", () => {
 
       expect(screen.getByLabelText("Data inicial")).toHaveValue("2026-08-01");
       expect(screen.getByLabelText("Data final")).toHaveValue("2026-08-31");
-      expect(screen.getByLabelText("Filtrar status")).toHaveValue("ALL");
+      expect(screen.queryByLabelText("Filtrar status")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Filtrar conta financeira")).toHaveValue("ALL");
+      expect(screen.getByText("Contas à pagar no período")).toBeInTheDocument();
+      expect(screen.getByText("Contas à pagar - próximo mês")).toBeInTheDocument();
+      expect(screen.getByText("Contas à pagar - 6 meses")).toBeInTheDocument();
     } finally {
+      cleanup();
+      vi.clearAllTimers();
       vi.useRealTimers();
     }
   });
@@ -223,7 +395,7 @@ describe("cash manager", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
     const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
-    fireEvent.change(within(dialog).getByLabelText("Tipo de despesa"), { target: { value: "INSTALLMENT" } });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de conta"), { target: { value: "INSTALLMENT" } });
     fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Cadeira" } });
     fireEvent.change(within(dialog).getByLabelText("Valor da parcela (R$)"), { target: { value: "250,00" } });
     fireEvent.change(within(dialog).getByLabelText("Qtd. de parcelas"), { target: { value: "4" } });
@@ -232,21 +404,36 @@ describe("cash manager", () => {
     fireEvent.submit(within(dialog).getByRole("button", { name: "Adicionar" }).closest("form")!);
 
     expect(rpc).toHaveBeenCalledWith("create_financial_series", expect.objectContaining({ p_organization_id: "org-1", p_kind: "INSTALLMENT", p_cadence: "MONTHLY", p_occurrence_count: 4, p_total_cents: 100000 }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).toBeNull());
   });
 
-  it("cria recorrência quinzenal e filtra despesas por período e status", async () => {
+  it("cria série de contas a receber com a natureza de receita", async () => {
+    render(<CashManager {...props} section="receivables" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de conta"), { target: { value: "INSTALLMENT" } });
+    fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Plano mensal" } });
+    fireEvent.change(within(dialog).getByLabelText("Valor da parcela (R$)"), { target: { value: "50,00" } });
+    fireEvent.change(within(dialog).getByLabelText("Qtd. de parcelas"), { target: { value: "3" } });
+    fireEvent.change(within(dialog).getByLabelText("Plano de conta"), { target: { value: "chart-revenue" } });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Adicionar" }).closest("form")!);
+
+    expect(rpc).toHaveBeenCalledWith("create_financial_series", expect.objectContaining({ p_organization_id: "org-1", p_kind: "INSTALLMENT", p_entry_kind: "REVENUE", p_cadence: "MONTHLY", p_occurrence_count: 3, p_total_cents: 15000, p_amount_cents: null }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo lançamento" })).toBeNull());
+  });
+
+  it("cria recorrência quinzenal e filtra despesas por período", async () => {
     render(<CashManager {...props} section="payables" entries={[...props.entries, { ...props.entries[0], id: "entry-canceled", description: "Água", due_date: "2026-08-15", status: "CANCELED", canceled_at: "2026-08-01T00:00:00Z", cancellation_reason: "Teste" }]} />);
 
     fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-08-15" } });
     fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-08-15" } });
-    fireEvent.change(screen.getByLabelText("Filtrar status"), { target: { value: "CANCELED" } });
-    expect(screen.getByText("Água")).toBeInTheDocument();
+    expect(screen.queryByText("Água")).not.toBeInTheDocument();
     expect(screen.queryByText("Aluguel")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Novo lançamento" }));
     const dialog = screen.getByRole("dialog", { name: "Novo lançamento" });
-    fireEvent.change(within(dialog).getByLabelText("Tipo de despesa"), { target: { value: "RECURRING" } });
+    fireEvent.change(within(dialog).getByLabelText("Tipo de conta"), { target: { value: "RECURRING" } });
     fireEvent.change(within(dialog).getByLabelText("Tipo de recorrência"), { target: { value: "BIWEEKLY" } });
     fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Internet" } });
     fireEvent.change(within(dialog).getByLabelText("Valor por vencimento (R$)"), { target: { value: "99,90" } });
@@ -269,7 +456,10 @@ describe("cash manager", () => {
   });
 
   it("opens the appointment receipt with prefilled fields and records only the payment transaction", () => {
-    render(<CashManager {...props} section="receivables" tags={[{ id: "tag-1", organization_id: "org-1", name: "Cliente recorrente", color: null, active: true }]} appointmentReceivables={[{
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} section="receivables" tags={[{ id: "tag-1", organization_id: "org-1", name: "Cliente recorrente", color: null, active: true }]} appointmentReceivables={[{
       appointment_id: "appointment-2",
       organization_id: "org-1",
       customer_id: "customer-1",
@@ -280,25 +470,33 @@ describe("cash manager", () => {
       due_date: "2026-08-11",
       document_number: "ATD-APPOINT2",
       outstanding_cents: 6500,
-    }]} />);
+      }]} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Receber" }));
-    expect(screen.getByRole("dialog", { name: "Receber atendimento" })).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Cliente Real")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Barba completa · Profissional: Alef")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("ATD-APPOINT2")).toBeInTheDocument();
-    expect(screen.getByLabelText("Observações")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Referência")).not.toBeInTheDocument();
-    expect(screen.queryByText("Pode ser maior ou menor que o valor agendado.")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "tag-1" } });
-    fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
+      fireEvent.click(screen.getByRole("button", { name: "Receber" }));
+      expect(screen.getByRole("dialog", { name: "Receber atendimento" })).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Cliente Real")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Barba completa · Profissional: Alef")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("ATD-APPOINT2")).toBeInTheDocument();
+      expect(screen.getByLabelText("Observações")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Referência")).not.toBeInTheDocument();
+      expect(screen.queryByText("Pode ser maior ou menor que o valor agendado.")).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Tags"), { target: { value: "tag-1" } });
+      fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
 
-    expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_appointment_id: "appointment-2", p_amount_cents: 6500, p_chart_account_id: "chart-revenue", p_financial_account_id: "account-1", p_document_number: "ATD-APPOINT2", p_tag_ids: ["tag-1"] }));
-    expect(rpc).not.toHaveBeenCalledWith("create_financial_entry", expect.anything());
+      expect(rpc).toHaveBeenCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_appointment_id: "appointment-2", p_amount_cents: 6500, p_chart_account_id: "chart-revenue", p_financial_account_id: "account-1", p_document_number: "ATD-APPOINT2", p_tag_ids: ["tag-1"] }));
+      expect(rpc).not.toHaveBeenCalledWith("create_financial_entry", expect.anything());
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 
   it("sends the adjusted final amount without requiring an adjustment reason", () => {
-    render(<CashManager {...props} section="receivables" appointmentReceivables={[{
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} section="receivables" appointmentReceivables={[{
       appointment_id: "appointment-2",
       organization_id: "org-1",
       customer_id: "customer-1",
@@ -309,13 +507,18 @@ describe("cash manager", () => {
       due_date: "2026-08-11",
       document_number: "ATD-APPOINT2",
       outstanding_cents: 6500,
-    }]} />);
+      }]} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Receber" }));
-    fireEvent.change(screen.getByLabelText(/Valor final lançado \(R\$\)/), { target: { value: "71,00" } });
-    fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
-    expect(rpc).toHaveBeenLastCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_amount_cents: 7100, p_adjustment_reason: "Ajuste automático do valor final no recebimento" }));
-    expect(screen.queryByLabelText("Motivo do ajuste")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Receber" }));
+      fireEvent.change(screen.getByLabelText(/Valor final lançado \(R\$\)/), { target: { value: "71,00" } });
+      fireEvent.submit(screen.getByRole("button", { name: "Confirmar recebimento" }).closest("form")!);
+      expect(rpc).toHaveBeenLastCalledWith("record_manual_appointment_receipt_v2", expect.objectContaining({ p_amount_cents: 7100, p_adjustment_reason: "Ajuste automático do valor final no recebimento" }));
+      expect(screen.queryByLabelText("Motivo do ajuste")).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 
   it("does not call Supabase when a demo entry is submitted", () => {
@@ -324,7 +527,7 @@ describe("cash manager", () => {
     fireEvent.change(screen.getByLabelText("Descrição"), { target: { value: "Receita de teste" } });
     fireEvent.change(screen.getByLabelText("Valor (R$)"), { target: { value: "10,00" } });
     fireEvent.change(screen.getByLabelText("Plano de conta"), { target: { value: "chart-revenue" } });
-    fireEvent.submit(screen.getByRole("button", { name: "Adicionar" }).closest("form")!);
+    fireEvent.submit(screen.getByRole("button", { name: "Lançar no Caixa" }).closest("form")!);
 
     expect(rpc).not.toHaveBeenCalled();
     expect(screen.getByText("Modo demonstração: nenhuma alteração é salva.")).toBeInTheDocument();
@@ -353,6 +556,7 @@ describe("cash manager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mostrar planos de receitas" }));
     const revenuePlans = screen.getByRole("list", { name: "Planos de receitas" });
     expect(within(revenuePlans).getAllByRole("listitem").map((item) => item.textContent)).toEqual([expect.stringContaining("1 · Serviços"), expect.stringContaining("1.2 · Corte"), expect.stringContaining("1.10 · Barba")]);
+    fireEvent.click(screen.getByRole("button", { name: "Novo Plano de Conta" }));
     expect(within(screen.getByLabelText("Conta superior")).getByRole("option", { name: "1 · Serviços" })).toBeInTheDocument();
     expect(within(screen.getByLabelText("Conta superior")).queryByRole("option", { name: "2 · Estrutura" })).not.toBeInTheDocument();
 
@@ -361,14 +565,55 @@ describe("cash manager", () => {
     expect(screen.getByRole("list", { name: "Planos de receitas" })).toBeInTheDocument();
   });
 
+  it("opens the chart account registration in a modal", () => {
+    render(<CashManager {...props} section="catalogs" />);
+
+    expect(screen.getByRole("heading", { name: "Plano de contas" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Novo Plano de Conta" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Novo Plano de Conta" });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Código")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Nome")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("dialog", { name: "Novo Plano de Conta" })).not.toBeInTheDocument();
+  });
+
   it("gives chart accounts and cost centers full-width stacked panels", () => {
     render(<CashManager {...props} section="catalogs" />);
 
     const chartPanel = screen.getByRole("heading", { name: "Plano de contas" }).closest("section");
-    const costCenterPanel = screen.getByRole("heading", { name: "Centro de custo" }).closest("section");
+    const costCenterPanel = screen.getByRole("heading", { name: "Centros de Custos" }).closest("section");
+    const tagsPanel = screen.getByRole("heading", { name: "Tags" }).closest("section");
 
     expect(chartPanel).toHaveClass(styles.span12);
     expect(costCenterPanel).toHaveClass(styles.span12);
+    expect(tagsPanel).toHaveClass(styles.span12);
+    expect(screen.queryByRole("heading", { name: "Estrutura financeira" })).not.toBeInTheDocument();
     expect(chartPanel?.compareDocumentPosition(costCenterPanel!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("opens the cost center registration in a modal", () => {
+    render(<CashManager {...props} section="catalogs" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo Centro de Custo" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Novo Centro de Custo" });
+    expect(within(dialog).getByLabelText("Nome")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("dialog", { name: "Novo Centro de Custo" })).not.toBeInTheDocument();
+  });
+
+  it("offers a visual tag palette and applies the saved color to the tag name", () => {
+    render(<CashManager {...props} section="catalogs" tags={[{ id: "tag-1", organization_id: "org-1", name: "Cliente recorrente", color: "#2563eb", active: true }]} />);
+
+    expect(screen.getByText("Cliente recorrente")).toHaveStyle({ color: "#2563eb" });
+    fireEvent.click(screen.getByText("Escolher cor"));
+    expect(screen.getByRole("radiogroup", { name: "Paleta de cores da tag" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Azul" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    fireEvent.click(screen.getByText("Escolher cor"));
+    fireEvent.click(screen.getByRole("button", { name: "Azul" }));
+    expect(screen.getByRole("button", { name: "Azul" })).toHaveAttribute("aria-pressed", "true");
   });
 });

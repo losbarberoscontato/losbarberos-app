@@ -15,4 +15,9 @@ describe("manager finance navigation", () => {
     expect(screen.getByRole("link", { name: "Financeiro" })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Caixa" })[0]).toHaveAttribute("aria-current", "page");
   });
+
+  it("exposes Comissões inside Financeiro", () => {
+    render(<ManagerShell>conteúdo</ManagerShell>);
+    expect(screen.getAllByRole("link", { name: "Comissões" })[0]).toHaveAttribute("href", "/gestor/financeiro/comissoes");
+  });
 });

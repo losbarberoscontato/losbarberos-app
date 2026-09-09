@@ -231,6 +231,29 @@ export interface CommissionPayoutRecord {
   created_at: string;
 }
 
+export interface CommissionPayoutSettlementRecord {
+  id: string;
+  organization_id: string;
+  payout_id: string;
+  barber_id: string;
+  financial_account_id: string;
+  amount_cents: number;
+  paid_on: string;
+  document_number: string | null;
+  tags: string | null;
+  payment_method: string;
+  reference: string | null;
+}
+
+export interface CommissionPayoutSettlementReversalRecord {
+  id: string;
+  organization_id: string;
+  settlement_id: string;
+  amount_cents: number;
+  reversed_on: string;
+  reason: string;
+}
+
 export interface MerchantAccountRecord {
   status: "PENDING" | "CONNECTED" | "REAUTH_REQUIRED" | "DISCONNECTED";
   external_account_id: string | null;
@@ -269,7 +292,7 @@ export interface SubscriptionRecord {
   retention_ends_at: string | null;
 }
 
-export type FinanceSection = "overview" | "cash" | "payables" | "receivables" | "accounts" | "suppliers" | "catalogs" | "reports";
+export type FinanceSection = "overview" | "cash" | "commissions" | "payables" | "receivables" | "accounts" | "suppliers" | "catalogs" | "reports";
 
 export type FinancialFactBasis = "FORECAST" | "ACCRUAL" | "CASH" | "BUDGET";
 export type FinancialReportType = "DASHBOARD" | "PAYABLES" | "RECEIVABLES" | "CUSTOMERS" | "COMMISSIONS" | "FORECAST" | "CASH_FLOW" | "INCOME_STATEMENT" | "BUDGET";
@@ -295,6 +318,7 @@ export interface FinancialReportingFactRecord {
   cash_flow_activity: "OPERATING" | "INVESTING" | "FINANCING" | null;
   signed_cents: number;
   status: string;
+  tag_names?: string[];
 }
 
 export interface FinancialBudgetVersionRecord {
@@ -317,6 +341,25 @@ export interface FinancialAccountRecord {
   description: string | null;
   opening_balance_cents: number;
   active: boolean;
+}
+
+export interface FinancialCommissionDetailRecord {
+  organization_id: string;
+  appointment_id: string;
+  appointment_item_id: string;
+  customer_id: string;
+  customer_name: string;
+  barber_id: string;
+  service_id: string | null;
+  service_name: string;
+  location_id: string;
+  service_date: string;
+  received_on: string | null;
+  service_value_paid_cents: number;
+  financial_account_names: string | null;
+  commission_cents: number;
+  paid_commission_cents: number;
+  payable_commission_cents: number;
 }
 
 export interface FinancialAccountBalanceRecord {
@@ -368,6 +411,7 @@ export interface FinancialEntryRecord {
   id: string;
   organization_id: string;
   kind: "REVENUE" | "EXPENSE";
+  source?: "MANUAL" | "APPOINTMENT";
   description: string;
   issue_date: string;
   due_date: string;
@@ -396,6 +440,7 @@ export interface FinancialSettlementRecord {
   entry_id: string;
   financial_account_id: string;
   kind: "SETTLEMENT" | "REVERSAL";
+  source_settlement_id?: string | null;
   amount_cents: number;
   settled_on: string;
   payment_method: string;

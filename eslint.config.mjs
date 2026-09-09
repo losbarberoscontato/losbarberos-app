@@ -12,6 +12,7 @@ export default defineConfig([
     "playwright-report/**",
     "test-results/**",
     ".worktrees/**",
+    "backups/**",
     "next-env.d.ts",
     "supabase/functions/**",
   ]),

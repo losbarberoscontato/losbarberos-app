@@ -82,6 +82,14 @@ describe("connected manager UI", () => {
     render(<ManagerDashboard organizationId="org-1" billingStatus="ACTIVE" organization={organization} appointments={[]} customers={[customer]} barbers={[barber]} financial={[]} openPayouts={[]} />);
     expect(screen.getByText(/Barbearia Real/)).toBeInTheDocument();
     expect(screen.getByText("Dia livre")).toBeInTheDocument();
+    expect(screen.getByText("À Receber hoje")).toBeInTheDocument();
+    expect(screen.getByText("À Pagar hoje")).toBeInTheDocument();
+    expect(screen.getByText("Comissões hoje")).toBeInTheDocument();
+    expect(screen.getByText("Saldo em caixa")).toBeInTheDocument();
+    expect(screen.getByText("Assinatura")).toBeInTheDocument();
+    expect(screen.getByText("Ativa")).toBeInTheDocument();
+    expect(screen.queryByText("Próximas reservas")).not.toBeInTheDocument();
+    expect(screen.queryByText("Indicadores calculados somente com dados reais da sua organização.")).not.toBeInTheDocument();
     expect(screen.queryByText("Guilherme")).not.toBeInTheDocument();
     expect(screen.queryByText("R$ 1.845")).not.toBeInTheDocument();
   });
@@ -138,6 +146,7 @@ describe("connected manager UI", () => {
     render(<SettingsManager
       organizationId="org-1"
       billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
       organization={organization}
       locations={[]}
       merchant={null}
@@ -157,6 +166,7 @@ describe("connected manager UI", () => {
     render(<SettingsManager
       organizationId="org-1"
       billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
       organization={organization}
       locations={[]}
       merchant={null}
@@ -169,10 +179,54 @@ describe("connected manager UI", () => {
     expect(screen.queryByLabelText("Duração do hold")).not.toBeInTheDocument();
   });
 
+  it("exibe dados da barbearia e oculta configurações operacionais", () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
+      organization={organization}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+      whatsapp={null}
+    />);
+
+    expect(screen.getByRole("heading", { name: "Dados da Barbearia" })).toBeInTheDocument();
+    expect(screen.queryByText("Valores usados para novos agendamentos")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Nome de usuário")).toHaveValue("barbearia-real");
+    expect(screen.getByLabelText("E-mail")).toHaveValue("gestor@example.com");
+    expect(screen.getByLabelText("E-mail")).toHaveAttribute("readonly");
+    expect(screen.queryByLabelText("Timezone")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Prazo de cancelamento (horas)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Intervalo dos slots")).not.toBeInTheDocument();
+    expect(screen.getByText("Gerenciar minha assinatura")).toBeInTheDocument();
+  });
+
+  it("normaliza WhatsApp público antes de salvar", async () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
+      organization={organization}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+      whatsapp={null}
+    />);
+
+    fireEvent.change(screen.getByLabelText("WhatsApp público"), { target: { value: "47 99978-2545" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar regras" }));
+
+    await waitFor(() => expect(mutationMocks.rpc).toHaveBeenCalledWith("update_organization_settings", expect.objectContaining({
+      p_public_contact_phone_e164: "+5547999782545",
+    })));
+  });
+
   it("exibe WhatsApp conectado quando há canal ativo e saudável", () => {
     render(<SettingsManager
       organizationId="org-1"
       billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
       organization={organization}
       locations={[]}
       merchant={null}
@@ -189,6 +243,7 @@ describe("connected manager UI", () => {
     render(<SettingsManager
       organizationId="org-1"
       billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
       organization={organization}
       locations={[]}
       merchant={null}
@@ -226,8 +281,33 @@ describe("connected manager UI", () => {
     expect(screen.getByRole("button", { name: "Não compareceu" })).toBeEnabled();
     expect(screen.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("href", "https://web.whatsapp.com/send?phone=5511999999999");
     expect(screen.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("target", "_blank");
-    expect(screen.getByText("Pgto Pendente")).toBeInTheDocument();
+    expect(screen.getByText("Pagamento pendente")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeEnabled();
+  });
+
+  it("shows the payment account and translates the payment status in appointment details", () => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const start = new Date(`${today}T14:00:00-03:00`);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    render(<AgendaManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      customers={[customer]}
+      barbers={[barber]}
+      services={[service]}
+      packages={[]}
+      barberServices={[]}
+      financial={[{ appointment_id: "appointment-paid", captured_cents: 5000, refunded_cents: 0, net_paid_cents: 5000, outstanding_cents: 0, financial_status: "PAID" }]}
+      appointmentActivity={[{ payment_transaction_id: "payment-paid", organization_id: "org-1", appointment_id: "appointment-paid", customer_id: customer.id, payment_mode: "COUNTER", provider: "MANUAL", kind: "CAPTURE", amount_cents: 5000, signed_cents: 5000, occurred_at: start.toISOString(), financial_account_id: "account-1", needs_reconciliation: false, display_description: "Corte · Profissional: Alef", financial_status: "PAID" }]}
+      receiptCatalogs={{ accounts: [{ id: "account-1", organization_id: "org-1", kind: "BANK", name: "Banco Principal", bank_code: null, branch: null, account_number: null, description: null, opening_balance_cents: 0, active: true }], chartAccounts: [], costCenters: [], tags: [], mappings: [] }}
+      appointments={[{ id: "appointment-paid", organization_id: "org-1", customer_id: customer.id, barber_id: barber.id, status: "COMPLETED", source: "MANAGER", service_period: `[${start.toISOString()},${end.toISOString()})`, payment_mode: "COUNTER", currency: "BRL", total_cents_snapshot: 5000, notes: null, schedule_override_reason: null, created_at: start.toISOString() }]}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Cliente Real" }));
+    expect(screen.getByText("Gestor")).toBeInTheDocument();
+    expect(screen.getByText("Pago")).toBeInTheDocument();
+    expect(screen.getByText("Conta: Banco Principal")).toBeInTheDocument();
   });
 
   it("carrega os catálogos financeiros ao abrir recebimento pela agenda", async () => {

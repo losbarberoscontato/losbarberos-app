@@ -2,7 +2,56 @@
 
 > Fonte técnica para manutenção do canal WhatsApp via Evolution API. Leia este documento antes de alterar agenda, lembretes, QR, webhooks, jobs ou notificações do WhatsApp.
 
-## Atualização — 01/09/2026
+## Estado atual — 07/09/2026
+
+O runtime confiável foi publicado no Supabase, Vercel e VPS. A migration `20260906230249_whatsapp_reliable_runtime.sql` está aplicada; `whatsapp-v2-dispatcher` v22, `whatsapp-qr-webhook` v34 e `whatsapp-qr-start` v16 estão publicadas. O worker dedicado está ativo na VPS e grava heartbeat no Supabase.
+
+Nenhuma organização está em `ACTIVE`. Portanto, a publicação não habilitou novos envios. A promoção continua explícita por organização: `LEGACY → SHADOW → ACTIVE`, após comparação no shadow e teste com número controlado.
+
+### Comparativo da implementação
+
+| Área | Existente antes | Implementado agora | Situação atual |
+| --- | --- | --- | --- |
+| Motor de envio | Dispatcher Edge e fila V2 sem proprietário persistente por worker | Claims com lease, token de proprietário, renovação, exclusão por conexão e `SEND_UNKNOWN` | Publicado; nenhum tenant novo ativado |
+| Persistência e agenda | Jobs V2 e regras transacionais já existentes | Contratos versionados, eventos de domínio, adaptadores de agenda/contato/consentimento e finalização atômica de job/histórico | Publicado e coberto por testes |
+| Recibos Evolution | Webhook deduplicava eventos de forma geral | Recibos `SUBMITTED`, `DELIVERED` e `READ` normalizados, idempotentes e tolerantes a ordem diferente | Publicado; recibo em aparelho pendente |
+| Worker | Sem worker dedicado na VPS | Worker Node separado do Vercel, ciclos independentes de jobs/eventos/mídia, estado no Supabase | Ativo na VPS, heartbeat validado |
+| Automações existentes | Confirmações, 08h, T-180 e T-45 | Fluxos preservados; desativação cancela pendências; expiração por início/atraso do atendimento | Publicado; piloto pendente |
+| Personalizadas | Configuração persistida e bloqueada | Pós-serviço 14/28/40, aniversário e campanhas, limites 1/dia e 2/semana, prioridades e modal no painel | Disponível somente para tenant `ACTIVE` |
+| Consentimento | Preferência transacional | Consentimento de marketing separado, sem backfill e revalidado antes do envio | Publicado |
+| Respostas 1/2/3 | Escolha determinística limitada | Contexto de mensagem citada e escolha `RESERVA n` quando houver ambiguidade | Publicado; teste real pendente |
+| Imagens e IA futura | Sem ingestão privada preparada | Evento normalizado, validação JPEG/PNG/WebP até 10 MB, bucket privado e retenção de 7 dias; interface de agente sem IA ativa | Publicado; ingestão real pendente |
+| Escala e recuperação | Uma VPS sem cadastro de proprietário por conexão | Cadastro de servidores, vínculo conexão-servidor, política de sessão única e runbook para segunda VPS aos 25 pagantes | Estrutura publicada; segunda VPS pendente no marco definido |
+| Saúde e alertas | Diagnóstico manual | Saúde simplificada no painel, contadores e heartbeat do worker | Heartbeat validado; destino externo de alerta pendente |
+| Painel | Cards e layout atuais | Layout preservado, status de runtime, campanhas em modal e controles condicionados à prontidão | Publicado em produção |
+| Testes | Cobertura V2 e UI anterior | Domínio, PGlite, worker, webhooks duplicados/fora de ordem, UI e carga simulada 120 organizações/60 mil clientes | CI verde; carga real pendente |
+| Evolution Manager v2 | Não integrado | Compose administrativo separado, perfil `admin`, acesso somente por túnel/proxy autenticado e imagem fixada por digest | **Preparado, não instalado**; não participa de envios |
+| Astra Campaign | Não usado | Referência arquitetural para editor visual, publicação de fluxos e sessões persistentes | **Não incorporado**; nenhum código AGPL foi copiado |
+
+### Repositórios externos avaliados
+
+- [Evolution Manager v2](https://github.com/evolution-foundation/evolution-manager-v2): não está executando na VPS. O projeto contém apenas a infraestrutura opcional e restrita em `infra/whatsapp/compose.manager.yml`; sua instalação exige imagem revisada e fixada por digest. Ele não fica no caminho de envio.
+- [Astra Campaign](https://github.com/AstraOnlineWeb/astracampaign): não está instalado nem incorporado. Foi usado somente como referência de produto para uma etapa futura de editor visual e fluxos. Seu código AGPL-3.0 não foi copiado para o Los Barberos.
+
+As seções históricas abaixo descrevem o motor anterior quando divergirem deste estado atual.
+
+- A fila V2 existente recebe tokens de lease, isolamento por conexão, prioridade operacional, deduplicação de recibos e estado `SEND_UNKNOWN`. Timeout ou falha após possível aceitação nunca gera reenvio automático.
+- Worker Node em `scripts/whatsapp-worker.mjs`; ciclos separados para envio e recebimento de mídia. Supabase persiste todo trabalho; Edge dispatcher continua como recuperação. O agendador de personalizadas tem intervalo mínimo de 30 segundos e lotes limitados.
+- Contratos e adaptadores ficam em `supabase/functions/_shared/whatsapp-*.ts` e RPCs `whatsapp_runtime_*`. Agenda, contato e consentimento registram eventos na própria transação. Leituras e comandos de agenda ficam nos adaptadores SQL.
+- A promoção por organização é explícita: LEGACY → SHADOW → ACTIVE. SHADOW mantém o produtor atual e oferece relatório de inspeção; ainda é necessário comparar os jobs esperados antes da promoção. Nunca habilitar dois consumidores para a mesma organização.
+- O painel preserva cards e controles. ACTIVE libera textos e toggles personalizados, modal de data/horário/público/prévia e cancelamento de campanhas pendentes. Desativação cancela pendências; a validação imediatamente anterior ao transporte reavalia preferências.
+- MARKETING é separado de WHATSAPP_TRANSACTIONAL. Conforme decisão do usuário, inicia ativo apenas no primeiro vínculo autenticado sem preferência anterior; recusas e contas antigas não recebem backfill. O perfil oferece dois controles independentes.
+- Pós-serviço usa a última conclusão registrada em `appointment_status_events`; dados legados sem esse evento usam o fim do atendimento. Nova reserva futura ou retorno concluído suprime recuperação. Limites: uma personalizada/dia e duas/semana civil no fuso da organização; aniversário precede pós-serviço, que precede campanhas.
+- Respostas ambíguas geram escolha `RESERVA n`; mensagens citadas identificam a solicitação original. Comando final valida organização, cliente, versão e validade.
+- Imagens entram somente pelo endpoint autenticado da Evolution, sem download de URLs fornecidas no webhook. Bucket privado, validação de estrutura JPEG/PNG/WebP, 10 MB e retenção de sete dias. A validação estrutural não equivale a decodificação completa. Interface de agente existe, mas IA não é instanciada nem recebe fotos.
+- Novas instâncias usam UUID completo; conexões existentes preservam seu identificador.
+- Segunda VPS: **25 usuários pagantes**, corrigindo o marco antigo de primeiros pagantes. Cadastro de servidores e vínculo da conexão estão preparados; transferência exige bloquear a sessão antiga na infraestrutura.
+
+Operação, rollback e instalação administrativa separada do Evolution Manager: [infra/whatsapp/README.md](../infra/whatsapp/README.md). Astra Campaign permanece referência conceitual, sem código incorporado.
+
+Validação e bloqueios: [whatsapp-runtime-validation.md](whatsapp-runtime-validation.md). Nenhuma entrega em aparelho, recuperação de VPS ou capacidade de produção pode ser inferida dos testes locais.
+
+## Histórico — 01/09/2026
 
 - Foi criado o controle individual das mensagens transacionais V2 na tela `/gestor/configuracoes/whatsapp`: confirmação ao cliente, confirmação ao barbeiro, presença às 08:00, presença T-180 e presença T-45.
 - Para preservar o comportamento já publicado, os quatro fluxos existentes iniciam ativos. O novo T-180 começa inativo e só agenda mensagens para novos agendamentos confirmados depois de sua ativação.
@@ -61,10 +110,10 @@ Agenda confirmada
 | Área | Arquivo/objeto | Responsabilidade |
 | --- | --- | --- |
 | Tela gestor | `src/components/connected-manager/whatsapp-settings.tsx` | Configuração, QR, conexão, saúde e número de aviso do gestor. |
-| Início QR | `supabase/functions/whatsapp-qr-start/index.ts` | Autentica owner, cria/reutiliza instância estável `lb-<8 primeiros caracteres do organization_id>`, reaplica webhook e retorna QR. |
+| Início QR | `supabase/functions/whatsapp-qr-start/index.ts` | Autentica owner, preserva identificadores existentes e cria novas instâncias com UUID completo, reaplica webhook e retorna QR. |
 | Webhook Evolution | `supabase/functions/whatsapp-qr-webhook/index.ts` | Valida assinatura, trata QR/status, persiste eventos de mensagem e dispara dispatcher. |
 | Saúde QR | `supabase/functions/whatsapp-qr-health/index.ts` | Executado por serviço; reaplica webhook e registra estado/erros da instância. |
-| Dispatcher V2 | `supabase/functions/whatsapp-v2-dispatcher/index.ts` | Consome eventos e jobs, cria solicitações de confirmação, interpreta `1`/`2`/`3` e envia texto pela Evolution. |
+| Dispatcher V2 | `supabase/functions/whatsapp-v2-dispatcher/index.ts` | Recupera o runtime e o legado compatível; o worker dedicado executa claims de produção, interpreta eventos e envia pela Evolution. |
 | Transporte | `supabase/functions/_shared/whatsapp.ts` | Resolve sender QR e chama Evolution para envio de texto. |
 | Identidade inbound | `supabase/functions/_shared/evolution-message.ts` | Extrai telefone do JID; usa `remoteJidAlt` para LID e rejeita grupos/broadcasts. |
 | Configuração webhook | `supabase/functions/_shared/evolution-qr-webhook.ts` | Define URL assinada e eventos obrigatórios da Evolution. |
@@ -102,7 +151,7 @@ Todas as tabelas de negócio usam `organization_id`. Relações compostas e RLS 
 | --- | --- |
 | `whatsapp_business_connections` | Conexão `QR_WEB`, instância, estado, telefone conectado e referência secreta. |
 | `whatsapp_automation_settings_v2` | Modo `OFF`/`SHADOW`/`ACTIVE`, pausa, telefone separado do gestor e toggles dos cinco fluxos transacionais. |
-| `whatsapp_custom_message_settings_v2` | Texto e ativação futura de mensagens pós-serviço, felicitações e marketing; não é fila de entrega. |
+| `whatsapp_custom_message_settings_v2` | Textos e controles de pós-serviço, aniversário e campanhas; os jobs são criados pelo runtime para organizações `ACTIVE`. |
 | `whatsapp_contact_preferences_v2` | Preferência transacional por cliente. |
 | `whatsapp_automation_jobs` | Fila persistente de saída; lease, retry, dedupe, tentativa e estado. |
 | `whatsapp_confirmation_requests_v2` | Uma solicitação de resposta pendente por fluxo; fase, expiração e contagem de respostas inválidas. |
@@ -193,7 +242,7 @@ O portal do cliente apresenta somente `Agendado`, `Confirmado`, `Cancelado` e `C
 - Jobs usam lease, `FOR UPDATE SKIP LOCKED`, retry e dead letter; correções preservam histórico.
 - Cancelamento usa RPC transacional; não atualizar ocupação/financeiro diretamente no webhook.
 - Opt-out transacional cancela jobs de cliente ainda pendentes; não contornar consentimento.
-- Mensagens personalizadas salvas não podem ser enfileiradas até que uma automação específica, revisão de consentimento e regra de agendamento sejam implementadas e autorizadas.
+- Personalizadas só podem ser enfileiradas para organização `ACTIVE`, com consentimento revalidado, limites de frequência e janela de envio válidos.
 
 ## Operação, diagnóstico e evidências
 
