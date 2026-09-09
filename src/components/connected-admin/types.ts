@@ -38,4 +38,9 @@ export interface AdminControlPlaneData {
   errors: string[];
   loadedAt: string;
   accessEventLimit: number;
+  modules?: AdminModule[];
+  modulePrices?: AdminModulePrice[];
 }
+
+export interface AdminModule { key: string; name: string; description: string; active: boolean; }
+export interface AdminModulePrice { module_key: string; monthly_price_cents: number; effective_from: string; effective_until: string | null; }

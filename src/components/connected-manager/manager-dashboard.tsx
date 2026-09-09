@@ -69,7 +69,7 @@ export function ManagerDashboard(props: Props) {
           <span className={styles.appointmentTime}>{formatRange(appointment.service_period, props.organization.timezone)}</span>
           <span className={styles.rowTitle}><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente removido"}</strong><small>{barberById.get(appointment.barber_id)?.display_name ?? "Profissional"}</small></span>
           <StatusChip active={["CONFIRMED", "IN_SERVICE", "COMPLETED"].includes(appointment.status)} label={displayStatus.label} tone={displayStatus.tone} />
-          <strong className={styles.appointmentValue}>{formatCents(appointment.total_cents_snapshot)}</strong>
+          <strong className={styles.appointmentValue}>{appointment.payment_mode === "SUBSCRIPTION" ? "Sessão assinatura" : formatCents(appointment.total_cents_snapshot)}</strong>
         </article>;
         })}</div>}
       </Panel>

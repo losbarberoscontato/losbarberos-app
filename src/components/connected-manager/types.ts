@@ -482,6 +482,6 @@ export interface PaymentAccountMappingRecord {
   id: string;
   organization_id: string;
   provider: "MERCADO_PAGO" | "MANUAL";
-  payment_mode: "DEPOSIT" | "FULL" | "COUNTER";
+  payment_mode: "DEPOSIT" | "FULL" | "COUNTER" | "SUBSCRIPTION";
   financial_account_id: string;
 }

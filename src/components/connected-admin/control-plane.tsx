@@ -47,6 +47,10 @@ function SubscriptionDates({ subscription }: { subscription: AdminSubscription |
   return <dl className={styles.milestones}>{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{formatAdminInstant(value)}</dd></div>)}</dl>;
 }
 
+function formatModuleCents(value: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value / 100);
+}
+
 export function AdminControlPlane({ data }: { data: AdminControlPlaneData }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -58,6 +62,8 @@ export function AdminControlPlane({ data }: { data: AdminControlPlaneData }) {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [modulePriceDrafts, setModulePriceDrafts] = useState<Record<string, string>>({});
+  const [moduleSaving, setModuleSaving] = useState<string | null>(null);
 
   const subscriptionByOrganization = useMemo(
     () => new Map(data.subscriptions.map((subscription) => [subscription.organization_id, subscription])),
@@ -137,6 +143,22 @@ export function AdminControlPlane({ data }: { data: AdminControlPlaneData }) {
     }
   }
 
+  async function saveModulePrice(moduleKey: string) {
+    const raw = modulePriceDrafts[moduleKey];
+    const cents = Math.round(Number(String(raw ?? "").trim().replace(/\./gu, "").replace(",", ".")) * 100);
+    if (!Number.isFinite(cents) || cents < 0) { setMutationError("Informe um preço válido."); return; }
+    setModuleSaving(moduleKey); setMutationError(null);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) throw new Error("Supabase não configurado.");
+      const result = await supabase.rpc("set_platform_module_price", { p_module_key: moduleKey, p_monthly_price_cents: cents, p_effective_from: new Date().toISOString().slice(0, 10) });
+      if (result.error) throw new Error(result.error.message);
+      setFeedback({ kind: "success", message: "Preço do módulo atualizado." });
+      router.refresh();
+    } catch { setMutationError("Não foi possível atualizar o preço do módulo."); }
+    finally { setModuleSaving(null); }
+  }
+
   useEffect(() => {
     if (!accessChange) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -178,6 +200,11 @@ export function AdminControlPlane({ data }: { data: AdminControlPlaneData }) {
         <section className={styles.revenueNotice}>
           <CircleOff size={18} />
           <div><strong>MRR não calculado</strong><p>Banco guarda Stripe Price ID, não valor monetário do Price. Receita não será inferida nem hardcoded.</p></div>
+        </section>
+
+        <section className={styles.panel} aria-labelledby="modules-title">
+          <div className={styles.panelHeading}><div><h2 id="modules-title">Módulos e preços futuros</h2><p>Configuração exclusiva do Platform Admin. Ainda não altera o Stripe.</p></div></div>
+          {(data.modules ?? []).length === 0 ? <div className={styles.empty}><CircleOff size={28} /><strong>Nenhum módulo cadastrado</strong></div> : <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Módulo</th><th>Preço mensal</th><th>Vigência</th><th /></tr></thead><tbody>{(data.modules ?? []).map((module) => { const current = (data.modulePrices ?? []).find((price) => price.module_key === module.key && !price.effective_until) ?? (data.modulePrices ?? []).find((price) => price.module_key === module.key); return <tr key={module.key}><td><strong>{module.name}</strong><small>{module.description}</small></td><td><input aria-label={`Preço de ${module.name}`} inputMode="decimal" defaultValue={current ? (current.monthly_price_cents / 100).toFixed(2).replace(".", ",") : ""} onChange={(event) => setModulePriceDrafts((drafts) => ({ ...drafts, [module.key]: event.target.value }))} /></td><td>{current?.effective_from ?? "—"}</td><td><button type="button" disabled={moduleSaving === module.key} onClick={() => void saveModulePrice(module.key)}>{moduleSaving === module.key ? "Salvando…" : "Salvar preço"}</button>{current && <small>{formatModuleCents(current.monthly_price_cents)}</small>}</td></tr>; })}</tbody></table></div>}
         </section>
 
         <section className={styles.panel} aria-labelledby="organizations-title">

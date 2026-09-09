@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import type { loadCatalogData } from "./server";
@@ -138,7 +139,7 @@ export function CatalogManager({ organizationId, services, packages: allPackages
   return <div className={styles.stack}>
     <PageHeader title="Serviços" description="Cadastre serviços e combinações para sua agenda." />
     <ActionMessage message={message} />
-    <nav className={styles.catalogTabs} aria-label="Cadastro do catálogo"><button type="button" className={tab === "SERVICES" ? styles.tabActive : styles.tab} onClick={() => setTab("SERVICES")}>Serviços</button><button type="button" className={tab === "PACKAGES" ? styles.tabActive : styles.tab} onClick={() => setTab("PACKAGES")}>Pacotes</button></nav>
+    <nav className={styles.catalogTabs} aria-label="Cadastro do catálogo"><button type="button" className={tab === "SERVICES" ? styles.tabActive : styles.tab} onClick={() => setTab("SERVICES")}>Serviços</button><button type="button" className={tab === "PACKAGES" ? styles.tabActive : styles.tab} onClick={() => setTab("PACKAGES")}>Pacotes</button><Link className={styles.tab} href="/gestor/catalogo/planos">Planos de assinatura</Link></nav>
 
     {tab === "SERVICES" && <Panel title="Serviços" titleAdornment={<select className={styles.packageFilterSelect} aria-label="Filtro de serviços" value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value as "ACTIVE" | "INACTIVE")}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select>} description={`${services.filter((item) => item.active).length} ativos`} action={<button className={styles.button} type="button" onClick={() => setServiceForm("new")}>Adicionar serviço</button>}>
       {visibleServices.length === 0 ? <EmptyState title={serviceFilter === "ACTIVE" ? "Sem serviços ativos" : "Sem serviços inativos"}>{serviceFilter === "ACTIVE" ? "Cadastre ou reative um serviço." : "Nenhum serviço inativo no momento."}</EmptyState> : <div className={styles.list}>{visibleServices.map((service) => <article className={styles.row} key={service.id}><span className={styles.rowTitle}><strong>{service.name}</strong><small>{service.description ?? "Sem descrição"}</small><small>{service.audiences.map(audienceLabel).join(" · ") || "Sem público"}</small></span><strong>{formatCents(service.price_cents)}</strong><span>{service.duration_minutes} min</span><StatusChip active={service.active} /><span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setServiceForm(service)}>Editar</button><button className={`${styles.button} ${styles.buttonSmall} ${service.active ? styles.buttonDanger : styles.buttonSoft}`} type="button" onClick={() => toggle("services", service)}>{service.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>}
