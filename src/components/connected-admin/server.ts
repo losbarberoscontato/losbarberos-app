@@ -6,6 +6,8 @@ import type {
   AdminControlPlaneData,
   AdminOrganization,
   AdminSubscription,
+  AdminModule,
+  AdminModulePrice,
 } from "./types";
 
 const ACCESS_EVENT_LIMIT = 500;
@@ -20,10 +22,12 @@ export async function loadAdminControlPlaneData(): Promise<AdminControlPlaneData
       errors: ["Supabase não configurado."],
       loadedAt: new Date().toISOString(),
       accessEventLimit: ACCESS_EVENT_LIMIT,
+      modules: [],
+      modulePrices: [],
     };
   }
 
-  const [organizationsResult, subscriptionsResult, accessEventsResult] = await Promise.all([
+  const [organizationsResult, subscriptionsResult, accessEventsResult, modulesResult, modulePricesResult] = await Promise.all([
     supabase
       .from("organizations")
       .select("id,name,slug,timezone,currency,created_at")
@@ -37,6 +41,8 @@ export async function loadAdminControlPlaneData(): Promise<AdminControlPlaneData
       .select("id,organization_id,from_status,to_status,reason,created_at")
       .order("created_at", { ascending: false })
       .limit(ACCESS_EVENT_LIMIT),
+    supabase.from("platform_modules").select("key,name,description,active").order("name"),
+    supabase.from("platform_module_price_versions").select("module_key,monthly_price_cents,effective_from,effective_until").order("effective_from", { ascending: false }),
   ]);
 
   const errors: string[] = [];
@@ -51,5 +57,7 @@ export async function loadAdminControlPlaneData(): Promise<AdminControlPlaneData
     errors,
     loadedAt: new Date().toISOString(),
     accessEventLimit: ACCESS_EVENT_LIMIT,
+    modules: (modulesResult.data ?? []) as AdminModule[],
+    modulePrices: (modulePricesResult.data ?? []) as AdminModulePrice[],
   };
 }

@@ -206,7 +206,7 @@ export type CustomerAppointment = {
   status: AppointmentStatus;
   whatsapp_response_status: AppointmentWhatsAppResponseStatus;
   service_period: string;
-  payment_mode: "DEPOSIT" | "FULL" | "COUNTER";
+  payment_mode: "DEPOSIT" | "FULL" | "COUNTER" | "SUBSCRIPTION";
   currency: string;
   total_cents_snapshot: number;
   deposit_required_cents_snapshot: number;

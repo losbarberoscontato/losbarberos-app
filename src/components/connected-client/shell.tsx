@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, CalendarPlus2, ChevronRight, LogOut, MapPin, Menu, UserRound, X } from "lucide-react";
+import { CalendarDays, CalendarPlus2, ChevronRight, CreditCard, LogOut, MapPin, Menu, UserRound, X } from "lucide-react";
 import { useState } from "react";
 import { Brand } from "@/components/brand";
 import { ConnectedClientProvider, useConnectedClient } from "@/components/connected-client/context";
@@ -13,6 +13,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 const navigation = [
   { href: "/cliente/agendar", label: "Agendar", icon: CalendarPlus2 },
   { href: "/cliente/reservas", label: "Reservas", icon: CalendarDays },
+  { href: "/cliente/assinaturas", label: "Assinaturas", icon: CreditCard },
   { href: "/cliente/perfil", label: "Perfil", icon: UserRound },
 ];
 

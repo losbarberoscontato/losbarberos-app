@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import {
   Bell,
   CalendarDays,
@@ -127,12 +127,46 @@ function OrganizationSwitcher({ organizationName, locationName, organizationLogo
   </div>;
 }
 
-export function ManagerShell({ children, demoMode = false, billingBlocked = false, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0 }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number }) {
+type ManagerNotification = { id: string; title: string; body: string; href: string; read_at: string | null; created_at: string };
+
+export function ManagerShell({ children, demoMode = false, billingBlocked = false, organizationId, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0 }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; organizationId?: string | null; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const [organizationNotice, setOrganizationNotice] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<ManagerNotification[]>([]);
+
+  useEffect(() => {
+    if (demoMode || !organizationId) return;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const client = supabase;
+    let disposed = false;
+    async function loadNotifications() {
+      const { data } = await client
+        .from("manager_notifications")
+        .select("id,title,body,href,read_at,created_at")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false })
+        .limit(12);
+      if (!disposed) setNotifications((data ?? []) as ManagerNotification[]);
+    }
+    void loadNotifications();
+    const interval = window.setInterval(() => void loadNotifications(), 30_000);
+    return () => { disposed = true; window.clearInterval(interval); };
+  }, [demoMode, organizationId]);
+
+  async function openNotification(notification: ManagerNotification) {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase && !notification.read_at) {
+      await supabase.from("manager_notifications").update({ read_at: new Date().toISOString() }).eq("id", notification.id);
+      setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
+    }
+    setNotificationsOpen(false);
+    router.push(notification.href);
+  }
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -231,10 +265,14 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
             <Link href="/cliente/agendar" className="topbar-preview">
               Ver página do cliente
             </Link>
-            <button type="button" className="icon-button notification-button" aria-label="Notificações">
+            <button type="button" className="icon-button notification-button" aria-label="Notificações" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((open) => !open)}>
               <Bell size={19} />
-              <span />
+              {notifications.some((notification) => !notification.read_at) && <span />}
             </button>
+            {notificationsOpen && <div className="manager-notifications-popover" role="dialog" aria-label="Notificações">
+              <div className="manager-notifications-popover__head"><strong>Notificações</strong><small>{notifications.filter((notification) => !notification.read_at).length} novas</small></div>
+              {notifications.length === 0 ? <p className="manager-notifications-popover__empty">Nenhuma notificação nova.</p> : <div className="manager-notifications-popover__list">{notifications.map((notification) => <button type="button" key={notification.id} className={`manager-notification${notification.read_at ? " is-read" : ""}`} onClick={() => void openNotification(notification)}><strong>{notification.title}</strong><span>{notification.body}</span><small>{new Date(notification.created_at).toLocaleString("pt-BR")}</small></button>)}</div>}
+            </div>}
             <Avatar initials="GC" tone="amber" size="sm" />
           </div>
         </header>

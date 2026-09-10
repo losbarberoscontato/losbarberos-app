@@ -107,6 +107,8 @@ function BookingContent() {
   const dates = useMemo(() => context ? dateOptions(context.organization.timezone) : [], [context]);
   const [step, setStep] = useState(1);
   const [choiceId, setChoiceId] = useState("");
+  const [subscriptionSessionId, setSubscriptionSessionId] = useState<string | null>(null);
+  const [subscriptionSelections, setSubscriptionSelections] = useState<Array<{ type: "SERVICE"; service_id: string; quantity: number }>>([]);
   const [barberMode, setBarberMode] = useState<BarberMode>("");
   const [barberId, setBarberId] = useState("");
   const [localDate, setLocalDate] = useState("");
@@ -135,6 +137,8 @@ function BookingContent() {
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const choice = choices.find((item) => item.id === choiceId) ?? null;
+  const isSubscriptionBooking = Boolean(subscriptionSessionId && subscriptionSelections.length);
+  const currentSelections = useCallback(() => subscriptionSelections.length ? subscriptionSelections : choice ? bookingSelection(choice) : [], [choice, subscriptionSelections]);
   const resetBookingHold = useCallback((options?: { clearSlot?: boolean; refreshAvailability?: boolean }) => {
     setBookingHold(null);
     setAccepted(false);
@@ -193,13 +197,37 @@ function BookingContent() {
       }
     });
   }, [customer, slug, user]);
+
+  useEffect(() => {
+    if (!supabase || !context || !customer) return;
+    const sessionId = new URLSearchParams(window.location.search).get("subscriptionSession");
+    if (!sessionId) return;
+    let active = true;
+    void Promise.resolve(supabase.from("customer_subscription_sessions").select("id,subscription_id,status").eq("id", sessionId).eq("organization_id", context.organization.id).single()).then(async ({ data: session, error }) => {
+      if (error || !session || session.status !== "AVAILABLE") throw new Error("Sessão de assinatura indisponível.");
+      const { data: subscription, error: subscriptionError } = await supabase.from("customer_subscriptions").select("id,customer_id,plan_version_id,status").eq("id", session.subscription_id).eq("organization_id", context.organization.id).single();
+      if (subscriptionError || !subscription || subscription.customer_id !== customer.id || subscription.status !== "ACTIVE") throw new Error("Assinatura não está ativa.");
+      const { data: links, error: linksError } = await supabase.from("subscription_plan_services").select("service_id").eq("organization_id", context.organization.id).eq("plan_version_id", subscription.plan_version_id).order("position");
+      if (linksError || !links?.length) throw new Error("Serviços da assinatura não encontrados.");
+      if (!active) return;
+      setSubscriptionSessionId(sessionId);
+      setSubscriptionSelections(links.map((link) => ({ type: "SERVICE" as const, service_id: link.service_id, quantity: 1 })));
+      const firstService = context.services.find((service) => service.id === links[0].service_id);
+      setSelectedAudience(firstService?.audiences?.[0] ?? CATALOG_AUDIENCES[0]);
+      setChoiceId(links[0].service_id);
+      setStep(2);
+    }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Sessão de assinatura indisponível."); });
+    return () => { active = false; };
+  }, [context, customer, supabase]);
   const compatibleBarbers = useMemo(() => {
     if (!context || !choice) return context?.barbers ?? [];
-    const requiredServices = serviceIdsForChoice(context, choice);
+    const requiredServices = isSubscriptionBooking
+      ? subscriptionSelections.map((selection) => selection.service_id)
+      : serviceIdsForChoice(context, choice);
     return context.barbers.filter((item) =>
       barberSupportsServices(requiredServices, item.service_ids)
     );
-  }, [choice, context]);
+  }, [choice, context, isSubscriptionBooking, subscriptionSelections]);
   const barber = compatibleBarbers.find((item) => item.id === barberId) ?? null;
 
   useEffect(() => {
@@ -313,7 +341,7 @@ function BookingContent() {
       organizationSlug: slug,
       barberId,
       localDate,
-      selections: bookingSelection(choice),
+      selections: currentSelections(),
       walkinQueueHoldId,
     }).then((result) => {
       if (active) setSlots(result?.slots ?? []);
@@ -326,7 +354,7 @@ function BookingContent() {
       if (active) setSlotsLoading(false);
     });
     return () => { active = false; };
-  }, [availabilityRetry, barberId, barberMode, bookingHold, choice, context, localDate, slug, supabase, walkinQueueHoldId]);
+  }, [availabilityRetry, barberId, barberMode, bookingHold, choice, context, currentSelections, localDate, slug, supabase, walkinQueueHoldId]);
 
   useEffect(() => {
     if (!supabase || !context || !slug || !choice || barberMode !== "ANY" || !localDate || !context.organization.accepting_bookings) {
@@ -346,7 +374,7 @@ function BookingContent() {
     void getAvailableSlotsForDate(supabase, {
       organizationSlug: slug,
       localDate,
-      selections: bookingSelection(choice),
+      selections: currentSelections(),
     }).then((result) => {
       if (active) setDateAvailableSlots(result?.options ?? []);
     }).catch((cause: unknown) => {
@@ -358,7 +386,7 @@ function BookingContent() {
       if (active) setDateSlotsLoading(false);
     });
     return () => { active = false; };
-  }, [availabilityRetry, barberMode, choice, context, localDate, slug, supabase]);
+  }, [availabilityRetry, barberMode, choice, context, currentSelections, localDate, slug, supabase]);
 
   useEffect(() => {
     if (!context?.organization.accepting_bookings) return;
@@ -427,12 +455,20 @@ function BookingContent() {
     const requestKey = holdRequestKeyRef.current || crypto.randomUUID();
     holdRequestKeyRef.current = requestKey;
     try {
+      if (subscriptionSessionId) {
+        const { data, error: bookingError } = await supabase.rpc("book_customer_subscription_session", { p_organization_id: organization.id, p_customer_id: customer.id, p_subscription_session_id: subscriptionSessionId, p_barber_id: barber.id, p_starts_at: startsAt });
+        if (bookingError) throw bookingError;
+        resetBookingHold();
+        window.sessionStorage.removeItem(draftKey(tenantSlug));
+        router.push(`/cliente/reservas?barbearia=${encodeURIComponent(tenantSlug)}&appointment_id=${String((data as { appointment_id?: string }).appointment_id ?? "")}`);
+        return;
+      }
       const hold = await acquireBookingHold(supabase, {
         organizationId: organization.id,
         customerId: customer.id,
         barberId: barber.id,
         startsAt,
-        selections: bookingSelection(choice),
+        selections: currentSelections(),
         idempotencyKey: requestKey,
         walkinQueueHoldId,
       });
@@ -589,8 +625,8 @@ function BookingContent() {
         {step > 1 && choice && (
           <div className={styles.selectionStrip}>
             <Scissors size={18} aria-hidden="true" />
-            <span><small>Seu serviço</small><strong>{choice.name}</strong></span>
-            <b>{formatMoney(choice.priceCents, organization.currency)}</b>
+            <span><small>{isSubscriptionBooking ? "Sessão assinatura" : "Seu serviço"}</small><strong>{isSubscriptionBooking ? "Serviços do plano completo" : choice.name}</strong></span>
+            <b>{isSubscriptionBooking ? "Incluída no plano" : formatMoney(choice.priceCents, organization.currency)}</b>
           </div>
         )}
 
@@ -799,8 +835,8 @@ function BookingContent() {
           <div className={styles.reviewGrid}>
             <aside className={styles.summary}>
               <span>Resumo do agendamento</span><h2>{choice.name}</h2>
-              <dl><div><dt>Profissional</dt><dd>{barber.name}</dd></div><div><dt>Data e hora</dt><dd>{formatLocalDate(localDate)} · {formatSlotTime(startsAt, organization.timezone)}</dd></div><div><dt>Total</dt><dd>{formatMoney(choice.priceCents, organization.currency)}</dd></div><div className={styles.due}><dt>Pagar no atendimento</dt><dd>{formatMoney(choice.priceCents, organization.currency)}</dd></div></dl>
-              <p>Sem pagamento antecipado neste momento.</p>
+              <dl><div><dt>Profissional</dt><dd>{barber.name}</dd></div><div><dt>Data e hora</dt><dd>{formatLocalDate(localDate)} · {formatSlotTime(startsAt, organization.timezone)}</dd></div><div><dt>Total</dt><dd>{isSubscriptionBooking ? "Incluída no plano" : formatMoney(choice.priceCents, organization.currency)}</dd></div><div className={styles.due}><dt>{isSubscriptionBooking ? "Cobrança" : "Pagar no atendimento"}</dt><dd>{isSubscriptionBooking ? "Sem cobrança avulsa" : formatMoney(choice.priceCents, organization.currency)}</dd></div></dl>
+              <p>{isSubscriptionBooking ? "Esta sessão será vinculada à sua assinatura." : "Sem pagamento antecipado neste momento."}</p>
             </aside>
             <div className={styles.reviewMain}>
               {!user ? <AuthPrompt description="Entre com e-mail para identificar seu cadastro antes de confirmar." /> : (

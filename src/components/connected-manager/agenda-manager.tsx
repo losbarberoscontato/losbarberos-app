@@ -431,7 +431,7 @@ export function AgendaManager(props: Props) {
           <span><UserRound size={17} /><div><small>Profissional</small><strong>{selectedBarberRecord?.display_name ?? "Profissional"}</strong></div></span>
           <span><MapPin size={17} /><div><small>Origem</small><strong>{appointmentSourceLabel(selected.source)}</strong></div></span>
         </div>
-        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span><small>{selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</div><strong>{formatCents(selected.total_cents_snapshot)}</strong><span>Saldo: {formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}</span></div>
+        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span><small>{selected.payment_mode === "SUBSCRIPTION" ? "Sessão assinatura" : selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</div><strong>{selected.payment_mode === "SUBSCRIPTION" ? "Incluída no plano" : formatCents(selected.total_cents_snapshot)}</strong><span>{selected.payment_mode === "SUBSCRIPTION" ? "Sem cobrança avulsa" : `Saldo: ${formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}`}</span></div>
         {selectedCustomerRecord?.phone_e164 && <div className="appointment-detail__contact"><a href={`https://web.whatsapp.com/send?phone=${selectedCustomerRecord.phone_e164.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a></div>}
       </div>
       <div className="appointment-detail__actions">
