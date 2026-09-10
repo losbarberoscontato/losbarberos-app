@@ -714,7 +714,7 @@ export async function loadFinanceData() {
     financialEntries: requireData(entries, "Contas financeiras") as Array<{
       id: string;
       organization_id: string;
-      source: "MANUAL" | "APPOINTMENT";
+      source: "MANUAL" | "APPOINTMENT" | "SUBSCRIPTION";
       kind: "REVENUE" | "EXPENSE";
       due_date: string;
       remaining_cents: number;
@@ -829,7 +829,6 @@ export async function loadCashData() {
         "id,organization_id,source,kind,description,issue_date,due_date,total_cents,settled_cents,remaining_cents,status,chart_account_id,cost_center_id,preferred_financial_account_id,counterparty_kind,customer_id,supplier_id,document_number,canceled_at,cancellation_reason",
       )
       .eq("organization_id", organizationId)
-      .eq("source", "MANUAL")
       .order("due_date", { ascending: false })
       .limit(MANAGER_ROW_LIMIT),
     supabase

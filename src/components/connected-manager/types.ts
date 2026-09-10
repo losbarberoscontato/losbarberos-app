@@ -411,7 +411,7 @@ export interface FinancialEntryRecord {
   id: string;
   organization_id: string;
   kind: "REVENUE" | "EXPENSE";
-  source?: "MANUAL" | "APPOINTMENT";
+  source?: "MANUAL" | "APPOINTMENT" | "SUBSCRIPTION";
   description: string;
   issue_date: string;
   due_date: string;
