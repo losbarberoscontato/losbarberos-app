@@ -147,9 +147,11 @@ export function CustomersManager({
     if (!customerId) return;
     const customer = customers.find((item) => item.id === customerId);
     if (customer) {
-      setEditing(customer);
-      setFormOpen(true);
-      setHistoryCustomer(null);
+      queueMicrotask(() => {
+        setEditing(customer);
+        setFormOpen(true);
+        setHistoryCustomer(null);
+      });
     }
   }, [customers]);
 

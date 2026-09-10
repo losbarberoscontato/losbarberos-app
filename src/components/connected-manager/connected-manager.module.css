@@ -1,4 +1,7 @@
 .stack { display: grid; gap: 1.25rem; }
+.backLink { display: inline-flex; align-items: center; gap: .42rem; width: fit-content; margin-top: -.45rem; color: #315f51; font-size: .82rem; font-weight: 800; text-decoration: none; }
+.backLink:hover { color: #173e33; text-decoration: underline; text-underline-offset: .2em; }
+.backLink:focus-visible { outline: 3px solid rgb(47 107 93 / 24%); outline-offset: 4px; border-radius: 4px; }
 .reportsLayout { gap: 1.5rem; }
 .reportsLayout > .tabs { padding: .35rem; border: 1px solid #e4e9e2; border-radius: 15px; background: #f7f8f5; }
 .reportsFilters { margin: 0; padding: 1rem; border: 1px solid rgba(36, 42, 38, .11); border-radius: 16px; background: #fff; box-shadow: 0 8px 22px rgba(41, 48, 42, .045); }
