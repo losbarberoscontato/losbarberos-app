@@ -21,6 +21,7 @@ type Props = Omit<
   | "subscriptionSessions"
   | "subscriptionPlans"
   | "chartAccounts"
+  | "financialAccounts"
 > &
   Partial<
     Pick<
@@ -30,6 +31,7 @@ type Props = Omit<
       | "subscriptionSessions"
       | "subscriptionPlans"
       | "chartAccounts"
+      | "financialAccounts"
     >
   >;
 type CustomerFilter = "ACTIVE" | "INACTIVE";
@@ -84,6 +86,7 @@ export function CustomersManager({
   subscriptionSessions = [],
   subscriptionPlans = [],
   chartAccounts = [],
+  financialAccounts = [],
 }: Props) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(customers.length === 0);
@@ -104,6 +107,12 @@ export function CustomersManager({
   const [inactivationReason, setInactivationReason] = useState("");
   const [customInactivationReason, setCustomInactivationReason] = useState("");
   const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
+  const [subscriptionControlId, setSubscriptionControlId] = useState<string | null>(null);
+  const [presentialCustomerId, setPresentialCustomerId] = useState<string | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<{ subscriptionId: string; cycleId: string; amountCents: number; method: string; dueOn: string } | null>(null);
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentAccountId, setPaymentAccountId] = useState("");
+  const [paymentReference, setPaymentReference] = useState("");
   const [todayTimestamp] = useState(() => Date.now());
   const filtered = customers.filter(
     (customer) =>
@@ -424,6 +433,9 @@ export function CustomersManager({
     cycleId: string,
     amountCents: number,
     method: string,
+    financialAccountId = String(financialAccounts[0]?.id ?? ""),
+    paidOn = new Date().toISOString().slice(0, 10),
+    externalReference = "",
   ) {
     const chart = (chartAccounts as Array<{ id: string; name?: string }>)[0];
     if (!chart) {
@@ -442,12 +454,31 @@ export function CustomersManager({
             p_method: method,
             p_idempotency_key: `manager-payment-${cycleId}`,
             p_chart_account_id: chart.id,
+            p_financial_account_id: financialAccountId,
+            p_paid_on: paidOn,
+            p_external_reference: externalReference || null,
           }),
         );
       },
       "Parcela registrada e assinatura ativada.",
     );
     if (saved) router.refresh();
+  }
+
+  function openPaymentDialog(subscriptionId: string, cycle: { id: unknown; amount_cents?: unknown; due_on?: unknown }, method: string) {
+    setPaymentTarget({ subscriptionId, cycleId: String(cycle.id), amountCents: Number(cycle.amount_cents ?? 0), method, dueOn: String(cycle.due_on ?? "") });
+    setPaymentDate(new Date().toISOString().slice(0, 10));
+    setPaymentAccountId(String(financialAccounts[0]?.id ?? ""));
+    setPaymentReference("");
+  }
+
+  function sessionPresentation(session: { status?: unknown; session_number?: unknown; appointment_id?: unknown }, totalSessions: number) {
+    const appointment = appointments.find((item) => item.id === String(session.appointment_id ?? ""));
+    const start = appointment ? parsePostgresRange(appointment.service_period)?.start : null;
+    const label = session.status === "SCHEDULED" || session.status === "COMPLETED"
+      ? (start ? new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" }).format(start).replace(".", "") : "Agendada")
+      : `${String(session.session_number ?? "—")} de ${totalSessions}`;
+    return { label, tone: session.status === "COMPLETED" ? "completed" : session.status === "CANCELED" || session.status === "CONSUMED" ? "canceled" : session.status === "AVAILABLE" ? "available" : "scheduled" };
   }
 
   return (
@@ -985,10 +1016,6 @@ export function CustomersManager({
                                 (cycle) =>
                                   cycle.subscription_id === subscription.id,
                               );
-                              const sessions = subscriptionSessions.filter(
-                                (session) =>
-                                  session.subscription_id === subscription.id,
-                              );
                               const paymentLabels: Record<string, string> = {
                                 CARD: "Cartão",
                                 PIX: "PIX",
@@ -999,27 +1026,18 @@ export function CustomersManager({
                               };
                               return (
                                 <article
-                                  className={styles.row}
+                                  className={`${styles.row} ${styles.subscriptionSummaryRow}`}
                                   key={String(subscription.id)}
                                 >
                                   <span className={styles.rowTitle}>
-                                    <strong>{plan?.name ?? "Plano"}</strong>
-                                    <small>
-                                      {plan?.description ?? "Sem descrição"}
-                                    </small>
-                                    <small>
-                                      {String(subscription.status)} ·{" "}
-                                      {version?.billing_period === "BIWEEKLY"
-                                        ? "Quinzenal"
-                                        : "Mensal"}{" "}
-                                      · {version?.sessions_per_cycle ?? 0}{" "}
-                                      sessões/ciclo
-                                    </small>
+                                    <button type="button" className={styles.subscriptionLink} onClick={() => setSubscriptionControlId(String(subscription.id))}>
+                                      {plan?.name ?? "Plano"}
+                                    </button>
                                   </span>
                                   <strong>
                                     {formatCents(version?.price_cents ?? 0)}
                                   </strong>
-                                  <span>
+                                  <span className={styles.subscriptionSummaryPayment}>
                                     Venc.{" "}
                                     {String(subscription.first_due_date ?? "—")}{" "}
                                     ·{" "}
@@ -1030,42 +1048,7 @@ export function CustomersManager({
                                         subscription.payment_method ?? "—",
                                       )}
                                   </span>
-                                  <span>
-                                    {
-                                      cycles.filter(
-                                        (cycle) => cycle.status === "PAID",
-                                      ).length
-                                    }{" "}
-                                    pagas ·{" "}
-                                    {
-                                      cycles.filter(
-                                        (cycle) =>
-                                          cycle.status === "OPEN" ||
-                                          cycle.status === "OVERDUE",
-                                      ).length
-                                    }{" "}
-                                    a vencer ·{" "}
-                                    {
-                                      sessions.filter(
-                                        (session) =>
-                                          session.status === "SCHEDULED",
-                                      ).length
-                                    }{" "}
-                                    agendadas ·{" "}
-                                    {
-                                      sessions.filter(
-                                        (session) => session.status === "COMPLETED",
-                                      ).length
-                                    }{" "}
-                                    concluídas ·{" "}
-                                    {
-                                      sessions.filter(
-                                        (session) =>
-                                          session.status === "AVAILABLE",
-                                      ).length
-                                    }{" "}
-                                    abertas
-                                  </span>
+                                  <span className={styles.subscriptionSummaryStatus}>{String(subscription.status) === "ACTIVE" ? "Ativo" : String(subscription.status) === "PENDING_PAYMENT" ? "Pendente" : "Solicitado"}</span>
                                   <span className={styles.rowActions}>
                                     {subscription.status === "REQUESTED" && (
                                       <button
@@ -1102,7 +1085,7 @@ export function CustomersManager({
                                           <button
                                             key={String(cycle.id)}
                                             type="button"
-                                            className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`}
+                                            className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall} ${styles.subscriptionLegacyAction}`}
                                             onClick={() =>
                                               void recordFirstPayment(
                                                 String(subscription.id),
@@ -1145,21 +1128,7 @@ export function CustomersManager({
                         <div>
                           <strong>Nova adesão presencial</strong>
                           <div className={styles.toolbarGroup}>
-                            {subscriptionPlans.map((plan) => (
-                              <button
-                                key={String(plan.id)}
-                                type="button"
-                                className={`${styles.button} ${styles.buttonSoft}`}
-                                onClick={() =>
-                                  void enrollPresential(
-                                    historyCustomer.id,
-                                    String(plan.id),
-                                  )
-                                }
-                              >
-                                {String(plan.name)}
-                              </button>
-                            ))}
+                            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPresentialCustomerId(historyCustomer.id)}>Nova adesão</button>
                           </div>
                         </div>
                       </div>
@@ -1197,6 +1166,42 @@ export function CustomersManager({
               </div>
             </section>
           </div>
+        )}
+        {subscriptionControlId && (() => {
+          const subscription = subscriptions.find((item) => String(item.id) === subscriptionControlId);
+          if (!subscription) return null;
+          const plan = subscription.plan as { name?: string; description?: string | null } | null;
+          const version = subscription.plan_version as { price_cents?: number; sessions_per_cycle?: number } | null;
+          const cycles = subscriptionCycles.filter((cycle) => String(cycle.subscription_id) === subscriptionControlId);
+          const sessions = subscriptionSessions.filter((session) => String(session.subscription_id) === subscriptionControlId);
+          const openCycles = cycles.filter((cycle) => cycle.status === "OPEN" || cycle.status === "OVERDUE");
+          const upfront = String(subscription.payment_method) === "UPFRONT";
+          const paymentLabels: Record<string, string> = { CARD: "Cartão", PIX: "PIX", BOLETO: "Boleto", CASH: "Dinheiro", UPFRONT: "À vista", ONLINE: "Online" };
+          const firstOpenCycle = openCycles[0];
+          return <div className="modal-layer" role="presentation">
+            <button className="modal-layer__backdrop" type="button" aria-label="Fechar controle da assinatura" onClick={() => setSubscriptionControlId(null)} />
+            <section className={`${styles.modal} ${styles.modalWide} ${styles.subscriptionControlModal}`} role="dialog" aria-modal="true" aria-labelledby="subscription-control-title">
+              <header className={styles.modalHeader}><div><small>Controle da assinatura</small><h2 id="subscription-control-title">{plan?.name ?? "Plano"}</h2><p>{formatCents(version?.price_cents ?? 0)} · Venc. {String(subscription.first_due_date ?? "—")} · {paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)}</p></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setSubscriptionControlId(null)}><X size={19} /></button></header>
+              <div className={styles.subscriptionControlBody}>
+                <div className={styles.subscriptionControlLegend}><span><i className={styles.subscriptionDotAvailable} />Futura</span><span><i className={styles.subscriptionDotScheduled} />Agendada</span><span><i className={styles.subscriptionDotCompleted} />Concluída</span><span><i className={styles.subscriptionDotCanceled} />Cancelada</span></div>
+                {cycles.map((cycle) => {
+                  const cycleSessions = sessions.filter((session) => String(session.cycle_id) === String(cycle.id));
+                  const canReceive = cycle.status === "OPEN" || cycle.status === "OVERDUE";
+                  const showReceive = canReceive && (!upfront || String(cycle.id) === String(firstOpenCycle?.id));
+                  const amount = upfront
+                    ? (cycle.status === "PAID" ? cycles : openCycles).reduce((total, item) => total + Number(item.amount_cents ?? 0), 0)
+                    : Number(cycle.amount_cents ?? version?.price_cents ?? 0);
+                  return <article className={styles.subscriptionMonth} key={String(cycle.id)}><div className={styles.subscriptionMonthTitle}><strong>{new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${String(cycle.starts_on)}T12:00:00`))}</strong><small>Vencimento {String(cycle.due_on)} · {cycle.status === "PAID" ? `Pago em ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "—"}` : "Parcela em aberto"}</small></div><div className={styles.subscriptionSessionList}>{cycleSessions.map((session) => { const presentation = sessionPresentation(session, cycleSessions.length || Number(version?.sessions_per_cycle ?? 0)); return <span className={`${styles.subscriptionSessionChip} ${styles[`subscriptionSessionChip${presentation.tone[0].toUpperCase()}${presentation.tone.slice(1)}`]}`} key={String(session.id)}>{presentation.label}</span>; })}</div><div className={styles.subscriptionInstallment}><span><small>Parcela</small><strong>{formatCents(amount)}</strong><small>{cycle.status === "PAID" ? `${paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)} · ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "Pago"}` : `Venc. ${String(cycle.due_on)}`}</small></span>{showReceive && <button type="button" className={`${styles.button} ${styles.buttonSmall}`} onClick={() => openPaymentDialog(String(subscription.id), { id: cycle.id, amount_cents: amount, due_on: cycle.due_on }, String(subscription.payment_method ?? "CASH"))}>Receber</button>}</div></article>;
+                })}
+              </div>
+            </section>
+          </div>;
+        })()}
+        {presentialCustomerId && (
+          <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar nova adesão" onClick={() => setPresentialCustomerId(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="presential-subscription-title"><header className={styles.modalHeader}><div><small>Adesão manual</small><h2 id="presential-subscription-title">Nova adesão</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setPresentialCustomerId(null)}><X size={19} /></button></header><p>Selecione o plano que será criado para este cliente.</p><div className={styles.toolbarGroup}>{subscriptionPlans.map((plan) => <button key={String(plan.id)} type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => { setPresentialCustomerId(null); void enrollPresential(presentialCustomerId, String(plan.id)); }}>{String(plan.name)}</button>)}</div></section></div>
+        )}
+        {paymentTarget && (
+          <div className="modal-layer" role="presentation"><button className={styles.modalBackdrop} type="button" aria-label="Fechar recebimento" onClick={() => setPaymentTarget(null)} /><section className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="subscription-payment-title"><header className={styles.modalHeader}><div><small>Recebimento de assinatura</small><h2 id="subscription-payment-title">Receber parcela</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setPaymentTarget(null)}><X size={19} /></button></header><div className={styles.form}><Field label="Valor (R$)"><input value={(paymentTarget.amountCents / 100).toFixed(2).replace(".", ",")} readOnly /></Field><Field label="Vencimento"><input value={paymentTarget.dueOn} readOnly /></Field><Field label="Forma de pagamento"><input value={({ CARD: "Cartão", PIX: "PIX", BOLETO: "Boleto", CASH: "Dinheiro", UPFRONT: "À vista", ONLINE: "Online" } as Record<string, string>)[paymentTarget.method] ?? paymentTarget.method} readOnly /></Field><Field label="Data de pagamento"><input type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></Field><Field label="Conta financeira"><select value={paymentAccountId} onChange={(event) => setPaymentAccountId(event.target.value)} required><option value="">Selecione</option>{financialAccounts.map((account) => <option key={String(account.id)} value={String(account.id)}>{String(account.name)}</option>)}</select></Field><Field label="Referência" wide><input value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="Comprovante, NSU ou protocolo" /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button} type="button" disabled={!paymentAccountId} onClick={async () => { const target = paymentTarget; await recordFirstPayment(target.subscriptionId, target.cycleId, target.amountCents, target.method, paymentAccountId, paymentDate, paymentReference); setPaymentTarget(null); }}>Confirmar recebimento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setPaymentTarget(null)}>Cancelar</button></div></div></section></div>
         )}
       </Panel>
     </div>

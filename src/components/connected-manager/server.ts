@@ -89,6 +89,7 @@ export async function loadCustomersData() {
     subscriptionSessions,
     subscriptionPlans,
     chartAccounts,
+    financialAccounts,
   ] = await Promise.all([
     supabase
       .from("customers")
@@ -182,6 +183,12 @@ export async function loadCustomersData() {
       .eq("kind", "REVENUE")
       .eq("active", true)
       .order("name"),
+    supabase
+      .from("financial_accounts")
+      .select("id,name,kind,active")
+      .eq("organization_id", organizationId)
+      .eq("active", true)
+      .order("name"),
   ]);
   const latestConsentByCustomer = new Map<string, "GRANTED" | "REVOKED">();
   for (const event of requireData(consents, "Consentimentos WhatsApp") as {
@@ -239,6 +246,14 @@ export async function loadCustomersData() {
       : (requireData(chartAccounts, "Plano de contas") as Array<
           Record<string, unknown>
         >),
+    financialAccounts: financialAccounts.error
+      ? []
+      : (requireData(financialAccounts, "Contas financeiras") as Array<{
+          id: string;
+          name: string;
+          kind: string;
+          active: boolean;
+        }>),
   };
 }
 
