@@ -584,6 +584,48 @@ describe("connected manager UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ver Agendamentos" }));
     expect(screen.getByText("Corte com horário ajustado")).toBeInTheDocument();
   });
+
+  it("abre a reserva da sessão com cliente e serviço travados", () => {
+    const subscription = {
+      id: "subscription-1",
+      customer_id: customer.id,
+      status: "ACTIVE",
+      payment_method: "CARD",
+      first_due_date: "2026-09-10",
+      plan: { name: "Barba em dia", description: null },
+      plan_version: { id: "plan-version-1", price_cents: 12600, sessions_per_cycle: 2 },
+    };
+    render(<CustomersManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      customers={[customer]}
+      appointments={[]}
+      appointmentItems={[]}
+      financial={[]}
+      barbers={[barber]}
+      barberServices={[{ barber_id: barber.id, service_id: service.id, active: true }]}
+      subscriptionPlans={[]}
+      subscriptionPlanServices={[{ plan_version_id: "plan-version-1", service_id: service.id, service_name_snapshot: service.name, position: 0 }]}
+      subscriptions={[subscription]}
+      subscriptionCycles={[{ id: "cycle-1", subscription_id: subscription.id, cycle_number: 1, starts_on: "2026-09-01", due_on: "2026-09-10", amount_cents: 12600, status: "PAID", paid_at: "2026-09-09T12:00:00Z" }]}
+      subscriptionSessions={[{ id: "session-1", subscription_id: subscription.id, cycle_id: "cycle-1", session_number: 1, status: "AVAILABLE", appointment_id: null }, { id: "session-2", subscription_id: subscription.id, cycle_id: "cycle-1", session_number: 2, status: "AVAILABLE", appointment_id: null }]}
+      statusEvents={[]}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver Agendamentos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Assinaturas Ativas" }));
+    fireEvent.click(screen.getByRole("button", { name: "Barba em dia" }));
+    expect(screen.getByText("Em aberto")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "1 de 2" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Reserve um horário" });
+    expect(dialog).toHaveTextContent("Reserve um horário");
+    expect(dialog).toHaveTextContent("Sessão 1 de 2");
+    expect(within(dialog).getByDisplayValue("Cliente Real")).toHaveAttribute("readonly");
+    expect(within(dialog).getByDisplayValue("Corte Real")).toHaveAttribute("readonly");
+    expect(within(dialog).queryByText("Confirmar sem pagamento")).not.toBeInTheDocument();
+  });
+
   it("exibe somente atendimentos concluidos com pagamento no historico", () => {
     const paidStart = new Date("2026-08-01T14:00:00.000Z");
     const unpaidStart = new Date("2026-08-02T14:00:00.000Z");

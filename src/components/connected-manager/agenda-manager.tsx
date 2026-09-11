@@ -52,7 +52,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type AgendaData = AwaitedReturn<typeof loadAgendaData>;
-type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"] };
+type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"] };
 type View = "day" | "week" | "month";
 
 const hours = Array.from({ length: 14 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
@@ -79,6 +79,10 @@ function financialStatusLabel(status: string | undefined) {
     case "REFUNDED": return "Reembolsado";
     default: return "Pagamento pendente";
   }
+}
+
+function paymentMethodLabel(method: string) {
+  return ({ CARD: "Cartão", PIX: "PIX", BOLETO: "Boleto", CASH: "Dinheiro", UPFRONT: "À vista", ONLINE: "Online" } as Record<string, string>)[method] ?? method;
 }
 
 function appointmentSourceLabel(source: string) {
@@ -129,6 +133,18 @@ export function AgendaManager(props: Props) {
     }
     return map;
   }, [accountNameById, props.appointmentActivity]);
+  const subscriptionSessionByAppointment = useMemo(
+    () => new Map((props.subscriptionSessions ?? []).filter((item) => item.appointment_id).map((item) => [String(item.appointment_id), item])),
+    [props.subscriptionSessions],
+  );
+  const subscriptionById = useMemo(
+    () => new Map((props.subscriptions ?? []).map((item) => [String(item.id), item])),
+    [props.subscriptions],
+  );
+  const subscriptionCycleById = useMemo(
+    () => new Map((props.subscriptionCycles ?? []).map((item) => [String(item.id), item])),
+    [props.subscriptionCycles],
+  );
   const itemsByAppointment = useMemo(() => {
     const appointmentItems = props.appointmentItems ?? [];
     const map = new Map<string, string[]>();
@@ -174,6 +190,21 @@ export function AgendaManager(props: Props) {
 
   function serviceLabel(appointmentId: string) {
     return itemsByAppointment.get(appointmentId)?.join(" + ") || "Atendimento";
+  }
+
+  function subscriptionPaymentFor(appointment: AppointmentRecord) {
+    if (appointment.payment_mode !== "SUBSCRIPTION") return null;
+    const session = subscriptionSessionByAppointment.get(appointment.id);
+    const cycle = session ? subscriptionCycleById.get(String(session.cycle_id)) : undefined;
+    const subscription = session ? subscriptionById.get(String(session.subscription_id)) : undefined;
+    const dueOn = String(cycle?.due_on ?? "");
+    const overdue = cycle?.status === "OVERDUE" || (cycle?.status !== "PAID" && dueOn < new Date().toISOString().slice(0, 10));
+    return {
+      cycle,
+      method: String(subscription?.payment_method ?? ""),
+      overdue,
+      amountCents: Number(cycle?.amount_cents ?? 0),
+    };
   }
 
   function receiptDraftFor(appointment: AppointmentRecord) {
@@ -293,6 +324,14 @@ export function AgendaManager(props: Props) {
         const draft = receiptDraftFor(appointment);
         if (draft) setReceiptTarget(draft);
       }
+      if (next === "COMPLETED" && appointment.payment_mode === "SUBSCRIPTION") {
+        const payment = subscriptionPaymentFor(appointment);
+        const alerts = [
+          payment?.overdue ? "A parcela do plano de assinatura está em atraso." : "",
+          payment?.method === "CASH" ? "O pagamento do plano deve ser recebido em dinheiro na barbearia." : "",
+        ].filter(Boolean);
+        if (alerts.length) window.alert(alerts.join("\n"));
+      }
       setSelected(null);
       router.refresh();
     }
@@ -355,6 +394,7 @@ export function AgendaManager(props: Props) {
   const selectedFinancial = selected ? financialById.get(selected.id) : null;
   const selectedPaymentAccounts = selected ? paymentAccountsByAppointment.get(selected.id) ?? [] : [];
   const selectedPaymentStatus = financialStatusLabel(selectedFinancial?.financial_status);
+  const selectedSubscriptionPayment = selected ? subscriptionPaymentFor(selected) : null;
 
   return <div className={styles.stack}>
     <div className={styles.agendaHeader}>
@@ -399,7 +439,7 @@ export function AgendaManager(props: Props) {
             const geometry = appointmentGeometry(appointment.service_period, timezone);
             if (!geometry) return null;
             const displayStatus = appointmentDisplayStatus(appointment);
-            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height }} onClick={() => openAppointment(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><span className="agenda-event__meta"><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i></span></span></button>;
+            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height }} onClick={() => openAppointment(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><span className="agenda-event__meta"><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i>{appointment.payment_mode === "SUBSCRIPTION" && <em>Plano de assinatura</em>}</span></span></button>;
           })}
         </div>)}
         {nowLine && <div className="agenda-now-line" style={{ top: nowLine.top }} aria-label={`Hora atual: ${nowLine.label}`}><span>{nowLine.label}</span><i /></div>}
@@ -409,7 +449,7 @@ export function AgendaManager(props: Props) {
 
     {view === "week" && <section className="panel agenda-week" aria-label="Agenda semanal">
       <div className="agenda-week__head"><span>Horário</span>{weekDates.map((day) => <button type="button" key={day} className={`${styles.weekDay} ${day === todayKey ? styles.weekDayToday : ""}`} onClick={() => { setDate(day); setView("day"); }}><strong>{formatDate(day, { weekday: "short", day: "2-digit" })}</strong><small>{appointmentsOn(day).length} reservas</small></button>)}</div>
-      <div className="agenda-week__body">{hours.map((hour) => <div className="agenda-week__row" key={hour}><time>{hour}</time>{weekDates.map((day, column) => <div className={styles.weekCell} key={day}>{appointmentsOn(day).filter((appointment) => appointmentGeometry(appointment.service_period, timezone)?.startLabel.startsWith(hour.slice(0, 2))).map((appointment) => <button type="button" key={appointment.id} className={`has-event tone-${column % 3}`} onClick={() => openAppointment(appointment)}><strong>{appointmentGeometry(appointment.service_period, timezone)?.startLabel} · {customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{serviceLabel(appointment.id)}</small></button>)}</div>)}</div>)}</div>
+      <div className="agenda-week__body">{hours.map((hour) => <div className="agenda-week__row" key={hour}><time>{hour}</time>{weekDates.map((day, column) => <div className={styles.weekCell} key={day}>{appointmentsOn(day).filter((appointment) => appointmentGeometry(appointment.service_period, timezone)?.startLabel.startsWith(hour.slice(0, 2))).map((appointment) => <button type="button" key={appointment.id} className={`has-event tone-${column % 3}`} onClick={() => openAppointment(appointment)}><strong>{appointmentGeometry(appointment.service_period, timezone)?.startLabel} · {customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{serviceLabel(appointment.id)}{appointment.payment_mode === "SUBSCRIPTION" ? " · Plano de assinatura" : ""}</small></button>)}</div>)}</div>)}</div>
     </section>}
 
     {view === "month" && <section className="panel agenda-month" aria-label="Agenda mensal">
@@ -431,7 +471,7 @@ export function AgendaManager(props: Props) {
           <span><UserRound size={17} /><div><small>Profissional</small><strong>{selectedBarberRecord?.display_name ?? "Profissional"}</strong></div></span>
           <span><MapPin size={17} /><div><small>Origem</small><strong>{appointmentSourceLabel(selected.source)}</strong></div></span>
         </div>
-        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span><small>{selected.payment_mode === "SUBSCRIPTION" ? "Sessão assinatura" : selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</div><strong>{selected.payment_mode === "SUBSCRIPTION" ? "Incluída no plano" : formatCents(selected.total_cents_snapshot)}</strong><span>{selected.payment_mode === "SUBSCRIPTION" ? "Sem cobrança avulsa" : `Saldo: ${formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}`}</span></div>
+        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span>{selected.payment_mode === "SUBSCRIPTION" ? <><small>Plano de assinatura</small>{selectedSubscriptionPayment?.cycle?.status === "PAID" && <small>Pago em {selectedSubscriptionPayment.cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(selectedSubscriptionPayment.cycle.paid_at))) : "—"} · {formatCents(selectedSubscriptionPayment.amountCents)} · {paymentMethodLabel(selectedSubscriptionPayment.method)}</small>}{selectedSubscriptionPayment?.overdue && <small className="appointment-payment-alert">Pagamento em atraso</small>}{selectedSubscriptionPayment?.method === "CASH" && <small className="appointment-payment-alert">Receber em dinheiro na barbearia</small>}</> : <><small>{selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</>}</div><strong>{selected.payment_mode === "SUBSCRIPTION" ? formatCents(selectedSubscriptionPayment?.amountCents ?? 0) : formatCents(selected.total_cents_snapshot)}</strong><span>{selected.payment_mode === "SUBSCRIPTION" ? `Venc. ${selectedSubscriptionPayment?.cycle?.due_on ?? "—"}` : `Saldo: ${formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}`}</span></div>
         {selectedCustomerRecord?.phone_e164 && <div className="appointment-detail__contact"><a href={`https://web.whatsapp.com/send?phone=${selectedCustomerRecord.phone_e164.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a></div>}
       </div>
       <div className="appointment-detail__actions">

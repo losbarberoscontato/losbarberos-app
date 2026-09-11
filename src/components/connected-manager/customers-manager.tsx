@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Clock3, UserRound, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import type { loadCustomersData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
@@ -20,6 +20,8 @@ type Props = Omit<
   | "subscriptionCycles"
   | "subscriptionSessions"
   | "subscriptionPlans"
+  | "subscriptionPlanServices"
+  | "barberServices"
   | "chartAccounts"
   | "financialAccounts"
 > &
@@ -30,6 +32,8 @@ type Props = Omit<
       | "subscriptionCycles"
       | "subscriptionSessions"
       | "subscriptionPlans"
+      | "subscriptionPlanServices"
+      | "barberServices"
       | "chartAccounts"
       | "financialAccounts"
     >
@@ -45,6 +49,16 @@ const inactivationReasons = [
 ] as const;
 
 type ApprovalDraft = { subscriptionId: string; startDate: string; dueDate: string };
+type SubscriptionBookingTarget = {
+  subscriptionId: string;
+  sessionId: string;
+  customerId: string;
+  sessionNumber: number;
+  totalSessions: number;
+  referenceDate: string;
+  serviceNames: string[];
+  serviceIds: string[];
+};
 
 function birthdayReminder(birthDate: string | null): string | null {
   if (!birthDate) return null;
@@ -85,6 +99,8 @@ export function CustomersManager({
   subscriptionCycles = [],
   subscriptionSessions = [],
   subscriptionPlans = [],
+  subscriptionPlanServices = [],
+  barberServices = [],
   chartAccounts = [],
   financialAccounts = [],
 }: Props) {
@@ -108,6 +124,10 @@ export function CustomersManager({
   const [customInactivationReason, setCustomInactivationReason] = useState("");
   const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
   const [subscriptionControlId, setSubscriptionControlId] = useState<string | null>(null);
+  const [subscriptionBooking, setSubscriptionBooking] = useState<SubscriptionBookingTarget | null>(null);
+  const [subscriptionBookingDate, setSubscriptionBookingDate] = useState("");
+  const [subscriptionBookingTime, setSubscriptionBookingTime] = useState("09:00");
+  const [subscriptionBookingBarberId, setSubscriptionBookingBarberId] = useState("");
   const [presentialCustomerId, setPresentialCustomerId] = useState<string | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<{ subscriptionId: string; cycleId: string; amountCents: number; method: string; dueOn: string } | null>(null);
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -472,11 +492,76 @@ export function CustomersManager({
     setPaymentReference("");
   }
 
+  function eligibleSubscriptionBarbers(serviceIds: string[]) {
+    return barbers.filter((barber) => serviceIds.every((serviceId) =>
+      barberServices.some((link) =>
+        String(link.barber_id) === barber.id &&
+        String(link.service_id) === serviceId &&
+        link.active !== false,
+      ),
+    ));
+  }
+
+  function openSubscriptionBooking(
+    subscription: Record<string, unknown>,
+    session: Record<string, unknown>,
+    cycle: Record<string, unknown>,
+  ) {
+    const version = subscription.plan_version as { id?: string } | null;
+    const planServices = subscriptionPlanServices
+      .filter((item) => String(item.plan_version_id) === String(version?.id ?? ""))
+      .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0));
+    const serviceIds = planServices.map((item) => String(item.service_id));
+    const eligible = eligibleSubscriptionBarbers(serviceIds);
+    if (!version?.id || serviceIds.length === 0 || eligible.length === 0) {
+      setMessage("Nenhum profissional habilitado para os serviços deste plano.");
+      return;
+    }
+    const tomorrow = new Date(todayTimestamp + 86_400_000).toISOString().slice(0, 10);
+    setSubscriptionBooking({
+      subscriptionId: String(subscription.id),
+      sessionId: String(session.id),
+      customerId: String(subscription.customer_id),
+      sessionNumber: Number(session.session_number ?? 0),
+      totalSessions: Number((subscription.plan_version as { sessions_per_cycle?: number } | null)?.sessions_per_cycle ?? 0),
+      referenceDate: String(cycle.starts_on ?? ""),
+      serviceNames: planServices.map((item) => String(item.service_name_snapshot)),
+      serviceIds,
+    });
+    setSubscriptionBookingDate(tomorrow);
+    setSubscriptionBookingTime("09:00");
+    setSubscriptionBookingBarberId(eligible[0]?.id ?? "");
+  }
+
+  async function bookSubscriptionSession(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!subscriptionBooking || !subscriptionBookingBarberId) return;
+    const saved = await runMutation(
+      setMessage,
+      async () => {
+        const startsAt = new Date(`${subscriptionBookingDate}T${subscriptionBookingTime}:00`).toISOString();
+        await assertResult(await connectedClient().rpc("book_customer_subscription_session", {
+          p_organization_id: organizationId,
+          p_customer_id: subscriptionBooking.customerId,
+          p_subscription_session_id: subscriptionBooking.sessionId,
+          p_barber_id: subscriptionBookingBarberId,
+          p_starts_at: startsAt,
+        }));
+      },
+      "Sessão da assinatura agendada.",
+    );
+    if (saved) {
+      setSubscriptionBooking(null);
+      router.refresh();
+    }
+  }
+
   function sessionPresentation(session: { status?: unknown; session_number?: unknown; appointment_id?: unknown }, totalSessions: number) {
     const appointment = appointments.find((item) => item.id === String(session.appointment_id ?? ""));
     const start = appointment ? parsePostgresRange(appointment.service_period)?.start : null;
+    const base = `${String(session.session_number ?? "—")} de ${totalSessions}`;
     const label = session.status === "SCHEDULED" || session.status === "COMPLETED"
-      ? (start ? new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" }).format(start).replace(".", "") : "Agendada")
+      ? (start ? `${base} | ${new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(start)}` : `${base} | Agendada`)
       : `${String(session.session_number ?? "—")} de ${totalSessions}`;
     return { label, tone: session.status === "COMPLETED" ? "completed" : session.status === "CANCELED" || session.status === "CONSUMED" ? "canceled" : session.status === "AVAILABLE" ? "available" : "scheduled" };
   }
@@ -1183,7 +1268,7 @@ export function CustomersManager({
             <section className={`${styles.modal} ${styles.modalWide} ${styles.subscriptionControlModal}`} role="dialog" aria-modal="true" aria-labelledby="subscription-control-title">
               <header className={styles.modalHeader}><div><small>Controle da assinatura</small><h2 id="subscription-control-title">{plan?.name ?? "Plano"}</h2><p>{formatCents(version?.price_cents ?? 0)} · Venc. {String(subscription.first_due_date ?? "—")} · {paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)}</p></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setSubscriptionControlId(null)}><X size={19} /></button></header>
               <div className={styles.subscriptionControlBody}>
-                <div className={styles.subscriptionControlLegend}><span><i className={styles.subscriptionDotAvailable} />Futura</span><span><i className={styles.subscriptionDotScheduled} />Agendada</span><span><i className={styles.subscriptionDotCompleted} />Concluída</span><span><i className={styles.subscriptionDotCanceled} />Cancelada</span></div>
+                <div className={styles.subscriptionControlLegend}><span><i className={styles.subscriptionDotAvailable} />Em aberto</span><span><i className={styles.subscriptionDotScheduled} />Agendada</span><span><i className={styles.subscriptionDotCompleted} />Concluída</span><span><i className={styles.subscriptionDotCanceled} />Cancelada</span></div>
                 {cycles.map((cycle) => {
                   const cycleSessions = sessions.filter((session) => String(session.cycle_id) === String(cycle.id));
                   const canReceive = cycle.status === "OPEN" || cycle.status === "OVERDUE";
@@ -1191,10 +1276,29 @@ export function CustomersManager({
                   const amount = upfront
                     ? (cycle.status === "PAID" ? cycles : openCycles).reduce((total, item) => total + Number(item.amount_cents ?? 0), 0)
                     : Number(cycle.amount_cents ?? version?.price_cents ?? 0);
-                  return <article className={styles.subscriptionMonth} key={String(cycle.id)}><div className={styles.subscriptionMonthTitle}><strong>{new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${String(cycle.starts_on)}T12:00:00`))}</strong><small>Vencimento {String(cycle.due_on)} · {cycle.status === "PAID" ? `Pago em ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "—"}` : "Parcela em aberto"}</small></div><div className={styles.subscriptionSessionList}>{cycleSessions.map((session) => { const presentation = sessionPresentation(session, cycleSessions.length || Number(version?.sessions_per_cycle ?? 0)); return <span className={`${styles.subscriptionSessionChip} ${styles[`subscriptionSessionChip${presentation.tone[0].toUpperCase()}${presentation.tone.slice(1)}`]}`} key={String(session.id)}>{presentation.label}</span>; })}</div><div className={styles.subscriptionInstallment}><span><small>Parcela</small><strong>{formatCents(amount)}</strong><small>{cycle.status === "PAID" ? `${paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)} · ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "Pago"}` : `Venc. ${String(cycle.due_on)}`}</small></span>{showReceive && <button type="button" className={`${styles.button} ${styles.buttonSmall}`} onClick={() => openPaymentDialog(String(subscription.id), { id: cycle.id, amount_cents: amount, due_on: cycle.due_on }, String(subscription.payment_method ?? "CASH"))}>Receber</button>}</div></article>;
+                  return <article className={styles.subscriptionMonth} key={String(cycle.id)}><div className={styles.subscriptionMonthTitle}><strong>{new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${String(cycle.starts_on)}T12:00:00`))}</strong><small>Vencimento {String(cycle.due_on)} · {cycle.status === "PAID" ? `Pago em ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "—"}` : "Parcela em aberto"}</small></div><div className={styles.subscriptionSessionList}>{cycleSessions.map((session) => { const presentation = sessionPresentation(session, cycleSessions.length || Number(version?.sessions_per_cycle ?? 0)); const chipClass = `${styles.subscriptionSessionChip} ${styles[`subscriptionSessionChip${presentation.tone[0].toUpperCase()}${presentation.tone.slice(1)}`]}`; return session.status === "AVAILABLE" ? <button type="button" className={chipClass} key={String(session.id)} onClick={() => openSubscriptionBooking(subscription, session, cycle)}>{presentation.label}</button> : <span className={chipClass} key={String(session.id)}>{presentation.label}</span>; })}</div><div className={styles.subscriptionInstallment}><span><small>Parcela</small><strong>{formatCents(amount)}</strong><small>{cycle.status === "PAID" ? `${paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)} · ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "Pago"}` : `Venc. ${String(cycle.due_on)}`}</small></span>{showReceive && <button type="button" className={`${styles.button} ${styles.buttonSmall}`} onClick={() => openPaymentDialog(String(subscription.id), { id: cycle.id, amount_cents: amount, due_on: cycle.due_on }, String(subscription.payment_method ?? "CASH"))}>Receber</button>}</div></article>;
                 })}
               </div>
             </section>
+          </div>;
+        })()}
+        {subscriptionBooking && (() => {
+          const customer = customers.find((item) => item.id === subscriptionBooking.customerId);
+          const eligible = eligibleSubscriptionBarbers(subscriptionBooking.serviceIds);
+          return <div className="modal-layer" role="presentation">
+            <button className="modal-layer__backdrop" type="button" aria-label="Fechar reserva de assinatura" onClick={() => setSubscriptionBooking(null)} />
+            <form className="form-modal" role="dialog" aria-modal="true" aria-labelledby="subscription-booking-title" onSubmit={bookSubscriptionSession}>
+              <div className="form-modal__head"><span><small>Agendamento de sessão de assinatura</small><strong id="subscription-booking-title">Reserve um horário</strong></span><button type="button" className="icon-button" onClick={() => setSubscriptionBooking(null)} aria-label="Fechar"><X size={19} /></button></div>
+              <div className="form-modal__body">
+                <p className={styles.subscriptionBookingReference}>Sessão {subscriptionBooking.sessionNumber} de {subscriptionBooking.totalSessions} de {new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${subscriptionBooking.referenceDate}T12:00:00`))}</p>
+                <label>Cliente<span className="input-shell"><UserRound size={17} /><input value={customer?.full_name ?? "Cliente"} readOnly /></span></label>
+                <label>Serviço ou pacote<span className="input-shell"><input value={subscriptionBooking.serviceNames.join(" + ")} readOnly /></span></label>
+                <label>Profissional<span className="select-input"><select value={subscriptionBookingBarberId} onChange={(event) => setSubscriptionBookingBarberId(event.target.value)} required><option value="">Selecione</option>{eligible.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label>
+                <div className="form-grid"><label>Data<span className="input-shell"><CalendarDays size={17} /><input type="date" value={subscriptionBookingDate} onChange={(event) => setSubscriptionBookingDate(event.target.value)} required /></span></label><label>Horário<span className="input-shell"><Clock3 size={17} /><input type="time" value={subscriptionBookingTime} onChange={(event) => setSubscriptionBookingTime(event.target.value)} step={15 * 60} required /></span></label></div>
+                <p className={styles.subscriptionBookingHint}>O cliente e o serviço pertencem ao plano e não podem ser alterados.</p>
+              </div>
+              <div className="form-modal__footer"><button type="button" className="button button--ghost" onClick={() => setSubscriptionBooking(null)}>Cancelar</button><button type="submit" className="button button--dark"><Check size={17} /> Agendar sessão</button></div>
+            </form>
           </div>;
         })()}
         {presentialCustomerId && (

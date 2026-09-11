@@ -181,6 +181,7 @@ export interface AppointmentRecord {
   total_cents_snapshot: number;
   notes: string | null;
   schedule_override_reason: string | null;
+  subscription_session_id?: string | null;
   created_at: string;
 }
 

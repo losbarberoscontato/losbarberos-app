@@ -88,6 +88,8 @@ export async function loadCustomersData() {
     subscriptionCycles,
     subscriptionSessions,
     subscriptionPlans,
+    subscriptionPlanServices,
+    barberServices,
     chartAccounts,
     financialAccounts,
   ] = await Promise.all([
@@ -104,7 +106,7 @@ export async function loadCustomersData() {
     supabase
       .from("appointments")
       .select(
-        "id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,created_at",
+        "id,organization_id,customer_id,barber_id,status,source,service_period,payment_mode,currency,total_cents_snapshot,notes,schedule_override_reason,subscription_session_id,created_at",
       )
       .eq("organization_id", organizationId)
       .order("service_period", { ascending: false })
@@ -147,7 +149,7 @@ export async function loadCustomersData() {
     supabase
       .from("customer_subscriptions")
       .select(
-        "id,customer_id,status,start_date,end_date,payment_method,first_due_date,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(price_cents,billing_period,sessions_per_cycle)",
+        "id,customer_id,status,start_date,end_date,payment_method,first_due_date,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(id,price_cents,billing_period,sessions_per_cycle)",
       )
       .eq("organization_id", organizationId)
       .in("status", ["REQUESTED", "PENDING_PAYMENT", "ACTIVE"])
@@ -176,6 +178,16 @@ export async function loadCustomersData() {
       .eq("organization_id", organizationId)
       .eq("active", true)
       .order("name"),
+    supabase
+      .from("subscription_plan_services")
+      .select("plan_version_id,service_id,service_name_snapshot,position")
+      .eq("organization_id", organizationId)
+      .order("position"),
+    supabase
+      .from("barber_services")
+      .select("barber_id,service_id,active")
+      .eq("organization_id", organizationId)
+      .eq("active", true),
     supabase
       .from("chart_of_accounts")
       .select("id,name,kind,active")
@@ -239,6 +251,16 @@ export async function loadCustomersData() {
     subscriptionPlans: subscriptionPlans.error
       ? []
       : (requireData(subscriptionPlans, "Planos de assinatura") as Array<
+          Record<string, unknown>
+        >),
+    subscriptionPlanServices: subscriptionPlanServices.error
+      ? []
+      : (requireData(subscriptionPlanServices, "Serviços dos planos") as Array<
+          Record<string, unknown>
+        >),
+    barberServices: barberServices.error
+      ? []
+      : (requireData(barberServices, "Serviços por profissional") as Array<
           Record<string, unknown>
         >),
     chartAccounts: chartAccounts.error
@@ -415,6 +437,9 @@ export async function loadAgendaData() {
     costCenters,
     tags,
     mappings,
+    subscriptionSessions,
+    subscriptionCycles,
+    subscriptions,
   ] = await Promise.all([
     supabase
       .from("organizations")
@@ -515,6 +540,21 @@ export async function loadAgendaData() {
       .from("payment_account_mappings")
       .select("id,organization_id,provider,payment_mode,financial_account_id")
       .eq("organization_id", organizationId),
+    supabase
+      .from("customer_subscription_sessions")
+      .select("id,subscription_id,cycle_id,session_number,status,appointment_id")
+      .eq("organization_id", organizationId)
+      .limit(MANAGER_ROW_LIMIT * 20),
+    supabase
+      .from("customer_subscription_cycles")
+      .select("id,subscription_id,starts_on,due_on,amount_cents,status,paid_at")
+      .eq("organization_id", organizationId)
+      .limit(MANAGER_ROW_LIMIT * 10),
+    supabase
+      .from("customer_subscriptions")
+      .select("id,customer_id,payment_method,status")
+      .eq("organization_id", organizationId)
+      .limit(MANAGER_ROW_LIMIT),
   ]);
   return {
     organizationId,
@@ -530,6 +570,9 @@ export async function loadAgendaData() {
     services: requireData(services, "Serviços") as ServiceRecord[],
     packages: requireData(packages, "Pacotes") as PackageRecord[],
     barberServices: requireData(links, "Competências") as BarberServiceRecord[],
+    subscriptionSessions: subscriptionSessions.error ? [] : (requireData(subscriptionSessions, "Sessões de assinatura") as Array<Record<string, unknown>>),
+    subscriptionCycles: subscriptionCycles.error ? [] : (requireData(subscriptionCycles, "Ciclos de assinatura") as Array<Record<string, unknown>>),
+    subscriptions: subscriptions.error ? [] : (requireData(subscriptions, "Assinaturas") as Array<Record<string, unknown>>),
     financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],
     appointmentActivity: requireData(
       appointmentActivity,

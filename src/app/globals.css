@@ -1055,6 +1055,7 @@
   .appointment-detail__payment > div { display: flex; flex-direction: column; }
   .appointment-detail__payment > div > span { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800; }
   .appointment-detail__payment small, .appointment-detail__payment > span { color: var(--muted); font-size: 9px; }
+  .appointment-detail__payment .appointment-payment-alert { color: #a13f31; font-weight: 800; }
   .appointment-detail__payment > strong { font: 700 20px var(--font-display); }
   .appointment-detail__contact { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 15px; }
   .appointment-detail__contact a, .appointment-detail__contact button { min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: 11px; font-weight: 800; }
