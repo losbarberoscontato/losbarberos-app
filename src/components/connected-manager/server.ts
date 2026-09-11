@@ -552,7 +552,7 @@ export async function loadAgendaData() {
       .limit(MANAGER_ROW_LIMIT * 10),
     supabase
       .from("customer_subscriptions")
-      .select("id,customer_id,payment_method,status")
+      .select("id,customer_id,payment_method,status,plan:subscription_plans(name)")
       .eq("organization_id", organizationId)
       .limit(MANAGER_ROW_LIMIT),
   ]);

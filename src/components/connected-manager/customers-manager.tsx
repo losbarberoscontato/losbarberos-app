@@ -56,6 +56,7 @@ type SubscriptionBookingTarget = {
   sessionNumber: number;
   totalSessions: number;
   referenceDate: string;
+  planName: string;
   serviceNames: string[];
   serviceIds: string[];
 };
@@ -507,6 +508,7 @@ export function CustomersManager({
     session: Record<string, unknown>,
     cycle: Record<string, unknown>,
   ) {
+    const plan = subscription.plan as { name?: string | null } | null;
     const version = subscription.plan_version as { id?: string } | null;
     const planServices = subscriptionPlanServices
       .filter((item) => String(item.plan_version_id) === String(version?.id ?? ""))
@@ -525,6 +527,7 @@ export function CustomersManager({
       sessionNumber: Number(session.session_number ?? 0),
       totalSessions: Number((subscription.plan_version as { sessions_per_cycle?: number } | null)?.sessions_per_cycle ?? 0),
       referenceDate: String(cycle.starts_on ?? ""),
+      planName: String(plan?.name ?? "Plano de assinatura"),
       serviceNames: planServices.map((item) => String(item.service_name_snapshot)),
       serviceIds,
     });
@@ -1292,7 +1295,7 @@ export function CustomersManager({
               <div className="form-modal__body">
                 <p className={styles.subscriptionBookingReference}>Sessão {subscriptionBooking.sessionNumber} de {subscriptionBooking.totalSessions} de {new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${subscriptionBooking.referenceDate}T12:00:00`))}</p>
                 <label>Cliente<span className="input-shell"><UserRound size={17} /><input value={customer?.full_name ?? "Cliente"} readOnly /></span></label>
-                <label>Serviço ou pacote<span className="input-shell"><input value={subscriptionBooking.serviceNames.join(" + ")} readOnly /></span></label>
+                <label>Serviço ou pacote<span className="input-shell"><input value={subscriptionBooking.planName} readOnly /></span></label>
                 <label>Profissional<span className="select-input"><select value={subscriptionBookingBarberId} onChange={(event) => setSubscriptionBookingBarberId(event.target.value)} required><option value="">Selecione</option>{eligible.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label>
                 <div className="form-grid"><label>Data<span className="input-shell"><CalendarDays size={17} /><input type="date" value={subscriptionBookingDate} onChange={(event) => setSubscriptionBookingDate(event.target.value)} required /></span></label><label>Horário<span className="input-shell"><Clock3 size={17} /><input type="time" value={subscriptionBookingTime} onChange={(event) => setSubscriptionBookingTime(event.target.value)} step={15 * 60} required /></span></label></div>
                 <p className={styles.subscriptionBookingHint}>O cliente e o serviço pertencem ao plano e não podem ser alterados.</p>

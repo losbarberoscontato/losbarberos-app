@@ -145,6 +145,18 @@ export function AgendaManager(props: Props) {
     () => new Map((props.subscriptionCycles ?? []).map((item) => [String(item.id), item])),
     [props.subscriptionCycles],
   );
+  const subscriptionPlanNameByAppointment = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const appointment of props.appointments) {
+      if (appointment.payment_mode !== "SUBSCRIPTION") continue;
+      const session = subscriptionSessionByAppointment.get(appointment.id);
+      const subscription = session ? subscriptionById.get(String(session.subscription_id)) : undefined;
+      const plan = subscription?.plan as { name?: unknown } | null | undefined;
+      const planName = typeof plan?.name === "string" ? plan.name.trim() : "";
+      if (planName) map.set(appointment.id, planName);
+    }
+    return map;
+  }, [props.appointments, subscriptionById, subscriptionSessionByAppointment]);
   const itemsByAppointment = useMemo(() => {
     const appointmentItems = props.appointmentItems ?? [];
     const map = new Map<string, string[]>();
@@ -189,7 +201,7 @@ export function AgendaManager(props: Props) {
   }
 
   function serviceLabel(appointmentId: string) {
-    return itemsByAppointment.get(appointmentId)?.join(" + ") || "Atendimento";
+    return subscriptionPlanNameByAppointment.get(appointmentId) ?? itemsByAppointment.get(appointmentId)?.join(" + ") ?? "Atendimento";
   }
 
   function subscriptionPaymentFor(appointment: AppointmentRecord) {

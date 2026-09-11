@@ -435,6 +435,32 @@ describe("connected manager UI", () => {
     expect(screen.getByText("1 reserva")).toBeInTheDocument();
   });
 
+  it("exibe o nome do plano e o status de assinatura na agenda", () => {
+    const start = new Date("2026-08-07T14:00:00.000Z");
+    const end = new Date(start.getTime() + 30 * 60_000);
+    render(<AgendaManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      customers={[customer]}
+      barbers={[barber]}
+      services={[service]}
+      packages={[]}
+      barberServices={[]}
+      financial={[]}
+      appointments={[{ id: "appointment-subscription", organization_id: "org-1", customer_id: customer.id, barber_id: barber.id, status: "CONFIRMED", source: "MANAGER", service_period: `[${start.toISOString()},${end.toISOString()})`, payment_mode: "SUBSCRIPTION", currency: "BRL", total_cents_snapshot: 0, notes: null, schedule_override_reason: null, created_at: new Date().toISOString(), subscription_session_id: "subscription-session-1" }]}
+      appointmentItems={[{ id: "item-subscription", organization_id: "org-1", appointment_id: "appointment-subscription", service_name_snapshot: "Barba", position: 0 }]}
+      subscriptionSessions={[{ id: "subscription-session-1", subscription_id: "subscription-1", cycle_id: "cycle-1", session_number: 1, status: "SCHEDULED", appointment_id: "appointment-subscription" }]}
+      subscriptionCycles={[{ id: "cycle-1", subscription_id: "subscription-1", starts_on: "2026-08-01", due_on: "2026-08-10", amount_cents: 12600, status: "PAID", paid_at: "2026-08-09T12:00:00Z" }]}
+      subscriptions={[{ id: "subscription-1", customer_id: customer.id, payment_method: "CARD", status: "ACTIVE", plan: { name: "Barba em dia" } }]}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Selecionar data" }));
+    fireEvent.change(screen.getByLabelText("Selecionar data da agenda"), { target: { value: "2026-08-07" } });
+    expect(screen.getByText("Barba em dia")).toBeInTheDocument();
+    expect(screen.getByText("Plano de assinatura")).toBeInTheDocument();
+  });
+
   it("mostra linha da hora atual somente no dia atual e alinhada a cinco minutos", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-07T12:47:00.000Z"));
@@ -622,7 +648,7 @@ describe("connected manager UI", () => {
     expect(dialog).toHaveTextContent("Reserve um horário");
     expect(dialog).toHaveTextContent("Sessão 1 de 2");
     expect(within(dialog).getByDisplayValue("Cliente Real")).toHaveAttribute("readonly");
-    expect(within(dialog).getByDisplayValue("Corte Real")).toHaveAttribute("readonly");
+    expect(within(dialog).getByDisplayValue("Barba em dia")).toHaveAttribute("readonly");
     expect(within(dialog).queryByText("Confirmar sem pagamento")).not.toBeInTheDocument();
   });
 
