@@ -198,9 +198,14 @@ export function ConnectedSubscriptions() {
       p_acceptance_source: "CLIENT",
       p_accept_contract: true,
     });
+    const friendlyError = error?.message?.match(/subscription module disabled/i)
+      ? "Planos de Assinatura está inativo nesta barbearia."
+      : error?.code === "23505" || error?.message?.match(/already has|unique constraint/i)
+        ? "Você já possui uma assinatura ativa nesta barbearia."
+        : error?.message;
     setMessage(
-      error
-        ? error.message
+      friendlyError
+        ? friendlyError
         : "Solicitação enviada. Aguarde aprovação da barbearia.",
     );
   }

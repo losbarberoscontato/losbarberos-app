@@ -24,6 +24,7 @@ type Props = Omit<
   | "barberServices"
   | "chartAccounts"
   | "financialAccounts"
+  | "subscriptionModuleEnabled"
 > &
   Partial<
     Pick<
@@ -36,6 +37,7 @@ type Props = Omit<
       | "barberServices"
       | "chartAccounts"
       | "financialAccounts"
+      | "subscriptionModuleEnabled"
     >
   >;
 type CustomerFilter = "ACTIVE" | "INACTIVE";
@@ -104,6 +106,7 @@ export function CustomersManager({
   barberServices = [],
   chartAccounts = [],
   financialAccounts = [],
+  subscriptionModuleEnabled = false,
 }: Props) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(customers.length === 0);
@@ -418,6 +421,10 @@ export function CustomersManager({
   }
 
   async function enrollPresential(customerId: string, planId: string) {
+    if (!subscriptionModuleEnabled) {
+      setMessage("Planos de Assinatura está inativo em Configurações → Módulos. Ative o módulo para iniciar novas assinaturas.");
+      return;
+    }
     const saved = await runMutation(
       setMessage,
       async () => {
@@ -1231,7 +1238,7 @@ export function CustomersManager({
                         <div>
                           <strong>Nova adesão presencial</strong>
                           <div className={styles.toolbarGroup}>
-                            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setPresentialCustomerId(historyCustomer.id)}>Nova adesão</button>
+                            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => subscriptionModuleEnabled ? setPresentialCustomerId(historyCustomer.id) : setMessage("Planos de Assinatura está inativo em Configurações → Módulos. Ative o módulo para iniciar novas assinaturas.")}>Nova adesão</button>
                           </div>
                         </div>
                       </div>

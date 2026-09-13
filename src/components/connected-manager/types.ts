@@ -79,6 +79,8 @@ export interface BarberRecord {
   display_name: string;
   bio: string | null;
   avatar_url: string | null;
+  auth_user_id?: string | null;
+  is_manager?: boolean;
   commission_payment_frequency?: "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
   commission_payment_weekday?: number | null;
   commission_payment_first_day?: number | null;

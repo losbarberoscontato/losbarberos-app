@@ -31,6 +31,7 @@ describe("manager logout", () => {
 
   it("ends only the local Supabase session and returns to login", async () => {
     render(<ManagerShell userName="Gestor conectado">conteúdo</ManagerShell>);
+    expect(screen.queryByRole("link", { name: "Ver página do cliente" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sair da conta" }));
 

@@ -11,6 +11,7 @@ import { humanizeError } from "./format";
 import { ActionMessage, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { normalizePhoneE164 } from "@/lib/phone";
+import { barberLoginHref } from "@/lib/barber-auth";
 import styles from "./connected-manager.module.css";
 
 type Props = AwaitedReturn<typeof loadSettingsData>;
@@ -26,6 +27,8 @@ export function SettingsManager(props: Props) {
   const bookingUrl = props.organization.booking_public_id
     ? `${publicOrigin}/b/${props.organization.booking_public_id}`
     : `${publicOrigin}/b/${props.organization.slug}`;
+  const barberAccessPath = barberLoginHref("/barbeiro/agenda", props.organization.slug);
+  const barberAccessUrl = `${publicOrigin}${barberAccessPath}`;
   const [exporting, setExporting] = useState(false);
   const [rulesHelpOpen, setRulesHelpOpen] = useState(false);
   const [logoPath, setLogoPath] = useState(props.organization.logo_path ?? "");
@@ -182,6 +185,11 @@ export function SettingsManager(props: Props) {
               <div><strong>Link de agendamento</strong><p>Envie este link para clientes novos e antigos, eles poderão fazer cadastro/login e acessar a Agenda da sua barbearia.</p></div>
               <button type="button" className="useful-link-value" onClick={() => void copyLink(bookingUrl)} title="Copiar link de agendamento">{bookingUrl}</button>
               <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(bookingUrl)}>Copiar link</button></div>
+            </article>
+            <article className="useful-link-row">
+              <div><strong>Acesso ao App do Barbeiro</strong><p>Envie este link para o profissional acessar a agenda e o caixa da barbearia.</p></div>
+              <button type="button" className="useful-link-value" onClick={() => void copyLink(barberAccessUrl)} title="Copiar link do App do Barbeiro">{barberAccessUrl}</button>
+              <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(barberAccessUrl)}>Copiar link</button><Link className="button button--soft" href={barberAccessPath}>Abrir app</Link></div>
             </article>
           </div>
         </Panel>}

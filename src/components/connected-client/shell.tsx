@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, CalendarPlus2, ChevronRight, CreditCard, LogOut, MapPin, Menu, UserRound, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Brand } from "@/components/brand";
 import { ConnectedClientProvider, useConnectedClient } from "@/components/connected-client/context";
 import { initials, locationLabel } from "@/components/connected-client/format";
@@ -19,7 +19,9 @@ const navigation = [
 
 function ShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
+  const router = useRouter();
   const { context, customer, organizations, user, slug, signOut, switchTenant } = useConnectedClient();
+  const [subscriptionAccess, setSubscriptionAccess] = useState<boolean | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [targetSlug, setTargetSlug] = useState<string | null>(null);
   const suffix = slug ? `?barbearia=${encodeURIComponent(slug)}` : "";
@@ -28,6 +30,44 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     ? organizations.find((item) => item.organization_slug === targetSlug) ?? null
     : null;
   const supabase = getSupabaseBrowserClient();
+  useEffect(() => {
+    let active = true;
+    if (!supabase || !context || !customer) {
+      queueMicrotask(() => {
+        if (active) setSubscriptionAccess(false);
+      });
+      return () => { active = false; };
+    }
+    void (async () => {
+      try {
+        const [{ count }, moduleResult] = await Promise.all([
+          supabase
+          .from("customer_subscriptions")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", context.organization.id)
+          .eq("customer_id", customer.id)
+          .eq("status", "ACTIVE"),
+          supabase.rpc("organization_module_enabled", {
+            p_organization_id: context.organization.id,
+            p_module_key: "subscription_plans",
+          }),
+        ]);
+        if (active) setSubscriptionAccess(Boolean(moduleResult.data) || (count ?? 0) > 0);
+      } catch {
+        if (active) setSubscriptionAccess(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [context, customer, supabase]);
+  useEffect(() => {
+    if (pathname.startsWith("/cliente/assinaturas") && subscriptionAccess === false) {
+      router.replace(`/cliente/reservas${suffix}`);
+    }
+  }, [pathname, router, subscriptionAccess, suffix]);
+  const visibleNavigation = useMemo(
+    () => navigation.filter((item) => item.href !== "/cliente/assinaturas" || subscriptionAccess === true),
+    [subscriptionAccess],
+  );
   const logoUrl = context?.organization.logo_path && supabase
     ? supabase.storage.from("organization-logos").getPublicUrl(context.organization.logo_path).data.publicUrl
     : null;
@@ -38,7 +78,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         <div className={styles.topbarInner}>
           <Brand href={`/cliente/agendar${suffix}`} />
           <nav className={styles.desktopNav} aria-label="Navegação do cliente">
-            {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
               const Icon = item.icon;
               const active = pathname.startsWith(item.href);
               return (
@@ -104,7 +144,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         </section>
       )}
       <nav className={styles.bottomNav} aria-label="Navegação do cliente">
-        {navigation.map((item) => {
+        {visibleNavigation.map((item) => {
           const Icon = item.icon;
           const active = pathname.startsWith(item.href);
           return (

@@ -92,6 +92,7 @@ export async function loadCustomersData() {
     barberServices,
     chartAccounts,
     financialAccounts,
+    subscriptionModule,
   ] = await Promise.all([
     supabase
       .from("customers")
@@ -201,6 +202,12 @@ export async function loadCustomersData() {
       .eq("organization_id", organizationId)
       .eq("active", true)
       .order("name"),
+    supabase
+      .from("organization_module_entitlements")
+      .select("enabled")
+      .eq("organization_id", organizationId)
+      .eq("module_key", "subscription_plans")
+      .maybeSingle(),
   ]);
   const latestConsentByCustomer = new Map<string, "GRANTED" | "REVOKED">();
   for (const event of requireData(consents, "Consentimentos WhatsApp") as {
@@ -214,6 +221,7 @@ export async function loadCustomersData() {
   return {
     organizationId,
     billingStatus: context.billingStatus,
+    subscriptionModuleEnabled: subscriptionModule.error ? false : Boolean(subscriptionModule.data?.enabled),
     customers: customerRows.map((customer) => ({
       ...customer,
       whatsapp_transactional_opted_out:
@@ -383,6 +391,7 @@ export async function loadTeamData() {
   ]);
   return {
     organizationId,
+    managerUserId: context.userId,
     billingStatus: context.billingStatus,
     timezone: (requireData(organization, "Organização") as { timezone: string })
       .timezone,
@@ -1397,7 +1406,7 @@ export async function loadModulesData() {
       .eq("organization_id", organizationId),
     supabase
       .from("platform_module_price_versions")
-      .select("module_key,monthly_price_cents,effective_from,effective_until")
+      .select("module_key,monthly_price_cents,effective_from,effective_until,stripe_test_price_id,stripe_live_price_id,currency")
       .order("effective_from", { ascending: false }),
   ]);
   return {
@@ -1421,13 +1430,16 @@ export async function loadModulesData() {
           monthly_price_cents: number;
           effective_from: string;
           effective_until: string | null;
+          stripe_test_price_id: string | null;
+          stripe_live_price_id: string | null;
+          currency: string;
         }[]),
   };
 }
 
 export async function loadSubscriptionPlansData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [plans, versions, services] = await Promise.all([
+  const [plans, versions, services, module] = await Promise.all([
     supabase
       .from("subscription_plans")
       .select("id,organization_id,name,description,contract_body_override,active,created_at")
@@ -1450,6 +1462,12 @@ export async function loadSubscriptionPlansData() {
       .eq("active", true)
       .eq("accepts_subscription", true)
       .order("name"),
+    supabase
+      .from("organization_module_entitlements")
+      .select("enabled")
+      .eq("organization_id", organizationId)
+      .eq("module_key", "subscription_plans")
+      .maybeSingle(),
   ]);
   type PlanRow = {
     id: string;
@@ -1485,6 +1503,7 @@ export async function loadSubscriptionPlansData() {
   return {
     organizationId,
     billingStatus: context.billingStatus,
+    subscriptionModuleEnabled: module.error ? false : Boolean(module.data?.enabled),
     plans: requireData(plans, "Planos") as PlanRow[],
     versions: requireData(versions, "Versões de planos") as VersionRow[],
     services: requireData(

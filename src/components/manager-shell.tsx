@@ -262,9 +262,6 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
             <kbd>Ctrl K</kbd>
           </button>
           <div className="manager-topbar__actions">
-            <Link href="/cliente/agendar" className="topbar-preview">
-              Ver página do cliente
-            </Link>
             <button type="button" className="icon-button notification-button" aria-label="Notificações" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((open) => !open)}>
               <Bell size={19} />
               {notifications.some((notification) => !notification.read_at) && <span />}

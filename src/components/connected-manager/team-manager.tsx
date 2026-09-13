@@ -15,7 +15,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type TeamData = AwaitedReturn<typeof loadTeamData>;
-type Props = Omit<TeamData, "financialAccounts" | "barberAccountPermissions"> & Partial<Pick<TeamData, "financialAccounts" | "barberAccountPermissions">>;
+type Props = Omit<TeamData, "financialAccounts" | "barberAccountPermissions" | "managerUserId"> & Partial<Pick<TeamData, "financialAccounts" | "barberAccountPermissions">> & { managerUserId?: string };
 type ProfessionalFilter = "ACTIVE" | "INACTIVE";
 type OperationForm = "SCHEDULE" | "EXCEPTION" | "COMMISSION" | "PAYMENT" | null;
 type CommissionPaymentFrequency = "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
@@ -68,6 +68,7 @@ export function TeamManager(props: Props) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const editing = barberForm === "new" || barberForm === null ? null : barberForm;
+    const editingManager = Boolean(editing?.is_manager || editing?.auth_user_id === props.managerUserId);
     const rawWhatsapp = String(data.get("whatsapp_e164") ?? "").trim();
     const whatsappE164 = normalizePhoneE164(rawWhatsapp);
     const submittedPhoto = data.get("avatar");
@@ -85,7 +86,9 @@ export function TeamManager(props: Props) {
       display_name: String(data.get("display_name") ?? "").trim(),
       bio: String(data.get("bio") ?? "").trim() || null,
       whatsapp_e164: whatsappE164,
-      login_email: String(data.get("login_email") ?? "").trim().toLowerCase() || null,
+      login_email: editingManager
+        ? editing?.login_email ?? null
+        : String(data.get("login_email") ?? "").trim().toLowerCase() || null,
       app_access_enabled: data.get("app_access_enabled") === "on",
       agenda_access_scope: String(data.get("agenda_access_scope") ?? "OWN"),
       cash_access_enabled: data.get("cash_access_enabled") === "on",
@@ -224,6 +227,7 @@ export function TeamManager(props: Props) {
   const intervals = props.workIntervals.filter((item) => item.barber_id === scheduleBarber && item.active);
   const exceptions = props.exceptions.filter((item) => item.barber_id === scheduleBarber);
   const rules = props.commissionRules.filter((item) => item.barber_id === scheduleBarber && item.active);
+  const editingManager = barberForm !== "new" && barberForm !== null && Boolean(barberForm.is_manager || barberForm.auth_user_id === props.managerUserId);
 
   return <div className={styles.stack}>
     <PageHeader title="Equipe" description="Profissionais, competências, escalas, folgas e regras versionadas." />
@@ -238,7 +242,7 @@ export function TeamManager(props: Props) {
             <Field label="Nome completo"><input name="display_name" required minLength={2} defaultValue={barberForm === "new" ? "" : barberForm.display_name} /></Field>
             <Field label="Unidade"><select name="location_id" required defaultValue={barberForm === "new" ? activeLocation?.id : barberForm.location_id}>{props.locations.filter((item) => item.active).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></Field>
             <Field label="WhatsApp do profissional"><><input name="whatsapp_e164" inputMode="tel" required placeholder="47999999999 ou +5547999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={barberForm === "new" ? "" : barberForm.whatsapp_e164 ?? ""} onBlur={(event) => { const normalized = normalizePhoneE164(event.currentTarget.value); if (normalized) event.currentTarget.value = normalized; }} /><small>Usado somente para avisos transacionais dos próprios agendamentos.</small></></Field>
-            <Field label="E-mail de acesso do Barbeiro"><><input name="login_email" type="email" defaultValue={barberForm === "new" ? "" : barberForm.login_email ?? ""} /><small>Deve ser igual ao e-mail usado no login. Sem este cadastro, o App do Barbeiro não libera acesso.</small></></Field>
+            <Field label="E-mail de acesso do Barbeiro"><><input name="login_email" type="email" readOnly={editingManager} aria-readonly={editingManager || undefined} defaultValue={barberForm === "new" ? "" : barberForm.login_email ?? ""} /><small>{editingManager ? "Vínculo original do login de administrador; não pode ser alterado." : "Deve ser igual ao e-mail usado no login. Sem este cadastro, o App do Barbeiro não libera acesso."}</small></></Field>
             <Field label="Agenda no App do Barbeiro"><select name="agenda_access_scope" defaultValue={barberForm === "new" ? "OWN" : barberForm.agenda_access_scope ?? "OWN"}><option value="OWN">Somente a própria agenda</option><option value="FULL">Agenda completa da barbearia</option></select></Field>
             <Field label="Acesso ao App"><label className={styles.check}><input name="app_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.app_access_enabled)} />Liberar login do Barbeiro</label></Field>
             <Field label="Acesso ao Caixa"><label className={styles.check}><input name="cash_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.cash_access_enabled)} />Permitir recebimentos no Caixa individual</label></Field>
@@ -252,11 +256,12 @@ export function TeamManager(props: Props) {
       <div className={styles.toolbar}><label className={styles.field}><span>Buscar</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome ou WhatsApp" /></label></div>
       {filteredBarbers.length === 0 ? <EmptyState title={props.barbers.length ? "Nenhum resultado" : "Cadastre a equipe"}>{props.barbers.length ? "Ajuste a busca ou altere o filtro." : "A unidade precisa de pelo menos um profissional para abrir a agenda."}</EmptyState> : <div className={styles.list}>{filteredBarbers.map((barber) => {
         const skills = props.barberServices.filter((link) => link.barber_id === barber.id && link.active);
-        return <article className={`${styles.row} ${styles.professionalRow}`} key={barber.id}><span className={styles.professionalTitle}><i className={styles.avatar}>{barber.avatar_url ? <Image src={barber.avatar_url} alt="" width={42} height={42} sizes="42px" /> : initials(barber.display_name)}</i><span className={styles.rowTitle}><strong>{barber.display_name}</strong><small>{barber.bio ?? "Sem apresentação"}</small></span></span>
+        const isManager = Boolean(barber.is_manager || barber.auth_user_id === props.managerUserId);
+        return <article className={`${styles.row} ${styles.professionalRow}`} key={barber.id}><span className={styles.professionalTitle}><i className={styles.avatar}>{barber.avatar_url ? <Image src={barber.avatar_url} alt="" width={42} height={42} sizes="42px" /> : initials(barber.display_name)}</i><span className={styles.rowTitle}><span className={styles.professionalName}><strong>{barber.display_name}</strong>{isManager && <StatusChip active label="Administrador" tone="info" />}</span><small>{barber.bio ?? "Sem apresentação"}</small></span></span>
           <span className={styles.professionalWhatsapp}>{barber.whatsapp_e164 ?? "WhatsApp não cadastrado"}</span>
           <span className={styles.professionalSkills}>{props.services.length ? props.services.map((service) => { const checked = skills.some((link) => link.service_id === service.id); return <label className={styles.check} key={service.id}><input type="checkbox" checked={checked} onChange={(event) => toggleSkill(barber.id, service.id, event.target.checked)} />{service.name}</label>; }) : <small className={styles.muted}>Sem serviços cadastrados</small>}</span>
           <StatusChip active={barber.active} />
-          <div className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => { setScheduleBarber(barber.id); setActiveOperationForm(null); setCommissionPaymentFrequency(barber.commission_payment_frequency ?? "PER_SERVICE"); setOperationOpen(true); }}>Escala e comissão</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setBarberForm(barber)}>Editar</button><button className={`${styles.button} ${barber.active ? styles.buttonDanger : styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => toggleBarber(barber)}>{barber.active ? "Inativar" : "Reativar"}</button></div>
+          <div className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => { setScheduleBarber(barber.id); setActiveOperationForm(null); setCommissionPaymentFrequency(barber.commission_payment_frequency ?? "PER_SERVICE"); setOperationOpen(true); }}>Escala e comissão</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setBarberForm(barber)}>Editar</button>{!isManager && <button className={`${styles.button} ${barber.active ? styles.buttonDanger : styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => toggleBarber(barber)}>{barber.active ? "Inativar" : "Reativar"}</button>}</div>
         </article>;
       })}</div>}
     </Panel>

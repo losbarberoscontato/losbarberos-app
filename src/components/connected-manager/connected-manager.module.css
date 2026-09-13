@@ -1,4 +1,5 @@
 .stack { display: grid; gap: 1.25rem; }
+.notice { padding: .75rem .9rem; border: 1px solid #ead9b8; border-radius: 12px; background: #fff7e7; color: #87571e; font-size: .82rem; line-height: 1.45; }
 .backLink { display: inline-flex; align-items: center; gap: .42rem; width: fit-content; margin-top: -.45rem; color: #315f51; font-size: .82rem; font-weight: 800; text-decoration: none; }
 .backLink:hover { color: #173e33; text-decoration: underline; text-underline-offset: .2em; }
 .backLink:focus-visible { outline: 3px solid rgb(47 107 93 / 24%); outline-offset: 4px; border-radius: 4px; }
@@ -169,6 +170,9 @@
 .professionalFilter:focus { outline: 3px solid rgba(106, 133, 98, .18); border-color: #789070; }
 .professionalRow { grid-template-columns: minmax(180px, 1.25fr) minmax(145px, .85fr) minmax(240px, 1.45fr) auto auto; }
 .professionalTitle { display: flex; align-items: center; gap: .65rem; min-width: 0; }
+.professionalName { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.professionalName strong { min-width: 0; }
+.professionalName .chip { flex: 0 0 auto; font-size: .65rem; padding: .25rem .45rem; }
 .professionalWhatsapp { color: #3d493e; font-size: .82rem; font-weight: 700; overflow-wrap: anywhere; }
 .professionalSkills { display: flex; gap: .4rem .55rem; flex-wrap: wrap; align-items: center; }
 .professionalSkills .check { font-size: .76rem; }
