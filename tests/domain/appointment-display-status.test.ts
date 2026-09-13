@@ -11,7 +11,7 @@ describe("status de agenda derivado da resposta WhatsApp", () => {
 
   it("representa confirmação, cancelamento, contato e confirmação manual", () => {
     expect(appointmentDisplayStatus({ status: "CONFIRMED", whatsapp_response_status: "CONFIRMED_BY_WHATSAPP" })).toEqual({ label: "Confirmado", tone: "success" });
-    expect(appointmentDisplayStatus({ status: "CANCELED", whatsapp_response_status: "CANCELED_BY_WHATSAPP" })).toEqual({ label: "Cancelado - horário liberado", tone: "danger" });
+    expect(appointmentDisplayStatus({ status: "CANCELED", whatsapp_response_status: "CANCELED_BY_WHATSAPP" })).toEqual({ label: "Cancelado", tone: "danger" });
     expect(appointmentDisplayStatus({ status: "CONFIRMED", whatsapp_response_status: "CONTACT_REQUESTED_BY_WHATSAPP" })).toEqual({ label: "Solicitado Contato", tone: "contact" });
     expect(appointmentDisplayStatus({ status: "CONFIRMED", whatsapp_response_status: "CONFIRMED_MANUALLY" })).toEqual({ label: "Confirmado Manualmente", tone: "success" });
   });

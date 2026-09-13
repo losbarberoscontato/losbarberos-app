@@ -106,6 +106,7 @@ export function AgendaManager(props: Props) {
   const [barberFilter, setBarberFilter] = useState("ALL");
   const [status, setStatus] = useState<AgendaStatusFilter>("ALL");
   const [selected, setSelected] = useState<AppointmentRecord | null>(null);
+  const [lockedCancellation, setLockedCancellation] = useState<AppointmentRecord | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [agendaHelpOpen, setAgendaHelpOpen] = useState(false);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -239,6 +240,10 @@ export function AgendaManager(props: Props) {
   }
 
   function openAppointment(appointment: AppointmentRecord) {
+    if (appointment.status === "CANCELED" || (appointment.status === "NO_SHOW" && appointment.subscription_session_id)) {
+      setLockedCancellation(appointment);
+      return;
+    }
     if (appointment.status === "COMPLETED" && appointment.payment_mode === "COUNTER") {
       const draft = receiptDraftFor(appointment);
       if (draft) {
@@ -350,7 +355,12 @@ export function AgendaManager(props: Props) {
   }
 
   async function cancel(appointment: AppointmentRecord) {
-    const reason = window.prompt("Motivo do cancelamento:", "Cancelado pelo gestor");
+    const period = parsePostgresRange(appointment.service_period);
+    const leadMinutes = appointment.cancellation_lead_minutes_snapshot ?? 0;
+    const beforeDeadline = leadMinutes === 0
+      || Boolean(period && Date.now() <= period.start.getTime() - leadMinutes * 60_000);
+    if (!beforeDeadline && !window.confirm("O cancelamento após o prazo limite encerrará esta sessão. O cliente não poderá reagendar. Deseja continuar?")) return;
+    const reason = window.prompt("Observação do cancelamento:", "Cancelado pelo gestor");
     if (!reason) return;
     const saved = await runMutation(setMessage, async () => {
       await assertResult(await connectedClient().rpc("cancel_appointment", { p_appointment_id: appointment.id, p_reason: reason, p_requested_by_customer: false }));
@@ -472,6 +482,7 @@ export function AgendaManager(props: Props) {
       })}</div>
     </section>}
 
+    {lockedCancellation && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar informação" onClick={() => setLockedCancellation(null)} /><section className="form-modal" role="dialog" aria-modal="true" aria-label="Informação de cancelamento"><div className="form-modal__head"><span><small>Agenda bloqueada</small><strong>{appointmentDisplayStatus(lockedCancellation).label}</strong></span><button type="button" className="icon-button" onClick={() => setLockedCancellation(null)} aria-label="Fechar"><X size={19} /></button></div><div className="form-modal__body"><p>Esta sessão não pode ser editada ou reagendada.</p><p><strong>{lockedCancellation.cancellation_actor_name ?? (lockedCancellation.status === "NO_SHOW" ? "Cliente" : "Usuário autenticado")}</strong>{lockedCancellation.cancelled_at ? ` realizou o cancelamento em ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(lockedCancellation.cancelled_at))}.` : "."}</p></div><div className="form-modal__footer"><button type="button" className="button button--dark" onClick={() => setLockedCancellation(null)}>Entendi</button></div></section></div>}
     {selected && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar detalhes" onClick={() => setSelected(null)} /><section className="form-modal appointment-detail" role="dialog" aria-modal="true" aria-label="Detalhes do agendamento">
       <div className="appointment-detail__head"><span><small>Agendamento {selected.id.slice(0, 8)}</small><strong>Detalhes do atendimento</strong></span><button type="button" className="icon-button" onClick={() => setSelected(null)} aria-label="Fechar"><X size={19} /></button></div>
       <div className="appointment-detail__body">

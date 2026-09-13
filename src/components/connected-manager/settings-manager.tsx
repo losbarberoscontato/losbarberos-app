@@ -27,6 +27,7 @@ export function SettingsManager(props: Props) {
     ? `${publicOrigin}/b/${props.organization.booking_public_id}`
     : `${publicOrigin}/b/${props.organization.slug}`;
   const [exporting, setExporting] = useState(false);
+  const [rulesHelpOpen, setRulesHelpOpen] = useState(false);
   const [logoPath, setLogoPath] = useState(props.organization.logo_path ?? "");
   const location = props.locations.find((item) => item.active) ?? props.locations[0];
   const address = (location?.address ?? {}) as Record<string, string>;
@@ -56,6 +57,7 @@ export function SettingsManager(props: Props) {
         p_slug: String(data.get("slug") ?? "").trim().toLowerCase(),
         p_public_contact_phone_e164: publicContactPhone,
         p_logo_path: logoPath || null,
+        p_cancellation_lead_minutes: Math.max(0, Number(data.get("cancellation_lead_minutes") ?? props.organization.cancellation_lead_minutes ?? 0)),
       }));
     }, "Regras da organização atualizadas.");
     if (saved) router.refresh();
@@ -183,6 +185,18 @@ export function SettingsManager(props: Props) {
             </article>
           </div>
         </Panel>}
+      <Panel title="Regras de negócio" description="Prazo aplicado a novos agendamentos, assinaturas e pagamentos online." className={styles.span5}>
+        <form className={styles.form} onSubmit={saveOrganization}>
+          <input type="hidden" name="name" value={props.organization.name} readOnly />
+          <input type="hidden" name="slug" value={props.organization.slug} readOnly />
+          <input type="hidden" name="public_contact_phone_e164" value={props.organization.public_contact_phone_e164 ?? ""} readOnly />
+          <Field label={<span>Prazo Limite <button type="button" className={styles.buttonSoft} aria-label="Ajuda sobre prazo limite" onClick={() => setRulesHelpOpen(true)}>?</button></span>}>
+            <input name="cancellation_lead_minutes" type="number" min="0" step="1" defaultValue={props.organization.cancellation_lead_minutes ?? 0} placeholder="Adicione o prazo limite em minutos" />
+            <small>Adicione o prazo limite em minutos. Em 0, todo cancelamento retorna para Em aberto.</small>
+          </Field>
+          <button className={`${styles.button} ${styles.formWide}`} type="submit">Salvar prazo</button>
+        </form>
+      </Panel>
       <Panel title="Dados da Barbearia" className={styles.span7}>
         <form className={styles.form} onSubmit={saveOrganization}>
           <Field label="Nome"><input name="name" required minLength={2} defaultValue={props.organization.name} /></Field>
@@ -218,5 +232,6 @@ export function SettingsManager(props: Props) {
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>WhatsApp</strong><StatusChip active={whatsappConnected} label={whatsappConnected ? "CONECTADO" : "PENDENTE"} /></span><p>{whatsappConnected ? "Integração ativa para confirmações, lembretes e ações seguras." : "Configure Meta Cloud API ou QR Web na página exclusiva da integração."}</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/configuracoes/whatsapp">Abrir integração</Link></article>
       </div>
     </Panel>
+    {rulesHelpOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar ajuda" onClick={() => setRulesHelpOpen(false)} /><section className="form-modal" role="dialog" aria-modal="true" aria-label="Ajuda do prazo limite"><div className="form-modal__head"><span><small>Regras de negócio</small><strong>Prazo Limite</strong></span><button type="button" className="icon-button" onClick={() => setRulesHelpOpen(false)} aria-label="Fechar">×</button></div><div className="form-modal__body"><p>Define quantos minutos antes do horário o cancelamento permanece dentro do prazo. O valor vale para novos agendamentos, assinaturas e pagamentos online. Com 0, não há limite: a sessão volta para Em aberto.</p></div><div className="form-modal__footer"><button type="button" className="button button--dark" onClick={() => setRulesHelpOpen(false)}>Entendi</button></div></section></div>}
   </div>;
 }

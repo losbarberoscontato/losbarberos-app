@@ -38,11 +38,14 @@ const coreStatusLabels: Record<AppointmentStatus, string> = {
   EXPIRED: "Expirado",
 };
 
-export function appointmentDisplayStatus(appointment: Pick<AppointmentRecord, "status" | "whatsapp_response_status">) {
+export function appointmentDisplayStatus(appointment: Pick<AppointmentRecord, "status" | "whatsapp_response_status" | "cancellation_outcome" | "subscription_session_id">) {
   if (appointment.status === "CANCELED") {
-    return appointment.whatsapp_response_status === "CANCELED_BY_WHATSAPP"
-      ? { label: "Cancelado - horário liberado", tone: "danger" as const }
-      : { label: "Cancelado", tone: "danger" as const };
+    if (appointment.cancellation_outcome === "ON_TIME") return { label: "Cancelado no prazo", tone: "warning" as const };
+    if (appointment.cancellation_outcome === "AFTER_DEADLINE") return { label: "Cancelado após o prazo", tone: "danger" as const };
+    return { label: "Cancelado", tone: "danger" as const };
+  }
+  if (appointment.status === "NO_SHOW" && appointment.subscription_session_id) {
+    return { label: "Cancelado após o prazo", tone: "danger" as const };
   }
   if (appointment.status === "CONFIRMED") {
     if (appointment.whatsapp_response_status === "CONFIRMED_BY_WHATSAPP") return { label: "Confirmado", tone: "success" as const };

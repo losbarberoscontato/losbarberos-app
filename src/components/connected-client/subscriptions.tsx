@@ -35,7 +35,7 @@ type Cycle = {
     id: string;
     session_number: number;
     status: string;
-    appointment?: { status: string } | null;
+    appointment?: { status: string; service_period?: string; cancellation_outcome?: string | null; cancelled_at?: string | null } | null;
   }[];
 };
 
@@ -45,6 +45,19 @@ function formatDate(value: string | null) {
   return year && month && day
     ? new Intl.DateTimeFormat("pt-BR").format(new Date(year, month - 1, day))
     : value;
+}
+
+function sessionStatusLabel(status: string) {
+  return ({ AVAILABLE: "Em aberto", SCHEDULED: "Agendada", COMPLETED: "Concluída", CANCELED: "Cancelada", CONSUMED: "Cancelada" } as Record<string, string>)[status] ?? status;
+}
+
+function sessionTone(status: string) {
+  return status === "COMPLETED" ? "#2f7a4e" : status === "CANCELED" || status === "CONSUMED" ? "#a84136" : status === "SCHEDULED" ? "#b67816" : "#2872ad";
+}
+
+function sessionDate(period?: string) {
+  const start = period?.match(/\[(.*?),/)?.[1];
+  return start ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(new Date(start)) : "";
 }
 type AvailablePlan = {
   id: string;
@@ -153,16 +166,15 @@ export function ConnectedSubscriptions() {
       }
       const appointmentIds = (sessionRows ?? []).map((session) => session.appointment_id).filter(Boolean) as string[];
       const appointmentResult = appointmentIds.length
-        ? await client.from("appointments").select("id,status").in("id", appointmentIds)
-        : { data: [] as Array<{ id: string; status: string }> };
-      const appointmentStatus = new Map((appointmentResult.data ?? []).map((appointment) => [appointment.id, appointment.status]));
+        ? await client.from("appointments").select("id,status,service_period,cancellation_outcome,cancelled_at").in("id", appointmentIds)
+        : { data: [] as Array<{ id: string; status: string; service_period?: string }> };
       setCycles(normalizedCycles.map((cycle) => ({
         ...cycle,
         sessions: (sessionRows ?? []).filter((session) => session.cycle_id === cycle.id).map((session) => ({
           id: session.id,
           session_number: session.session_number,
           status: session.status,
-          appointment: session.appointment_id ? { status: appointmentStatus.get(session.appointment_id) ?? "CONFIRMED" } : null,
+          appointment: session.appointment_id ? (appointmentResult.data ?? []).find((appointment) => appointment.id === session.appointment_id) ?? { status: "CONFIRMED" } : null,
         })),
       })));
     });
@@ -292,36 +304,49 @@ export function ConnectedSubscriptions() {
                     }{" "}
                     concluídas
                   </p>
-                  {cycle.sessions
-                    .filter((session) => session.status === "AVAILABLE")
-                    .map((session) => (
-                      <span
-                        key={session.id}
-                        style={{
-                          display: "inline-flex",
-                          gap: ".5rem",
-                          marginRight: ".75rem",
-                        }}
-                      >
-                        <Link className={styles.subscriptionAction}
-                          href={`/cliente/agendar?subscriptionSession=${encodeURIComponent(session.id)}`}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: ".5rem" }}>
+                    {cycle.sessions.map((session) => {
+                      const date = sessionDate(session.appointment?.service_period);
+                      const title = `${session.session_number} de ${cycle.sessions.length}${date ? ` | ${date}` : ""}`;
+                      const tone = sessionTone(session.status);
+                      if (session.status === "AVAILABLE") {
+                        return (
+                          <Link
+                            key={session.id}
+                            className={styles.subscriptionAction}
+                            href={`/cliente/agendar?subscriptionSession=${encodeURIComponent(session.id)}`}
+                            style={{ color: tone, borderColor: `${tone}66`, background: `${tone}14` }}
+                            aria-label={sessionStatusLabel(session.status)}
+                          >
+                            {title}
+                          </Link>
+                        );
+                      }
+                      if (session.status === "SCHEDULED") {
+                        return (
+                          <button
+                            key={session.id}
+                            type="button"
+                            className={styles.subscriptionSecondary}
+                            onClick={() => void cancelSession(session.id)}
+                            style={{ color: tone, borderColor: `${tone}66`, background: `${tone}14` }}
+                            aria-label={sessionStatusLabel(session.status)}
+                          >
+                            {title}
+                          </button>
+                        );
+                      }
+                      return (
+                        <span
+                          key={session.id}
+                          style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${tone}66`, borderRadius: "999px", padding: ".55rem .75rem", color: tone, background: `${tone}14`, fontWeight: 700 }}
+                          aria-label={sessionStatusLabel(session.status)}
                         >
-                          Agendar sessão {session.session_number}
-                        </Link>
-                      </span>
-                    ))}
-                  {cycle.sessions
-                    .filter((session) => session.status === "SCHEDULED")
-                    .map((session) => (
-                      <button
-                        key={session.id}
-                        type="button"
-                        className={styles.subscriptionSecondary}
-                        onClick={() => void cancelSession(session.id)}
-                      >
-                        Cancelar sessão {session.session_number}
-                      </button>
-                    ))}
+                          {title}
+                        </span>
+                      );
+                    })}
+                  </div>
                   {cycle.status === "PAID" && cycle.sessions.every((session) => session.status !== "AVAILABLE") && <small className={styles.subscriptionHint}>Todas as sessões deste ciclo já foram utilizadas ou agendadas.</small>}
                 </div>
               ))}

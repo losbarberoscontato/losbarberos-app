@@ -205,6 +205,10 @@ export type CustomerAppointment = {
   barber_id: string;
   status: AppointmentStatus;
   whatsapp_response_status: AppointmentWhatsAppResponseStatus;
+  cancellation_outcome?: "ON_TIME" | "AFTER_DEADLINE" | null;
+  cancellation_actor_name?: string | null;
+  cancelled_at?: string | null;
+  subscription_session_id?: string | null;
   service_period: string;
   payment_mode: "DEPOSIT" | "FULL" | "COUNTER" | "SUBSCRIPTION";
   currency: string;

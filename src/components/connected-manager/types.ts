@@ -174,11 +174,15 @@ export interface AppointmentRecord {
   barber_id: string;
   status: AppointmentStatus;
   whatsapp_response_status?: AppointmentWhatsAppResponseStatus | null;
+  cancellation_outcome?: "ON_TIME" | "AFTER_DEADLINE" | null;
+  cancellation_actor_name?: string | null;
+  cancelled_at?: string | null;
   source: string;
   service_period: string;
   payment_mode: string;
   currency: string;
   total_cents_snapshot: number;
+  cancellation_lead_minutes_snapshot?: number;
   notes: string | null;
   schedule_override_reason: string | null;
   subscription_session_id?: string | null;

@@ -30,6 +30,6 @@ export function StatusChip({ active, label, tone }: { active: boolean; label?: s
   return <span className={`${styles.chip} ${toneClass || (active ? "" : styles.chipOff)}`}>{label ?? (active ? "Ativo" : "Inativo")}</span>;
 }
 
-export function Field({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) {
+export function Field({ label, children, wide = false }: { label: ReactNode; children: ReactNode; wide?: boolean }) {
   return <label className={`${styles.field} ${wide ? styles.formWide : ""}`}><span>{label}</span>{children}</label>;
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AlertTriangle, CalendarDays, CalendarPlus2, Check, ChevronRight, Clock3, MapPin, MessageCircle, MoreHorizontal, RotateCcw, Scissors, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, CalendarPlus2, Check, ChevronRight, Clock3, MapPin, MessageCircle, MoreHorizontal, Scissors, X } from "lucide-react";
 import { formatMoney } from "@/data/demo";
 
 export function CustomerReservations() {
@@ -28,7 +28,7 @@ export function CustomerReservations() {
             <div className="next-booking-card__main"><span className="next-booking-card__status"><Check size={13} /> Confirmado</span><h2>Ritual Los Barberos</h2><p>Corte clássico + barba premium</p><div><span><Clock3 size={16} /> 14:15 — 15:45</span><span><Scissors size={16} /> Diego Alves</span><span><MapPin size={16} /> Vila Madalena</span></div></div>
             <div className="next-booking-card__payment"><small>Valor total</small><strong>{formatMoney(10500)}</strong><span>Sinal pago · R$ 32,00</span><i>Saldo: R$ 73,00</i></div>
           </div>
-          <footer><button type="button" className="button button--soft"><CalendarDays size={16} /> Adicionar ao calendário</button><button type="button" className="button button--soft"><MessageCircle size={16} /> Falar com a barbearia</button><span /><button type="button" className="text-button" onClick={() => setCancelOpen(true)}>Cancelar</button><button type="button" className="button button--dark"><RotateCcw size={16} /> Reagendar</button></footer>
+          <footer><button type="button" className="button button--soft"><CalendarDays size={16} /> Adicionar ao calendário</button><button type="button" className="button button--soft"><MessageCircle size={16} /> Falar com a barbearia</button><span /><button type="button" className="text-button" onClick={() => setCancelOpen(true)}>Cancelar</button></footer>
         </section>
       ) : (
         <section className="canceled-booking"><span><Check size={24} /></span><div><h2>Reserva cancelada</h2><p>O reembolso de R$ 55,00 foi iniciado e será processado pelo mesmo meio de pagamento.</p></div><Link href="/cliente/agendar" className="button button--dark"><CalendarPlus2 size={16} /> Novo horário</Link></section>
@@ -57,4 +57,3 @@ export function CustomerReservations() {
     </>
   );
 }
-
