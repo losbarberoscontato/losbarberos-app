@@ -23,6 +23,10 @@ function dateLabel(value: string) {
   return new Intl.DateTimeFormat("pt-BR").format(new Date(value.includes("T") ? value : `${value}T12:00:00`));
 }
 
+function closureDateLabel(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
 export function BarberFinanceSubnav({ active, slug }: { active: FinanceView; slug: string }) {
   const query = `?barbearia=${encodeURIComponent(slug)}`;
   return <nav className={managerStyles.tabs} aria-label="Seções do Financeiro">
@@ -47,9 +51,12 @@ export function BarberCash({ context, sessions, receipts, accounts, accountBalan
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [expandedClosureId, setExpandedClosureId] = useState<string | null>(null);
   const customerById = useMemo(() => new Map(customers.map((item) => [item.id, item.full_name])), [customers]);
   const receivable = appointments.filter((item) => (outstandingByAppointment.get(item.id) ?? 0) > 0);
-  const activeReceipts = receipts.filter((receipt) => receipt.status !== "REVERSED");
+  const openSessionIds = useMemo(() => new Set(sessions.filter((session) => session.status === "OPEN").map((session) => session.id)), [sessions]);
+  const activeReceipts = receipts.filter((receipt) => receipt.status === "PENDING_RECONCILIATION" && openSessionIds.has(receipt.cash_session_id));
+  const closedSessions = sessions.filter((session) => session.status === "RECONCILED" && session.reconciled_at);
   const totalReceived = activeReceipts.reduce((sum, receipt) => sum + receipt.amount_cents, 0);
   const current = sessions.find((item) => item.status === "OPEN");
   const totalByAccount = accountBalances.reduce((sum, account) => sum + account.balance_cents, 0);
@@ -95,9 +102,32 @@ export function BarberCash({ context, sessions, receipts, accounts, accountBalan
       {accountBalances.length === 0 ? <EmptyState title="Nenhuma conta disponível">O gestor ainda não liberou contas financeiras para este caixa.</EmptyState> : <div className={managerStyles.accountBalances}>{accountBalances.map((account) => <article className={managerStyles.accountBalance} key={account.id}><span>{account.name}</span><strong>{money.format(account.balance_cents / 100)}</strong><small>{account.kind === "CASH" ? "Caixa físico" : "Conta bancária"}</small></article>)}</div>}
     </Panel>
     <Panel title="Movimentações" description="Recebimentos atribuídos ao seu caixa. A conciliação é feita pelo gestor.">
-      {receipts.length === 0 ? <EmptyState title="Sem movimentações">Registre um recebimento para acompanhar o Caixa.</EmptyState> : <div className={`${managerStyles.cashTable} ${managerStyles.cashTableOnly}`} role="table" aria-label="Movimentações do caixa do barbeiro">
+      {activeReceipts.length === 0 ? <EmptyState title="Sem movimentações">Registre um recebimento para acompanhar o Caixa.</EmptyState> : <div className={`${managerStyles.cashTable} ${managerStyles.cashTableOnly}`} role="table" aria-label="Movimentações do caixa do barbeiro">
         <div className={managerStyles.cashHeader} role="row"><span>Cliente</span><span>Data</span><span>Valor</span><span>Conta financeira</span><span className={managerStyles.cashHeaderAction}>Ações</span></div>
-        {receipts.map((receipt) => <div className={managerStyles.cashRow} role="row" key={receipt.id}><span className={managerStyles.rowTitle}><strong>{receipt.customer_name}</strong><small>{receipt.payment_method} · {receipt.status === "RECONCILED" ? "Conciliado" : receipt.status === "REVERSED" ? "Corrigido" : "Aguardando conciliação"}</small></span><span>{dateLabel(receipt.created_at)}</span><strong>{money.format(receipt.amount_cents / 100)}</strong><span>{receipt.financial_account_name}</span><span className={managerStyles.rowActions}>{receipt.status === "PENDING_RECONCILIATION" && <button className={`${managerStyles.button} ${managerStyles.buttonSoft} ${managerStyles.buttonSmall}`} type="button" onClick={() => void adjust(receipt)}>Corrigir</button>}</span></div>)}
+        {activeReceipts.map((receipt) => <div className={managerStyles.cashRow} role="row" key={receipt.id}><span className={managerStyles.rowTitle}><strong>{receipt.customer_name}</strong><small>{receipt.payment_method} · Aguardando conciliação</small></span><span>{dateLabel(receipt.created_at)}</span><strong>{money.format(receipt.amount_cents / 100)}</strong><span>{receipt.financial_account_name}</span><span className={managerStyles.rowActions}><button className={`${managerStyles.button} ${managerStyles.buttonSoft} ${managerStyles.buttonSmall}`} type="button" onClick={() => void adjust(receipt)}>Corrigir</button></span></div>)}
+      </div>}
+    </Panel>
+    <Panel title="Fechamentos" description="Histórico dos fechamentos realizados pelo gestor, com os lançamentos de cada caixa.">
+      {closedSessions.length === 0 ? <EmptyState title="Nenhum fechamento">Os fechamentos do seu caixa aparecerão aqui após a conferência do gestor.</EmptyState> : <div className={styles.closureList} aria-label="Histórico de fechamentos">
+        <div className={styles.closureHeader} role="row"><span>ID do fechamento</span><span>Data do fechamento · usuário administrativo</span><span>Valor do fechamento</span></div>
+        {closedSessions.map((closure) => {
+          const closureReceipts = receipts.filter((receipt) => receipt.cash_session_id === closure.id && receipt.status === "RECONCILED");
+          const closureId = closure.closure_id ? String(closure.closure_id) : closure.id.slice(0, 8);
+          return <details className={styles.closureDetails} key={closure.id} open={expandedClosureId === closure.id} onToggle={(event) => setExpandedClosureId(event.currentTarget.open ? closure.id : null)}>
+            <summary className={styles.closureSummary}>
+              <span><strong>#{closureId}</strong><small>{closure.reconciled_at ? closureDateLabel(closure.reconciled_at) : dateLabel(closure.business_date)}</small></span>
+              <span><strong>{closure.reconciled_by_name ?? "Administrador"}</strong><small>Usuário administrativo</small></span>
+              <strong>{money.format((closure.reconciled_cents ?? 0) / 100)}</strong>
+            </summary>
+            <div className={styles.closureEntries}>
+              <strong>Lançamentos deste fechamento</strong>
+              {closureReceipts.length === 0 ? <p className={styles.muted}>Nenhum lançamento encontrado.</p> : <div className={`${managerStyles.cashTable} ${managerStyles.cashTableOnly}`} role="table" aria-label={`Lançamentos do fechamento ${closureId}`}>
+                <div className={managerStyles.cashHeader} role="row"><span>Cliente</span><span>Data</span><span>Valor</span><span>Conta financeira</span><span /></div>
+                {closureReceipts.map((receipt) => <div className={managerStyles.cashRow} role="row" key={receipt.id}><span className={managerStyles.rowTitle}><strong>{receipt.customer_name}</strong><small>{receipt.payment_method} · Conciliado</small></span><span>{dateLabel(receipt.created_at)}</span><strong>{money.format(receipt.amount_cents / 100)}</strong><span>{receipt.financial_account_name}</span><span /></div>)}
+              </div>}
+            </div>
+          </details>;
+        })}
       </div>}
     </Panel>
     {open && <div className={styles.modal}><form className={`${styles.dialog} ${styles.form}`} onSubmit={receive}><h2><CircleDollarSign size={19} /> Receber atendimento</h2><p className={styles.muted}>O recebimento será atribuído ao seu Caixa e ficará aguardando conciliação do gestor.</p><label>Atendimento<select name="appointment_id" required><option value="">Selecione</option>{receivable.map((item) => <option key={item.id} value={item.id}>{customerById.get(item.customer_id) ?? "Cliente"} · saldo {money.format((outstandingByAppointment.get(item.id) ?? 0) / 100)}</option>)}</select></label><label>Valor recebido (R$)<input name="amount" inputMode="decimal" placeholder="0,00" required /></label><label>Forma de recebimento<select name="payment_method">{paymentMethods.map((item) => <option key={item} value={item}>{item === "CASH" ? "Dinheiro" : item === "CARD" ? "Cartão" : item}</option>)}</select></label><label>Conta de destino<select name="financial_account_id" required><option value="">Selecione</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.kind === "CASH" ? "Caixa" : "Banco"}</option>)}</select></label><label>Observação<input name="reference" maxLength={240} /></label><div className={styles.formActions}><button type="button" className={`${styles.button} ${styles.secondary}`} onClick={() => setOpen(false)}>Cancelar</button><button className={styles.button}>Confirmar recebimento</button></div></form></div>}

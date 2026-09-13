@@ -51,14 +51,18 @@ export type BarberService = { id: string; name: string; price_cents: number; dur
 export type BarberProfessional = { id: string; display_name: string };
 export type BarberCashSession = {
   id: string;
+  closure_id?: number | null;
   business_date: string;
   status: BarberCashSessionStatus;
   expected_cents: number;
   reconciled_cents: number | null;
   variance_cents: number | null;
+  reconciled_at?: string | null;
+  reconciled_by_name?: string | null;
 };
 export type BarberCashReceipt = {
   id: string;
+  cash_session_id: string;
   appointment_id: string;
   financial_account_id: string;
   customer_name: string;

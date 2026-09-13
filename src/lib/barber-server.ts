@@ -99,12 +99,13 @@ export async function loadBarberCash(slug?: string | null) {
   const context = await getBarberAppContext(slug);
   const supabase = await getSupabaseServerClient();
   if (!context || !context.cash_access_enabled || !supabase) return null;
-  const [sessions, receipts, accounts, appointments, financial] = await Promise.all([
-    supabase.from("barber_cash_sessions").select("id,business_date,status,expected_cents,reconciled_cents,variance_cents").eq("organization_id", context.organization_id).eq("barber_id", context.barber_id).order("business_date", { ascending: false }).limit(90),
-    supabase.from("barber_cash_receipts").select("id,appointment_id,financial_account_id,amount_cents,payment_method,status,created_at").eq("organization_id", context.organization_id).eq("received_by_barber_id", context.barber_id).order("created_at", { ascending: false }).limit(500),
+  const [sessions, receipts, accounts, appointments, financial, closures] = await Promise.all([
+    supabase.from("barber_cash_sessions").select("id,business_date,status,expected_cents,reconciled_cents,variance_cents,reconciled_at,reconciled_by_name").eq("organization_id", context.organization_id).eq("barber_id", context.barber_id).order("business_date", { ascending: false }).limit(90),
+    supabase.from("barber_cash_receipts").select("id,cash_session_id,appointment_id,financial_account_id,amount_cents,payment_method,status,created_at").eq("organization_id", context.organization_id).eq("received_by_barber_id", context.barber_id).order("created_at", { ascending: false }).limit(500),
     supabase.from("financial_accounts").select("id,name,kind").eq("organization_id", context.organization_id).eq("active", true).order("name"),
     supabase.from("appointments").select("id,customer_id,barber_id,status,service_period,total_cents_snapshot,payment_mode,notes").eq("organization_id", context.organization_id).eq("status", "COMPLETED").order("service_period", { ascending: false }).limit(250),
     supabase.from("appointment_financial_summary").select("appointment_id,outstanding_cents").eq("organization_id", context.organization_id).limit(500),
+    supabase.from("barber_cash_reconciliations").select("id,cash_session_id").eq("organization_id", context.organization_id).order("reconciled_at", { ascending: false }).limit(90),
   ]);
   const activeAccountRows = rows(accounts.data as BarberFinancialAccount[]);
   const receiptRowsRaw = rows(receipts.data as Array<Omit<BarberCashReceipt, "customer_name" | "financial_account_name">>);
@@ -136,13 +137,20 @@ export async function loadBarberCash(slug?: string | null) {
     customer_name: customerById.get(appointmentById.get(receipt.appointment_id)?.customer_id ?? "") ?? "Cliente",
     financial_account_name: accountById.get(receipt.financial_account_id)?.name ?? "Conta financeira",
   }));
+  const openSessionIds = new Set(rows(sessions.data as BarberCashSession[]).filter((session) => session.status === "OPEN").map((session) => session.id));
+  const currentReceiptRows = receiptRows.filter((receipt) => receipt.status === "PENDING_RECONCILIATION" && openSessionIds.has(receipt.cash_session_id));
   const accountBalances: BarberAccountBalance[] = [...accountById.values()].map((account) => ({
     ...account,
-    balance_cents: receiptRows.filter((receipt) => receipt.financial_account_id === account.id && receipt.status !== "REVERSED").reduce((sum, receipt) => sum + receipt.amount_cents, 0),
+    balance_cents: currentReceiptRows.filter((receipt) => receipt.financial_account_id === account.id).reduce((sum, receipt) => sum + receipt.amount_cents, 0),
+  }));
+  const closureBySession = new Map(rows(closures.data as Array<{ id: number; cash_session_id: string }>).map((closure) => [closure.cash_session_id, closure.id]));
+  const sessionRows = rows(sessions.data as BarberCashSession[]).map((session) => ({
+    ...session,
+    closure_id: closureBySession.get(session.id) ?? null,
   }));
   return {
     context,
-    sessions: rows(sessions.data as BarberCashSession[]),
+    sessions: sessionRows,
     receipts: receiptRows,
     accounts: activeAccountRows,
     accountBalances,

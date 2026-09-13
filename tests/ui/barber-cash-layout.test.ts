@@ -11,6 +11,8 @@ describe("barber cash layout and scope", () => {
     expect(cash).toContain("Visão geral");
     expect(cash).toContain("Saldo das contas");
     expect(cash).toContain("Total recebido");
+    expect(cash).toContain("Fechamentos");
+    expect(cash).toContain("Lançamentos deste fechamento");
     expect(cash).not.toContain("Conferência de Caixa");
     expect(cash).not.toContain("Comissões");
     expect(cash).not.toContain("Contas a pagar");
@@ -22,7 +24,9 @@ describe("barber cash layout and scope", () => {
     expect(server).toContain('.eq("barber_id", context.barber_id)');
     expect(server).toContain('.eq("received_by_barber_id", context.barber_id)');
     expect(server).toContain("accountBalances");
-    expect(server).toContain('receipt.status !== "REVERSED"');
+    expect(server).toContain('receipt.status === "PENDING_RECONCILIATION"');
+    expect(server).toContain('supabase.from("barber_cash_reconciliations")');
+    expect(server).toContain("cash_session_id");
   });
 
   it("allows only the dedicated overview route in addition to the cash route", () => {

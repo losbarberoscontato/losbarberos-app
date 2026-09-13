@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903154708_barber_app_and_individual_cash.sql"), "utf8");
 const reconciliationMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260913190306_barber_cash_reconciliation_detail.sql"), "utf8");
+const closureHistoryMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260913203244_barber_cash_closure_history.sql"), "utf8");
 
 describe("barber app migration", () => {
   it("keeps access, agenda and cash rules tenant-scoped", () => {
@@ -37,5 +38,12 @@ describe("barber app migration", () => {
     expect(reconciliationMigration).toContain("reconciliation_label");
     expect(reconciliationMigration).toContain("reconciled_on");
     expect(reconciliationMigration).not.toContain("delete from public.payment_transactions");
+  });
+
+  it("keeps closure history readable to the barber and snapshots the administrative actor", () => {
+    expect(closureHistoryMigration).toContain("reconciled_by_name");
+    expect(closureHistoryMigration).toContain("set_barber_cash_reconciled_by_name");
+    expect(closureHistoryMigration).toContain("barber_cash_reconciliation_barber_select");
+    expect(closureHistoryMigration).toContain("public.is_organization_barber(organization_id)");
   });
 });
