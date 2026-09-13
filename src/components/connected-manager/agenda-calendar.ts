@@ -1,5 +1,61 @@
 import { parsePostgresRange } from "./format";
 
+export type AgendaEventLayout = {
+  lane: number;
+  lanes: number;
+};
+
+/**
+ * Assigns overlapping appointments to visual lanes. Cancelled appointments
+ * remain visible in the agenda, so a replacement booking at the same time
+ * must share the column instead of being painted underneath it.
+ */
+export function buildAppointmentLayouts<T>(
+  items: T[],
+  getId: (item: T) => string,
+  getRange: (item: T) => string,
+) {
+  const layout = new Map<string, AgendaEventLayout>();
+  const timed = items
+    .map((item) => {
+      const period = parsePostgresRange(getRange(item));
+      return period
+        ? { item, id: getId(item), start: period.start.getTime(), end: period.end.getTime() }
+        : null;
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+    .sort((left, right) => left.start - right.start || left.end - right.end || left.id.localeCompare(right.id));
+
+  let component: typeof timed = [];
+  let componentEnd = Number.NEGATIVE_INFINITY;
+  const flush = () => {
+    if (!component.length) return;
+    const laneEnds: number[] = [];
+    const assignments = new Map<string, number>();
+    for (const entry of component) {
+      let lane = laneEnds.findIndex((end) => end <= entry.start);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(entry.end);
+      } else {
+        laneEnds[lane] = entry.end;
+      }
+      assignments.set(entry.id, lane);
+    }
+    for (const [id, lane] of assignments) layout.set(id, { lane, lanes: laneEnds.length });
+    component = [];
+    componentEnd = Number.NEGATIVE_INFINITY;
+  };
+
+  for (const entry of timed) {
+    if (component.length && entry.start >= componentEnd) flush();
+    component.push(entry);
+    componentEnd = Math.max(componentEnd, entry.end);
+  }
+  flush();
+  return layout;
+}
+
 const DAY_MS = 86_400_000;
 
 function utcDate(dateKey: string) {
@@ -73,6 +129,11 @@ export function appointmentGeometry(range: string, timezone: string, startHour =
     startLabel: `${start.hour}:${start.minute}`,
     endLabel: `${end.hour}:${end.minute}`,
   };
+}
+
+export function appointmentDateKey(range: string, timezone: string) {
+  const period = parsePostgresRange(range);
+  return period ? dateKeyInTimezone(period.start, timezone) : "";
 }
 
 export function currentTimeGeometry(

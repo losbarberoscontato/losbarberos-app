@@ -31,6 +31,8 @@ import {
 } from "./appointment-display-status";
 import {
   appointmentGeometry,
+  appointmentDateKey,
+  buildAppointmentLayouts,
   currentTimeGeometry,
   dateKeyInTimezone,
   monthCells,
@@ -177,6 +179,16 @@ export function AgendaManager(props: Props) {
     return barberFilter === "ALL" || appointment.barber_id === barberFilter;
   }), [barberFilter, props.appointments, status]);
   const displayedBarbers = barberFilter === "ALL" ? props.barbers : props.barbers.filter((barber) => barber.id === barberFilter);
+  const dayAppointmentLayouts = useMemo(() => {
+    const layout = new Map<string, { lane: number; lanes: number }>();
+    for (const barber of props.barbers) {
+      const barberAppointments = filteredAppointments.filter((appointment) => appointment.barber_id === barber.id && appointmentDateKey(appointment.service_period, timezone) === date);
+      for (const [id, value] of buildAppointmentLayouts(barberAppointments, (appointment) => appointment.id, (appointment) => appointment.service_period)) {
+        layout.set(id, value);
+      }
+    }
+    return layout;
+  }, [date, filteredAppointments, props.barbers, timezone]);
   const weekDates = weekDateKeys(date);
   const month = monthCells(date);
   const nowLine = currentTime ? currentTimeGeometry(date, currentTime, timezone) : null;
@@ -197,8 +209,7 @@ export function AgendaManager(props: Props) {
   }, []);
 
   function appointmentDate(appointment: AppointmentRecord) {
-    const period = parsePostgresRange(appointment.service_period);
-    return period ? dateKeyInTimezone(period.start, timezone) : "";
+    return appointmentDateKey(appointment.service_period, timezone);
   }
 
   function serviceLabel(appointmentId: string) {
@@ -461,7 +472,9 @@ export function AgendaManager(props: Props) {
             const geometry = appointmentGeometry(appointment.service_period, timezone);
             if (!geometry) return null;
             const displayStatus = appointmentDisplayStatus(appointment);
-            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height }} onClick={() => openAppointment(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><span className="agenda-event__meta"><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i>{appointment.payment_mode === "SUBSCRIPTION" && <em>Plano de assinatura</em>}</span></span></button>;
+            const layout = dayAppointmentLayouts.get(appointment.id) ?? { lane: 0, lanes: 1 };
+            const laneWidth = 100 / layout.lanes;
+            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height, left: `calc(${layout.lane * laneWidth}% + 6px)`, right: "auto", width: `calc(${laneWidth}% - 12px)` }} onClick={() => openAppointment(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><span className="agenda-event__meta"><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i>{appointment.payment_mode === "SUBSCRIPTION" && <em>Plano de assinatura</em>}</span></span></button>;
           })}
         </div>)}
         {nowLine && <div className="agenda-now-line" style={{ top: nowLine.top }} aria-label={`Hora atual: ${nowLine.label}`}><span>{nowLine.label}</span><i /></div>}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appointmentGeometry,
+  buildAppointmentLayouts,
   currentTimeGeometry,
   dateKeyInTimezone,
   monthCells,
@@ -75,5 +76,19 @@ describe("connected agenda calendar projections", () => {
     expect(second).not.toBeNull();
     if (!first || !second) throw new Error("Expected consecutive appointments to have geometry");
     expect(first.top + first.height).toBeLessThanOrEqual(second.top);
+  });
+
+  it("separa uma nova reserva da sessão cancelada no mesmo horário", () => {
+    const cancelled = { id: "cancelled", range: '["2026-09-14 12:00:00+00","2026-09-14 12:45:00+00")' };
+    const replacement = { id: "replacement", range: '["2026-09-14 12:00:00+00","2026-09-14 12:45:00+00")' };
+
+    expect(buildAppointmentLayouts(
+      [cancelled, replacement],
+      (item) => item.id,
+      (item) => item.range,
+    )).toEqual(new Map([
+      ["cancelled", { lane: 0, lanes: 2 }],
+      ["replacement", { lane: 1, lanes: 2 }],
+    ]));
   });
 });

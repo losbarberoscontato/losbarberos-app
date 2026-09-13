@@ -22,6 +22,8 @@ import { Avatar, PageHeader } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   appointmentGeometry,
+  appointmentDateKey,
+  buildAppointmentLayouts,
   currentTimeGeometry,
   dateKeyInTimezone,
   monthCells,
@@ -201,6 +203,16 @@ export function BarberAgenda({
   const nowLine = currentTime
     ? currentTimeGeometry(date, currentTime, timezone)
     : null;
+  const dayAppointmentLayouts = useMemo(() => {
+    const layout = new Map<string, { lane: number; lanes: number }>();
+    for (const barber of displayedBarbers) {
+      const barberAppointments = filteredAppointments.filter((appointment) => appointment.barber_id === barber.id && appointmentDateKey(appointment.service_period, timezone) === date);
+      for (const [id, value] of buildAppointmentLayouts(barberAppointments, (appointment) => appointment.id, (appointment) => appointment.service_period)) {
+        layout.set(id, value);
+      }
+    }
+    return layout;
+  }, [date, displayedBarbers, filteredAppointments]);
   useEffect(() => {
     const update = () => setCurrentTime(new Date());
     update();
@@ -208,8 +220,7 @@ export function BarberAgenda({
     return () => window.clearInterval(interval);
   }, []);
   function appointmentDate(appointment: BarberAppointment) {
-    const start = appointment.service_period.match(/\[([^,]+)/)?.[1];
-    return start ? dateKeyInTimezone(new Date(start), timezone) : "";
+    return appointmentDateKey(appointment.service_period, timezone);
   }
   function appointmentsOn(dateKey: string) {
     return filteredAppointments.filter(
@@ -575,13 +586,15 @@ export function BarberAgenda({
                       );
                       if (!geometry) return null;
                       const display = statusDisplay(appointment);
+                      const layout = dayAppointmentLayouts.get(appointment.id) ?? { lane: 0, lanes: 1 };
+                      const laneWidth = 100 / layout.lanes;
                       return (
                         <button
                           key={appointment.id}
                           type="button"
                           aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`}
                           className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${display.tone}${geometry.height <= 39 ? " agenda-event--short" : ""}`}
-                          style={{ top: geometry.top, height: geometry.height }}
+                          style={{ top: geometry.top, height: geometry.height, left: `calc(${layout.lane * laneWidth}% + 6px)`, right: "auto", width: `calc(${laneWidth}% - 12px)` }}
                           onClick={() => setSelected(appointment)}
                         >
                           <span className="agenda-event__time">
