@@ -221,13 +221,21 @@ export function AgendaManager(props: Props) {
     const session = subscriptionSessionByAppointment.get(appointment.id);
     const cycle = session ? subscriptionCycleById.get(String(session.cycle_id)) : undefined;
     const subscription = session ? subscriptionById.get(String(session.subscription_id)) : undefined;
+    const planVersion = subscription?.plan_version as { sessions_per_cycle?: unknown } | null | undefined;
+    const sessionNumber = Number(session?.session_number ?? 0);
+    const totalSessions = Number(planVersion?.sessions_per_cycle ?? 0);
+    const month = cycle?.starts_on
+      ? new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(new Date(`${String(cycle.starts_on)}T12:00:00`))
+      : "";
     const dueOn = String(cycle?.due_on ?? "");
     const overdue = cycle?.status === "OVERDUE" || (cycle?.status !== "PAID" && dueOn < new Date().toISOString().slice(0, 10));
     return {
       cycle,
+      subscriptionId: String(subscription?.id ?? ""),
       method: String(subscription?.payment_method ?? ""),
       overdue,
       amountCents: Number(cycle?.amount_cents ?? 0),
+      sessionReference: sessionNumber > 0 && month ? `${sessionNumber} de ${totalSessions || "—"} | ${month.charAt(0).toUpperCase()}${month.slice(1)}` : null,
     };
   }
 
@@ -507,7 +515,7 @@ export function AgendaManager(props: Props) {
           <span><UserRound size={17} /><div><small>Profissional</small><strong>{selectedBarberRecord?.display_name ?? "Profissional"}</strong></div></span>
           <span><MapPin size={17} /><div><small>Origem</small><strong>{appointmentSourceLabel(selected.source)}</strong></div></span>
         </div>
-        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span>{selected.payment_mode === "SUBSCRIPTION" ? <><small>Plano de assinatura</small>{selectedSubscriptionPayment?.cycle?.status === "PAID" && <small>Pago em {selectedSubscriptionPayment.cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(selectedSubscriptionPayment.cycle.paid_at))) : "—"} · {formatCents(selectedSubscriptionPayment.amountCents)} · {paymentMethodLabel(selectedSubscriptionPayment.method)}</small>}{selectedSubscriptionPayment?.overdue && <small className="appointment-payment-alert">Pagamento em atraso</small>}{selectedSubscriptionPayment?.method === "CASH" && <small className="appointment-payment-alert">Receber em dinheiro na barbearia</small>}</> : <><small>{selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</>}</div><strong>{selected.payment_mode === "SUBSCRIPTION" ? formatCents(selectedSubscriptionPayment?.amountCents ?? 0) : formatCents(selected.total_cents_snapshot)}</strong><span>{selected.payment_mode === "SUBSCRIPTION" ? `Venc. ${selectedSubscriptionPayment?.cycle?.due_on ?? "—"}` : `Saldo: ${formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}`}</span></div>
+        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span>{selected.payment_mode === "SUBSCRIPTION" ? <><small>Plano de assinatura</small>{selectedSubscriptionPayment?.sessionReference && <small>Sessão {selectedSubscriptionPayment.sessionReference}</small>}{selectedSubscriptionPayment?.cycle?.status === "PAID" && <small>Pago em {selectedSubscriptionPayment.cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(selectedSubscriptionPayment.cycle.paid_at))) : "—"} · {formatCents(selectedSubscriptionPayment.amountCents)} · {paymentMethodLabel(selectedSubscriptionPayment.method)}</small>}{selectedSubscriptionPayment?.overdue && <small className="appointment-payment-alert">Pagamento em atraso</small>}{selectedSubscriptionPayment?.method === "CASH" && <small className="appointment-payment-alert">Receber em dinheiro na barbearia</small>}</> : <><small>{selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</>}</div><div className="appointment-detail__payment-value"><strong>{selected.payment_mode === "SUBSCRIPTION" ? formatCents(selectedSubscriptionPayment?.amountCents ?? 0) : formatCents(selected.total_cents_snapshot)}</strong>{selected.payment_mode === "SUBSCRIPTION" && selectedSubscriptionPayment?.subscriptionId && <button type="button" className="button button--dark button--sm" onClick={() => { setSelected(null); router.push(`/gestor/clientes?cliente=${encodeURIComponent(selected.customer_id)}&assinatura=${encodeURIComponent(selectedSubscriptionPayment.subscriptionId)}`); }}>Receber</button>}</div><span>{selected.payment_mode === "SUBSCRIPTION" ? `Venc. ${selectedSubscriptionPayment?.cycle?.due_on ?? "—"}` : `Saldo: ${formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}`}</span></div>
         {selectedCustomerRecord?.phone_e164 && <div className="appointment-detail__contact"><a href={`https://web.whatsapp.com/send?phone=${selectedCustomerRecord.phone_e164.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a></div>}
       </div>
       <div className="appointment-detail__actions">

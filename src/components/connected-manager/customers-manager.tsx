@@ -173,9 +173,24 @@ export function CustomersManager({
   );
 
   useEffect(() => {
-    const customerId = new URLSearchParams(window.location.search).get("cliente");
+    const params = new URLSearchParams(window.location.search);
+    const customerId = params.get("cliente");
+    const subscriptionId = params.get("assinatura");
     if (!customerId) return;
     const customer = customers.find((item) => item.id === customerId);
+    const subscription = subscriptionId
+      ? subscriptions.find((item) => String(item.id) === subscriptionId)
+      : null;
+    if (customer && subscription) {
+      queueMicrotask(() => {
+        setEditing(null);
+        setFormOpen(false);
+        setHistoryCustomer(customer);
+        setHistoryTab("SUBSCRIPTIONS");
+        setSubscriptionControlId(subscriptionId);
+      });
+      return;
+    }
     if (customer) {
       queueMicrotask(() => {
         setEditing(customer);
@@ -183,7 +198,7 @@ export function CustomersManager({
         setHistoryCustomer(null);
       });
     }
-  }, [customers]);
+  }, [customers, subscriptions]);
 
   function customerAppointments(customerId: string) {
     return appointments

@@ -8,6 +8,7 @@ import { TeamManager } from "@/components/connected-manager/team-manager";
 import type { WhatsAppSettingsStatus } from "@/components/connected-manager/whatsapp-settings";
 
 const refresh = vi.fn();
+const push = vi.fn();
 const mutationMocks = vi.hoisted(() => ({
   update: vi.fn(() => ({
     eq: vi.fn(() => ({
@@ -18,7 +19,7 @@ const mutationMocks = vi.hoisted(() => ({
   })),
   rpc: vi.fn(() => Promise.resolve({ error: null, data: null })),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push }) }));
 vi.mock("@/components/connected-manager/mutation-utils", () => ({
   connectedClient: () => ({ from: () => ({ update: mutationMocks.update }), rpc: mutationMocks.rpc }),
   assertResult: (result: unknown) => result,
@@ -76,7 +77,7 @@ function renderTeam() {
 }
 
 describe("connected manager UI", () => {
-  beforeEach(() => { cleanup(); refresh.mockReset(); mutationMocks.update.mockClear(); mutationMocks.rpc.mockClear(); });
+  beforeEach(() => { cleanup(); refresh.mockReset(); push.mockReset(); mutationMocks.update.mockClear(); mutationMocks.rpc.mockClear(); });
 
   it("renders only tenant records on the dashboard", () => {
     render(<ManagerDashboard organizationId="org-1" billingStatus="ACTIVE" organization={organization} appointments={[]} customers={[customer]} barbers={[barber]} financial={[]} openPayouts={[]} />);
@@ -452,13 +453,17 @@ describe("connected manager UI", () => {
       appointmentItems={[{ id: "item-subscription", organization_id: "org-1", appointment_id: "appointment-subscription", service_name_snapshot: "Barba", position: 0 }]}
       subscriptionSessions={[{ id: "subscription-session-1", subscription_id: "subscription-1", cycle_id: "cycle-1", session_number: 1, status: "SCHEDULED", appointment_id: "appointment-subscription" }]}
       subscriptionCycles={[{ id: "cycle-1", subscription_id: "subscription-1", starts_on: "2026-08-01", due_on: "2026-08-10", amount_cents: 12600, status: "PAID", paid_at: "2026-08-09T12:00:00Z" }]}
-      subscriptions={[{ id: "subscription-1", customer_id: customer.id, payment_method: "CARD", status: "ACTIVE", plan: { name: "Barba em dia" } }]}
+      subscriptions={[{ id: "subscription-1", customer_id: customer.id, payment_method: "CARD", status: "ACTIVE", plan: { name: "Barba em dia" }, plan_version: { sessions_per_cycle: 2 } }]}
     />);
 
     fireEvent.click(screen.getByRole("button", { name: "Selecionar data" }));
     fireEvent.change(screen.getByLabelText("Selecionar data da agenda"), { target: { value: "2026-08-07" } });
     expect(screen.getByText("Barba em dia")).toBeInTheDocument();
     expect(screen.getByText("Plano de assinatura")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: `Abrir ${customer.full_name}` }));
+    expect(screen.getByText("Sessão 1 de 2 | Agosto")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Receber" }));
+    expect(push).toHaveBeenCalledWith(`/gestor/clientes?cliente=${customer.id}&assinatura=subscription-1`);
   });
 
   it("mostra linha da hora atual somente no dia atual e alinhada a cinco minutos", () => {
