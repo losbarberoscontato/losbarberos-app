@@ -118,7 +118,7 @@
 .subscriptionControlLegend i { width: .62rem; height: .62rem; border-radius: 50%; display: inline-block; }
 .subscriptionDotAvailable { background: #2771ab; }
 .subscriptionDotScheduled { background: #b27617; }
-.subscriptionDotCompleted { background: #a13f31; }
+.subscriptionDotCompleted { background: #2f7a4e; }
 .subscriptionDotCanceled { background: #a13f31; }
 .subscriptionMonth { display: grid; gap: .8rem; padding: 1rem; border: 1px solid #e3e9e1; border-radius: 16px; background: #fff; }
 .subscriptionMonthTitle { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
@@ -129,7 +129,7 @@
 .subscriptionSessionList button { font: inherit; cursor: pointer; }
 .subscriptionSessionChipAvailable { border-color: #b9d8f1; background: #edf7ff; color: #2771ab; }
 .subscriptionSessionChipScheduled { border-color: #e9ce9c; background: #fff7e8; color: #99650f; }
-.subscriptionSessionChipCompleted { border-color: #efc1b9; background: #fff0ed; color: #a13f31; }
+.subscriptionSessionChipCompleted { border-color: #b8dec5; background: #eef8f0; color: #2f7a4e; }
 .subscriptionSessionChipCanceled { border-color: #efc1b9; background: #fff0ed; color: #a13f31; }
 .subscriptionBookingReference { margin: 0; padding: .7rem .8rem; border-radius: 10px; background: #eef5f0; color: #1f5b4b; font-weight: 850; }
 .subscriptionBookingHint { margin: 0; color: #68736b; font-size: .78rem; }
