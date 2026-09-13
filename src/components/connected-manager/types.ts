@@ -467,8 +467,22 @@ export interface AppointmentCashActivityRecord {
   occurred_at: string;
   financial_account_id: string | null;
   needs_reconciliation: boolean;
+  conciliation_at?: string | null;
+  reconciliation_id?: number | null;
+  reconciliation_label?: string | null;
   display_description: string;
   financial_status: string;
+}
+
+export interface BarberCashReceiptRecord {
+  id: string;
+  cash_session_id: string;
+  appointment_id: string;
+  financial_account_id: string;
+  amount_cents: number;
+  payment_method: string;
+  status: "PENDING_RECONCILIATION" | "RECONCILED" | "REVERSED";
+  created_at: string;
 }
 
 export interface AppointmentReceivableRecord {

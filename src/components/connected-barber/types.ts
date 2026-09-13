@@ -60,6 +60,7 @@ export type BarberCashSession = {
 export type BarberCashReceipt = {
   id: string;
   appointment_id: string;
+  financial_account_id: string;
   customer_name: string;
   amount_cents: number;
   payment_method: string;
@@ -68,4 +69,5 @@ export type BarberCashReceipt = {
   created_at: string;
 };
 export type BarberFinancialAccount = { id: string; name: string; kind: "BANK" | "CASH" };
+export type BarberAccountBalance = BarberFinancialAccount & { balance_cents: number };
 export type BarberAppointmentItem = { appointment_id: string; service_name_snapshot: string; position: number };

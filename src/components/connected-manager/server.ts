@@ -35,6 +35,7 @@ import type {
   ChartAccountRecord,
   CostCenterRecord,
   AppointmentCashActivityRecord,
+  BarberCashReceiptRecord,
   AppointmentReceivableRecord,
   PaymentAccountMappingRecord,
   FinancialBudgetVersionRecord,
@@ -629,6 +630,7 @@ export async function loadFinanceData() {
     settlements,
     organization,
     barberCashSessions,
+    barberCashReceipts,
   ] = await Promise.all([
     supabase
       .from("appointment_financial_summary")
@@ -724,6 +726,11 @@ export async function loadFinanceData() {
       .eq("organization_id", organizationId)
       .order("business_date", { ascending: false })
       .limit(MANAGER_ROW_LIMIT),
+    supabase.from("barber_cash_receipts")
+      .select("id,cash_session_id,appointment_id,financial_account_id,amount_cents,payment_method,status,created_at")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .limit(MANAGER_ROW_LIMIT),
   ]);
   const timezone =
     (
@@ -793,6 +800,9 @@ export async function loadFinanceData() {
           variance_cents: number | null;
           variance_reason: string | null;
         }>),
+    barberCashReceipts: barberCashReceipts.error
+      ? []
+      : (requireData(barberCashReceipts, "Recebimentos dos caixas") as BarberCashReceiptRecord[]),
     barberNames: Object.fromEntries(
       (requireData(barbers, "Equipe") as BarberRecord[]).map((barber) => [
         barber.id,
@@ -826,6 +836,7 @@ export async function loadCashData() {
     barbers,
     organization,
     barberCashSessions,
+    barberCashReceipts,
   ] = await Promise.all([
     supabase
       .from("financial_accounts")
@@ -899,7 +910,7 @@ export async function loadCashData() {
     supabase
       .from("appointment_cash_activity")
       .select(
-        "payment_transaction_id,organization_id,appointment_id,customer_id,payment_mode,provider,kind,amount_cents,signed_cents,occurred_at,financial_account_id,needs_reconciliation",
+        "payment_transaction_id,organization_id,appointment_id,customer_id,payment_mode,provider,kind,amount_cents,signed_cents,occurred_at,financial_account_id,needs_reconciliation,conciliation_at,reconciliation_id,reconciliation_label",
       )
       .eq("organization_id", organizationId)
       .order("occurred_at", { ascending: false })
@@ -965,6 +976,11 @@ export async function loadCashData() {
       )
       .eq("organization_id", organizationId)
       .order("business_date", { ascending: false })
+      .limit(MANAGER_ROW_LIMIT),
+    supabase.from("barber_cash_receipts")
+      .select("id,cash_session_id,appointment_id,financial_account_id,amount_cents,payment_method,status,created_at")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
       .limit(MANAGER_ROW_LIMIT),
   ]);
   const timezone =
@@ -1187,6 +1203,9 @@ export async function loadCashData() {
           variance_cents: number | null;
           variance_reason: string | null;
         }>),
+    barberCashReceipts: barberCashReceipts.error
+      ? []
+      : (requireData(barberCashReceipts, "Recebimentos dos caixas") as BarberCashReceiptRecord[]),
     barberNames: Object.fromEntries(barberById),
   };
 }

@@ -6,6 +6,7 @@ const barberDestinations = new Set([
   "/barbeiro",
   "/barbeiro/agenda",
   "/barbeiro/caixa",
+  "/barbeiro/financeiro",
   "/barbeiro/perfil",
 ]);
 

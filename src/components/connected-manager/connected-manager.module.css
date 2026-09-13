@@ -96,11 +96,24 @@
 .list { display: grid; gap: .65rem; }
 .cashTable { display: grid; gap: .65rem; }
 .cashHeader, .cashRow { --cash-columns: minmax(210px, 1.5fr) minmax(105px, .7fr) minmax(115px, .75fr) minmax(160px, 1fr) minmax(170px, 1fr) minmax(190px, auto); display: grid; grid-template-columns: var(--cash-columns); gap: .8rem; align-items: center; }
-.cashTableOnly .cashHeader, .cashTableOnly .cashRow { --cash-columns: minmax(220px, 1.55fr) minmax(118px, .75fr) minmax(130px, .8fr) minmax(190px, 1fr) minmax(255px, auto); }
+.cashTableOnly .cashHeader, .cashTableOnly .cashRow { --cash-columns: minmax(200px, 1.4fr) minmax(105px, .7fr) minmax(105px, .7fr) minmax(120px, .75fr) minmax(220px, 1.2fr) minmax(180px, auto); }
 .cashHeader { padding: 0 .8rem; color: #69716b; font-size: .75rem; font-weight: 800; }
 .cashHeaderAction { text-align: right; }
 .cashRow { padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }
 .cashRow:hover { background: #fafbf9; }
+.cashAccountCell { display: grid; gap: .2rem; min-width: 0; }
+.cashAccountCell small { color: #79817a; font-size: .72rem; line-height: 1.25; }
+.reconciliationTable { display: grid; gap: .5rem; margin: 1rem 0; }
+.reconciliationHeader, .reconciliationRow { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(100px, .7fr) minmax(150px, .9fr); gap: .7rem; align-items: center; }
+.reconciliationHeader { padding: 0 .7rem; color: #69716b; font-size: .75rem; font-weight: 800; }
+.reconciliationRow { padding: .7rem; border: 1px solid #edf0eb; border-radius: 12px; background: #fff; }
+.reconciliationRow .field { margin: 0; }
+.reconciliationTotals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin: .9rem 0; }
+.reconciliationTotals > div { display: grid; gap: .2rem; padding: .75rem; border: 1px solid #e3e9e1; border-radius: 12px; background: #f7f8f5; }
+.reconciliationTotals span { color: #69716b; font-size: .76rem; }
+.reconciliationTotals strong { color: #24342d; font-size: 1.1rem; }
+.reconciliationBalanced { color: #347542 !important; }
+.reconciliationDivergence { color: #a13f31 !important; }
 .row { display: grid; grid-template-columns: minmax(150px, 1.4fr) repeat(3, minmax(90px, 1fr)) auto; gap: .8rem; align-items: center; padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }
 .row:hover { background: #fafbf9; }
 .subscriptionSummaryRow { grid-template-columns: minmax(180px, 1.35fr) minmax(130px, .75fr) minmax(220px, 1.25fr) auto auto; }
@@ -333,6 +346,10 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
   .cashHeader { display: none; }
   .cashRow { grid-template-columns: 1fr auto; }
   .cashRow > :not(.rowTitle):not(.rowActions) { display: none; }
+  .reconciliationHeader { display: none; }
+  .reconciliationRow { grid-template-columns: 1fr 1fr; }
+  .reconciliationRow strong, .reconciliationRow .field { grid-column: 1 / -1; }
+  .reconciliationTotals { grid-template-columns: 1fr; }
   .appointment { grid-template-columns: 1fr auto; }
   .appointment > :not(.appointmentTime):not(.rowActions) { display: none; }
   .integration { align-items: flex-start; flex-direction: column; }

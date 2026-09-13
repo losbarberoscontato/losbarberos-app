@@ -118,6 +118,29 @@ describe("cash manager", () => {
     }
   });
 
+  it("shows the transaction date, reconciliation date and barber reconciliation label", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      render(<CashManager {...props} appointmentActivity={[{
+        ...props.appointmentActivity[0],
+        occurred_at: "2026-08-09T10:00:00.000Z",
+        conciliation_at: "2026-08-10T14:30:00.000Z",
+        reconciliation_id: 42,
+        reconciliation_label: "Conciliado | Barbeiro Alef | ID 42",
+      }]} />);
+
+      expect(screen.getByRole("columnheader", { name: "Data Com." })).toBeInTheDocument();
+      expect(screen.getByText("09/08/2026")).toBeInTheDocument();
+      expect(screen.getByText("10/08/2026")).toBeInTheDocument();
+      expect(screen.getByText("Conciliado | Barbeiro Alef | ID 42")).toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it("abre a Caixa no mês atual e oferece filtro de conta financeira", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
@@ -156,7 +179,7 @@ describe("cash manager", () => {
       render(<CashManager {...props} accounts={[...props.accounts, { ...props.accounts[0], id: "account-2", name: "Caixa físico" }]} entries={[...props.entries, settledEntry]} settlements={[{ id: "settlement-1", entry_id: "entry-settled", financial_account_id: "account-1", kind: "SETTLEMENT" as const, amount_cents: 6500, settled_on: "2026-08-10", payment_method: "PIX", reference: null }]} />);
 
       expect(screen.getByText("Imobiliária Real")).toBeInTheDocument();
-      expect(screen.getByText("10/08/2026")).toBeInTheDocument();
+      expect(screen.getAllByText("10/08/2026")).toHaveLength(2);
       expect(screen.getByText("Corte adicional")).toBeInTheDocument();
       expect(screen.getByText(/R\$\s*65,00/)).toBeInTheDocument();
       expect(screen.getAllByText("Banco Principal").length).toBeGreaterThan(0);
