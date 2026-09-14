@@ -40,6 +40,7 @@ import type {
   PaymentAccountMappingRecord,
   FinancialBudgetVersionRecord,
   FinancialReportingFactRecord,
+  BarberCashClosureReportRecord,
   WorkIntervalRecord,
 } from "./types";
 import type { WhatsAppSettingsStatus } from "./whatsapp-settings";
@@ -1233,6 +1234,10 @@ export async function loadFinancialReportsData() {
     entryTags,
     settlements,
     receiptClassifications,
+    cashClosures,
+    cashClosureSessions,
+    cashClosureReceipts,
+    cashClosureAppointments,
   ] = await Promise.all([
     supabase
       .from("financial_reporting_facts")
@@ -1312,6 +1317,30 @@ export async function loadFinancialReportsData() {
       .select("payment_transaction_id,tag_ids")
       .eq("organization_id", organizationId)
       .limit(MANAGER_ROW_LIMIT),
+    supabase
+      .from("barber_cash_reconciliations")
+      .select("id,organization_id,cash_session_id,reconciled_on,reconciled_at,reconciled_cents")
+      .eq("organization_id", organizationId)
+      .order("id", { ascending: false })
+      .limit(MANAGER_ROW_LIMIT),
+    supabase
+      .from("barber_cash_sessions")
+      .select("id,organization_id,barber_id,reconciled_by_name")
+      .eq("organization_id", organizationId)
+      .eq("status", "RECONCILED")
+      .limit(MANAGER_ROW_LIMIT),
+    supabase
+      .from("barber_cash_receipts")
+      .select("id,organization_id,cash_session_id,appointment_id,financial_account_id,amount_cents,payment_method,created_at,status")
+      .eq("organization_id", organizationId)
+      .eq("status", "RECONCILED")
+      .order("created_at", { ascending: false })
+      .limit(MANAGER_ROW_LIMIT),
+    supabase
+      .from("appointments")
+      .select("id,organization_id,customer_id")
+      .eq("organization_id", organizationId)
+      .limit(MANAGER_ROW_LIMIT),
   ]);
   const tagNames = new Map(
     (
@@ -1370,20 +1399,75 @@ export async function loadFinancialReportsData() {
               : fact.source_id,
           ) ?? []),
   }));
+  const reportCustomers = requireData(customers, "Clientes financeiros") as Pick<
+    CustomerRecord,
+    "id" | "organization_id" | "full_name" | "active"
+  >[];
+  const reportBarbers = requireData(barbers, "Profissionais financeiros") as BarberRecord[];
+  const reportAccounts = requireData(accounts, "Contas financeiras") as FinancialAccountRecord[];
+  const customerNames = new Map(reportCustomers.map((customer) => [customer.id, customer.full_name]));
+  const barberNames = new Map(reportBarbers.map((barber) => [barber.id, barber.display_name]));
+  const accountNames = new Map(reportAccounts.map((account) => [account.id, account.name]));
+  const appointmentCustomers = new Map(
+    (requireData(cashClosureAppointments, "Agendamentos dos fechamentos") as Array<{ id: string; customer_id: string }>).map(
+      (appointment) => [appointment.id, appointment.customer_id],
+    ),
+  );
+  const sessionById = new Map(
+    (requireData(cashClosureSessions, "Caixas fechados") as Array<{ id: string; barber_id: string; reconciled_by_name: string | null }>).map(
+      (session) => [session.id, session],
+    ),
+  );
+  const receiptsBySession = new Map<string, BarberCashClosureReportRecord["launches"]>();
+  (requireData(cashClosureReceipts, "Lançamentos dos fechamentos") as Array<{
+    id: string;
+    cash_session_id: string;
+    appointment_id: string;
+    financial_account_id: string;
+    amount_cents: number;
+    payment_method: string;
+    created_at: string;
+  }>).forEach((receipt) => {
+    const customerId = appointmentCustomers.get(receipt.appointment_id);
+    const launch = {
+      id: receipt.id,
+      customer_name: customerNames.get(customerId ?? "") ?? "Cliente não informado",
+      transaction_date: receipt.created_at,
+      amount_cents: receipt.amount_cents,
+      financial_account_name: accountNames.get(receipt.financial_account_id) ?? "Conta não informada",
+      payment_method: receipt.payment_method,
+    };
+    receiptsBySession.set(receipt.cash_session_id, [...(receiptsBySession.get(receipt.cash_session_id) ?? []), launch]);
+  });
+  const cashClosureRows = (requireData(cashClosures, "Fechamentos de caixa") as Array<{
+    id: number;
+    cash_session_id: string;
+    reconciled_on: string;
+    reconciled_at: string;
+    reconciled_cents: number;
+  }>).map((closure): BarberCashClosureReportRecord => {
+    const session = sessionById.get(closure.cash_session_id);
+    const barberId = session?.barber_id ?? "";
+    return {
+      id: closure.id,
+      cash_session_id: closure.cash_session_id,
+      barber_id: barberId,
+      barber_name: barberNames.get(barberId) ?? "Profissional não informado",
+      reconciled_on: closure.reconciled_on,
+      reconciled_at: closure.reconciled_at,
+      reconciled_by_name: session?.reconciled_by_name ?? "Administrador",
+      reconciled_cents: closure.reconciled_cents,
+      launches: (receiptsBySession.get(closure.cash_session_id) ?? []).sort((a, b) => a.transaction_date.localeCompare(b.transaction_date)),
+    };
+  });
   return {
     organizationId,
     billingStatus: context.billingStatus,
     from,
     to,
     facts: reportFacts,
-    customers: requireData(customers, "Clientes financeiros") as Pick<
-      CustomerRecord,
-      "id" | "organization_id" | "full_name" | "active"
-    >[],
-    barbers: requireData(
-      barbers,
-      "Profissionais financeiros",
-    ) as BarberRecord[],
+    customers: reportCustomers,
+    barbers: reportBarbers,
     locations: requireData(
       locations,
       "Unidades financeiras",
@@ -1396,10 +1480,7 @@ export async function loadFinancialReportsData() {
       costCenters,
       "Centros de custo",
     ) as CostCenterRecord[],
-    accounts: requireData(
-      accounts,
-      "Contas financeiras",
-    ) as FinancialAccountRecord[],
+    accounts: reportAccounts,
     budgetVersions: requireData(
       budgetVersions,
       "Versões de orçamento",
@@ -1408,6 +1489,7 @@ export async function loadFinancialReportsData() {
       commissionDetails,
       "Detalhes de comissão",
     ) as FinancialCommissionDetailRecord[],
+    barberCashClosures: cashClosureRows,
   };
 }
 

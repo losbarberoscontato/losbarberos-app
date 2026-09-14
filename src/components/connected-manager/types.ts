@@ -302,7 +302,7 @@ export interface SubscriptionRecord {
 export type FinanceSection = "overview" | "cash" | "commissions" | "payables" | "receivables" | "accounts" | "suppliers" | "catalogs" | "reports";
 
 export type FinancialFactBasis = "FORECAST" | "ACCRUAL" | "CASH" | "BUDGET";
-export type FinancialReportType = "DASHBOARD" | "PAYABLES" | "RECEIVABLES" | "CUSTOMERS" | "COMMISSIONS" | "FORECAST" | "CASH_FLOW" | "INCOME_STATEMENT" | "BUDGET";
+export type FinancialReportType = "DASHBOARD" | "PAYABLES" | "RECEIVABLES" | "CUSTOMERS" | "COMMISSIONS" | "FORECAST" | "CASH_FLOW" | "INCOME_STATEMENT" | "BUDGET" | "CLOSURES";
 
 export interface FinancialReportingFactRecord {
   organization_id: string;
@@ -483,6 +483,25 @@ export interface BarberCashReceiptRecord {
   payment_method: string;
   status: "PENDING_RECONCILIATION" | "RECONCILED" | "REVERSED";
   created_at: string;
+}
+
+export interface BarberCashClosureReportRecord {
+  id: number;
+  cash_session_id: string;
+  barber_id: string;
+  barber_name: string;
+  reconciled_on: string;
+  reconciled_at: string;
+  reconciled_by_name: string;
+  reconciled_cents: number;
+  launches: Array<{
+    id: string;
+    customer_name: string;
+    transaction_date: string;
+    amount_cents: number;
+    financial_account_name: string;
+    payment_method: string;
+  }>;
 }
 
 export interface AppointmentReceivableRecord {

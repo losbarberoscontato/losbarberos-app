@@ -8,6 +8,25 @@
 .reportsFilters { margin: 0; padding: 1rem; border: 1px solid rgba(36, 42, 38, .11); border-radius: 16px; background: #fff; box-shadow: 0 8px 22px rgba(41, 48, 42, .045); }
 .reportsFilters > .toolbarGroup { width: 100%; }
 .reportsFilters .packageFilterSelect { min-height: 2.35rem; }
+.closureReportTable { display: grid; gap: .55rem; }
+.closureReportGrid { display: grid; grid-template-columns: minmax(115px, .75fr) minmax(175px, 1fr) minmax(220px, 1.5fr) minmax(145px, .85fr); gap: 1rem; align-items: center; }
+.closureReportHeader { padding: 0 .8rem; color: #69716b; font-size: .75rem; font-weight: 800; }
+.closureReportRow { border: 1px solid #e7ebe5; border-radius: 14px; background: #fff; overflow: hidden; }
+.closureReportRow[open] { border-color: #cbd8c9; box-shadow: 0 4px 16px rgba(41, 48, 42, .05); }
+.closureReportSummary { padding: .9rem 1rem; cursor: pointer; list-style: none; }
+.closureReportSummary::-webkit-details-marker { display: none; }
+.closureReportSummary:hover { background: #fafbf9; }
+.closureReportSummary > span { min-width: 0; overflow-wrap: anywhere; }
+.closureReportSummary span { display: grid; gap: .2rem; }
+.closureReportSummary small { color: #778078; font-size: .75rem; }
+.closureReportDetails { display: grid; gap: .7rem; padding: .9rem 1rem 1rem; border-top: 1px solid #edf0eb; background: #fbfcfa; }
+.closureLaunchTable { display: grid; gap: .45rem; }
+.closureLaunchGrid { display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(150px, 1fr) minmax(105px, .75fr) minmax(160px, 1fr); gap: .8rem; align-items: center; }
+.closureLaunchHeader { padding: 0 .8rem; color: #69716b; font-size: .74rem; font-weight: 800; }
+.closureLaunchRow { padding: .75rem .8rem; border: 1px solid #e7ebe5; border-radius: 11px; background: #fff; font-size: .82rem; }
+.closureLaunchRow span { min-width: 0; overflow-wrap: anywhere; }
+.closureLaunchRow span:first-child { display: grid; gap: .2rem; }
+.closureLaunchRow small { color: #778078; font-size: .72rem; }
 .agendaHeader { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; }
 .agendaHelpLink { flex: 0 0 auto; padding: .25rem 0; border: 0; background: transparent; color: #315f51; font: inherit; font-size: .82rem; font-weight: 800; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .22em; cursor: pointer; }
 .agendaHelpLink:hover { color: #173e33; }
@@ -343,6 +362,16 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
   .subscriptionInstallment { align-items: flex-start; flex-direction: column; }
   .subscriptionInstallment .button { width: 100%; }
   .row > :not(.rowTitle):not(.rowActions) { display: none; }
+  .closureReportHeader { display: none; }
+  .closureReportGrid, .closureLaunchGrid { grid-template-columns: 1fr auto; gap: .45rem .7rem; }
+  .closureReportSummary > :nth-child(2), .closureReportSummary > :nth-child(3), .closureReportSummary > :nth-child(4) { display: block; }
+  .closureReportSummary > :nth-child(2)::before { content: "Fechado em: "; color: #778078; font-weight: 700; }
+  .closureReportSummary > :nth-child(3) { grid-column: 1 / -1; }
+  .closureReportSummary > :nth-child(4) { grid-column: 1 / -1; }
+  .closureLaunchHeader { display: none; }
+  .closureLaunchRow > :nth-child(2)::before { content: "Data: "; color: #778078; font-weight: 700; }
+  .closureLaunchRow > :nth-child(3) { grid-column: 1 / -1; }
+  .closureLaunchRow > :nth-child(4) { grid-column: 1 / -1; }
   .cashHeader { display: none; }
   .cashRow { grid-template-columns: 1fr auto; }
   .cashRow > :not(.rowTitle):not(.rowActions) { display: none; }

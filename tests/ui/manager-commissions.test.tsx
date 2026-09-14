@@ -31,6 +31,10 @@ const props = {
     { organization_id: "org-1", appointment_id: "appointment-2", appointment_item_id: "item-2", customer_id: "customer-2", customer_name: "Cliente Dois", barber_id: "barber-1", service_id: "service-2", service_name: "Acabamento", location_id: "location-1", service_date: "2026-09-04", received_on: "2026-09-04", service_value_paid_cents: 2000, financial_account_names: "Nubank", commission_cents: 1000, paid_commission_cents: 0, payable_commission_cents: 1000 },
     { organization_id: "org-1", appointment_id: "appointment-3", appointment_item_id: "item-3", customer_id: "customer-3", customer_name: "Cliente Três", barber_id: "barber-1", service_id: "service-3", service_name: "Corte", location_id: "location-1", service_date: "2026-09-03", received_on: "2026-09-03", service_value_paid_cents: 7000, financial_account_names: "Caixa Físico", commission_cents: 3500, paid_commission_cents: 3500, payable_commission_cents: 0 },
   ],
+  barberCashClosures: [
+    { id: 2, cash_session_id: "session-2", barber_id: "barber-1", barber_name: "Barbeiro Real", reconciled_on: "2026-09-13", reconciled_at: "2026-09-13T17:25:00.000Z", reconciled_by_name: "Julio Heilden", reconciled_cents: 2000, launches: [{ id: "receipt-2", customer_name: "Cliente Um", transaction_date: "2026-09-13T15:00:00.000Z", amount_cents: 2000, financial_account_name: "Nubank", payment_method: "PIX" }] },
+    { id: 1, cash_session_id: "session-1", barber_id: "barber-1", barber_name: "Barbeiro Real", reconciled_on: "2026-09-12", reconciled_at: "2026-09-12T17:25:00.000Z", reconciled_by_name: "Julio Heilden", reconciled_cents: 3500, launches: [] },
+  ],
 } as unknown as Parameters<typeof FinancialReportsManager>[0];
 
 describe("manager commissions", () => {
@@ -70,6 +74,21 @@ describe("manager commissions", () => {
     fireEvent.change(screen.getByLabelText("Pesquisar por tag"), { target: { value: "prior" } });
     expect(screen.getAllByText("R$ 70,00")).not.toHaveLength(0);
     expect(screen.queryByText("R$ 100,00")).not.toBeInTheDocument();
+  });
+
+  it("shows closure history ordered by id, filters by professional, and expands launches", () => {
+    render(<FinancialReportsManager {...props} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechamentos" }));
+    expect(screen.getByRole("table", { name: "Fechamentos realizados" })).toBeInTheDocument();
+    const rows = [...document.querySelectorAll("details")];
+    expect(rows[0]).toHaveTextContent("#2");
+    expect(rows[1]).toHaveTextContent("#1");
+    fireEvent.change(screen.getByLabelText("Profissional do fechamento"), { target: { value: "barber-1" } });
+    fireEvent.click(screen.getByText("#2"));
+    expect(screen.getByRole("table", { name: "Lançamentos do fechamento 2" })).toBeInTheDocument();
+    expect(screen.getByText("Cliente Um")).toBeInTheDocument();
+    expect(screen.getAllByText("Julio Heilden")).toHaveLength(2);
   });
 
   it("selects open commissions, locks paid rows, and sends only the selection to payment", async () => {

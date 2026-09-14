@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Download, Printer } from "lucide-react";
 import type { loadFinancialReportsData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
-import type { FinancialReportType } from "./types";
+import type { BarberCashClosureReportRecord, FinancialReportType } from "./types";
 import { formatCents } from "./format";
 import { Dialog, FinanceSubnav } from "./cash-manager";
 import { EmptyState, Field, Panel, StatusChip } from "./shared";
@@ -16,7 +16,7 @@ import styles from "./connected-manager.module.css";
 type Props = AwaitedReturn<typeof loadFinancialReportsData>;
 
 const reportTabs: Array<{ id: FinancialReportType; label: string }> = [
-  { id: "CASH_FLOW", label: "Fluxo de caixa (DFC)" }, { id: "BUDGET", label: "Orçamento" },
+  { id: "CASH_FLOW", label: "Fluxo de caixa (DFC)" }, { id: "BUDGET", label: "Orçamento" }, { id: "CLOSURES", label: "Fechamentos" },
 ];
 
 function csvCell(value: unknown) {
@@ -59,7 +59,7 @@ function GeneralFinancialReportsManager(props: Props & { initialReport?: Financi
     <PageHeader title="Relatórios financeiros" description="Visão gerencial por competência e caixa. Não substitui escrituração contábil oficial." actions={<div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => window.print()}><Printer size={16} /> Imprimir/PDF</button><button className={styles.button} type="button" onClick={exportCsv}><Download size={16} /> CSV</button></div>} />
     <FinanceSubnav active={props.initialReport === "COMMISSIONS" ? "commissions" : "reports"} />
     {props.initialReport !== "COMMISSIONS" && <nav className={styles.tabs} aria-label="Relatórios financeiros">{reportTabs.map((tab) => <button key={tab.id} type="button" className={`${styles.tab} ${report === tab.id ? styles.tabActive : ""}`} onClick={() => setReport(tab.id)}>{tab.label}</button>)}</nav>}
-    <section className={`${styles.toolbar} ${styles.reportsFilters}`}>
+    {report !== "CLOSURES" && <section className={`${styles.toolbar} ${styles.reportsFilters}`}>
       <div className={styles.toolbarGroup}>
         <input className={styles.packageFilterSelect} type="date" aria-label="Data inicial" value={start} onChange={(event) => setStart(event.target.value)} />
         <input className={styles.packageFilterSelect} type="date" aria-label="Data final" value={end} onChange={(event) => setEnd(event.target.value)} />
@@ -68,10 +68,53 @@ function GeneralFinancialReportsManager(props: Props & { initialReport?: Financi
         <select className={styles.packageFilterSelect} aria-label="Unidade" value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="">Todas unidades</option>{props.locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
         <input className={styles.packageFilterSelect} type="search" aria-label="Pesquisar por tag" placeholder="Pesquisar por tag" value={tagQuery} onChange={(event) => setTagQuery(event.target.value)} />
       </div>
-    </section>
-    {(chartId || centerId || locationId || tagQuery) && <p className={styles.muted}>Filtros aplicados sobre os fatos financeiros carregados.</p>}
+    </section>}
+    {report === "CLOSURES" && <ClosureReport closures={props.barberCashClosures ?? []} barbers={props.barbers} />}
+    {report !== "CLOSURES" && (chartId || centerId || locationId || tagQuery) && <p className={styles.muted}>Filtros aplicados sobre os fatos financeiros carregados.</p>}
     {report === "CASH_FLOW" && <Statement title="Fluxo de caixa direto" groups={cashFlow} total={sum(filtered.filter((row) => row.basis === "CASH"))} note="Somente movimentos efetivos. Transferências internas não entram no consolidado." />}
     {report === "BUDGET" && <Panel title="Orçamento" description="Versões aprovadas são imutáveis; comparação realizado x orçamento depende de linhas orçamentárias aprovadas.">{props.budgetVersions.length ? <div className={styles.list}>{props.budgetVersions.map((version) => <article key={version.id} className={styles.row}><strong>Versão {version.version_number}</strong><StatusChip active={version.status === "APPROVED"} label={version.status} /><small>{version.approved_at ? new Date(version.approved_at).toLocaleString("pt-BR") : "Rascunho"}</small></article>)}</div> : <EmptyState title="Sem orçamento">Crie orçamento anual no banco após migration local ser revisada e aplicada.</EmptyState>}</Panel>}
+  </div>;
+}
+
+function ClosureReport({ closures, barbers }: { closures: BarberCashClosureReportRecord[]; barbers: Props["barbers"] }) {
+  const [barberId, setBarberId] = useState("");
+  const filtered = useMemo(() => [...closures]
+    .filter((closure) => !barberId || closure.barber_id === barberId)
+    .sort((a, b) => b.id - a.id), [closures, barberId]);
+
+  function formatDate(value: string) {
+    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+  }
+
+  return <div className={styles.stack}>
+    <section className={styles.toolbar}>
+      <div className={styles.toolbarGroup}>
+        <select className={styles.packageFilterSelect} aria-label="Profissional do fechamento" value={barberId} onChange={(event) => setBarberId(event.target.value)}>
+          <option value="">Todos profissionais</option>
+          {barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}
+        </select>
+      </div>
+    </section>
+    <Panel title="Fechamentos" description="Histórico dos fechamentos realizados pelo gestor. Clique em uma linha para ver os lançamentos do caixa.">
+      {filtered.length ? <div className={styles.closureReportTable} role="table" aria-label="Fechamentos realizados">
+        <div className={`${styles.closureReportHeader} ${styles.closureReportGrid}`} role="row"><strong>ID do fechamento</strong><strong>Data do fechamento</strong><strong>Profissional · usuário administrativo</strong><strong>Valor do fechamento</strong></div>
+        {filtered.map((closure) => <details className={styles.closureReportRow} key={closure.id}>
+          <summary className={`${styles.closureReportSummary} ${styles.closureReportGrid}`}>
+            <strong>#{closure.id}</strong>
+            <span>{formatDate(closure.reconciled_at)}</span>
+            <span><strong>{closure.barber_name}</strong><small>{closure.reconciled_by_name}</small></span>
+            <strong>{formatCents(closure.reconciled_cents)}</strong>
+          </summary>
+          <div className={styles.closureReportDetails}>
+            <strong>Lançamentos deste fechamento</strong>
+            {closure.launches.length ? <div className={styles.closureLaunchTable} role="table" aria-label={`Lançamentos do fechamento ${closure.id}`}>
+              <div className={`${styles.closureLaunchHeader} ${styles.closureLaunchGrid}`} role="row"><strong>Cliente</strong><strong>Data</strong><strong>Valor</strong><strong>Conta financeira</strong></div>
+              {closure.launches.map((launch) => <div className={`${styles.closureLaunchRow} ${styles.closureLaunchGrid}`} role="row" key={launch.id}><span><strong>{launch.customer_name}</strong><small>{launch.payment_method}</small></span><span>{formatDate(launch.transaction_date)}</span><strong>{formatCents(launch.amount_cents)}</strong><span>{launch.financial_account_name}</span></div>)}
+            </div> : <p className={styles.muted}>Nenhum lançamento vinculado.</p>}
+          </div>
+        </details>)}
+      </div> : <EmptyState title="Sem fechamentos">Nenhum fechamento encontrado para o profissional selecionado.</EmptyState>}
+    </Panel>
   </div>;
 }
 
