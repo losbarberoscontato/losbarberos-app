@@ -97,6 +97,25 @@ function appointmentSourceLabel(source: string) {
   }
 }
 
+function appointmentOrigin(appointment: Pick<AppointmentRecord, "payment_mode" | "source" | "subscription_session_id">) {
+  if (appointment.payment_mode === "SUBSCRIPTION" || appointment.subscription_session_id) {
+    return { abbreviation: "PA", label: "Plano de assinatura", tone: "subscription" as const };
+  }
+  const source = String(appointment.source ?? "").toUpperCase();
+  if (source === "PROJECT" || source === "PROJECTS" || source.includes("PROJECT")) {
+    return { abbreviation: "PR", label: "Projeto", tone: "project" as const };
+  }
+  return null;
+}
+
+function agendaStatusClass(appointment: Pick<AppointmentRecord, "status" | "cancellation_outcome">) {
+  if (appointment.status === "CANCELED" && appointment.cancellation_outcome === "ON_TIME") return "agenda-status--cancelled-on-time";
+  if (appointment.status === "CANCELED" || appointment.status === "NO_SHOW") return "agenda-status--cancelled-after-deadline";
+  if (appointment.status === "IN_SERVICE") return "agenda-status--in-service";
+  if (appointment.status === "COMPLETED") return "agenda-status--completed";
+  return "agenda-status--scheduled";
+}
+
 export function AgendaManager(props: Props) {
   const router = useRouter();
   const timezone = props.organization.timezone;
@@ -465,6 +484,16 @@ export function AgendaManager(props: Props) {
       </div>
     </div>
 
+    <div className="agenda-legend" aria-label="Legenda da agenda">
+      <strong className="agenda-legend__title">Legenda</strong>
+      <span className="agenda-legend__item"><b className="agenda-legend__badge agenda-legend__badge--subscription">PA</b> Plano de assinatura</span>
+      <span className="agenda-legend__item"><b className="agenda-legend__badge agenda-legend__badge--project">PR</b> Projeto</span>
+      <span className="agenda-legend__item"><i className="agenda-legend__swatch agenda-legend__swatch--cancelled-on-time" /> Cancelado no prazo</span>
+      <span className="agenda-legend__item"><i className="agenda-legend__swatch agenda-legend__swatch--cancelled-after-deadline" /> Cancelado após o prazo</span>
+      <span className="agenda-legend__item"><i className="agenda-legend__swatch agenda-legend__swatch--in-service" /> Em serviço</span>
+      <span className="agenda-legend__item"><i className="agenda-legend__swatch agenda-legend__swatch--completed" /> Concluído</span>
+    </div>
+
     {view === "day" && <section className="agenda-day panel" aria-label="Agenda diária">
       <div className="agenda-day__head" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayedBarbers.length, 1)}, minmax(220px, 1fr))` }}>
         <div className="agenda-day__time-label">Horário</div>
@@ -480,9 +509,12 @@ export function AgendaManager(props: Props) {
             const geometry = appointmentGeometry(appointment.service_period, timezone);
             if (!geometry) return null;
             const displayStatus = appointmentDisplayStatus(appointment);
+            const origin = appointmentOrigin(appointment);
+            const customerName = customerById.get(appointment.customer_id)?.full_name ?? "Cliente";
+            const barberName = barberById.get(appointment.barber_id)?.display_name ?? "Profissional";
             const layout = dayAppointmentLayouts.get(appointment.id) ?? { lane: 0, lanes: 1 };
             const laneWidth = 100 / layout.lanes;
-            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${displayStatus.tone}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height, left: `calc(${layout.lane * laneWidth}% + 6px)`, right: "auto", width: `calc(${laneWidth}% - 12px)` }} onClick={() => openAppointment(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong>{customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><span className="agenda-event__meta"><small>{serviceLabel(appointment.id)}</small><i>{displayStatus.label}</i>{appointment.payment_mode === "SUBSCRIPTION" && <em>Plano de assinatura</em>}</span></span></button>;
+            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerName} · ${displayStatus.label}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} ${agendaStatusClass(appointment)}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height, left: `calc(${layout.lane * laneWidth}% + 6px)`, right: "auto", width: `calc(${laneWidth}% - 12px)` }} onClick={() => openAppointment(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong><span className="agenda-event__customer-name">{customerName}</span>{origin && <b className={`agenda-event__origin agenda-event__origin--${origin.tone}`} title={origin.label}>{origin.abbreviation}</b>}</strong><span className="agenda-event__meta"><small title={`${serviceLabel(appointment.id)} | ${barberName}`}>{serviceLabel(appointment.id)} <span aria-hidden="true">|</span> {barberName}</small></span></span></button>;
           })}
         </div>)}
         {nowLine && <div className="agenda-now-line" style={{ top: nowLine.top }} aria-label={`Hora atual: ${nowLine.label}`}><span>{nowLine.label}</span><i /></div>}
@@ -492,7 +524,7 @@ export function AgendaManager(props: Props) {
 
     {view === "week" && <section className="panel agenda-week" aria-label="Agenda semanal">
       <div className="agenda-week__head"><span>Horário</span>{weekDates.map((day) => <button type="button" key={day} className={`${styles.weekDay} ${day === todayKey ? styles.weekDayToday : ""}`} onClick={() => { setDate(day); setView("day"); }}><strong>{formatDate(day, { weekday: "short", day: "2-digit" })}</strong><small>{appointmentsOn(day).length} reservas</small></button>)}</div>
-      <div className="agenda-week__body">{hours.map((hour) => <div className="agenda-week__row" key={hour}><time>{hour}</time>{weekDates.map((day, column) => <div className={styles.weekCell} key={day}>{appointmentsOn(day).filter((appointment) => appointmentGeometry(appointment.service_period, timezone)?.startLabel.startsWith(hour.slice(0, 2))).map((appointment) => <button type="button" key={appointment.id} className={`has-event tone-${column % 3}`} onClick={() => openAppointment(appointment)}><strong>{appointmentGeometry(appointment.service_period, timezone)?.startLabel} · {customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}</strong><small>{serviceLabel(appointment.id)}{appointment.payment_mode === "SUBSCRIPTION" ? " · Plano de assinatura" : ""}</small></button>)}</div>)}</div>)}</div>
+      <div className="agenda-week__body">{hours.map((hour) => <div className="agenda-week__row" key={hour}><time>{hour}</time>{weekDates.map((day) => <div className={styles.weekCell} key={day}>{appointmentsOn(day).filter((appointment) => appointmentGeometry(appointment.service_period, timezone)?.startLabel.startsWith(hour.slice(0, 2))).map((appointment) => { const geometry = appointmentGeometry(appointment.service_period, timezone); const origin = appointmentOrigin(appointment); const customerName = customerById.get(appointment.customer_id)?.full_name ?? "Cliente"; const barberName = barberById.get(appointment.barber_id)?.display_name ?? "Profissional"; return <button type="button" key={appointment.id} className={`has-event ${agendaStatusClass(appointment)}`} aria-label={`Abrir ${customerName}`} onClick={() => openAppointment(appointment)}><strong><span>{geometry?.startLabel} · {customerName}</span>{origin && <b className={`agenda-event__origin agenda-event__origin--${origin.tone}`} title={origin.label}>{origin.abbreviation}</b>}</strong><small>{serviceLabel(appointment.id)} <span aria-hidden="true">|</span> {barberName}</small></button>; })}</div>)}</div>)}</div>
     </section>}
 
     {view === "month" && <section className="panel agenda-month" aria-label="Agenda mensal">
