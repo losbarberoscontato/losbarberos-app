@@ -185,8 +185,7 @@ begin
     accepted_by = excluded.accepted_by,
     accepted_at = now(),
     metadata = excluded.metadata;
-  select public.set_organization_module_enabled(p_organization_id, p_module_key, true)
-    into v_row;
+  v_row := public.set_organization_module_enabled(p_organization_id, p_module_key, true);
   update public.organization_module_entitlements
      set module_contract_version = p_contract_version,
          contract_accepted_at = now(),
