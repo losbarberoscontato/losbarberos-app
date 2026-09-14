@@ -7,6 +7,8 @@ import type {
   AppointmentRecord,
   AppointmentItemRecord,
   AppointmentStatusEventRecord,
+  AgendaEnvironmentRecord,
+  AgendaEnvironmentAssignmentIssueRecord,
   AvailabilityExceptionRecord,
   BarberRecord,
   BarberServiceRecord,
@@ -336,6 +338,7 @@ export async function loadTeamData() {
     rules,
     financialAccounts,
     barberAccountPermissions,
+    environments,
   ] = await Promise.all([
     supabase
       .from("organizations")
@@ -390,6 +393,12 @@ export async function loadTeamData() {
       .select("barber_id,financial_account_id")
       .eq("organization_id", organizationId)
       .eq("active", true),
+    supabase
+      .from("agenda_environments")
+      .select("id,organization_id,location_id,name,sort_order,active")
+      .eq("organization_id", organizationId)
+      .order("sort_order")
+      .order("name"),
   ]);
   return {
     organizationId,
@@ -421,7 +430,8 @@ export async function loadTeamData() {
       : (requireData(barberAccountPermissions, "Permissões de conta") as {
           barber_id: string;
           financial_account_id: string;
-        }[]),
+      }[]),
+    environments: requireData(environments, "Ambientes") as AgendaEnvironmentRecord[],
   };
 }
 
@@ -451,6 +461,7 @@ export async function loadAgendaData() {
     subscriptionSessions,
     subscriptionCycles,
     subscriptions,
+    environments,
   ] = await Promise.all([
     supabase
       .from("organizations")
@@ -566,6 +577,13 @@ export async function loadAgendaData() {
       .select("id,customer_id,payment_method,status,plan:subscription_plans(name)")
       .eq("organization_id", organizationId)
       .limit(MANAGER_ROW_LIMIT),
+    supabase
+      .from("agenda_environments")
+      .select("id,organization_id,location_id,name,sort_order,active")
+      .eq("organization_id", organizationId)
+      .eq("active", true)
+      .order("sort_order")
+      .order("name"),
   ]);
   return {
     organizationId,
@@ -584,6 +602,7 @@ export async function loadAgendaData() {
     subscriptionSessions: subscriptionSessions.error ? [] : (requireData(subscriptionSessions, "Sessões de assinatura") as Array<Record<string, unknown>>),
     subscriptionCycles: subscriptionCycles.error ? [] : (requireData(subscriptionCycles, "Ciclos de assinatura") as Array<Record<string, unknown>>),
     subscriptions: subscriptions.error ? [] : (requireData(subscriptions, "Assinaturas") as Array<Record<string, unknown>>),
+    environments: requireData(environments, "Ambientes") as AgendaEnvironmentRecord[],
     financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],
     appointmentActivity: requireData(
       appointmentActivity,
@@ -1639,6 +1658,8 @@ export async function loadSettingsData() {
     merchant,
     subscription,
     whatsappResult,
+    environments,
+    environmentIssues,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase
@@ -1667,6 +1688,18 @@ export async function loadSettingsData() {
     supabase.rpc("get_whatsapp_connection_status", {
       p_organization_id: organizationId,
     }),
+    supabase
+      .from("agenda_environments")
+      .select("id,organization_id,location_id,name,sort_order,active")
+      .eq("organization_id", organizationId)
+      .order("sort_order")
+      .order("name"),
+    supabase
+      .from("agenda_environment_assignment_issues")
+      .select("id,organization_id,location_id,work_interval_id,appointment_id,reason,details,resolved_at,created_at")
+      .eq("organization_id", organizationId)
+      .is("resolved_at", null)
+      .order("created_at"),
   ]);
   return {
     organizationId,
@@ -1690,6 +1723,8 @@ export async function loadSettingsData() {
     whatsapp: whatsappResult.error
       ? null
       : (whatsappResult.data as WhatsAppSettingsStatus),
+    environments: requireData(environments, "Ambientes") as AgendaEnvironmentRecord[],
+    environmentIssues: requireData(environmentIssues, "Pendências de ambientes") as AgendaEnvironmentAssignmentIssueRecord[],
   };
 }
 

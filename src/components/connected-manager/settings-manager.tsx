@@ -14,7 +14,8 @@ import { normalizePhoneE164 } from "@/lib/phone";
 import { barberLoginHref } from "@/lib/barber-auth";
 import styles from "./connected-manager.module.css";
 
-type Props = AwaitedReturn<typeof loadSettingsData>;
+type SettingsData = AwaitedReturn<typeof loadSettingsData>;
+type Props = Omit<SettingsData, "environments" | "environmentIssues"> & { environments?: SettingsData["environments"]; environmentIssues?: SettingsData["environmentIssues"] };
 
 export function SettingsManager(props: Props) {
   const router = useRouter();
@@ -31,6 +32,7 @@ export function SettingsManager(props: Props) {
   const barberAccessUrl = `${publicOrigin}${barberAccessPath}`;
   const [exporting, setExporting] = useState(false);
   const [rulesHelpOpen, setRulesHelpOpen] = useState(false);
+  const [environmentName, setEnvironmentName] = useState("");
   const [logoPath, setLogoPath] = useState(props.organization.logo_path ?? "");
   const location = props.locations.find((item) => item.active) ?? props.locations[0];
   const address = (location?.address ?? {}) as Record<string, string>;
@@ -107,6 +109,38 @@ export function SettingsManager(props: Props) {
         ? await client.from("locations").update(payload).eq("id", location.id).eq("organization_id", props.organizationId)
         : await client.from("locations").insert(payload));
     }, "Unidade atualizada.");
+    if (saved) router.refresh();
+  }
+
+  const activeLocationId = location?.id ?? "";
+  const environments = (props.environments ?? [])
+    .filter((item) => item.location_id === activeLocationId)
+    .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name));
+
+  async function addEnvironment() {
+    const name = environmentName.trim();
+    if (!activeLocationId) { setMessage("Cadastre uma unidade ativa antes dos ambientes."); return; }
+    if (!name) { setMessage("Informe o nome do ambiente."); return; }
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().from("agenda_environments").insert({
+        organization_id: props.organizationId,
+        location_id: activeLocationId,
+        name,
+        sort_order: environments.length ? Math.max(...environments.map((item) => item.sort_order)) + 1 : 1,
+        active: true,
+      }));
+    }, "Ambiente adicionado.");
+    if (saved) { setEnvironmentName(""); router.refresh(); }
+  }
+
+  async function updateEnvironment(id: string, payload: Record<string, unknown>, success: string) {
+    const saved = await runMutation(setMessage, async () => {
+      if ("sort_order" in payload) {
+        await assertResult(await connectedClient().rpc("reorder_agenda_environment", { p_environment_id: id, p_sort_order: Number(payload.sort_order) }));
+      } else {
+        await assertResult(await connectedClient().from("agenda_environments").update(payload).eq("id", id).eq("organization_id", props.organizationId));
+      }
+    }, success);
     if (saved) router.refresh();
   }
 
@@ -204,6 +238,19 @@ export function SettingsManager(props: Props) {
           </Field>
           <button className={`${styles.button} ${styles.formWide}`} type="submit">Salvar prazo</button>
         </form>
+        <div className={styles.formSection} aria-label="Ambientes da agenda">
+          <div className={styles.sectionHeader}><div><h3>Ambientes da agenda</h3><p className={styles.muted}>Colunas físicas da agenda. O sistema começa com duas salas/cadeiras.</p></div><span className={styles.muted}>{environments.length} ativos</span></div>
+          <div className={styles.list}>
+            {environments.map((environment) => <div className={styles.row} key={environment.id}>
+              <label className={styles.field}><span>Nome</span><input defaultValue={environment.name} onBlur={(event) => { const value = event.currentTarget.value.trim(); if (value && value !== environment.name) void updateEnvironment(environment.id, { name: value }, "Ambiente atualizado."); }} /></label>
+              <label className={styles.field}><span>Ordem</span><input type="number" min="1" defaultValue={environment.sort_order} onBlur={(event) => { const value = Math.max(1, Number(event.currentTarget.value || environment.sort_order)); if (value !== environment.sort_order) void updateEnvironment(environment.id, { sort_order: value }, "Ordem dos ambientes atualizada."); }} /></label>
+              <StatusChip active={environment.active} />
+              <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => void updateEnvironment(environment.id, { active: !environment.active }, environment.active ? "Ambiente inativado." : "Ambiente reativado.")}>{environment.active ? "Inativar" : "Ativar"}</button>
+            </div>)}
+          </div>
+          <div className={styles.toolbarGroup}><input aria-label="Nome do novo ambiente" value={environmentName} onChange={(event) => setEnvironmentName(event.target.value)} placeholder="Nome do novo ambiente" /><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => void addEnvironment()}>Adicionar ambiente</button></div>
+          {(props.environmentIssues ?? []).length > 0 && <div className={styles.noticeWarning}><strong>Pendências de alocação</strong><p>{(props.environmentIssues ?? []).length} registro(s) legado(s) precisam de revisão antes de novas reservas físicas.</p></div>}
+        </div>
       </Panel>
       <Panel title="Dados da Barbearia" className={styles.span7}>
         <form className={styles.form} onSubmit={saveOrganization}>

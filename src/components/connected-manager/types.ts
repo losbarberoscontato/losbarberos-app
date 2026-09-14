@@ -56,6 +56,27 @@ export interface LocationRecord {
   active: boolean;
 }
 
+export interface AgendaEnvironmentRecord {
+  id: string;
+  organization_id: string;
+  location_id: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+}
+
+export interface AgendaEnvironmentAssignmentIssueRecord {
+  id: string;
+  organization_id: string;
+  location_id: string;
+  work_interval_id: string | null;
+  appointment_id: string | null;
+  reason: string;
+  details: Record<string, unknown>;
+  resolved_at: string | null;
+  created_at: string;
+}
+
 export interface CustomerRecord {
   id: string;
   organization_id: string;
@@ -146,6 +167,7 @@ export interface WorkIntervalRecord {
   starts_at: string;
   ends_at: string;
   active: boolean;
+  environment_id?: string | null;
 }
 
 export interface AvailabilityExceptionRecord {
@@ -155,6 +177,7 @@ export interface AvailabilityExceptionRecord {
   kind: "UNAVAILABLE" | "AVAILABLE_OVERRIDE";
   service_period: string;
   reason: string | null;
+  environment_id?: string | null;
 }
 
 export interface CommissionRuleRecord {
@@ -174,6 +197,7 @@ export interface AppointmentRecord {
   organization_id: string;
   customer_id: string;
   barber_id: string;
+  environment_id?: string | null;
   status: AppointmentStatus;
   whatsapp_response_status?: AppointmentWhatsAppResponseStatus | null;
   cancellation_outcome?: "ON_TIME" | "AFTER_DEADLINE" | null;

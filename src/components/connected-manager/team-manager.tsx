@@ -15,7 +15,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type TeamData = AwaitedReturn<typeof loadTeamData>;
-type Props = Omit<TeamData, "financialAccounts" | "barberAccountPermissions" | "managerUserId"> & Partial<Pick<TeamData, "financialAccounts" | "barberAccountPermissions">> & { managerUserId?: string };
+type Props = Omit<TeamData, "financialAccounts" | "barberAccountPermissions" | "managerUserId" | "environments"> & Partial<Pick<TeamData, "financialAccounts" | "barberAccountPermissions">> & { managerUserId?: string; environments?: TeamData["environments"] };
 type ProfessionalFilter = "ACTIVE" | "INACTIVE";
 type OperationForm = "SCHEDULE" | "EXCEPTION" | "COMMISSION" | "PAYMENT" | null;
 type CommissionPaymentFrequency = "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
@@ -58,9 +58,14 @@ export function TeamManager(props: Props) {
   const [activeOperationForm, setActiveOperationForm] = useState<OperationForm>(null);
   const [operationOpen, setOperationOpen] = useState(false);
   const [commissionPaymentFrequency, setCommissionPaymentFrequency] = useState<CommissionPaymentFrequency>("PER_SERVICE");
+  const [scheduleWeekday, setScheduleWeekday] = useState("0");
+  const [scheduleStartsAt, setScheduleStartsAt] = useState("09:00");
+  const [scheduleEndsAt, setScheduleEndsAt] = useState("18:00");
+  const [exceptionKind, setExceptionKind] = useState("UNAVAILABLE");
   const photoInputRef = useRef<HTMLInputElement>(null);
   const activeLocation = props.locations.find((location) => location.active);
   const serviceById = useMemo(() => new Map(props.services.map((service) => [service.id, service])), [props.services]);
+  const barberById = useMemo(() => new Map(props.barbers.map((barber) => [barber.id, barber])), [props.barbers]);
   const selectedBarber = props.barbers.find((barber) => barber.id === scheduleBarber);
   const filteredBarbers = props.barbers.filter((barber) => barber.active === (professionalFilter === "ACTIVE") && `${barber.display_name} ${barber.whatsapp_e164 ?? ""} ${barber.bio ?? ""}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -143,12 +148,15 @@ export function TeamManager(props: Props) {
     const data = new FormData(event.currentTarget);
     const saved = await runMutation(setMessage, async () => {
       if (!scheduleBarber) throw new Error("Selecione um profissional.");
+      const environmentId = String(data.get("environment_id") ?? "");
+      if (!environmentId) throw new Error("Escolha um ambiente para o horário.");
       await assertResult(await connectedClient().from("work_intervals").insert({
         organization_id: props.organizationId,
         barber_id: scheduleBarber,
         weekday: Number(data.get("weekday")),
         starts_at: String(data.get("starts_at")),
         ends_at: String(data.get("ends_at")),
+        environment_id: environmentId,
       }));
     }, "Intervalo adicionado.");
     if (saved) { setActiveOperationForm(null); router.refresh(); }
@@ -172,6 +180,7 @@ export function TeamManager(props: Props) {
         kind: String(data.get("kind")),
         service_period: toPostgresRange(String(data.get("start")), String(data.get("end")), props.timezone),
         reason: String(data.get("reason") ?? "").trim() || null,
+        environment_id: String(data.get("kind")) === "AVAILABLE_OVERRIDE" ? String(data.get("environment_id") ?? "") || null : null,
       }));
     }, "Exceção adicionada.");
     if (saved) { setActiveOperationForm(null); router.refresh(); }
@@ -228,6 +237,14 @@ export function TeamManager(props: Props) {
   const exceptions = props.exceptions.filter((item) => item.barber_id === scheduleBarber);
   const rules = props.commissionRules.filter((item) => item.barber_id === scheduleBarber && item.active);
   const editingManager = barberForm !== "new" && barberForm !== null && Boolean(barberForm.is_manager || barberForm.auth_user_id === props.managerUserId);
+  const scheduleLocationId = selectedBarber?.location_id ?? activeLocation?.id ?? "";
+  const scheduleEnvironments = (props.environments ?? []).filter((item) => item.location_id === scheduleLocationId && item.active).sort((left, right) => left.sort_order - right.sort_order);
+  const occupiedEnvironmentIds = new Set(props.workIntervals
+    .filter((item) => item.active && item.weekday === Number(scheduleWeekday) && item.starts_at < scheduleEndsAt && item.ends_at > scheduleStartsAt)
+    .filter((item) => barberById.get(item.barber_id)?.location_id === scheduleLocationId)
+    .map((item) => item.environment_id)
+    .filter((value): value is string => Boolean(value)));
+  const availableScheduleEnvironments = scheduleEnvironments.filter((item) => !occupiedEnvironmentIds.has(item.id));
 
   return <div className={styles.stack}>
     <PageHeader title="Equipe" description="Profissionais, competências, escalas, folgas e regras versionadas." />
@@ -273,8 +290,8 @@ export function TeamManager(props: Props) {
         <div className="form-modal__body">
           <p className={styles.operationDescription}>{selectedBarber.display_name}</p>
           <div className={styles.toolbarGroup}><button className={`${styles.button} ${activeOperationForm === "SCHEDULE" ? "" : styles.buttonSoft}`} type="button" onClick={() => setActiveOperationForm((value) => value === "SCHEDULE" ? null : "SCHEDULE")}>Adicionar horário</button><button className={`${styles.button} ${activeOperationForm === "EXCEPTION" ? "" : styles.buttonSoft}`} type="button" onClick={() => setActiveOperationForm((value) => value === "EXCEPTION" ? null : "EXCEPTION")}>Adicionar folga/exceção</button><button className={`${styles.button} ${activeOperationForm === "COMMISSION" ? "" : styles.buttonSoft}`} type="button" onClick={() => setActiveOperationForm((value) => value === "COMMISSION" ? null : "COMMISSION")}>Nova comissão</button><button className={`${styles.button} ${activeOperationForm === "PAYMENT" ? "" : styles.buttonSoft}`} type="button" onClick={() => setActiveOperationForm((value) => value === "PAYMENT" ? null : "PAYMENT")}>Forma de Pagamento</button></div>
-          {activeOperationForm === "SCHEDULE" && <form className={styles.form} onSubmit={addInterval}><Field label="Dia"><select name="weekday">{weekDays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></Field><Field label="Início"><input type="time" name="starts_at" required defaultValue="09:00" /></Field><Field label="Fim"><input type="time" name="ends_at" required defaultValue="18:00" /></Field><div className={styles.toolbarGroup}><button className={styles.button}>Adicionar</button></div></form>}
-          {activeOperationForm === "EXCEPTION" && <form className={styles.form} onSubmit={addException}><Field label="Tipo"><select name="kind"><option value="UNAVAILABLE">Indisponível / folga</option><option value="AVAILABLE_OVERRIDE">Disponível em exceção</option></select></Field><Field label="Motivo"><input name="reason" required /></Field><Field label="Início"><input type="datetime-local" name="start" required /></Field><Field label="Fim"><input type="datetime-local" name="end" required /></Field><button className={styles.button}>Adicionar exceção</button></form>}
+          {activeOperationForm === "SCHEDULE" && <form className={styles.form} onSubmit={addInterval}><Field label="Ambiente"><select name="environment_id" required defaultValue=""><option value="">Selecione um ambiente disponível</option>{availableScheduleEnvironments.map((environment) => <option value={environment.id} key={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select>{availableScheduleEnvironments.length === 0 && <small className={styles.muted}>Nenhum ambiente livre para esta faixa.</small>}</Field><Field label="Dia"><select name="weekday" value={scheduleWeekday} onChange={(event) => setScheduleWeekday(event.target.value)}>{weekDays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></Field><Field label="Início"><input type="time" name="starts_at" required value={scheduleStartsAt} onChange={(event) => setScheduleStartsAt(event.target.value)} /></Field><Field label="Fim"><input type="time" name="ends_at" required value={scheduleEndsAt} onChange={(event) => setScheduleEndsAt(event.target.value)} /></Field><div className={styles.toolbarGroup}><button className={styles.button} disabled={availableScheduleEnvironments.length === 0}>Adicionar</button></div></form>}
+          {activeOperationForm === "EXCEPTION" && <form className={styles.form} onSubmit={addException}><Field label="Tipo"><select name="kind" value={exceptionKind} onChange={(event) => setExceptionKind(event.target.value)}><option value="UNAVAILABLE">Indisponível / folga</option><option value="AVAILABLE_OVERRIDE">Disponível em exceção</option></select></Field>{exceptionKind === "AVAILABLE_OVERRIDE" && <Field label="Ambiente"><select name="environment_id" required defaultValue=""><option value="">Selecione um ambiente</option>{scheduleEnvironments.map((environment) => <option value={environment.id} key={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select></Field>}<Field label="Motivo"><input name="reason" required /></Field><Field label="Início"><input type="datetime-local" name="start" required /></Field><Field label="Fim"><input type="datetime-local" name="end" required /></Field><button className={styles.button}>Adicionar exceção</button></form>}
           {activeOperationForm === "COMMISSION" && <form className={styles.form} onSubmit={addCommissionRule}><Field label="Aplicação"><select name="service_id"><option value="">Padrão do profissional</option>{props.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></Field><Field label="Modelo"><select name="mode"><option value="PERCENT">Percentual (%)</option><option value="FIXED">Fixo (R$)</option></select></Field><Field label="Valor"><input name="value" type="number" min="0" step="0.01" required /></Field><div className={styles.toolbarGroup}><button className={styles.button}>Criar versão</button></div></form>}
           {activeOperationForm === "PAYMENT" && <form className={styles.form} onSubmit={saveCommissionPaymentSchedule}>
             <Field label="Forma de pagamento"><select name="commission_payment_frequency" value={commissionPaymentFrequency} onChange={(event) => setCommissionPaymentFrequency(event.target.value as CommissionPaymentFrequency)}><option value="PER_SERVICE">Por serviço</option><option value="WEEKLY">Por semana</option><option value="BIWEEKLY">Quinzenal</option><option value="MONTHLY">Mensal</option></select></Field>
@@ -284,7 +301,7 @@ export function TeamManager(props: Props) {
             <div className={styles.toolbarGroup}><button className={styles.button}>Salvar pagamento</button></div>
           </form>}
           <div className={styles.grid}>
-            <section className={styles.span12}><h3>Escala semanal</h3><div className={styles.schedule}>{weekDays.map((day, index) => <div className={styles.day} key={day}><strong>{day}</strong>{intervals.filter((item) => item.weekday === index).map((item) => <span key={item.id}>{item.starts_at.slice(0, 5)}–{item.ends_at.slice(0, 5)} <button aria-label="Remover intervalo" type="button" onClick={() => removeInterval(item.id)}>×</button></span>)}</div>)}</div></section>
+            <section className={styles.span12}><h3>Escala semanal</h3><div className={styles.schedule}>{weekDays.map((day, index) => <div className={styles.day} key={day}><strong>{day}</strong>{intervals.filter((item) => item.weekday === index).map((item) => <span key={item.id}>{item.starts_at.slice(0, 5)}–{item.ends_at.slice(0, 5)} · {scheduleEnvironments.find((environment) => environment.id === item.environment_id)?.name ?? "Ambiente pendente"} <button aria-label="Remover intervalo" type="button" onClick={() => removeInterval(item.id)}>×</button></span>)}</div>)}</div></section>
             <section className={styles.span12}><h3>Exceções</h3>{exceptions.length ? <div className={styles.list}>{exceptions.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong>{item.kind === "UNAVAILABLE" ? "Indisponível" : "Disponível"}</strong><small>{item.reason ?? "Sem motivo"}</small></span><span>{formatRange(item.service_period)}</span><span /><span /><span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`} type="button" onClick={() => removeException(item.id)}>Remover</button></span></article>)}</div> : <span className={styles.muted}>Nenhuma folga ou exceção cadastrada.</span>}</section>
             <section className={styles.span12}><h3>Comissões vigentes</h3><div className={styles.list}>{rules.length ? rules.map((rule) => <div className={styles.rowTitle} key={rule.id}><strong>{rule.service_id ? serviceById.get(rule.service_id)?.name : "Padrão"}</strong><small>{rule.mode === "PERCENT" ? `${(rule.percentage_bps ?? 0) / 100}%` : formatCents(rule.fixed_cents)}</small></div>) : <span className={styles.muted}>Nenhuma regra: comissão zero.</span>}</div></section>
           </div>

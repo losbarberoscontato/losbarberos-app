@@ -328,6 +328,13 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .definition div { display: grid; gap: .2rem; padding: .75rem; border-radius: 12px; background: #f7f8f5; }
 .definition dt { color: #778078; font-size: .88rem; line-height: 1.3; }
 .definition dd { margin: 0; color: #2e352f; font-weight: 800; font-size: .98rem; line-height: 1.3; }
+.formSection { display: grid; gap: .75rem; margin-top: 1.15rem; padding-top: 1rem; border-top: 1px solid #e5e8e1; }
+.sectionHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.sectionHeader h3 { margin: 0; color: #263028; font-size: .98rem; }
+.sectionHeader p { margin: .25rem 0 0; color: #718077; font-size: .76rem; line-height: 1.4; }
+.noticeWarning { padding: .75rem .85rem; border: 1px solid #ead7a4; border-radius: 12px; background: #fff9e9; color: #735a21; }
+.noticeWarning strong { font-size: .8rem; }
+.noticeWarning p { margin: .25rem 0 0; font-size: .75rem; line-height: 1.4; }
 .loading { min-height: 280px; display: grid; place-items: center; color: #647065; }
 .loading span { display: inline-flex; gap: .7rem; align-items: center; }
 .weekDay { min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 0; border-right: 1px solid #e8e3da; background: #fbfaf6; font-size: 9px; }

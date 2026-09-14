@@ -54,7 +54,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type AgendaData = AwaitedReturn<typeof loadAgendaData>;
-type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"] };
+type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions" | "environments"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"]; environments?: AgendaData["environments"] };
 type View = "day" | "week" | "month";
 
 const hours = Array.from({ length: 14 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
@@ -197,17 +197,25 @@ export function AgendaManager(props: Props) {
     if (!matchesAgendaStatusFilter(appointment, status)) return false;
     return barberFilter === "ALL" || appointment.barber_id === barberFilter;
   }), [barberFilter, props.appointments, status]);
-  const displayedBarbers = barberFilter === "ALL" ? props.barbers : props.barbers.filter((barber) => barber.id === barberFilter);
+  const displayedEnvironments = useMemo(
+    () => {
+      if (props.environments === undefined) {
+        return [{ id: "__legacy__", organization_id: props.organizationId, location_id: "", name: "Agenda", sort_order: 1, active: true }];
+      }
+      return [...props.environments].filter((environment) => environment.active).sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name));
+    },
+    [props.environments, props.organizationId],
+  );
   const dayAppointmentLayouts = useMemo(() => {
     const layout = new Map<string, { lane: number; lanes: number }>();
-    for (const barber of props.barbers) {
-      const barberAppointments = filteredAppointments.filter((appointment) => appointment.barber_id === barber.id && appointmentDateKey(appointment.service_period, timezone) === date);
-      for (const [id, value] of buildAppointmentLayouts(barberAppointments, (appointment) => appointment.id, (appointment) => appointment.service_period)) {
+    for (const environment of displayedEnvironments) {
+      const environmentAppointments = filteredAppointments.filter((appointment) => (appointment.environment_id === environment.id || (props.environments === undefined && !appointment.environment_id)) && appointmentDateKey(appointment.service_period, timezone) === date);
+      for (const [id, value] of buildAppointmentLayouts(environmentAppointments, (appointment) => appointment.id, (appointment) => appointment.service_period)) {
         layout.set(id, value);
       }
     }
     return layout;
-  }, [date, filteredAppointments, props.barbers, timezone]);
+  }, [date, displayedEnvironments, filteredAppointments, props.environments, timezone]);
   const weekDates = weekDateKeys(date);
   const month = monthCells(date);
   const nowLine = currentTime ? currentTimeGeometry(date, currentTime, timezone) : null;
@@ -329,6 +337,7 @@ export function AgendaManager(props: Props) {
         p_selections: [{ type, id, quantity: 1 }],
         p_override_reason: String(data.get("override_reason") ?? "").trim() || null,
         p_notes: String(data.get("notes") ?? "").trim() || null,
+        p_environment_id: String(data.get("environment_id") ?? "") || null,
       }));
     }, "Agendamento criado com saldo pendente para o balcão.");
     if (saved) {
@@ -455,6 +464,7 @@ export function AgendaManager(props: Props) {
   const selectedPaymentAccounts = selected ? paymentAccountsByAppointment.get(selected.id) ?? [] : [];
   const selectedPaymentStatus = financialStatusLabel(selectedFinancial?.financial_status);
   const selectedSubscriptionPayment = selected ? subscriptionPaymentFor(selected) : null;
+  const unassignedAppointments = appointmentsOn(date).filter((appointment) => !appointment.environment_id);
 
   return <div className={styles.stack}>
     <div className={styles.agendaHeader}>
@@ -494,18 +504,20 @@ export function AgendaManager(props: Props) {
       <span className="agenda-legend__item"><i className="agenda-legend__swatch agenda-legend__swatch--completed" /> Concluído</span>
     </div>
 
-    {view === "day" && <section className="agenda-day panel" aria-label="Agenda diária">
-      <div className="agenda-day__head" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayedBarbers.length, 1)}, minmax(220px, 1fr))` }}>
+    {unassignedAppointments.length > 0 && <ActionMessage tone="warning" message={`${unassignedAppointments.length} atendimento(s) sem ambiente aguardam revisão do gestor.`} />}
+
+    {view === "day" && <section className="agenda-day panel" aria-label="Agenda diária" data-orientation="ambientes">
+      <div className="agenda-day__head" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayedEnvironments.length, 1)}, minmax(220px, 1fr))` }}>
         <div className="agenda-day__time-label">Horário</div>
-        {displayedBarbers.map((barber, index) => <div className="agenda-day__barber" key={barber.id}><Avatar initials={barber.display_name.slice(0, 2).toUpperCase()} tone={index % 3 === 0 ? "sage" : index % 3 === 1 ? "amber" : "blue"} size="sm" /><span><strong>{barber.display_name}</strong><small>{appointmentsOn(date).filter((appointment) => appointment.barber_id === barber.id).length} hoje</small></span><i /></div>)}
+        {displayedEnvironments.map((environment, index) => <div className="agenda-day__barber" key={environment.id}><Avatar initials={environment.name.slice(0, 2).toUpperCase()} tone={index % 3 === 0 ? "sage" : index % 3 === 1 ? "amber" : "blue"} size="sm" /><span><strong>{environment.name}</strong><small>{appointmentsOn(date).filter((appointment) => appointment.environment_id === environment.id).length} hoje</small></span><i /></div>)}
       </div>
       <div className="agenda-day__scroll" aria-label="Horários da agenda">
-      <div className="agenda-day__grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayedBarbers.length, 1)}, minmax(220px, 1fr))`, height: hours.length * 78 }}>
+      <div className="agenda-day__grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayedEnvironments.length, 1)}, minmax(220px, 1fr))`, height: hours.length * 78 }}>
         {!appointmentsOn(date).length && <div className="agenda-day__empty">Nenhum agendamento para este dia.</div>}
         <div className="agenda-time-axis" style={{ gridTemplateRows: `repeat(${hours.length}, 78px)` }}>{hours.map((hour) => <span key={hour}>{hour}</span>)}</div>
-        {displayedBarbers.map((barber, barberIndex) => <div className="agenda-column" style={{ gridTemplateRows: `repeat(${hours.length}, 78px)` }} key={barber.id}>
+          {displayedEnvironments.map((environment, environmentIndex) => <div className="agenda-column" style={{ gridTemplateRows: `repeat(${hours.length}, 78px)` }} key={environment.id}>
           {hours.map((hour) => <span className="agenda-gridline" key={hour} />)}
-          {appointmentsOn(date).filter((appointment) => appointment.barber_id === barber.id).map((appointment, itemIndex) => {
+          {appointmentsOn(date).filter((appointment) => appointment.environment_id === environment.id || (props.environments === undefined && !appointment.environment_id)).map((appointment, itemIndex) => {
             const geometry = appointmentGeometry(appointment.service_period, timezone);
             if (!geometry) return null;
             const displayStatus = appointmentDisplayStatus(appointment);
@@ -514,7 +526,7 @@ export function AgendaManager(props: Props) {
             const barberName = barberById.get(appointment.barber_id)?.display_name ?? "Profissional";
             const layout = dayAppointmentLayouts.get(appointment.id) ?? { lane: 0, lanes: 1 };
             const laneWidth = 100 / layout.lanes;
-            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerName} · ${displayStatus.label}`} className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} ${agendaStatusClass(appointment)}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height, left: `calc(${layout.lane * laneWidth}% + 6px)`, right: "auto", width: `calc(${laneWidth}% - 12px)` }} onClick={() => openAppointment(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong><span className="agenda-event__customer-name">{customerName}</span>{origin && <b className={`agenda-event__origin agenda-event__origin--${origin.tone}`} title={origin.label}>{origin.abbreviation}</b>}</strong><span className="agenda-event__meta"><small title={`${serviceLabel(appointment.id)} | ${barberName}`}>{serviceLabel(appointment.id)} <span aria-hidden="true">|</span> {barberName}</small></span></span></button>;
+            return <button key={appointment.id} type="button" aria-label={`Abrir ${customerName}`} title={displayStatus.label} className={`agenda-event agenda-event--${(environmentIndex + itemIndex) % 3} ${agendaStatusClass(appointment)}${geometry.height <= 39 ? " agenda-event--short" : ""}`} style={{ top: geometry.top, height: geometry.height, left: `calc(${layout.lane * laneWidth}% + 6px)`, right: "auto", width: `calc(${laneWidth}% - 12px)` }} onClick={() => openAppointment(appointment)}><span className="agenda-event__time"><span className="sr-only">{geometry.startLabel} — {geometry.endLabel}</span><span aria-hidden="true">{geometry.startLabel}</span><span aria-hidden="true">{geometry.endLabel}</span></span><span className="agenda-event__details"><strong><span className="agenda-event__customer-name">{customerName}</span>{origin && <b className={`agenda-event__origin agenda-event__origin--${origin.tone}`} title={origin.label}>{origin.abbreviation}</b>}</strong><span className="agenda-event__meta"><small title={`${serviceLabel(appointment.id)} | ${barberName}`}><span>{serviceLabel(appointment.id)}</span> <span aria-hidden="true">|</span> {barberName}</small></span></span></button>;
           })}
         </div>)}
         {nowLine && <div className="agenda-now-line" style={{ top: nowLine.top }} aria-label={`Hora atual: ${nowLine.label}`}><span>{nowLine.label}</span><i /></div>}
@@ -524,7 +536,7 @@ export function AgendaManager(props: Props) {
 
     {view === "week" && <section className="panel agenda-week" aria-label="Agenda semanal">
       <div className="agenda-week__head"><span>Horário</span>{weekDates.map((day) => <button type="button" key={day} className={`${styles.weekDay} ${day === todayKey ? styles.weekDayToday : ""}`} onClick={() => { setDate(day); setView("day"); }}><strong>{formatDate(day, { weekday: "short", day: "2-digit" })}</strong><small>{appointmentsOn(day).length} reservas</small></button>)}</div>
-      <div className="agenda-week__body">{hours.map((hour) => <div className="agenda-week__row" key={hour}><time>{hour}</time>{weekDates.map((day) => <div className={styles.weekCell} key={day}>{appointmentsOn(day).filter((appointment) => appointmentGeometry(appointment.service_period, timezone)?.startLabel.startsWith(hour.slice(0, 2))).map((appointment) => { const geometry = appointmentGeometry(appointment.service_period, timezone); const origin = appointmentOrigin(appointment); const customerName = customerById.get(appointment.customer_id)?.full_name ?? "Cliente"; const barberName = barberById.get(appointment.barber_id)?.display_name ?? "Profissional"; return <button type="button" key={appointment.id} className={`has-event ${agendaStatusClass(appointment)}`} aria-label={`Abrir ${customerName}`} onClick={() => openAppointment(appointment)}><strong><span>{geometry?.startLabel} · {customerName}</span>{origin && <b className={`agenda-event__origin agenda-event__origin--${origin.tone}`} title={origin.label}>{origin.abbreviation}</b>}</strong><small>{serviceLabel(appointment.id)} <span aria-hidden="true">|</span> {barberName}</small></button>; })}</div>)}</div>)}</div>
+      <div className="agenda-week__body">{hours.map((hour) => <div className="agenda-week__row" key={hour}><time>{hour}</time>{weekDates.map((day) => <div className={styles.weekCell} key={day}>{appointmentsOn(day).filter((appointment) => appointmentGeometry(appointment.service_period, timezone)?.startLabel.startsWith(hour.slice(0, 2))).map((appointment) => { const geometry = appointmentGeometry(appointment.service_period, timezone); const origin = appointmentOrigin(appointment); const customerName = customerById.get(appointment.customer_id)?.full_name ?? "Cliente"; const barberName = barberById.get(appointment.barber_id)?.display_name ?? "Profissional"; return <button type="button" key={appointment.id} className={`has-event ${agendaStatusClass(appointment)}`} aria-label={`Abrir ${customerName}`} onClick={() => openAppointment(appointment)}><strong><span>{geometry?.startLabel} · {customerName}</span>{origin && <b className={`agenda-event__origin agenda-event__origin--${origin.tone}`} title={origin.label}>{origin.abbreviation}</b>}</strong><small><span>{serviceLabel(appointment.id)}</span> <span aria-hidden="true">|</span> {barberName}</small></button>; })}</div>)}</div>)}</div>
     </section>}
 
     {view === "month" && <section className="panel agenda-month" aria-label="Agenda mensal">
@@ -568,7 +580,7 @@ export function AgendaManager(props: Props) {
         {customerQuery.trim() && !selectedCustomerId && <div className="customer-search-results">{matchingCustomers.map((customer) => <button className="customer-search-result" key={customer.id} type="button" aria-label={`Selecionar ${customer.full_name}`} onClick={() => { setSelectedCustomerId(customer.id); setCustomerQuery(customer.full_name); }}><strong>{customer.full_name}</strong><small>{customer.phone_e164 ?? "Sem telefone"}</small></button>)}{matchingCustomers.length === 0 && <button className="customer-search-create" type="button" onClick={() => { setQuickCustomerName(customerQuery); setQuickCustomerOpen(true); }}>Cadastrar novo cliente</button>}</div>}
         {selectedCustomer && <p className="customer-search-selected"><Check size={15} /> {selectedCustomer.full_name} selecionado</p>}
         {quickCustomerOpen && <div className="customer-quick-create"><label>Nome do novo cliente<input aria-label="Nome do novo cliente" value={quickCustomerName} onChange={(event) => setQuickCustomerName(event.target.value)} /></label><label>Telefone<input value={quickCustomerPhone} onChange={(event) => setQuickCustomerPhone(event.target.value)} /></label><button className="button button--soft button--sm" type="button" onClick={createQuickCustomer}>Salvar cliente</button></div>}
-        <div className="form-grid"><label>Serviço ou pacote<span className="select-input"><select name="selection" required defaultValue=""><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select><ChevronDown size={15} /></span></label><label>Profissional<span className="select-input"><select name="barber_id" required defaultValue={barberFilter === "ALL" ? props.barbers[0]?.id : barberFilter}>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label></div>
+        <div className="form-grid"><label>Serviço ou pacote<span className="select-input"><select name="selection" required defaultValue=""><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select><ChevronDown size={15} /></span></label><label>Profissional<span className="select-input"><select name="barber_id" required defaultValue={barberFilter === "ALL" ? props.barbers[0]?.id : barberFilter}>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label><label>Ambiente<span className="select-input"><select name="environment_id" defaultValue=""><option value="">Automático conforme escala</option>{(props.environments ?? []).filter((environment) => environment.active).sort((left, right) => left.sort_order - right.sort_order).map((environment) => <option key={environment.id} value={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select><ChevronDown size={15} /></span></label></div>
         <div className="form-grid"><label>Data<span className="input-shell"><CalendarDays size={17} /><input name="date" type="date" defaultValue={date} required /></span></label><label>Horário<span className="input-shell"><Clock3 size={17} /><input name="time" type="time" defaultValue="09:00" step={BUSINESS_SLOT_INTERVAL_MINUTES * 60} required /></span></label></div>
         <label>Observação <small>opcional</small><textarea name="notes" placeholder="Preferências e observações..." rows={3} /></label>
         <label>Motivo fora da escala <small>somente quando necessário</small><span className="input-shell"><input name="override_reason" placeholder="Explique por que este horário será liberado" /></span></label>
