@@ -57,13 +57,13 @@
 .panel { background: #fff; border: 1px solid rgba(36, 42, 38, .11); border-radius: 20px; padding: 1.25rem; box-shadow: 0 12px 34px rgba(41, 48, 42, .055); }
 .panel h2, .panel h3 { margin: 0; color: #222823; }
 .panelHead { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }
-.panelHead p { margin: .3rem 0 0; color: #69716b; font-size: .9rem; }
+.panelHead p { margin: .3rem 0 0; color: #69716b; font-size: .98rem; line-height: 1.45; }
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
 .statsCash { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .stat { min-height: 120px; display: grid; align-content: space-between; background: linear-gradient(150deg, #fff, #f7f8f5); border: 1px solid rgba(36, 42, 38, .1); border-radius: 18px; padding: 1rem; }
-.stat span { color: #69716b; font-size: .82rem; }
-.stat strong { font-family: var(--font-display, serif); color: #202620; font-size: 1.75rem; }
-.stat small { color: #7d857f; }
+.stat span { color: #69716b; font-size: .95rem; line-height: 1.35; }
+.stat strong { font-family: var(--font-display, serif); color: #202620; font-size: 2rem; line-height: 1.15; }
+.stat small { color: #7d857f; font-size: .9rem; line-height: 1.35; }
 .statDanger { background: linear-gradient(150deg, #fff8f7, #fff0ed); border-color: rgba(161, 63, 49, .2); }
 .statDanger strong { color: #a13f31; }
 .statInfo { background: linear-gradient(150deg, #f5fbff, #eaf5ff); border-color: rgba(39, 113, 171, .2); }
@@ -91,7 +91,7 @@
 .buttonSoft:hover { background: #e1e6df; }
 .buttonDanger { background: #fff0ed; color: #a13f31; }
 .buttonDanger:hover { background: #ffe1dc; }
-.buttonSmall { padding: .5rem .75rem; font-size: .78rem; }
+.buttonSmall { padding: .52rem .8rem; font-size: .88rem; }
 .form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; padding: 1rem; margin-bottom: 1rem; border-radius: 16px; background: #f7f8f5; border: 1px solid #e7ebe5; }
 .formWide { grid-column: 1 / -1; }
 .modalLayer { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 1.5rem; }
@@ -119,8 +119,8 @@
 .warning { background: #fff4dc; color: #765510; }
 .error { background: #fff0ed; color: #8b352a; }
 .empty { display: grid; justify-items: center; text-align: center; gap: .45rem; border: 1px dashed #cdd5cb; border-radius: 16px; padding: 2.25rem 1rem; color: #6e776f; }
-.empty strong { color: #313832; font-size: 1rem; }
-.empty p { max-width: 500px; margin: 0; font-size: .86rem; }
+.empty strong { color: #313832; font-size: 1.08rem; }
+.empty p { max-width: 500px; margin: 0; font-size: .95rem; line-height: 1.45; }
 .list { display: grid; gap: .65rem; }
 .cashTable { display: grid; gap: .65rem; }
 .cashHeader, .cashRow { --cash-columns: minmax(210px, 1.5fr) minmax(105px, .7fr) minmax(115px, .75fr) minmax(160px, 1fr) minmax(170px, 1fr) minmax(190px, auto); display: grid; grid-template-columns: var(--cash-columns); gap: .8rem; align-items: center; }
@@ -189,8 +189,8 @@
 .chartRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .6rem; align-items: center; padding: .72rem; border: 1px solid #edf0eb; border-radius: 12px; background: #fff; }
 .chartRow:hover { background: #fafbf9; }
 .rowTitle { min-width: 0; display: grid; gap: .22rem; }
-.rowTitle strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #293029; }
-.rowTitle small, .muted { color: #79817a; font-size: .78rem; }
+.rowTitle strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #293029; font-size: 1rem; }
+.rowTitle small, .muted { color: #79817a; font-size: .9rem; line-height: 1.35; }
 .tagColorPicker { position: relative; }
 .tagColorPicker summary { display: flex; align-items: center; gap: .55rem; width: fit-content; cursor: pointer; color: #293029; font-size: .82rem; font-weight: 800; list-style: none; }
 .tagColorPicker summary::-webkit-details-marker { display: none; }
@@ -262,8 +262,8 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .commissionModalFooter { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-top: .35rem; }
 .timeline { display: grid; gap: .65rem; }
 .appointment { display: grid; grid-template-columns: 150px minmax(150px, 1.3fr) minmax(130px, 1fr) minmax(110px, .8fr) auto; align-items: center; gap: .75rem; border: 1px solid #e8ece6; border-radius: 14px; padding: .85rem; }
-.appointmentTime { font-weight: 800; color: #293029; font-size: .85rem; }
-.appointmentValue { text-align: right; font-weight: 800; }
+.appointmentTime { font-weight: 800; color: #293029; font-size: .95rem; }
+.appointmentValue { text-align: right; font-weight: 800; font-size: .95rem; }
 .tabs { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .2rem; }
 .tab { border: 0; border-radius: 999px; background: #eff2ed; color: #586159; padding: .55rem .8rem; font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
 .tabActive { background: #2b322c; color: #fff; }
@@ -326,8 +326,8 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .customMessageRow .automationRow { background: #fff; }
 .definition { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
 .definition div { display: grid; gap: .2rem; padding: .75rem; border-radius: 12px; background: #f7f8f5; }
-.definition dt { color: #778078; font-size: .72rem; }
-.definition dd { margin: 0; color: #2e352f; font-weight: 800; font-size: .86rem; }
+.definition dt { color: #778078; font-size: .88rem; line-height: 1.3; }
+.definition dd { margin: 0; color: #2e352f; font-weight: 800; font-size: .98rem; line-height: 1.3; }
 .loading { min-height: 280px; display: grid; place-items: center; color: #647065; }
 .loading span { display: inline-flex; gap: .7rem; align-items: center; }
 .weekDay { min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 0; border-right: 1px solid #e8e3da; background: #fbfaf6; font-size: 9px; }
