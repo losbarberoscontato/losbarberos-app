@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Printer } from "lucide-react";
 import type { loadFinancialReportsData } from "./server";
@@ -16,7 +16,7 @@ import styles from "./connected-manager.module.css";
 type Props = AwaitedReturn<typeof loadFinancialReportsData>;
 
 const reportTabs: Array<{ id: FinancialReportType; label: string }> = [
-  { id: "CASH_FLOW", label: "Fluxo de caixa (DFC)" }, { id: "BUDGET", label: "Orçamento" }, { id: "CLOSURES", label: "Fechamentos" },
+  { id: "CASH_FLOW", label: "Fluxo de caixa (DFC)" }, { id: "BUDGET", label: "Orçamento" }, { id: "CLOSURES", label: "Fechamentos" }, { id: "PROJECTS", label: "Projetos" },
 ];
 
 function csvCell(value: unknown) {
@@ -38,13 +38,29 @@ function GeneralFinancialReportsManager(props: Props & { initialReport?: Financi
   const [chartId, setChartId] = useState("");
   const [centerId, setCenterId] = useState("");
   const [locationId, setLocationId] = useState("");
-  const [tagQuery, setTagQuery] = useState("");
+  const [tagSearch, setTagSearch] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
+  const tagFilterRef = useRef<HTMLDivElement>(null);
+
+  const reportTags = useMemo(() => [...(props.tags ?? [])].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")), [props.tags]);
+  const visibleTags = useMemo(() => reportTags.filter((tag) => tag.name.toLocaleLowerCase("pt-BR").includes(tagSearch.toLocaleLowerCase("pt-BR"))), [reportTags, tagSearch]);
+  const selectedTagNames = useMemo(() => selectedTagIds.map((id) => reportTags.find((tag) => tag.id === id)?.name).filter((name): name is string => Boolean(name)), [reportTags, selectedTagIds]);
+  const availableReportTabs = useMemo(() => props.projectsModuleEnabled ? reportTabs : reportTabs.filter((tab) => tab.id !== "PROJECTS"), [props.projectsModuleEnabled]);
+
+  useEffect(() => {
+    function closeTagMenu(event: PointerEvent) {
+      if (!tagFilterRef.current?.contains(event.target as Node)) setTagMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", closeTagMenu);
+    return () => document.removeEventListener("pointerdown", closeTagMenu);
+  }, []);
 
   const filtered = useMemo(() => props.facts.filter((row) =>
     (!start || row.fact_date >= start) && (!end || row.fact_date <= end) &&
     (!chartId || row.chart_account_id === chartId) && (!centerId || row.cost_center_id === centerId) && (!locationId || row.location_id === locationId) &&
-    (!tagQuery || row.tag_names?.some((tag) => tag.toLocaleLowerCase("pt-BR").includes(tagQuery.toLocaleLowerCase("pt-BR")))),
-  ), [props.facts, start, end, chartId, centerId, locationId, tagQuery]);
+    (!selectedTagNames.length || selectedTagNames.every((selectedTag) => row.tag_names?.some((tag) => tag.toLocaleLowerCase("pt-BR") === selectedTag.toLocaleLowerCase("pt-BR")))),
+  ), [props.facts, start, end, chartId, centerId, locationId, selectedTagNames]);
 
   const cashFlow = useMemo(() => group(filtered.filter((row) => row.basis === "CASH"), (row) => row.cash_flow_activity ?? "Não classificado"), [filtered]);
 
@@ -58,19 +74,27 @@ function GeneralFinancialReportsManager(props: Props & { initialReport?: Financi
   return <div className={`${styles.stack} ${styles.reportsLayout}`}>
     <PageHeader title="Relatórios financeiros" description="Visão gerencial por competência e caixa. Não substitui escrituração contábil oficial." actions={<div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => window.print()}><Printer size={16} /> Imprimir/PDF</button><button className={styles.button} type="button" onClick={exportCsv}><Download size={16} /> CSV</button></div>} />
     <FinanceSubnav active={props.initialReport === "COMMISSIONS" ? "commissions" : "reports"} />
-    {props.initialReport !== "COMMISSIONS" && <nav className={styles.tabs} aria-label="Relatórios financeiros">{reportTabs.map((tab) => <button key={tab.id} type="button" className={`${styles.tab} ${report === tab.id ? styles.tabActive : ""}`} onClick={() => setReport(tab.id)}>{tab.label}</button>)}</nav>}
-    {report !== "CLOSURES" && <section className={`${styles.toolbar} ${styles.reportsFilters}`}>
+    {props.initialReport !== "COMMISSIONS" && <nav className={styles.tabs} aria-label="Relatórios financeiros">{availableReportTabs.map((tab) => <button key={tab.id} type="button" className={`${styles.tab} ${report === tab.id ? styles.tabActive : ""}`} onClick={() => setReport(tab.id)}>{tab.label}</button>)}</nav>}
+    {report !== "CLOSURES" && report !== "PROJECTS" && <section className={`${styles.toolbar} ${styles.reportsFilters}`}>
       <div className={styles.toolbarGroup}>
         <input className={styles.packageFilterSelect} type="date" aria-label="Data inicial" value={start} onChange={(event) => setStart(event.target.value)} />
         <input className={styles.packageFilterSelect} type="date" aria-label="Data final" value={end} onChange={(event) => setEnd(event.target.value)} />
         <select className={styles.packageFilterSelect} aria-label="Plano de conta" value={chartId} onChange={(event) => setChartId(event.target.value)}><option value="">Todos planos</option>{props.chartAccounts.map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select>
         <select className={styles.packageFilterSelect} aria-label="Centro de custo" value={centerId} onChange={(event) => setCenterId(event.target.value)}><option value="">Todos centros</option>{props.costCenters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
         <select className={styles.packageFilterSelect} aria-label="Unidade" value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="">Todas unidades</option>{props.locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-        <input className={styles.packageFilterSelect} type="search" aria-label="Pesquisar por tag" placeholder="Pesquisar por tag" value={tagQuery} onChange={(event) => setTagQuery(event.target.value)} />
+        <div className={styles.tagFilter} ref={tagFilterRef}>
+          <input className={styles.packageFilterSelect} type="search" role="combobox" aria-label="Pesquisar por tag" placeholder={selectedTagIds.length ? `${selectedTagIds.length} tag(s) selecionada(s)` : "Pesquisar por tag"} value={tagSearch} onFocus={() => setTagMenuOpen(true)} onChange={(event) => { setTagSearch(event.target.value); setTagMenuOpen(true); }} aria-expanded={tagMenuOpen} aria-controls="financial-report-tags" aria-autocomplete="list" />
+          {tagMenuOpen && <div className={styles.tagFilterMenu} id="financial-report-tags" role="listbox" aria-label="Tags disponíveis">
+            <div className={styles.tagFilterSummary}>{selectedTagIds.length ? `${selectedTagIds.length} tag(s) selecionada(s)` : "Selecione uma ou mais tags"}</div>
+            {visibleTags.length ? visibleTags.map((tag) => <label className={styles.tagFilterOption} key={tag.id}><input type="checkbox" checked={selectedTagIds.includes(tag.id)} onChange={(event) => setSelectedTagIds((current) => event.target.checked ? [...current, tag.id] : current.filter((id) => id !== tag.id))} /> <span>{tag.name}</span></label>) : <p className={styles.tagFilterEmpty}>Nenhuma tag encontrada.</p>}
+            {selectedTagIds.length > 0 && <button className={styles.tagFilterClear} type="button" onClick={() => setSelectedTagIds([])}>Limpar tags</button>}
+          </div>}
+        </div>
       </div>
     </section>}
     {report === "CLOSURES" && <ClosureReport closures={props.barberCashClosures ?? []} barbers={props.barbers} />}
-    {report !== "CLOSURES" && (chartId || centerId || locationId || tagQuery) && <p className={styles.muted}>Filtros aplicados sobre os fatos financeiros carregados.</p>}
+    {report === "PROJECTS" && <Panel title="Projetos" description="Relatório do módulo Projetos."><EmptyState title="Em breve">Em breve.</EmptyState></Panel>}
+    {report !== "CLOSURES" && report !== "PROJECTS" && (chartId || centerId || locationId || selectedTagIds.length > 0) && <p className={styles.muted}>Filtros aplicados sobre os fatos financeiros carregados.</p>}
     {report === "CASH_FLOW" && <Statement title="Fluxo de caixa direto" groups={cashFlow} total={sum(filtered.filter((row) => row.basis === "CASH"))} note="Somente movimentos efetivos. Transferências internas não entram no consolidado." />}
     {report === "BUDGET" && <Panel title="Orçamento" description="Versões aprovadas são imutáveis; comparação realizado x orçamento depende de linhas orçamentárias aprovadas.">{props.budgetVersions.length ? <div className={styles.list}>{props.budgetVersions.map((version) => <article key={version.id} className={styles.row}><strong>Versão {version.version_number}</strong><StatusChip active={version.status === "APPROVED"} label={version.status} /><small>{version.approved_at ? new Date(version.approved_at).toLocaleString("pt-BR") : "Rascunho"}</small></article>)}</div> : <EmptyState title="Sem orçamento">Crie orçamento anual no banco após migration local ser revisada e aplicada.</EmptyState>}</Panel>}
   </div>;

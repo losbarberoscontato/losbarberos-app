@@ -20,4 +20,9 @@ describe("manager finance navigation", () => {
     render(<ManagerShell>conteúdo</ManagerShell>);
     expect(screen.getAllByRole("link", { name: "Comissões" })[0]).toHaveAttribute("href", "/gestor/financeiro/comissoes");
   });
+
+  it("exposes Relatórios inside Financeiro", () => {
+    render(<ManagerShell>conteúdo</ManagerShell>);
+    expect(screen.getAllByRole("link", { name: "Relatórios" })[0]).toHaveAttribute("href", "/gestor/financeiro/relatorios");
+  });
 });

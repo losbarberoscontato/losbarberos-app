@@ -25,6 +25,10 @@ const props = {
   chartAccounts: [],
   costCenters: [],
   accounts: [{ id: "account-1", organization_id: "org-1", kind: "BANK" as const, name: "Conta principal", bank_code: null, branch: null, account_number: null, description: null, opening_balance_cents: 0, active: true }],
+  tags: [
+    { id: "tag-priority", name: "Prioridade", active: true },
+    { id: "tag-routine", name: "Rotina", active: true },
+  ],
   budgetVersions: [],
   commissionDetails: [
     { organization_id: "org-1", appointment_id: "appointment-1", appointment_item_id: "item-1", customer_id: "customer-1", customer_name: "Cliente Um", barber_id: "barber-1", service_id: "service-1", service_name: "Barba", location_id: "location-1", service_date: "2026-09-06", received_on: "2026-09-06", service_value_paid_cents: 7000, financial_account_names: "Nubank", commission_cents: 3500, paid_commission_cents: 0, payable_commission_cents: 3500 },
@@ -65,15 +69,30 @@ describe("manager commissions", () => {
     expect(screen.queryByLabelText("Serviço")).not.toBeInTheDocument();
   });
 
-  it("filters DFC facts by tag text", () => {
+  it("opens the tag list and filters DFC facts by one or more tags", () => {
     render(<FinancialReportsManager {...props} facts={[
       { organization_id: "org-1", basis: "CASH", source_type: "FINANCIAL_SETTLEMENT", source_id: "settlement-1", fact_date: "2026-09-06", competence_date: null, due_date: null, settlement_date: "2026-09-06", location_id: "location-1", customer_id: null, barber_id: null, service_id: null, service_name_snapshot: "Receita marcada", chart_account_id: null, cost_center_id: null, financial_account_id: "account-1", dre_group: "GROSS_REVENUE", cash_flow_activity: "OPERATING", signed_cents: 7000, status: "SETTLEMENT", tag_names: ["Prioridade"] },
       { organization_id: "org-1", basis: "CASH", source_type: "FINANCIAL_SETTLEMENT", source_id: "settlement-2", fact_date: "2026-09-05", competence_date: null, due_date: null, settlement_date: "2026-09-05", location_id: "location-1", customer_id: null, barber_id: null, service_id: null, service_name_snapshot: "Receita comum", chart_account_id: null, cost_center_id: null, financial_account_id: "account-1", dre_group: "GROSS_REVENUE", cash_flow_activity: "OPERATING", signed_cents: 3000, status: "SETTLEMENT", tag_names: ["Rotina"] },
     ]} />);
 
-    fireEvent.change(screen.getByLabelText("Pesquisar por tag"), { target: { value: "prior" } });
+    fireEvent.focus(screen.getByLabelText("Pesquisar por tag"));
+    expect(screen.getByRole("listbox", { name: "Tags disponíveis" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Prioridade/ }));
     expect(screen.getAllByText("R$ 70,00")).not.toHaveLength(0);
     expect(screen.queryByText("R$ 100,00")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Rotina/ }));
+    expect(screen.queryByText("R$ 70,00")).not.toBeInTheDocument();
+  });
+
+  it("shows the Projetos report only while its module is enabled", () => {
+    render(<FinancialReportsManager {...props} projectsModuleEnabled={false} />);
+    expect(screen.queryByRole("button", { name: "Projetos" })).not.toBeInTheDocument();
+
+    cleanup();
+    render(<FinancialReportsManager {...props} projectsModuleEnabled />);
+    fireEvent.click(screen.getByRole("button", { name: "Projetos" }));
+    expect(screen.getByText("Em breve.")).toBeInTheDocument();
   });
 
   it("shows closure history ordered by id, filters by professional, and expands launches", () => {

@@ -41,6 +41,7 @@ const financeNavigation = [
   { href: "/gestor/financeiro/bancos", label: "Bancos" },
   { href: "/gestor/financeiro/fornecedores", label: "Fornecedores" },
   { href: "/gestor/financeiro/cadastros", label: "Cadastros" },
+  { href: "/gestor/financeiro/relatorios", label: "Relatórios" },
 ];
 
 const ManagerBillingContext = createContext(false);

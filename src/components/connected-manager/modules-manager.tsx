@@ -16,6 +16,7 @@ export function ModulesManager(props: Props) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [activationOpen, setActivationOpen] = useState(false);
+  const [activationModuleKey, setActivationModuleKey] = useState<string | null>(null);
   const [activationAccepted, setActivationAccepted] = useState(false);
   const enabledByKey = new Map(props.entitlements.map((item) => [item.module_key, item.enabled]));
   const priceByKey = new Map(props.prices.map((item) => [item.module_key, item]));
@@ -27,24 +28,29 @@ export function ModulesManager(props: Props) {
         p_module_key: moduleKey,
         p_enabled: false,
       }));
-    }, "Módulo desativado para novas adesões. Assinaturas existentes continuam até cancelamento ou término.");
+    }, moduleKey === "projects"
+      ? "Módulo desativado. Se houver dados em Projetos, eles ficarão disponíveis por 60 dias para reativação; depois serão excluídos."
+      : "Módulo desativado para novas adesões. Assinaturas existentes continuam até cancelamento ou término.");
     if (saved) router.refresh();
   }
 
-  async function enableSubscriptionModule() {
+  async function enableModule() {
+    if (!activationModuleKey) return;
     if (!activationAccepted) {
       setMessage("Leia e aceite o aditivo para ativar o módulo.");
       return;
     }
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().rpc("accept_subscription_module_contract_and_enable", {
+      await assertResult(await connectedClient().rpc("accept_module_contract_and_enable", {
         p_organization_id: props.organizationId,
+        p_module_key: activationModuleKey,
         p_contract_version: "v1",
         p_metadata: { source: "MANAGER_MODULES" },
       }));
-    }, "Módulo ativado. Novas assinaturas já podem ser iniciadas.");
+    }, `Módulo ${props.modules.find((item) => item.key === activationModuleKey)?.name ?? "opcional"} ativado. A cobrança adicional será aplicada no próximo ciclo.`);
     if (saved) {
       setActivationOpen(false);
+      setActivationModuleKey(null);
       setActivationAccepted(false);
       router.refresh();
     }
@@ -64,25 +70,26 @@ export function ModulesManager(props: Props) {
               <p>{module.description}</p>
               <small>{price ? `${formatCents(price.monthly_price_cents)}/mês · cobrança no próximo ciclo` : "Preço ainda não configurado pela plataforma"}</small>
             </div>
-            <button className={`${styles.button} ${enabled ? styles.buttonDanger : ""}`} type="button" onClick={() => enabled ? void disable(module.key) : setActivationOpen(true)}>{enabled ? "Desativar" : "Ativar"}</button>
+            {module.key === "projects" && <small>Se desativado, dados existentes entram em retenção de 60 dias.</small>}
+            <button className={`${styles.button} ${enabled ? styles.buttonDanger : ""}`} type="button" onClick={() => { if (enabled) void disable(module.key); else { setActivationModuleKey(module.key); setActivationOpen(true); } }}>{enabled ? "Desativar" : "Ativar"}</button>
           </article>;
         })}
       </div>
     </Panel>
     {activationOpen && <div className={styles.modalLayer} role="presentation">
       <button className={styles.modalBackdrop} type="button" aria-label="Fechar ativação do módulo" onClick={() => setActivationOpen(false)} />
-      <section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="subscription-module-title">
+      <section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="module-title">
         <header className={styles.modalHeader}>
-          <div><small>Aditivo do módulo</small><h2 id="subscription-module-title">Ativar Planos de Assinatura</h2></div>
+          <div><small>Aditivo do módulo</small><h2 id="module-title">Ativar {props.modules.find((item) => item.key === activationModuleKey)?.name ?? "módulo"}</h2></div>
           <button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setActivationOpen(false)}>×</button>
         </header>
         <div className={styles.form}>
-          <p className={styles.muted}>As cobranças dos planos são responsabilidade do gestor da barbearia. O sistema não transaciona valores, não cobra clientes e não se responsabiliza por pagamentos dos planos.</p>
+          <p className={styles.muted}>As cobranças deste módulo são responsabilidade do gestor da barbearia. O sistema não transaciona valores, não cobra clientes e não se responsabiliza por pagamentos.</p>
           <p className={styles.muted}>O módulo de pagamentos online ainda não está ativo; esta integração será disponibilizada futuramente.</p>
           <label className={styles.check}><input type="checkbox" checked={activationAccepted} onChange={(event) => setActivationAccepted(event.target.checked)} /> Li e aceito o aditivo contratual do módulo e autorizo a cobrança adicional na mensalidade do sistema a partir do próximo ciclo.</label>
           <div className={styles.toolbarGroup}>
             <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setActivationOpen(false)}>Cancelar</button>
-            <button className={styles.button} type="button" disabled={!activationAccepted} onClick={() => void enableSubscriptionModule()}>Aceitar e ativar</button>
+            <button className={styles.button} type="button" disabled={!activationAccepted} onClick={() => void enableModule()}>Aceitar e ativar</button>
           </div>
         </div>
       </section>

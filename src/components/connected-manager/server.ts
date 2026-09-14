@@ -1231,6 +1231,7 @@ export async function loadFinancialReportsData() {
     budgetVersions,
     commissionDetails,
     tags,
+    projectsModule,
     entryTags,
     settlements,
     receiptClassifications,
@@ -1300,8 +1301,14 @@ export async function loadFinancialReportsData() {
       .limit(MANAGER_ROW_LIMIT),
     supabase
       .from("financial_tags")
-      .select("id,name")
+      .select("id,name,active")
       .eq("organization_id", organizationId),
+    supabase
+      .from("organization_module_entitlements")
+      .select("enabled")
+      .eq("organization_id", organizationId)
+      .eq("module_key", "projects")
+      .maybeSingle(),
     supabase
       .from("financial_entry_tags")
       .select("entry_id,tag_id")
@@ -1350,6 +1357,11 @@ export async function loadFinancialReportsData() {
       }>
     ).map((tag) => [tag.id, tag.name]),
   );
+  const reportTags = requireData(tags, "Tags dos relatórios") as Array<{
+    id: string;
+    name: string;
+    active: boolean;
+  }>;
   const entryTagNames = new Map<string, string[]>();
   (
     requireData(entryTags, "Tags dos lançamentos") as Array<{
@@ -1481,6 +1493,8 @@ export async function loadFinancialReportsData() {
       "Centros de custo",
     ) as CostCenterRecord[],
     accounts: reportAccounts,
+    tags: reportTags,
+    projectsModuleEnabled: projectsModule.error ? false : Boolean(projectsModule.data?.enabled),
     budgetVersions: requireData(
       budgetVersions,
       "Versões de orçamento",
@@ -1503,7 +1517,7 @@ export async function loadModulesData() {
       .order("name"),
     supabase
       .from("organization_module_entitlements")
-      .select("module_key,enabled,changed_at")
+      .select("module_key,enabled,changed_at,data_retention_until,data_retention_status")
       .eq("organization_id", organizationId),
     supabase
       .from("platform_module_price_versions")
@@ -1523,6 +1537,8 @@ export async function loadModulesData() {
       module_key: string;
       enabled: boolean;
       changed_at: string;
+      data_retention_until: string | null;
+      data_retention_status: "NONE" | "PENDING_DELETION" | "RESTORED" | "DELETED";
     }[],
     prices: prices.error
       ? []

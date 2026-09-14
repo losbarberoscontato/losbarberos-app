@@ -302,7 +302,7 @@ export interface SubscriptionRecord {
 export type FinanceSection = "overview" | "cash" | "commissions" | "payables" | "receivables" | "accounts" | "suppliers" | "catalogs" | "reports";
 
 export type FinancialFactBasis = "FORECAST" | "ACCRUAL" | "CASH" | "BUDGET";
-export type FinancialReportType = "DASHBOARD" | "PAYABLES" | "RECEIVABLES" | "CUSTOMERS" | "COMMISSIONS" | "FORECAST" | "CASH_FLOW" | "INCOME_STATEMENT" | "BUDGET" | "CLOSURES";
+export type FinancialReportType = "DASHBOARD" | "PAYABLES" | "RECEIVABLES" | "CUSTOMERS" | "COMMISSIONS" | "FORECAST" | "CASH_FLOW" | "INCOME_STATEMENT" | "BUDGET" | "CLOSURES" | "PROJECTS";
 
 export interface FinancialReportingFactRecord {
   organization_id: string;
