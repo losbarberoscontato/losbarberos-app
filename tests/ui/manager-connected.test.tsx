@@ -131,7 +131,7 @@ describe("connected manager UI", () => {
   });
 
   it("exibe a resposta do cliente pelo WhatsApp na agenda do gestor", () => {
-    const start = new Date(Date.now() + 60 * 60_000);
+    const start = new Date();
     const end = new Date(start.getTime() + 30 * 60_000);
     render(<ManagerDashboard organizationId="org-1" billingStatus="ACTIVE" organization={organization} customers={[customer]} barbers={[barber]} financial={[]} openPayouts={[]} appointments={[{
       id: "appointment-whatsapp", organization_id: "org-1", customer_id: customer.id, barber_id: barber.id,
