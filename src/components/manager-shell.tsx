@@ -8,6 +8,7 @@ import {
   CalendarDays,
   ChevronDown,
   CircleHelp,
+  FolderKanban,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -29,6 +30,7 @@ const navigation = [
   { href: "/gestor/clientes", label: "Clientes", icon: Users },
   { href: "/gestor/equipe", label: "Equipe", icon: Sparkles },
   { href: "/gestor/catalogo", label: "Serviços", icon: PackageOpen },
+  { href: "/gestor/projetos", label: "Projetos", icon: FolderKanban, module: "projects" as const },
   { href: "/gestor/financeiro", label: "Financeiro", icon: WalletCards },
 ];
 
@@ -50,13 +52,14 @@ export function useManagerBillingBlocked() {
   return useContext(ManagerBillingContext);
 }
 
-function ManagerNavigation({ onNavigate, agendaCount }: { onNavigate?: () => void; agendaCount: number }) {
+function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled }: { onNavigate?: () => void; agendaCount: number; projectsModuleEnabled: boolean }) {
   const pathname = usePathname() ?? "";
+  const visibleNavigation = navigation.filter((item) => item.module !== "projects" || projectsModuleEnabled);
 
   return (
     <nav className="manager-nav" aria-label="Navegação do gestor">
       <p className="manager-nav__label">Operação</p>
-      {navigation.map((item) => {
+      {visibleNavigation.map((item) => {
         const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
         const Icon = item.icon;
 
@@ -130,7 +133,7 @@ function OrganizationSwitcher({ organizationName, locationName, organizationLogo
 
 type ManagerNotification = { id: string; title: string; body: string; href: string; read_at: string | null; created_at: string };
 
-export function ManagerShell({ children, demoMode = false, billingBlocked = false, organizationId, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0 }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; organizationId?: string | null; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number }) {
+export function ManagerShell({ children, demoMode = false, billingBlocked = false, projectsModuleEnabled = false, organizationId, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0 }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; projectsModuleEnabled?: boolean; organizationId?: string | null; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -220,7 +223,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           <Brand href="/gestor" light />
         </div>
         <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} />
-        <ManagerNavigation agendaCount={agendaCount} />
+        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} />
         <div className="manager-sidebar__footer">
           {managerProfile}
         </div>
@@ -242,7 +245,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           </button>
         </div>
         <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} />
-        <ManagerNavigation agendaCount={agendaCount} onNavigate={() => setMenuOpen(false)} />
+        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} onNavigate={() => setMenuOpen(false)} />
         <div className="manager-sidebar__footer">
           {managerProfile}
         </div>

@@ -22,14 +22,16 @@ export default async function GestorLayout({ children }: { children: React.React
   let organizationLogoUrl: string | undefined;
   let locationName = "Unidade principal";
   let userName = "Gestor";
+  let projectsModuleEnabled = false;
   let agendaCount = demoAppointments.filter((appointment) => appointment.date === new Intl.DateTimeFormat("en-CA").format(new Date())).length;
   if (context?.organizationId) {
     const supabase = await getSupabaseServerClient();
     if (supabase) {
-      const [{ data: organization }, { data: location }, { data: profile }] = await Promise.all([
+      const [{ data: organization }, { data: location }, { data: profile }, { data: projectsModule }] = await Promise.all([
         supabase.from("organizations").select("name,timezone,logo_path").eq("id", context.organizationId).maybeSingle(),
         supabase.from("locations").select("name").eq("organization_id", context.organizationId).eq("active", true).maybeSingle(),
         supabase.from("profiles").select("display_name").eq("id", context.userId).maybeSingle(),
+        supabase.from("organization_module_entitlements").select("enabled").eq("organization_id", context.organizationId).eq("module_key", "projects").maybeSingle(),
       ]);
       organizationName = organization?.name ?? organizationName;
       if (organization?.logo_path) {
@@ -37,6 +39,7 @@ export default async function GestorLayout({ children }: { children: React.React
       }
       locationName = location?.name ?? locationName;
       userName = profile?.display_name ?? userName;
+      projectsModuleEnabled = Boolean(projectsModule?.enabled);
       const { data: todayAppointments } = await supabase.from("appointments").select("service_period,status").eq("organization_id", context.organizationId);
       const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: (organization as { timezone?: string } | null)?.timezone ?? "UTC" }).format(new Date());
       agendaCount = (todayAppointments ?? []).filter((appointment) => {
@@ -48,7 +51,7 @@ export default async function GestorLayout({ children }: { children: React.React
   }
 
   return (
-    <ManagerShell agendaCount={agendaCount} organizationId={context?.organizationId} demoMode={!hasSupabaseConfig} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} organizationLogoUrl={organizationLogoUrl} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"}>
+    <ManagerShell agendaCount={agendaCount} organizationId={context?.organizationId} demoMode={!hasSupabaseConfig} projectsModuleEnabled={hasSupabaseConfig ? projectsModuleEnabled : true} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} organizationLogoUrl={organizationLogoUrl} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"}>
       {children}
     </ManagerShell>
   );
