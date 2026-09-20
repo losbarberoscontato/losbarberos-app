@@ -2,6 +2,19 @@ import type { NextConfig } from "next";
 
 const developmentScriptPolicy = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
 const supabaseImageHostname = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : undefined;
+const remoteImagePatterns = [
+  {
+    protocol: "https" as const,
+    hostname: "lh3.googleusercontent.com",
+    pathname: "/**",
+  },
+  ...(supabaseImageHostname ? ["barber-avatars", "organization-logos"].map((bucket) => ({
+    protocol: "https" as const,
+    hostname: supabaseImageHostname,
+    pathname: `/storage/v1/object/public/${bucket}/**`,
+    search: "",
+  })) : []),
+];
 
 const securityHeaders = [
   {
@@ -33,16 +46,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  ...(supabaseImageHostname ? {
-    images: {
-      remotePatterns: ["barber-avatars", "organization-logos"].map((bucket) => ({
-        protocol: "https",
-        hostname: supabaseImageHostname,
-        pathname: `/storage/v1/object/public/${bucket}/**`,
-        search: "",
-      })),
-    },
-  } : {}),
+  images: { remotePatterns: remoteImagePatterns },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },

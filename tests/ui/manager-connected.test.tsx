@@ -17,11 +17,13 @@ const mutationMocks = vi.hoisted(() => ({
       })),
     })),
   })),
+  upsert: vi.fn(() => Promise.resolve({ error: null, data: null })),
+  insert: vi.fn(() => Promise.resolve({ error: null, data: null })),
   rpc: vi.fn(() => Promise.resolve({ error: null, data: null })),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push }) }));
 vi.mock("@/components/connected-manager/mutation-utils", () => ({
-  connectedClient: () => ({ from: () => ({ update: mutationMocks.update }), rpc: mutationMocks.rpc }),
+  connectedClient: () => ({ from: () => ({ update: mutationMocks.update, upsert: mutationMocks.upsert, insert: mutationMocks.insert }), rpc: mutationMocks.rpc }),
   assertResult: (result: unknown) => result,
   runMutation: async (_setMessage: unknown, mutation: () => Promise<unknown>) => { await mutation(); return true; },
 }));
@@ -41,8 +43,8 @@ const organization = {
   queue_public_id: "00000000-0000-4000-8000-000000000001",
 };
 const customer = { id: "customer-1", organization_id: "org-1", auth_user_id: null, full_name: "Cliente Real", phone_e164: "+5511999999999", email: null, birth_date: null, notes: null, active: true, inactivation_reason: null, inactivated_at: null, created_at: new Date().toISOString() };
-const barber = { id: "barber-1", organization_id: "org-1", location_id: "location-1", display_name: "Barbeiro Real", bio: null, avatar_url: null, whatsapp_e164: null, active: true };
-const service = { id: "service-1", organization_id: "org-1", name: "Corte Real", description: null, price_cents: 5000, duration_minutes: 30, active: true, sort_order: 0, audiences: ["MASCULINO"] as const };
+const barber = { id: "barber-1", organization_id: "org-1", location_id: "location-1", display_name: "Barbeiro Real", bio: null, avatar_url: null, professional_function_id: "function-1", whatsapp_e164: null, active: true };
+const service = { id: "service-1", organization_id: "org-1", name: "Corte Real", description: null, price_cents: 5000, duration_minutes: 30, active: true, sort_order: 0, audiences: ["MASCULINO"] as const, availability: "CLIENT" as const };
 const connectedWhatsapp: WhatsAppSettingsStatus = {
   connections: [{
     id: "whatsapp-1", provider: "QR_WEB", status: "CONNECTED", is_active: true,
@@ -61,18 +63,19 @@ const connectedWhatsapp: WhatsAppSettingsStatus = {
   },
 };
 
-function renderTeam() {
+function renderTeam(options: { professionalFunctions?: Array<{ id: string; organization_id: string; name: string; created_at: string }>; barberServices?: Array<{ organization_id: string; barber_id: string; service_id: string; active: boolean }>; commissionRules?: Array<{ id: string; organization_id: string; barber_id: string | null; service_id: string | null; mode: "PERCENT" | "FIXED"; percentage_bps: number | null; fixed_cents: number | null; effective_period: string; active: boolean }> } = {}) {
   return render(<TeamManager
     organizationId="org-1"
     billingStatus="ACTIVE"
     timezone="America/Sao_Paulo"
     locations={[{ id: "location-1", organization_id: "org-1", name: "Unidade principal", address: {}, active: true }]}
     barbers={[barber]}
-    services={[]}
-    barberServices={[]}
+    professionalFunctions={options.professionalFunctions ?? []}
+    services={[service]}
+    barberServices={options.barberServices ?? []}
     workIntervals={[]}
     exceptions={[]}
-    commissionRules={[]}
+    commissionRules={options.commissionRules ?? []}
   />);
 }
 
@@ -107,9 +110,10 @@ describe("connected manager UI", () => {
     })));
   });
 
-  it("mantém apenas uma sub tela de escala aberta e alterna a forma de pagamento", () => {
+  it("separa escala e serviços e alterna a forma de pagamento", () => {
     renderTeam();
-    fireEvent.click(screen.getByRole("button", { name: "Escala e comissão" }));
+    expect(screen.queryByText("Corte Real")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Escala" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Adicionar horário" }));
     expect(screen.getByLabelText("Dia")).toBeInTheDocument();
@@ -120,14 +124,96 @@ describe("connected manager UI", () => {
     expect(screen.queryByLabelText("Início")).toBeInTheDocument();
     expect(screen.queryByLabelText("Dia")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Forma de Pagamento" }));
-    expect(screen.queryByLabelText("Motivo")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Nova comissão" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Forma de Pagamento" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Fechar" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Serviços" }));
+    expect(screen.getByRole("dialog", { name: "Serviços de Barbeiro Real" })).toBeInTheDocument();
+    expect(screen.getByText("Cliente")).toBeInTheDocument();
+    expect(screen.getByLabelText("Modelo de comissão de Corte Real")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Forma de pagamento"), { target: { value: "BIWEEKLY" } });
     expect(screen.getByLabelText("1º pagamento")).toBeInTheDocument();
     expect(screen.getByLabelText("2º pagamento")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Forma de pagamento"), { target: { value: "WEEKLY" } });
     expect(screen.getByLabelText("Dia do pagamento")).toBeInTheDocument();
     expect(screen.queryByLabelText("1º pagamento")).not.toBeInTheDocument();
+  });
+
+  it("seleciona a função cadastrada e persiste o vínculo ao salvar o profissional", async () => {
+    renderTeam({ professionalFunctions: [
+      { id: "function-1", organization_id: "org-1", name: "Barbeiro", created_at: "2026-09-19T10:00:00.000Z" },
+      { id: "function-2", organization_id: "org-1", name: "Recepcionista", created_at: "2026-09-19T10:00:00.000Z" },
+    ] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar profissional" });
+    const functionSelect = within(dialog).getByLabelText("Função");
+    expect(functionSelect).toHaveValue("function-1");
+    fireEvent.change(functionSelect, { target: { value: "function-2" } });
+    fireEvent.change(within(dialog).getByLabelText(/WhatsApp do profissional/), { target: { value: "47 99978-2545" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+
+    await waitFor(() => expect(mutationMocks.update).toHaveBeenCalledWith(expect.objectContaining({
+      professional_function_id: "function-2",
+    })));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar profissional" })).not.toBeInTheDocument());
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("oferece a função cadastrada ao lado do nome no cadastro de novo profissional", () => {
+    renderTeam({ professionalFunctions: [
+      { id: "function-1", organization_id: "org-1", name: "Barbeiro", created_at: "2026-09-19T10:00:00.000Z" },
+    ] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo profissional" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Novo profissional" });
+    const nameField = within(dialog).getByLabelText("Nome completo");
+    const functionField = within(dialog).getByLabelText("Função");
+    expect(nameField.closest(".form-grid")).toBe(functionField.closest(".form-grid"));
+    expect(functionField).toHaveDisplayValue("Sem função");
+    expect(within(functionField).getByRole("option", { name: "Barbeiro" })).toBeInTheDocument();
+  });
+
+  it("salva serviços habilitados e comissão pelo modal de serviços", async () => {
+    renderTeam();
+    fireEvent.click(screen.getByRole("button", { name: "Serviços" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Corte Real" }));
+    fireEvent.change(screen.getByLabelText("Valor da comissão de Corte Real"), { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar serviços" }));
+
+    await waitFor(() => expect(mutationMocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      barber_id: "barber-1",
+      service_id: "service-1",
+      active: true,
+    }), expect.objectContaining({ onConflict: "barber_id,service_id" })));
+    expect(mutationMocks.rpc).toHaveBeenCalledWith("replace_commission_rule", expect.objectContaining({
+      p_barber_id: "barber-1",
+      p_service_id: "service-1",
+      p_percentage_bps: 2500,
+    }));
+    expect(screen.queryByRole("dialog", { name: "Serviços de Barbeiro Real" })).not.toBeInTheDocument();
+  });
+
+  it("fecha o modal mesmo quando a comissão ainda não foi informada", async () => {
+    renderTeam();
+    fireEvent.click(screen.getByRole("button", { name: "Serviços" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Corte Real" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar serviços" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Serviços de Barbeiro Real" })).not.toBeInTheDocument());
+    expect(mutationMocks.upsert).toHaveBeenCalled();
+  });
+
+  it("reidrata valores fixos de comissão no formato aceito pelo input numérico", () => {
+    renderTeam({
+      barberServices: [{ organization_id: "org-1", barber_id: "barber-1", service_id: "service-1", active: true }],
+      commissionRules: [{ id: "rule-1", organization_id: "org-1", barber_id: "barber-1", service_id: "service-1", mode: "FIXED", percentage_bps: null, fixed_cents: 2500, effective_period: "[2026-01-01,)" , active: true }],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Serviços" }));
+
+    expect(screen.getByLabelText("Modelo de comissão de Corte Real")).toHaveValue("FIXED");
+    expect(screen.getByLabelText("Valor da comissão de Corte Real")).toHaveValue(25);
   });
 
   it("exibe a resposta do cliente pelo WhatsApp na agenda do gestor", () => {
@@ -180,6 +266,104 @@ describe("connected manager UI", () => {
     expect(screen.queryByLabelText("Sinal (%)")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Frequência das comissões")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Duração do hold")).not.toBeInTheDocument();
+  });
+
+  it("edita e salva o prazo limite em um modal separado", async () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
+      organization={{ ...organization, cancellation_lead_minutes: 45 }}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+      whatsapp={null}
+    />);
+
+    expect(screen.queryByRole("spinbutton", { name: /Prazo Limite/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Editar prazo limite" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Editar prazo limite" });
+    const deadline = within(dialog).getByRole("spinbutton", { name: /Prazo Limite/ });
+    expect(deadline).toHaveValue(45);
+    expect(within(dialog).getByRole("button", { name: "Salvar prazo" })).toBeInTheDocument();
+    fireEvent.change(deadline, { target: { value: "30" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar prazo" }));
+    await waitFor(() => expect(mutationMocks.rpc).toHaveBeenCalledWith("update_organization_settings", expect.objectContaining({
+      p_cancellation_lead_minutes: 30,
+    })));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar prazo limite" })).not.toBeInTheDocument());
+  });
+
+  it("abre os ambientes da agenda em um modal de edição separado", () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
+      organization={organization}
+      locations={[{ id: "location-1", organization_id: "org-1", name: "Unidade principal", address: {}, active: true }]}
+      environments={[{ id: "environment-1", organization_id: "org-1", location_id: "location-1", name: "Sala 1", sort_order: 1, active: true }]}
+      merchant={null}
+      subscription={null}
+      whatsapp={null}
+    />);
+
+    expect(screen.queryByLabelText("Nome do novo ambiente")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Editar ambientes da agenda" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Editar ambientes da agenda" });
+    expect(within(dialog).getByLabelText("Nome do novo ambiente")).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue("Sala 1")).toBeInTheDocument();
+  });
+
+  it("cadastra funções com explicação de cargo exercido pelo profissional", async () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
+      organization={organization}
+      locations={[]}
+      professionalFunctions={[{ id: "function-1", organization_id: "org-1", name: "Barbeiro", created_at: "2026-09-19T10:00:00.000Z" }]}
+      merchant={null}
+      subscription={null}
+      whatsapp={null}
+    />);
+
+    expect(screen.getByRole("button", { name: "Editar cadastro de funções" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Adicionar a Função")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Editar cadastro de funções" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Cadastro de Funções" });
+    expect(within(dialog).getByText("Função refere-se ao cargo exercido pelo profissional na empresa.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Barbeiro")).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Adicionar a Função"), { target: { value: "Recepcionista" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Adicionar função" }));
+
+    await waitFor(() => expect(mutationMocks.insert).toHaveBeenCalledWith({
+      organization_id: "org-1",
+      name: "Recepcionista",
+    }));
+  });
+
+  it("mantém o card de configurações acessível enquanto a migration do cadastro não foi aplicada", () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
+      organization={organization}
+      locations={[]}
+      professionalFunctions={[]}
+      professionalFunctionsAvailable={false}
+      merchant={null}
+      subscription={null}
+      whatsapp={null}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar cadastro de funções" }));
+    const dialog = screen.getByRole("dialog", { name: "Cadastro de Funções" });
+    expect(within(dialog).getByText(/Cadastro indisponível até a atualização do banco/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Adicionar a Função")).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Adicionar função" })).toBeDisabled();
   });
 
   it("exibe dados da barbearia e oculta configurações operacionais", () => {

@@ -28,6 +28,7 @@ import type {
   MerchantAccountRecord,
   OrganizationRecord,
   OutboxRecord,
+  ProfessionalFunctionRecord,
   PackageItemRecord,
   PackageRecord,
   ServiceRecord,
@@ -339,6 +340,7 @@ export async function loadTeamData() {
     financialAccounts,
     barberAccountPermissions,
     environments,
+    professionalFunctions,
   ] = await Promise.all([
     supabase
       .from("organizations")
@@ -399,6 +401,11 @@ export async function loadTeamData() {
       .eq("organization_id", organizationId)
       .order("sort_order")
       .order("name"),
+    supabase
+      .from("professional_functions")
+      .select("id,organization_id,name,created_at")
+      .eq("organization_id", organizationId)
+      .order("name"),
   ]);
   return {
     organizationId,
@@ -432,6 +439,7 @@ export async function loadTeamData() {
           financial_account_id: string;
       }[]),
     environments: requireData(environments, "Ambientes") as AgendaEnvironmentRecord[],
+    professionalFunctions: requireData(professionalFunctions, "Funções profissionais") as ProfessionalFunctionRecord[],
   };
 }
 
@@ -1660,6 +1668,7 @@ export async function loadSettingsData() {
     whatsappResult,
     environments,
     environmentIssues,
+    professionalFunctions,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase
@@ -1700,7 +1709,18 @@ export async function loadSettingsData() {
       .eq("organization_id", organizationId)
       .is("resolved_at", null)
       .order("created_at"),
+    supabase
+      .from("professional_functions")
+      .select("id,organization_id,name,created_at")
+      .eq("organization_id", organizationId)
+      .order("name"),
   ]);
+  const professionalFunctionsMigrationPending = Boolean(
+    professionalFunctions.error && (
+      ["PGRST205", "42P01"].includes(professionalFunctions.error.code) ||
+      /professional_functions.*(?:does not exist|schema cache)|could not find.*professional_functions.*schema cache/i.test(professionalFunctions.error.message)
+    ),
+  );
   return {
     organizationId,
     billingStatus: context.billingStatus,
@@ -1725,6 +1745,10 @@ export async function loadSettingsData() {
       : (whatsappResult.data as WhatsAppSettingsStatus),
     environments: requireData(environments, "Ambientes") as AgendaEnvironmentRecord[],
     environmentIssues: requireData(environmentIssues, "Pendências de ambientes") as AgendaEnvironmentAssignmentIssueRecord[],
+    professionalFunctions: professionalFunctionsMigrationPending
+      ? []
+      : requireData(professionalFunctions, "Funções profissionais") as ProfessionalFunctionRecord[],
+    professionalFunctionsAvailable: !professionalFunctionsMigrationPending,
   };
 }
 

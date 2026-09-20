@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { CircleHelp, Pencil, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui";
@@ -15,7 +16,12 @@ import { barberLoginHref } from "@/lib/barber-auth";
 import styles from "./connected-manager.module.css";
 
 type SettingsData = AwaitedReturn<typeof loadSettingsData>;
-type Props = Omit<SettingsData, "environments" | "environmentIssues"> & { environments?: SettingsData["environments"]; environmentIssues?: SettingsData["environmentIssues"] };
+type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professionalFunctions" | "professionalFunctionsAvailable"> & {
+  environments?: SettingsData["environments"];
+  environmentIssues?: SettingsData["environmentIssues"];
+  professionalFunctions?: SettingsData["professionalFunctions"];
+  professionalFunctionsAvailable?: boolean;
+};
 
 export function SettingsManager(props: Props) {
   const router = useRouter();
@@ -32,7 +38,10 @@ export function SettingsManager(props: Props) {
   const barberAccessUrl = `${publicOrigin}${barberAccessPath}`;
   const [exporting, setExporting] = useState(false);
   const [rulesHelpOpen, setRulesHelpOpen] = useState(false);
+  const [rulesEditor, setRulesEditor] = useState<"deadline" | "environments" | "functions" | null>(null);
   const [environmentName, setEnvironmentName] = useState("");
+  const [professionalFunctionName, setProfessionalFunctionName] = useState("");
+  const [professionalFunctionMessage, setProfessionalFunctionMessage] = useState("");
   const [logoPath, setLogoPath] = useState(props.organization.logo_path ?? "");
   const location = props.locations.find((item) => item.active) ?? props.locations[0];
   const address = (location?.address ?? {}) as Record<string, string>;
@@ -46,7 +55,7 @@ export function SettingsManager(props: Props) {
     }
   }
 
-  async function saveOrganization(event: FormEvent<HTMLFormElement>) {
+  async function saveOrganization(event: FormEvent<HTMLFormElement>, closeDeadlineEditor = false) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const rawWhatsApp = String(data.get("public_contact_phone_e164") ?? "").trim();
@@ -65,7 +74,10 @@ export function SettingsManager(props: Props) {
         p_cancellation_lead_minutes: Math.max(0, Number(data.get("cancellation_lead_minutes") ?? props.organization.cancellation_lead_minutes ?? 0)),
       }));
     }, "Regras da organização atualizadas.");
-    if (saved) router.refresh();
+    if (saved) {
+      if (closeDeadlineEditor) setRulesEditor(null);
+      router.refresh();
+    }
   }
 
   async function uploadLogo(file: File | undefined) {
@@ -116,6 +128,9 @@ export function SettingsManager(props: Props) {
   const environments = (props.environments ?? [])
     .filter((item) => item.location_id === activeLocationId)
     .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name));
+  const activeEnvironmentCount = environments.filter((environment) => environment.active).length;
+  const professionalFunctions = props.professionalFunctions ?? [];
+  const professionalFunctionsAvailable = props.professionalFunctionsAvailable ?? true;
 
   async function addEnvironment() {
     const name = environmentName.trim();
@@ -142,6 +157,26 @@ export function SettingsManager(props: Props) {
       }
     }, success);
     if (saved) router.refresh();
+  }
+
+  async function addProfessionalFunction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = professionalFunctionName.trim();
+    if (name.length < 2) {
+      setProfessionalFunctionMessage("Informe uma função com pelo menos 2 caracteres.");
+      return;
+    }
+    const saved = await runMutation(setProfessionalFunctionMessage, async () => {
+      const result = await connectedClient().from("professional_functions").insert({
+        organization_id: props.organizationId,
+        name,
+      });
+      await assertResult(result);
+    }, "Função cadastrada.");
+    if (saved) {
+      setProfessionalFunctionName("");
+      router.refresh();
+    }
   }
 
   async function connectMercadoPago() {
@@ -228,28 +263,19 @@ export function SettingsManager(props: Props) {
           </div>
         </Panel>}
       <Panel title="Regras de negócio" description="Prazo aplicado a novos agendamentos, assinaturas e pagamentos online." className={styles.span5}>
-        <form className={styles.form} onSubmit={saveOrganization}>
-          <input type="hidden" name="name" value={props.organization.name} readOnly />
-          <input type="hidden" name="slug" value={props.organization.slug} readOnly />
-          <input type="hidden" name="public_contact_phone_e164" value={props.organization.public_contact_phone_e164 ?? ""} readOnly />
-          <Field label={<span>Prazo Limite <button type="button" className={styles.buttonSoft} aria-label="Ajuda sobre prazo limite" onClick={() => setRulesHelpOpen(true)}>?</button></span>}>
-            <input name="cancellation_lead_minutes" type="number" min="0" step="1" defaultValue={props.organization.cancellation_lead_minutes ?? 0} placeholder="Adicione o prazo limite em minutos" />
-            <small>Adicione o prazo limite em minutos. Em 0, todo cancelamento retorna para Em aberto.</small>
-          </Field>
-          <button className={`${styles.button} ${styles.formWide}`} type="submit">Salvar prazo</button>
-        </form>
-        <div className={styles.formSection} aria-label="Ambientes da agenda">
-          <div className={styles.sectionHeader}><div><h3>Ambientes da agenda</h3><p className={styles.muted}>Colunas físicas da agenda. O sistema começa com duas salas/cadeiras.</p></div><span className={styles.muted}>{environments.length} ativos</span></div>
-          <div className={styles.list}>
-            {environments.map((environment) => <div className={styles.row} key={environment.id}>
-              <label className={styles.field}><span>Nome</span><input defaultValue={environment.name} onBlur={(event) => { const value = event.currentTarget.value.trim(); if (value && value !== environment.name) void updateEnvironment(environment.id, { name: value }, "Ambiente atualizado."); }} /></label>
-              <label className={styles.field}><span>Ordem</span><input type="number" min="1" defaultValue={environment.sort_order} onBlur={(event) => { const value = Math.max(1, Number(event.currentTarget.value || environment.sort_order)); if (value !== environment.sort_order) void updateEnvironment(environment.id, { sort_order: value }, "Ordem dos ambientes atualizada."); }} /></label>
-              <StatusChip active={environment.active} />
-              <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => void updateEnvironment(environment.id, { active: !environment.active }, environment.active ? "Ambiente inativado." : "Ambiente reativado.")}>{environment.active ? "Inativar" : "Ativar"}</button>
-            </div>)}
-          </div>
-          <div className={styles.toolbarGroup}><input aria-label="Nome do novo ambiente" value={environmentName} onChange={(event) => setEnvironmentName(event.target.value)} placeholder="Nome do novo ambiente" /><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => void addEnvironment()}>Adicionar ambiente</button></div>
-          {(props.environmentIssues ?? []).length > 0 && <div className={styles.noticeWarning}><strong>Pendências de alocação</strong><p>{(props.environmentIssues ?? []).length} registro(s) legado(s) precisam de revisão antes de novas reservas físicas.</p></div>}
+        <div className={styles.list}>
+          <article className={styles.integration}>
+            <div className={styles.integrationInfo}><strong>Prazo Limite</strong><p>{props.organization.cancellation_lead_minutes ? `${props.organization.cancellation_lead_minutes} minutos antes do horário` : "Sem limite de cancelamento"}</p></div>
+            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar prazo limite" onClick={() => setRulesEditor("deadline")}><Pencil size={15} /> Editar prazo limite</button>
+          </article>
+          <article className={styles.integration}>
+            <div className={styles.integrationInfo}><strong>Ambientes da agenda</strong><p>{activeEnvironmentCount} ativos · Colunas físicas da agenda</p></div>
+            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar ambientes da agenda" onClick={() => setRulesEditor("environments")}><Pencil size={15} /> Editar ambientes</button>
+          </article>
+          <article className={styles.integration}>
+            <div className={styles.integrationInfo}><strong>Cadastro de Funções</strong><p>{professionalFunctionsAvailable ? `${professionalFunctions.length} ${professionalFunctions.length === 1 ? "função cadastrada" : "funções cadastradas"} · Cargos exercidos pelos profissionais` : "Cadastro indisponível até a atualização do banco."}</p></div>
+            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar cadastro de funções" onClick={() => { setProfessionalFunctionMessage(""); setRulesEditor("functions"); }}><Pencil size={15} /> Editar</button>
+          </article>
         </div>
       </Panel>
       <Panel title="Dados da Barbearia" className={styles.span7}>
@@ -287,6 +313,59 @@ export function SettingsManager(props: Props) {
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>WhatsApp</strong><StatusChip active={whatsappConnected} label={whatsappConnected ? "CONECTADO" : "PENDENTE"} /></span><p>{whatsappConnected ? "Integração ativa para confirmações, lembretes e ações seguras." : "Configure Meta Cloud API ou QR Web na página exclusiva da integração."}</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/configuracoes/whatsapp">Abrir integração</Link></article>
       </div>
     </Panel>
-    {rulesHelpOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar ajuda" onClick={() => setRulesHelpOpen(false)} /><section className="form-modal" role="dialog" aria-modal="true" aria-label="Ajuda do prazo limite"><div className="form-modal__head"><span><small>Regras de negócio</small><strong>Prazo Limite</strong></span><button type="button" className="icon-button" onClick={() => setRulesHelpOpen(false)} aria-label="Fechar">×</button></div><div className="form-modal__body"><p>Define quantos minutos antes do horário o cancelamento permanece dentro do prazo. O valor vale para novos agendamentos, assinaturas e pagamentos online. Com 0, não há limite: a sessão volta para Em aberto.</p></div><div className="form-modal__footer"><button type="button" className="button button--dark" onClick={() => setRulesHelpOpen(false)}>Entendi</button></div></section></div>}
+    {rulesEditor === "deadline" && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar edição do prazo limite" onClick={() => setRulesEditor(null)} /><form className="form-modal" role="dialog" aria-modal="true" aria-label="Editar prazo limite" onSubmit={(event) => void saveOrganization(event, true)}>
+      <div className="form-modal__head"><span><small>Regras de negócio</small><strong>Prazo Limite</strong></span><button type="button" className="icon-button" onClick={() => setRulesEditor(null)} aria-label="Fechar edição do prazo limite"><X size={19} /></button></div>
+      <div className="form-modal__body">
+        <input type="hidden" name="name" value={props.organization.name} readOnly />
+        <input type="hidden" name="slug" value={props.organization.slug} readOnly />
+        <input type="hidden" name="public_contact_phone_e164" value={props.organization.public_contact_phone_e164 ?? ""} readOnly />
+        <div className={styles.deadlineEditorField}>
+          <Field label="Prazo Limite (minutos)">
+            <input name="cancellation_lead_minutes" type="number" min="0" step="1" defaultValue={props.organization.cancellation_lead_minutes ?? 0} placeholder="Adicione o prazo limite em minutos" />
+            <small>Em 0, não há limite: a sessão cancelada retorna para Em aberto.</small>
+          </Field>
+          <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Ajuda sobre prazo limite" onClick={() => setRulesHelpOpen(true)}><CircleHelp size={15} /> Como funciona</button>
+        </div>
+      </div>
+      <div className="form-modal__footer"><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setRulesEditor(null)}>Cancelar</button><button className={styles.button} type="submit">Salvar prazo</button></div>
+    </form></div>}
+    {rulesEditor === "environments" && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar edição dos ambientes" onClick={() => setRulesEditor(null)} /><section className="form-modal" role="dialog" aria-modal="true" aria-label="Editar ambientes da agenda">
+      <div className="form-modal__head"><span><small>Regras de negócio</small><strong>Ambientes da agenda</strong></span><button type="button" className="icon-button" onClick={() => setRulesEditor(null)} aria-label="Fechar edição dos ambientes"><X size={19} /></button></div>
+      <div className="form-modal__body">
+        <p className={styles.muted}>Organize as colunas físicas usadas na agenda desta unidade.</p>
+        <div className={styles.sectionHeader}><span className={styles.muted}>{activeEnvironmentCount} ambientes ativos</span></div>
+        {environments.length === 0 && <p className={styles.muted}>Nenhum ambiente cadastrado nesta unidade.</p>}
+        <div className={styles.list}>
+          {environments.map((environment) => <div className={styles.agendaEnvironmentRow} key={environment.id}>
+            <label className={styles.field}><span>Nome</span><input defaultValue={environment.name} onBlur={(event) => { const value = event.currentTarget.value.trim(); if (value && value !== environment.name) void updateEnvironment(environment.id, { name: value }, "Ambiente atualizado."); }} /></label>
+            <label className={styles.field}><span>Ordem</span><input type="number" min="1" defaultValue={environment.sort_order} onBlur={(event) => { const value = Math.max(1, Number(event.currentTarget.value || environment.sort_order)); if (value !== environment.sort_order) void updateEnvironment(environment.id, { sort_order: value }, "Ordem dos ambientes atualizada."); }} /></label>
+            <StatusChip active={environment.active} />
+            <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => void updateEnvironment(environment.id, { active: !environment.active }, environment.active ? "Ambiente inativado." : "Ambiente reativado.")}>{environment.active ? "Inativar" : "Ativar"}</button>
+          </div>)}
+        </div>
+        <div className={styles.toolbarGroup}><input aria-label="Nome do novo ambiente" value={environmentName} onChange={(event) => setEnvironmentName(event.target.value)} placeholder="Nome do novo ambiente" /><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => void addEnvironment()}>Adicionar ambiente</button></div>
+        {(props.environmentIssues ?? []).length > 0 && <div className={styles.noticeWarning}><strong>Pendências de alocação</strong><p>{(props.environmentIssues ?? []).length} registro(s) legado(s) precisam de revisão antes de novas reservas físicas.</p></div>}
+      </div>
+      <div className="form-modal__footer"><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setRulesEditor(null)}>Concluir</button></div>
+    </section></div>}
+    {rulesEditor === "functions" && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar cadastro de funções" onClick={() => setRulesEditor(null)} /><section className="form-modal" role="dialog" aria-modal="true" aria-label="Cadastro de Funções">
+      <div className="form-modal__head"><span><small>Regras de negócio</small><strong>Cadastro de Funções</strong></span><button type="button" className="icon-button" onClick={() => setRulesEditor(null)} aria-label="Fechar cadastro de funções"><X size={19} /></button></div>
+      <div className="form-modal__body">
+        <p className={styles.muted}>Função refere-se ao cargo exercido pelo profissional na empresa.</p>
+        {!professionalFunctionsAvailable && <div className={styles.noticeWarning}><strong>Cadastro indisponível</strong><p>Cadastro indisponível até a atualização do banco. Aplique as migrations pendentes e recarregue a tela.</p></div>}
+        <form className={styles.professionalFunctionForm} onSubmit={(event) => void addProfessionalFunction(event)}>
+          <Field label="Adicionar a Função"><input value={professionalFunctionName} onChange={(event) => setProfessionalFunctionName(event.target.value)} minLength={2} maxLength={80} required disabled={!professionalFunctionsAvailable} placeholder="Ex.: Barbeiro" /></Field>
+          <button className={`${styles.button} ${styles.buttonSoft}`} type="submit" disabled={!professionalFunctionsAvailable}>Adicionar função</button>
+        </form>
+        {professionalFunctionMessage && <p className={styles.message} role="status">{professionalFunctionMessage}</p>}
+        {professionalFunctions.length === 0
+          ? <p className={styles.muted}>Nenhuma função cadastrada.</p>
+          : <ul className={styles.professionalFunctionList} aria-label="Funções cadastradas">
+            {professionalFunctions.map((item) => <li className={styles.professionalFunctionItem} key={item.id}>{item.name}</li>)}
+          </ul>}
+      </div>
+      <div className="form-modal__footer"><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setRulesEditor(null)}>Concluir</button></div>
+    </section></div>}
+    {rulesHelpOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar ajuda" onClick={() => setRulesHelpOpen(false)} /><section className="form-modal" role="dialog" aria-modal="true" aria-label="Ajuda do prazo limite"><div className="form-modal__head"><span><small>Regras de negócio</small><strong>Prazo Limite</strong></span><button type="button" className="icon-button" onClick={() => setRulesHelpOpen(false)} aria-label="Fechar"><X size={19} /></button></div><div className="form-modal__body"><p>Define quantos minutos antes do horário o cancelamento permanece dentro do prazo. O valor vale para novos agendamentos, assinaturas e pagamentos online. Com 0, não há limite: a sessão volta para Em aberto.</p></div><div className="form-modal__footer"><button type="button" className="button button--dark" onClick={() => setRulesHelpOpen(false)}>Entendi</button></div></section></div>}
   </div>;
 }

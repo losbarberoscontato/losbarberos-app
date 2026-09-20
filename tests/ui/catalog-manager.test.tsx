@@ -50,6 +50,18 @@ describe("catálogo do gestor", () => {
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(within(dialog).getByRole("checkbox", { name: /Aceita assinatura/ })).toBeInTheDocument();
     expect(within(dialog).getByRole("checkbox", { name: /Aceita pagamento online/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("combobox", { name: "Disponibilidade no app do Cliente" })).toHaveValue("CLIENT");
+  });
+
+  it("permite marcar serviço como interno e bloqueia assinatura e pagamento", () => {
+    render(<CatalogManager organizationId="org-1" billingStatus="TRIALING" services={[service]} packages={[]} packageItems={[]} />);
+    fireEvent.click(within(panel("Serviços")).getByRole("button", { name: "Editar" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar serviço" });
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Disponibilidade no app do Cliente" }), { target: { value: "INTERNAL" } });
+    expect(within(dialog).getByRole("checkbox", { name: /Aceita assinatura/ })).toBeDisabled();
+    expect(within(dialog).getByRole("checkbox", { name: /Aceita pagamento online/ })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar serviço" }));
+    expect(mutationMocks.update).toHaveBeenCalledWith(expect.objectContaining({ availability: "INTERNAL", accepts_subscription: false, accepts_online_payment: false }));
   });
 
   it("calcula preço e duração do pacote, permite ajuste e chama RPC v3", () => {
@@ -120,5 +132,20 @@ describe("catálogo do gestor", () => {
     expect(mutationMocks.update).toHaveBeenCalledWith(expect.objectContaining({
       organization_id: "org-1", name: "Corte", accepts_subscription: true, accepts_online_payment: false,
     }));
+  });
+
+  it("filtra serviços por disponibilidade", () => {
+    const hiddenService = { ...service, id: "service-2", name: "Corte gestão", availability: "HIDDEN" as const };
+    const internalService = { ...service, id: "service-3", name: "Lavagem interna", availability: "INTERNAL" as const };
+    render(<CatalogManager organizationId="org-1" billingStatus="TRIALING" services={[service, hiddenService, internalService]} packages={[]} packageItems={[]} />);
+    const servicePanel = panel("Serviços");
+    const availabilityFilter = within(servicePanel).getByRole("combobox", { name: "Filtro de disponibilidade" });
+    fireEvent.change(availabilityFilter, { target: { value: "INTERNAL" } });
+    expect(within(servicePanel).getByText("Lavagem interna")).toBeInTheDocument();
+    expect(within(servicePanel).queryByText("Corte")).not.toBeInTheDocument();
+    expect(within(servicePanel).queryByText("Corte gestão")).not.toBeInTheDocument();
+    fireEvent.change(availabilityFilter, { target: { value: "HIDDEN" } });
+    expect(within(servicePanel).getByText("Corte gestão")).toBeInTheDocument();
+    expect(within(servicePanel).queryByText("Lavagem interna")).not.toBeInTheDocument();
   });
 });

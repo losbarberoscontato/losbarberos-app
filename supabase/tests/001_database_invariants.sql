@@ -80,16 +80,19 @@ insert into test_context values (
 grant select on test_context to authenticated;
 
 insert into public.work_intervals (
-  organization_id, barber_id, weekday, starts_at, ends_at
+  organization_id, barber_id, environment_id, weekday, starts_at, ends_at
 ) values (
   '20000000-0000-4000-8000-000000000001',
   '50000000-0000-4000-8000-000000000001',
+  (select id from public.agenda_environments
+   where location_id = '30000000-0000-4000-8000-000000000001'
+     and sort_order = 1),
   extract(dow from (current_date + 7))::smallint,
   '08:00', '20:00'
 );
 
 insert into public.availability_exceptions (
-  organization_id, barber_id, kind, service_period, reason
+  organization_id, barber_id, kind, service_period, reason, environment_id
 ) values
   (
     '20000000-0000-4000-8000-000000000001',
@@ -97,7 +100,10 @@ insert into public.availability_exceptions (
     tstzrange(
       ((current_date + 8) + time '09:00') at time zone 'America/Sao_Paulo',
       ((current_date + 8) + time '10:00') at time zone 'America/Sao_Paulo', '[)'
-    ), 'horario extra'
+    ), 'horario extra',
+    (select id from public.agenda_environments
+     where location_id = '30000000-0000-4000-8000-000000000001'
+       and sort_order = 1)
   ),
   (
     '20000000-0000-4000-8000-000000000001',
@@ -105,7 +111,7 @@ insert into public.availability_exceptions (
     tstzrange(
       ((current_date + 8) + time '09:15') at time zone 'America/Sao_Paulo',
       ((current_date + 8) + time '09:30') at time zone 'America/Sao_Paulo', '[)'
-    ), 'bloqueio prioritario'
+    ), 'bloqueio prioritario', null
   );
 
 insert into public.appointments (

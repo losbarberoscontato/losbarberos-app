@@ -98,6 +98,7 @@ export function humanizeError(error: unknown) {
   const dictionary: Array<[RegExp, string]> = [
     [/start time is not aligned to slot interval/i, "Escolha um horário alinhado ao intervalo de slots da agenda."],
     [/requested slot is no longer available|exclusion constraint/i, "Esse horário acabou de ser ocupado."],
+    [/projects_active_name_key/i, "Já existe um projeto com o mesmo nome."],
     [/duplicate key|unique constraint/i, "Já existe um cadastro igual ativo."],
     [/organization is not accepting/i, "A assinatura está bloqueada para novas reservas."],
     [/subscription module disabled/i, "Planos de Assinatura está inativo em Configurações → Módulos. Ative o módulo para iniciar novas assinaturas."],

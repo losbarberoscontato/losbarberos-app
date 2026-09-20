@@ -36,4 +36,8 @@ describe("connected manager formatting contracts", () => {
   it("explains when the App do Barbeiro migration is missing", () => {
     expect(humanizeError(new Error("Could not find the 'login_email' column of 'barbers' in the schema cache"))).toBe("O banco ainda não recebeu a atualização do App do Barbeiro. Aplique as migrations pendentes antes de salvar o e-mail de acesso.");
   });
+
+  it("explains duplicate project titles", () => {
+    expect(humanizeError(new Error('duplicate key value violates unique constraint "projects_active_name_key"'))).toBe("Já existe um projeto com o mesmo nome.");
+  });
 });

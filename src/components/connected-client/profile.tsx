@@ -23,6 +23,7 @@ export function ConnectedProfile() {
 
 function ProfileContent() {
   const { context, user, account, customer, organizations, authLoading, reloadCustomer, selectTenant, signOut } = useConnectedClient();
+  const profileIdentity = user ? `${user.id}:${account?.auth_user_id ?? "new"}` : "";
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -40,15 +41,14 @@ function ProfileContent() {
 
   useEffect(() => {
     if (!user) return;
-    const identity = `${user.id}:${account?.auth_user_id ?? "new"}`;
-    if (initializedIdentity === identity) return;
+    if (initializedIdentity === profileIdentity) return;
     queueMicrotask(() => {
       setFullName(account?.full_name ?? String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? ""));
       setPhone(account?.phone_e164 ?? "");
       setBirthDate(formatBirthDateInput(account?.birth_date));
-      setInitializedIdentity(identity);
+      setInitializedIdentity(profileIdentity);
     });
-  }, [account, initializedIdentity, user]);
+  }, [account, initializedIdentity, profileIdentity, user]);
 
   const loadPrivacy = useCallback(async () => {
     if (!supabase || !context || !customer) {
@@ -79,6 +79,7 @@ function ProfileContent() {
   if (!context) return null;
   if (authLoading) return <div className={styles.state} role="status"><LoaderCircle className={styles.spin} /> Validando sessão…</div>;
   if (!user) return <AuthPrompt description="Entre para gerenciar seus dados, consentimentos e direitos LGPD." />;
+  if (initializedIdentity !== profileIdentity) return <div className={styles.state} role="status"><LoaderCircle className={styles.spin} /> Carregando dados do perfil…</div>;
   const organizationId = context.organization.id;
 
   async function saveProfile() {

@@ -1,24 +1,72 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckCircle2, CircleDollarSign, LayoutDashboard, Plus, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, Calculator, Check, CheckCircle2, CircleDollarSign, Landmark, LayoutDashboard, Pencil, Plus, Save, Trash2, UserRound, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
-import type { ProjectsPageData } from "./projects-server";
+import type { ProjectCostItemRecord, ProjectEngagementCommentPreview, ProjectKanbanBoardRecord, ProjectKanbanSectorRecord, ProjectsPageData } from "./projects-server";
+import type { ChartAccountRecord, CostCenterRecord, FinancialAccountRecord, FinancialTagRecord } from "./types";
 import { centsFromInput, formatCents } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type Props = ProjectsPageData;
-type ProjectTab = "overview" | "engagements" | "kanban" | "finance";
+type ManagerProps = Omit<Props, "packageServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags"> & { packageServices?: Props["packageServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
+type ProjectTab = "overview" | "investments" | "packages" | "engagements" | "kanban" | "finance";
+type ProjectFilter = "published" | "archived" | "all";
+type CostKind = Exclude<ProjectCostItemRecord["kind"], "VARIABLE">;
+type EngagementScheduleRow = { installment_number: number; due_on: string; amount_cents: number };
+type PackageDraft = {
+  id: string | null;
+  name: string;
+  description: string;
+  durationMinutes: string;
+  sessionsCount: string;
+  fixedCostPerHour: string;
+  extraCosts: string;
+  extraCostsDescription: string;
+  taxRate: string;
+  cardRate: string;
+  profitMargin: string;
+  deposit: string;
+  practicedPrice: string;
+  professionalIds: string[];
+  serviceIds: string[];
+};
+type KanbanBoardDraft = ProjectKanbanBoardRecord;
 
-const projectStatusLabels: Record<string, string> = { DRAFT: "Rascunho", PUBLISHED: "Publicado", PAUSED: "Pausado", CLOSED: "Encerrado" };
-const engagementStatusLabels: Record<string, string> = { PROPOSAL: "Proposta", ACTIVE: "Ativa", COMPLETED: "Concluída", CANCELED: "Cancelada" };
+const projectStatusLabels: Record<string, string> = { DRAFT: "Rascunho", PUBLISHED: "Publicado", PAUSED: "Pausado", CLOSED: "Encerrado", ARCHIVED: "Arquivado" };
+type ProjectEventComment = {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  engagement_id: string;
+  body: string;
+  author_name: string;
+  created_at: string;
+  updated_at: string;
+};
+type EventDueDateOverride = { fromDueOn: string | null; dueOn: string | null; boardId: string | null; receivedAt: string | null };
+type EventDueDateOverrides = Record<string, EventDueDateOverride>;
+
+function eventWithDueDateOverride<T extends Props["engagements"][number]>(engagement: T, overrides: EventDueDateOverrides): T {
+  const override = overrides[engagement.id];
+  if (!override || (engagement.event_due_on ?? null) !== override.fromDueOn || (engagement.kanban_board_id ?? null) !== override.boardId || (engagement.kanban_received_at ?? null) !== override.receivedAt) return engagement;
+  return { ...engagement, event_due_on: override.dueOn };
+}
 
 function dateLabel(value: string | null) {
   if (!value) return "Sem data";
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(new Date(`${value}T12:00:00`));
+}
+
+function dateTimeLabel(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function externalLink(value: string) {
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
 }
 
 function parseOptionalInt(value: string) {
@@ -26,13 +74,97 @@ function parseOptionalInt(value: string) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
-export function ProjectsManager(props: Props) {
+function centsInput(value: number) {
+  return (value / 100).toFixed(2).replace(".", ",");
+}
+
+function draftInstallment(row: EngagementScheduleRow, id: string, organizationId: string): Props["installments"][number] {
+  return { id, organization_id: organizationId, engagement_id: "", installment_number: row.installment_number, due_on: row.due_on, amount_cents: row.amount_cents, status: "OPEN", paid_at: null, financial_entry_id: null, settled_cents: 0, remaining_cents: row.amount_cents, last_paid_at: null, payment_method: null, financial_account_id: null, financial_account_name: null, received_by: null, received_by_name: null };
+}
+
+function packageDraftFromRecord(item: Props["packages"][number]): PackageDraft {
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description ?? "",
+    durationMinutes: String(item.duration_minutes ?? 60),
+    sessionsCount: String(item.sessions_count ?? 1),
+    fixedCostPerHour: centsInput(item.fixed_cost_per_hour_cents ?? 0),
+    extraCosts: centsInput(item.extra_costs_cents ?? 0),
+    extraCostsDescription: item.extra_costs_description ?? "",
+    taxRate: String((item.tax_rate_bps ?? 0) / 100).replace(".", ","),
+    cardRate: String((item.card_rate_bps ?? 0) / 100).replace(".", ","),
+    profitMargin: String((item.profit_margin_bps ?? 5000) / 100).replace(".", ","),
+    deposit: centsInput(item.deposit_cents ?? 0),
+    practicedPrice: centsInput(item.price_cents ?? 0),
+    professionalIds: [],
+    serviceIds: [],
+  };
+}
+
+function emptyPackageDraft(): PackageDraft {
+  return { id: null, name: "", description: "", durationMinutes: "60", sessionsCount: "1", fixedCostPerHour: "0,00", extraCosts: "0,00", extraCostsDescription: "", taxRate: "0", cardRate: "0", profitMargin: "50", deposit: "0,00", practicedPrice: "0,00", professionalIds: [], serviceIds: [] };
+}
+
+function initialPackageDrafts(props: ManagerProps): PackageDraft[] {
+  if (!props.projectId) return [];
+  return props.packages.filter((item) => item.project_id === props.projectId && item.active).map((item) => ({
+    ...packageDraftFromRecord(item),
+    professionalIds: props.packageBarbers.filter((link) => link.project_package_id === item.id).map((link) => link.barber_id),
+    serviceIds: (props.packageServices ?? []).filter((link) => link.project_package_id === item.id).sort((a, b) => a.position - b.position).map((link) => link.service_id),
+  }));
+}
+
+function percentToBps(value: string) {
+  const numeric = Number(value.trim().replace(",", "."));
+  if (!Number.isFinite(numeric) || numeric < 0) return 0;
+  return Math.round(numeric * 100);
+}
+
+function safeCentsInput(value: string) {
+  try {
+    return centsFromInput(value || "0");
+  } catch {
+    return 0;
+  }
+}
+
+function projectAllocationPerContract(items: ProjectCostItemRecord[], goalContracts: number | null) {
+  if (!goalContracts || goalContracts <= 0) return 0;
+  const total = items.filter((item) => item.active && (item.kind === "FIXED" || item.kind === "INVESTMENT")).reduce((sum, item) => sum + item.amount_cents, 0);
+  return Math.round(total / goalContracts);
+}
+
+function packagePricing(draft: PackageDraft, allocationPerSessionCents = safeCentsInput(draft.fixedCostPerHour)) {
+  const duration = Number.parseInt(draft.durationMinutes, 10) || 0;
+  const sessions = Number.parseInt(draft.sessionsCount, 10) || 0;
+  const fixedCost = allocationPerSessionCents;
+  const extraCosts = safeCentsInput(draft.extraCosts);
+  const taxRate = percentToBps(draft.taxRate);
+  const cardRate = percentToBps(draft.cardRate);
+  const profitMargin = percentToBps(draft.profitMargin);
+  const fixedCostTotal = fixedCost * sessions;
+  const costTotal = fixedCostTotal + extraCosts;
+  const denominator = 1 - (taxRate + cardRate + profitMargin) / 10000;
+  const suggested = denominator > 0 ? Math.max(0, Math.round(costTotal / denominator)) : 0;
+  const practiced = safeCentsInput(draft.practicedPrice);
+  const taxAmount = Math.round(practiced * taxRate / 10000);
+  const cardAmount = Math.round(practiced * cardRate / 10000);
+  const profit = practiced - costTotal - taxAmount - cardAmount;
+  const difference = practiced - suggested;
+  const differencePercent = suggested > 0 ? (difference / suggested) * 100 : null;
+  return { duration, sessions, fixedCost, fixedCostTotal, extraCosts, taxRate, cardRate, profitMargin, costTotal, suggested, practiced, taxAmount, cardAmount, profit, difference, differencePercent, warning: differencePercent !== null && differencePercent < -10, denominatorValid: denominator > 0 };
+}
+
+export function ProjectsManager(props: ManagerProps) {
   const router = useRouter();
-  const [selectedProjectId, setSelectedProjectId] = useState(props.projects[0]?.id ?? "");
   const [tab, setTab] = useState<ProjectTab>("overview");
   const [message, setMessage] = useState("");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [projectFilter, setProjectFilter] = useState<ProjectFilter>("published");
   const [newEngagementOpen, setNewEngagementOpen] = useState(false);
+  const [editingEngagementId, setEditingEngagementId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
@@ -44,31 +176,160 @@ export function ProjectsManager(props: Props) {
   const [packageDescription, setPackageDescription] = useState("");
   const [packagePrice, setPackagePrice] = useState("1.550,00");
   const [packageSessions, setPackageSessions] = useState("3");
-  const [engagementCustomerId, setEngagementCustomerId] = useState(props.customers[0]?.id ?? "");
+  const [engagementCustomerId, setEngagementCustomerId] = useState("");
+  const [engagementCustomerQuery, setEngagementCustomerQuery] = useState("");
   const [engagementPackageId, setEngagementPackageId] = useState("");
   const [engagementPrice, setEngagementPrice] = useState("");
+  const [engagementEntry, setEngagementEntry] = useState("0,00");
+  const [engagementInstallments, setEngagementInstallments] = useState("1");
+  const [engagementEntryDueOn, setEngagementEntryDueOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [engagementFirstDueOn, setEngagementFirstDueOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [engagementStatus, setEngagementStatus] = useState<"PROPOSAL" | "ACTIVE" | "COMPLETED">("PROPOSAL");
+  const [signingDate, setSigningDate] = useState("");
+  const [generatedEngagementSchedule, setGeneratedEngagementSchedule] = useState<EngagementScheduleRow[] | null>(null);
+  const [receivingInstallment, setReceivingInstallment] = useState<Props["installments"][number] | null>(null);
+  const [editingInstallment, setEditingInstallment] = useState<Props["installments"][number] | null>(null);
+  const [eventEditorEngagementId, setEventEditorEngagementId] = useState<string | null>(null);
+  const [eventEditorEngagement, setEventEditorEngagement] = useState<Props["engagements"][number] | null>(null);
+  const [eventDescription, setEventDescription] = useState("");
+  const [eventLink1, setEventLink1] = useState("");
+  const [eventLink2, setEventLink2] = useState("");
+  const [eventLink3, setEventLink3] = useState("");
+  const [eventDueOn, setEventDueOn] = useState("");
+  const [eventDueDateOverrides, setEventDueDateOverrides] = useState<EventDueDateOverrides>({});
+  const [eventComments, setEventComments] = useState<ProjectEventComment[]>([]);
+  const [eventCommentsLoading, setEventCommentsLoading] = useState(false);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [savingComment, setSavingComment] = useState(false);
+  const [packageDrafts, setPackageDrafts] = useState<PackageDraft[]>(() => initialPackageDrafts(props));
+  const [packageSavingId, setPackageSavingId] = useState<string | null>(null);
 
-  const selectedProject = props.projects.find((project) => project.id === selectedProjectId) ?? props.projects[0] ?? null;
+  const isProjectDetail = Boolean(props.projectId);
+  const selectedProject = props.projectId ? props.projects.find((project) => project.id === props.projectId) ?? null : null;
+  const editingProject = editingProjectId ? props.projects.find((project) => project.id === editingProjectId) ?? null : null;
+  const activeProjects = useMemo(() => props.projects.filter((project) => project.status === "PUBLISHED"), [props.projects]);
+  const activeProjectIds = useMemo(() => new Set(activeProjects.map((project) => project.id)), [activeProjects]);
+  const activeProjectEngagements = useMemo(() => props.engagements.filter((engagement) => activeProjectIds.has(engagement.project_id)), [activeProjectIds, props.engagements]);
+  const activeProjectContractsCount = activeProjectEngagements.filter(projectContractIsActive).length;
+  const activeProjectContractedCents = activeProjectEngagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
+  const activeProjectAcceptedCents = activeProjectEngagements.filter((item) => item.status === "ACTIVE" || item.status === "COMPLETED").reduce((sum, item) => sum + item.contracted_cents, 0);
+  const visibleProjects = useMemo(() => {
+    if (projectFilter === "published") return props.projects.filter((project) => project.status === "PUBLISHED");
+    if (projectFilter === "archived") return props.projects.filter((project) => project.status === "ARCHIVED");
+    return props.projects;
+  }, [projectFilter, props.projects]);
   const projectPackages = useMemo(() => props.packages.filter((item) => item.project_id === selectedProject?.id && item.active), [props.packages, selectedProject?.id]);
-  const projectSteps = useMemo(() => props.steps.filter((item) => item.project_id === selectedProject?.id && item.active), [props.steps, selectedProject?.id]);
   const projectEngagements = useMemo(() => props.engagements.filter((item) => item.project_id === selectedProject?.id), [props.engagements, selectedProject?.id]);
+  const projectKanbanBoards = useMemo(() => props.kanbanBoards.filter((item) => item.project_id === selectedProject?.id && item.active), [props.kanbanBoards, selectedProject?.id]);
+  const kanbanSectors = props.kanbanSectors ?? [];
+  const engagementLastComments = props.engagementLastComments ?? {};
+  const projectAllocationCents = useMemo(() => projectAllocationPerContract(props.costItems.filter((item) => item.project_id === selectedProject?.id), selectedProject?.goal_contracts ?? null), [props.costItems, selectedProject?.id, selectedProject?.goal_contracts]);
   const customerById = useMemo(() => new Map(props.customers.map((customer) => [customer.id, customer])), [props.customers]);
+  const matchingEngagementCustomers = useMemo(() => {
+    const query = engagementCustomerQuery.trim().toLocaleLowerCase("pt-BR");
+    if (!query) return [];
+    return props.customers.filter((customer) => `${customer.full_name} ${customer.phone_e164 ?? ""}`.toLocaleLowerCase("pt-BR").includes(query));
+  }, [engagementCustomerQuery, props.customers]);
+  const selectedEngagementCustomer = props.customers.find((customer) => customer.id === engagementCustomerId) ?? null;
+  const editingEngagement = editingEngagementId ? projectEngagements.find((item) => item.id === editingEngagementId) ?? null : null;
   const packageById = useMemo(() => new Map(props.packages.map((item) => [item.id, item])), [props.packages]);
-  const activeEngagements = projectEngagements.filter((item) => item.status === "ACTIVE").length;
   const contractedCents = projectEngagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
   const acceptedCents = projectEngagements.filter((item) => item.status === "ACTIVE" || item.status === "COMPLETED").reduce((sum, item) => sum + item.contracted_cents, 0);
+  const engagementSchedule = useMemo(() => {
+    const total = Math.max(1, Number.parseInt(engagementInstallments, 10) || 1);
+    const value = safeCentsInput(engagementPrice || "0");
+    const entry = Math.min(value, Math.max(0, safeCentsInput(engagementEntry || "0")));
+    const balance = Math.max(0, value - entry);
+    const base = Math.floor(balance / total);
+    return Array.from({ length: total }, (_, index) => ({ installment_number: index + 1, due_on: new Date(new Date(`${engagementFirstDueOn}T12:00:00`).setMonth(new Date(`${engagementFirstDueOn}T12:00:00`).getMonth() + index)).toISOString().slice(0, 10), amount_cents: index === total - 1 ? balance - base * (total - 1) : base }));
+  }, [engagementEntry, engagementFirstDueOn, engagementInstallments, engagementPrice]);
+  const engagementFinanceRows = useMemo(() => {
+    const existing = props.installments.filter((item) => item.engagement_id === editingEngagementId);
+    const entry = existing.find((item) => item.installment_number === 0);
+    const schedule = generatedEngagementSchedule ?? engagementSchedule;
+    const rows: Props["installments"][number][] = [];
+    if (entry && (entry.status === "PAID" || (entry.settled_cents ?? 0) > 0)) rows.push(entry);
+    else rows.push({ id: entry?.id ?? "draft-0", installment_number: 0, due_on: engagementEntryDueOn || entry?.due_on || new Date().toISOString().slice(0, 10), amount_cents: safeCentsInput(engagementEntry || "0"), engagement_id: editingEngagementId ?? "", status: "OPEN", paid_at: null, financial_entry_id: entry?.financial_entry_id ?? null, settled_cents: entry?.settled_cents ?? 0, remaining_cents: safeCentsInput(engagementEntry || "0"), last_paid_at: entry?.last_paid_at ?? null, payment_method: entry?.payment_method ?? null, financial_account_id: entry?.financial_account_id ?? null, financial_account_name: entry?.financial_account_name ?? null, received_by: entry?.received_by ?? null, received_by_name: entry?.received_by_name ?? null, organization_id: props.organizationId });
+    if (generatedEngagementSchedule === null) {
+      rows.push(...existing.filter((item) => item.installment_number > 0));
+      if (!editingEngagementId) rows.push(...schedule.map((row) => draftInstallment(row, `draft-${row.installment_number}`, props.organizationId)));
+    } else {
+      rows.push(...existing.filter((item) => item.installment_number > 0 && (item.status === "PAID" || (item.settled_cents ?? 0) > 0)));
+      rows.push(...schedule.map((row) => draftInstallment(row, `draft-${row.installment_number}`, props.organizationId)));
+    }
+    return rows.sort((a, b) => a.installment_number - b.installment_number);
+  }, [editingEngagementId, engagementEntry, engagementEntryDueOn, engagementSchedule, generatedEngagementSchedule, props.installments, props.organizationId]);
 
-  function selectProject(id: string) {
-    setSelectedProjectId(id);
-    setTab("overview");
+  function resetProjectForm() {
+    setProjectName("");
+    setProjectDescription("");
+    setProjectStartsOn("");
+    setProjectSalesCloseOn("");
+    setProjectEndsOn("");
+    setProjectGoal("10");
+    setPackageName("Experiência");
+    setPackageDescription("");
+    setPackagePrice("1.550,00");
+    setPackageSessions("3");
+  }
+
+  function openNewProjectModal() {
+    resetProjectForm();
+    setEditingProjectId(null);
+    setNewProjectOpen(true);
+  }
+
+  function openEditProjectModal(project: Props["projects"][number]) {
+    const initialPackage = props.packages.filter((item) => item.project_id === project.id && item.active).sort((a, b) => a.sort_order - b.sort_order)[0];
+    setProjectName(project.name);
+    setProjectDescription(project.description ?? "");
+    setProjectStartsOn(project.starts_on ?? "");
+    setProjectSalesCloseOn(project.sales_close_on ?? "");
+    setProjectEndsOn(project.ends_on ?? "");
+    setProjectGoal(project.goal_contracts ? String(project.goal_contracts) : "");
+    setPackageName(initialPackage?.name ?? "Experiência");
+    setPackageDescription(initialPackage?.description ?? "");
+    setPackagePrice(initialPackage ? centsInput(initialPackage.price_cents) : "0,00");
+    setPackageSessions(initialPackage ? String(initialPackage.sessions_count) : "1");
+    setEditingProjectId(project.id);
+    setNewProjectOpen(false);
+  }
+
+  function closeProjectModal() {
+    setNewProjectOpen(false);
+    setEditingProjectId(null);
   }
 
   async function createProject() {
     if (saving) return;
     setSaving(true);
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().rpc("create_project_with_initial_package", {
+      await assertResult(await connectedClient().rpc("create_project", {
         p_organization_id: props.organizationId,
+        p_name: projectName,
+        p_description: projectDescription,
+        p_starts_on: projectStartsOn || null,
+        p_sales_close_on: projectSalesCloseOn || null,
+        p_ends_on: projectEndsOn || null,
+        p_goal_contracts: parseOptionalInt(projectGoal),
+      }));
+    }, "Projeto criado e publicado. Adicione os pacotes na sub tela Pacotes.");
+    setSaving(false);
+    if (saved) {
+      closeProjectModal();
+      resetProjectForm();
+      router.refresh();
+    }
+  }
+
+  async function updateProject() {
+    if (saving || !editingProjectId) return;
+    setSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("update_project_with_initial_package", {
+        p_organization_id: props.organizationId,
+        p_project_id: editingProjectId,
         p_name: projectName,
         p_description: projectDescription,
         p_starts_on: projectStartsOn || null,
@@ -80,105 +341,909 @@ export function ProjectsManager(props: Props) {
         p_package_price_cents: centsFromInput(packagePrice),
         p_package_sessions_count: parseOptionalInt(packageSessions) ?? 1,
       }));
-    }, "Projeto criado e publicado.");
+    }, "Projeto atualizado.");
     setSaving(false);
     if (saved) {
-      setNewProjectOpen(false);
-      setProjectName("");
-      setProjectDescription("");
+      closeProjectModal();
+      resetProjectForm();
       router.refresh();
     }
   }
 
-  async function createEngagement() {
+  async function toggleProjectArchive() {
+    if (saving || !editingProjectId || !editingProject) return;
+    const archived = editingProject.status !== "ARCHIVED";
+    setSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("set_project_archive_status", {
+        p_organization_id: props.organizationId,
+        p_project_id: editingProjectId,
+        p_archived: archived,
+      }));
+    }, archived ? "Projeto arquivado." : "Projeto publicado.");
+    setSaving(false);
+    if (saved) {
+      closeProjectModal();
+      resetProjectForm();
+      router.refresh();
+    }
+  }
+
+  async function saveEngagement() {
     if (!selectedProject || saving || !engagementCustomerId || !engagementPackageId) return;
     setSaving(true);
-    const client = connectedClient();
-    const { data: userData, error: userError } = await client.auth.getUser();
     const saved = await runMutation(setMessage, async () => {
-      if (userError || !userData.user) throw new Error("Sessão expirada. Entre novamente para criar uma contratação.");
-      await assertResult(await client.from("project_engagements").insert({
-        organization_id: props.organizationId,
-        project_id: selectedProject.id,
-        customer_id: engagementCustomerId,
-        package_id: engagementPackageId,
-        status: "PROPOSAL",
-        contracted_cents: centsFromInput(engagementPrice || "0"),
-        proposal_sent_at: new Date().toISOString(),
-        created_by: userData.user.id,
+      const value = centsFromInput(engagementPrice || "0");
+      const entry = safeCentsInput(engagementEntry || "0");
+      const count = Math.max(1, Number.parseInt(engagementInstallments, 10) || 1);
+      if (entry > value) throw new Error("Entrada não pode superar o valor do contrato.");
+      if (!engagementEntryDueOn || !engagementFirstDueOn) throw new Error("Informe os vencimentos da entrada e da primeira parcela.");
+      await assertResult(await connectedClient().rpc("save_project_contract", {
+        p_organization_id: props.organizationId,
+        p_engagement_id: editingEngagementId,
+        p_project_id: selectedProject.id,
+        p_customer_id: engagementCustomerId,
+        p_package_id: engagementPackageId,
+        p_status: engagementStatus,
+        p_contracted_cents: value,
+        p_entry_cents: entry,
+        p_installments_count: count,
+        p_first_due_on: engagementFirstDueOn,
+        p_entry_due_on: engagementEntryDueOn,
       }));
-    }, "Proposta criada e pronta para envio.");
+      if (editingEngagementId && editingEngagement && signingDate) {
+        const signingStatus = editingEngagement.status === "PROPOSAL" ? "ACTIVE" : editingEngagement.status;
+        const signingBoardId = editingEngagement.status === "PROPOSAL"
+          ? projectKanbanBoards.find((board) => board.system_key === "ACTIVE")?.id ?? editingEngagement.kanban_board_id
+          : editingEngagement.kanban_board_id;
+        await assertResult(await connectedClient().rpc("set_project_engagement_status", {
+          p_organization_id: props.organizationId,
+          p_project_id: selectedProject.id,
+          p_engagement_id: editingEngagement.id,
+          p_status: signingStatus,
+          p_accepted_on: signingDate,
+          p_kanban_board_id: signingBoardId,
+        }));
+      }
+    }, editingEngagementId ? "Contratação atualizada." : "Proposta criada e pronta para envio.");
     setSaving(false);
     if (saved) {
       setNewEngagementOpen(false);
+      setEditingEngagementId(null);
+      setEngagementCustomerId("");
+      setEngagementCustomerQuery("");
       setEngagementPrice("");
+      setEngagementEntry("0,00");
+      setEngagementInstallments("1");
+      setEngagementEntryDueOn(new Date().toISOString().slice(0, 10));
+      setEngagementFirstDueOn(new Date().toISOString().slice(0, 10));
+      setSigningDate("");
+      setGeneratedEngagementSchedule(null);
       router.refresh();
     }
+  }
+
+  function generateEngagementInstallments() {
+    const value = safeCentsInput(engagementPrice || "0");
+    const entry = Math.min(value, Math.max(0, safeCentsInput(engagementEntry || "0")));
+    const total = Math.max(1, Number.parseInt(engagementInstallments, 10) || 1);
+    const existing = props.installments.filter((item) => item.engagement_id === editingEngagementId);
+    const paidRows = existing.filter((item) => item.installment_number > 0 && (item.status === "PAID" || (item.settled_cents ?? 0) > 0));
+    const paidTotal = paidRows.reduce((sum, item) => sum + (item.settled_cents ?? item.amount_cents), 0);
+    const remaining = Math.max(0, value - entry - paidTotal);
+    const openCount = Math.max(0, total - paidRows.length);
+    const lastPaid = paidRows.reduce((max, item) => Math.max(max, item.installment_number), 0);
+    const lastPaidDue = paidRows.find((item) => item.installment_number === lastPaid)?.due_on;
+    const start = new Date(`${lastPaidDue ?? engagementFirstDueOn}T12:00:00`);
+    if (lastPaidDue) start.setMonth(start.getMonth() + 1);
+    else start.setMonth(start.getMonth());
+    const base = openCount > 0 ? Math.floor(remaining / openCount) : 0;
+    setGeneratedEngagementSchedule(Array.from({ length: openCount }, (_, index) => {
+      const installmentNumber = lastPaid + index + 1;
+      const due = new Date(start);
+      due.setMonth(start.getMonth() + index);
+      return { installment_number: installmentNumber, due_on: due.toISOString().slice(0, 10), amount_cents: index === openCount - 1 ? remaining - base * (openCount - 1) : base };
+    }));
   }
 
   function openEngagementModal() {
     const firstPackage = projectPackages[0];
+    setEngagementCustomerId("");
+    setEngagementCustomerQuery("");
     setEngagementPackageId(firstPackage?.id ?? "");
     setEngagementPrice(firstPackage ? (firstPackage.price_cents / 100).toFixed(2).replace(".", ",") : "");
+    setEngagementEntry(firstPackage ? centsInput(firstPackage.deposit_cents) : "0,00");
+    setEngagementInstallments("1");
+    setEngagementEntryDueOn(new Date().toISOString().slice(0, 10));
+    setEngagementFirstDueOn(new Date().toISOString().slice(0, 10));
+    setEngagementStatus("PROPOSAL");
+    setSigningDate("");
+    setGeneratedEngagementSchedule(null);
     setNewEngagementOpen(true);
+  }
+
+  function openEditEngagementModal(engagement: Props["engagements"][number]) {
+    setEditingEngagementId(engagement.id);
+    setEngagementCustomerId(engagement.customer_id);
+    setEngagementCustomerQuery(customerById.get(engagement.customer_id)?.full_name ?? "");
+    setEngagementPackageId(engagement.package_id);
+    setEngagementPrice(centsInput(engagement.contracted_cents));
+    const rows = props.installments.filter((item) => item.engagement_id === engagement.id);
+    const entry = rows.find((item) => item.installment_number === 0);
+    const paidRows = rows.filter((item) => item.installment_number > 0);
+    const firstInstallment = rows.find((item) => item.installment_number === 1);
+    setEngagementEntry(entry ? centsInput(entry.amount_cents) : "0,00");
+    setEngagementInstallments(String(Math.max(1, paidRows.length)));
+    setEngagementEntryDueOn(entry?.due_on ?? new Date().toISOString().slice(0, 10));
+    setEngagementFirstDueOn(firstInstallment?.due_on ?? new Date().toISOString().slice(0, 10));
+    setEngagementStatus(engagement.status === "CANCELED" ? "PROPOSAL" : engagement.status);
+    setSigningDate(engagement.accepted_at?.slice(0, 10) ?? "");
+    setGeneratedEngagementSchedule(null);
+    setNewEngagementOpen(true);
+  }
+
+  function closeEngagementModal() {
+    setNewEngagementOpen(false);
+    setEditingEngagementId(null);
+    setGeneratedEngagementSchedule(null);
+  }
+
+  function updatePackageDraft(index: number, patch: Partial<PackageDraft>) {
+    setPackageDrafts((current) => current.map((draft, draftIndex) => draftIndex === index ? { ...draft, ...patch } : draft));
+  }
+
+  function addPackageDraft() {
+    if (packageDrafts.length >= 4) return;
+    setPackageDrafts((current) => [...current, emptyPackageDraft()]);
+  }
+
+  async function savePackage(draft: PackageDraft) {
+    if (!selectedProject || packageSavingId) return;
+    const pricing = packagePricing(draft, projectAllocationCents);
+    if (!draft.name.trim()) {
+      setMessage("Informe o nome do pacote.");
+      return;
+    }
+    if (!pricing.denominatorValid) {
+      setMessage("A soma de margem, taxa e imposto precisa ser menor que 100%.");
+      return;
+    }
+    setPackageSavingId(draft.id ?? "new");
+    let savedPackageId = draft.id;
+    const saved = await runMutation(setMessage, async () => {
+      const result = await connectedClient().rpc("upsert_project_package", {
+        p_organization_id: props.organizationId,
+        p_project_id: selectedProject.id,
+        p_package_id: draft.id,
+        p_name: draft.name,
+        p_description: draft.description,
+        p_duration_minutes: pricing.duration,
+        p_sessions_count: pricing.sessions,
+        p_fixed_cost_per_hour_cents: pricing.fixedCost,
+        p_extra_costs_cents: pricing.extraCosts,
+        p_extra_costs_description: draft.extraCostsDescription,
+        p_tax_rate_bps: pricing.taxRate,
+        p_card_rate_bps: pricing.cardRate,
+        p_profit_margin_bps: pricing.profitMargin,
+        p_deposit_cents: safeCentsInput(draft.deposit),
+        p_practiced_price_cents: pricing.practiced,
+        p_professional_ids: draft.professionalIds,
+      });
+      await assertResult(result);
+      const row = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (!savedPackageId && row && typeof row === "object" && "id" in row && typeof row.id === "string") savedPackageId = row.id;
+      if (!savedPackageId) throw new Error("Pacote salvo sem identificador.");
+      await assertResult(await connectedClient().from("project_package_services").delete().eq("organization_id", props.organizationId).eq("project_package_id", savedPackageId));
+      if (draft.serviceIds.length) {
+        await assertResult(await connectedClient().from("project_package_services").insert(draft.serviceIds.map((serviceId, position) => ({ organization_id: props.organizationId, project_package_id: savedPackageId, service_id: serviceId, position: position + 1 }))));
+      }
+    }, draft.id ? "Pacote atualizado." : "Pacote criado.");
+    setPackageSavingId(null);
+    if (saved) {
+      if (savedPackageId && !draft.id) setPackageDrafts((current) => current.map((item) => item === draft ? { ...item, id: savedPackageId } : item));
+      router.refresh();
+    }
+  }
+
+  async function openReceiveInstallment(installment: Props["installments"][number]) {
+    if (!installment.financial_entry_id) return;
+    setReceivingInstallment(installment);
+  }
+
+  async function receiveInstallment(form: HTMLFormElement) {
+    if (!receivingInstallment?.financial_entry_id || saving) return;
+    const data = new FormData(form);
+    setSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("settle_project_installment_receipt", {
+        p_entry_id: receivingInstallment.financial_entry_id,
+        p_financial_account_id: String(data.get("financial_account_id") ?? ""),
+        p_amount_cents: centsFromInput(String(data.get("amount") ?? "0")),
+        p_settled_on: String(data.get("settled_on") ?? ""),
+        p_payment_method: String(data.get("payment_method") ?? "OTHER"),
+        p_reference: String(data.get("reference") ?? "") || null,
+        p_idempotency_key: `manager:project-installment:${receivingInstallment.id}:${crypto.randomUUID()}`,
+        p_chart_account_id: String(data.get("chart_account_id") ?? ""),
+        p_cost_center_id: String(data.get("cost_center_id") ?? "") || null,
+        p_document_number: String(data.get("document_number") ?? "") || null,
+        p_tag_ids: data.getAll("tag_ids").map(String),
+      }));
+    }, "Recebimento registrado no módulo Financeiro.");
+    setSaving(false);
+    if (saved) { setReceivingInstallment(null); router.refresh(); }
+  }
+
+  async function updateInstallment(form: HTMLFormElement) {
+    if (!editingInstallment || saving) return;
+    const data = new FormData(form);
+    setSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("update_project_installment", {
+        p_organization_id: props.organizationId,
+        p_installment_id: editingInstallment.id,
+        p_amount_cents: centsFromInput(String(data.get("amount") ?? "0")),
+        p_due_on: String(data.get("due_on") ?? ""),
+      }));
+    }, "Parcela atualizada.");
+    setSaving(false);
+    if (saved) { setEditingInstallment(null); router.refresh(); }
+  }
+
+  async function loadEventComments(engagementId: string) {
+    const client = connectedClient();
+    if (typeof client.from !== "function") return;
+    setEventCommentsLoading(true);
+    try {
+      const result = await client.from("project_engagement_comments").select("id,organization_id,project_id,engagement_id,body,author_name,created_at,updated_at").eq("organization_id", props.organizationId).eq("engagement_id", engagementId).order("created_at", { ascending: true });
+      await assertResult(result);
+      setEventComments((result.data ?? []) as ProjectEventComment[]);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Comentários não puderam ser carregados.");
+    } finally {
+      setEventCommentsLoading(false);
+    }
+  }
+
+  function openEventEditor(engagement: Props["engagements"][number]) {
+    setEventEditorEngagementId(engagement.id);
+    setEventEditorEngagement(engagement);
+    setEventDescription(engagement.event_description ?? "");
+    setEventLink1(engagement.event_link_1 ?? "");
+    setEventLink2(engagement.event_link_2 ?? "");
+    setEventLink3(engagement.event_link_3 ?? "");
+    setEventDueOn(engagement.event_due_on ?? "");
+    setCommentDraft("");
+    setEditingCommentId(null);
+    setEventComments([]);
+    void loadEventComments(engagement.id);
+  }
+
+  function closeEventEditor() {
+    setEventEditorEngagementId(null);
+    setEventEditorEngagement(null);
+    setCommentDraft("");
+    setEditingCommentId(null);
+    setEventComments([]);
+  }
+
+  function setDueDateOverride(engagement: Props["engagements"][number], dueOn: string) {
+    const previous = eventDueDateOverrides[engagement.id];
+    setEventDueDateOverrides((current) => ({
+      ...current,
+      [engagement.id]: { fromDueOn: engagement.event_due_on ?? null, dueOn: dueOn || null, boardId: engagement.kanban_board_id ?? null, receivedAt: engagement.kanban_received_at ?? null },
+    }));
+    return previous;
+  }
+
+  function restoreDueDateOverride(engagementId: string, previous: EventDueDateOverride | undefined) {
+    setEventDueDateOverrides((current) => {
+      const next = { ...current };
+      if (previous) next[engagementId] = previous;
+      else delete next[engagementId];
+      return next;
+    });
+  }
+
+  async function saveEventDetails() {
+    const engagement = eventEditorEngagement ?? props.engagements.find((item) => item.id === eventEditorEngagementId);
+    const eventProject = selectedProject ?? props.projects.find((project) => project.id === engagement?.project_id);
+    if (!eventProject || !engagement || saving) return;
+    const previousDueDateOverride = setDueDateOverride(engagement, eventDueOn);
+    setSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("save_project_engagement_event", {
+        p_organization_id: props.organizationId,
+        p_project_id: eventProject.id,
+        p_engagement_id: engagement.id,
+        p_description: eventDescription,
+        p_link_1: eventLink1,
+        p_link_2: eventLink2,
+        p_link_3: eventLink3,
+        p_due_on: eventDueOn || null,
+      }));
+    }, "Evento atualizado.");
+    setSaving(false);
+    if (saved) {
+      closeEventEditor();
+      router.refresh();
+    } else restoreDueDateOverride(engagement.id, previousDueDateOverride);
+  }
+
+  async function saveEventDueDate(engagement: Props["engagements"][number], dueOn: string) {
+    const eventProject = selectedProject ?? props.projects.find((project) => project.id === engagement.project_id);
+    if (!eventProject || saving) return false;
+    const previousDueDateOverride = setDueDateOverride(engagement, dueOn);
+    setSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("save_project_engagement_event", {
+        p_organization_id: props.organizationId,
+        p_project_id: eventProject.id,
+        p_engagement_id: engagement.id,
+        p_description: engagement.event_description ?? "",
+        p_link_1: engagement.event_link_1 ?? "",
+        p_link_2: engagement.event_link_2 ?? "",
+        p_link_3: engagement.event_link_3 ?? "",
+        p_due_on: dueOn || null,
+      }));
+    }, "Data prazo atualizada.");
+    setSaving(false);
+    if (!saved) restoreDueDateOverride(engagement.id, previousDueDateOverride);
+    if (saved) router.refresh();
+    return saved;
+  }
+
+  async function saveEventComment() {
+    const engagement = eventEditorEngagement ?? props.engagements.find((item) => item.id === eventEditorEngagementId);
+    const eventProject = selectedProject ?? props.projects.find((project) => project.id === engagement?.project_id);
+    if (!eventProject || !engagement || !commentDraft.trim() || savingComment) return;
+    setSavingComment(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("save_project_engagement_comment", {
+        p_organization_id: props.organizationId,
+        p_project_id: eventProject.id,
+        p_engagement_id: engagement.id,
+        p_comment_id: editingCommentId,
+        p_body: commentDraft,
+      }));
+    }, editingCommentId ? "Comentário atualizado." : "Comentário adicionado.");
+    setSavingComment(false);
+    if (saved) {
+      setCommentDraft("");
+      setEditingCommentId(null);
+      await loadEventComments(engagement.id);
+    }
   }
 
   return <div className={styles.stack}>
     <PageHeader
-      title="Projetos"
-      description="Ofertas com prazo, pacotes, contratações e execução acompanhada em uma única jornada."
-      actions={<div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button"><LayoutDashboard size={16} /> Quadro geral</button><button className={styles.button} type="button" onClick={() => setNewProjectOpen(true)}><Plus size={16} /> Novo projeto</button></div>}
+      eyebrow={isProjectDetail ? "Projeto" : undefined}
+      title={isProjectDetail ? (selectedProject?.name ?? "Projeto não encontrado") : "Projetos"}
+      description={isProjectDetail ? (selectedProject?.description || "Oferta comercial com etapas acompanhadas e aceite por contratação.") : "Ofertas com prazo, pacotes, contratações e execução acompanhada em uma única jornada."}
+      actions={isProjectDetail ? <div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" onClick={() => router.push("/gestor/projetos")} aria-label="Voltar para Projetos" title="Voltar para Projetos"><ArrowLeft size={17} /></button>{selectedProject && <><StatusChip active={selectedProject.status === "PUBLISHED"} label={projectStatusLabels[selectedProject.status]} /><button className={styles.button} type="button" onClick={openEngagementModal}><Plus size={16} /> Novo contrato</button></>}</div> : <div className={styles.toolbarGroup}><button className={styles.button} type="button" onClick={openNewProjectModal}><Plus size={16} /> Novo projeto</button></div>}
     />
     <ActionMessage message={message} />
 
-    <section className={styles.projectStats} aria-label="Resumo de projetos">
-      <article><span>Projetos publicados</span><strong>{props.projects.filter((item) => item.status === "PUBLISHED").length}</strong><small>{props.projects.length} no total</small></article>
-      <article><span>Contratações ativas</span><strong>{props.engagements.filter((item) => item.status === "ACTIVE").length}</strong><small>{props.engagements.filter((item) => item.status === "PROPOSAL").length} propostas aguardando aceite</small></article>
-      <article><span>Valor contratado</span><strong>{formatCents(props.engagements.reduce((sum, item) => sum + (item.status === "CANCELED" ? 0 : item.contracted_cents), 0))}</strong><small>Contratos e propostas válidos</small></article>
-      <article><span>Resultado do módulo</span><strong>{formatCents(acceptedCents)}</strong><small>Contratações aceitas, sem duplicar sessões</small></article>
-    </section>
+    {!isProjectDetail && <section className={styles.projectStats} aria-label="Resumo de projetos">
+      <article><span>Projetos publicados</span><strong>{activeProjects.length}</strong><small>Somente projetos ativos</small></article>
+      <article><span>Contratações ativas</span><strong>{activeProjectContractsCount}</strong><small>{activeProjectEngagements.filter((item) => item.status === "PROPOSAL").length} propostas aguardando aceite</small></article>
+      <article><span>Valor contratado</span><strong>{formatCents(activeProjectContractedCents)}</strong><small>Contratos e propostas válidos</small></article>
+      <article><span>Resultado do módulo</span><strong>{formatCents(activeProjectAcceptedCents)}</strong><small>Contratações aceitas, sem duplicar sessões</small></article>
+    </section>}
 
-    {props.projects.length === 0 ? <Panel title="Comece pelo primeiro projeto" description="Crie uma oferta comercial com prazo, pacote inicial e etapas padrão."><EmptyState title="Nenhum projeto criado" action={<button className={styles.button} type="button" onClick={() => setNewProjectOpen(true)}><Plus size={16} /> Criar projeto</button>}>O projeto é a oferta reutilizável. A contratação será criada depois para cada cliente.</EmptyState></Panel> : <>
-      <div className={styles.projectLayout}>
-        <Panel title="Projetos em andamento" description="Selecione um projeto para abrir o painel operacional.">
+    {props.projects.length === 0 ? <Panel title="Comece pelo primeiro projeto" description="Crie uma oferta comercial com prazo, pacote inicial e etapas padrão."><EmptyState title="Nenhum projeto criado" action={<button className={styles.button} type="button" onClick={openNewProjectModal}><Plus size={16} /> Criar projeto</button>}>O projeto é a oferta reutilizável. A contratação será criada depois para cada cliente.</EmptyState></Panel> : isProjectDetail ? selectedProject ? <section className={styles.projectDetail} aria-label={`Detalhes de ${selectedProject.name}`}>
+          <nav className={styles.tabs} aria-label="Seções do projeto">{([ ["overview", "Visão geral", LayoutDashboard], ["investments", "Investimentos", Landmark], ["packages", "Pacotes", Calculator], ["engagements", "Contratações", Users], ["kanban", "Kanban", CheckCircle2], ["finance", "Financeiro", CircleDollarSign] ] as const).map(([value, label, Icon]) => <button type="button" key={value} className={`${styles.tab} ${tab === value ? styles.tabActive : ""}`} onClick={() => setTab(value)}><Icon size={15} /> {label}</button>)}</nav>
+          {tab === "overview" && <ProjectOverview goalContracts={selectedProject.goal_contracts} projectCostItems={props.costItems.filter((item) => item.project_id === selectedProject.id)} projectPackages={projectPackages} kanbanBoards={projectKanbanBoards} engagements={projectEngagements} customerById={customerById} packageById={packageById} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} />}
+          {tab === "investments" && <ProjectInvestments organizationId={props.organizationId} projectId={selectedProject.id} goalContracts={selectedProject.goal_contracts} items={props.costItems.filter((item) => item.project_id === selectedProject.id)} />}
+          {tab === "packages" && <ProjectPackages packages={packageDrafts} barbers={props.barbers} services={props.services} fixedCostCents={projectAllocationCents} savingId={packageSavingId} onAdd={addPackageDraft} onChange={updatePackageDraft} onSave={savePackage} />}
+          {tab === "engagements" && <EngagementsTable engagements={projectEngagements} customerById={customerById} packageById={packageById} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} kanbanBoards={projectKanbanBoards} onEdit={openEditEngagementModal} />}
+          {tab === "kanban" && <ProjectKanban key={JSON.stringify([projectKanbanBoards, projectEngagements])} organizationId={props.organizationId} projectId={selectedProject.id} boards={projectKanbanBoards} sectors={kanbanSectors} engagementsWithDueDateOverrides={eventDueDateOverrides} barbers={props.barbers} engagements={projectEngagements} customerById={customerById} lastComments={engagementLastComments} onOpenEvent={openEventEditor} onDueDateChange={saveEventDueDate} />}
+          {tab === "finance" && <ProjectFinance contractedCents={contractedCents} acceptedCents={acceptedCents} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} />}
+        </section> : <Panel title="Projeto não encontrado" description="Este projeto não está disponível para esta barbearia."><EmptyState title="Volte para Projetos"><button className={styles.button} type="button" onClick={() => router.push("/gestor/projetos")}><ArrowLeft size={16} /> Voltar para Projetos</button></EmptyState></Panel> : <Panel className={styles.projectListPanel} title="Projetos em andamento" description="Selecione um projeto para abrir o painel operacional." action={<label className={styles.projectFilter}><span>Exibir</span><select aria-label="Filtrar projetos" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value as ProjectFilter)}><option value="published">Publicados</option><option value="archived">Arquivados</option><option value="all">Todos</option></select></label>}>
           <div className={styles.projectList}>
-            {props.projects.map((project) => {
+            {visibleProjects.length === 0 ? <EmptyState title={projectFilter === "archived" ? "Nenhum projeto arquivado" : "Nenhum projeto publicado"}>{projectFilter === "archived" ? "Arquive um projeto para encontrá-lo nesta lista." : "Crie e publique um projeto para começar."}</EmptyState> : visibleProjects.map((project) => {
               const count = props.engagements.filter((item) => item.project_id === project.id && item.status !== "CANCELED").length;
-              return <button type="button" key={project.id} className={`${styles.projectCard} ${selectedProject?.id === project.id ? styles.projectCardActive : ""}`} onClick={() => selectProject(project.id)}>
-                <span className={styles.projectCardIcon}><BriefcaseBusiness size={17} /></span><span className={styles.rowTitle}><strong>{project.name}</strong><small>{dateLabel(project.starts_on)} — {dateLabel(project.ends_on)}</small></span><span className={styles.projectCardMeta}><strong>{count}{project.goal_contracts ? ` / ${project.goal_contracts}` : ""}</strong><small>contratações</small></span><StatusChip active={project.status === "PUBLISHED"} label={projectStatusLabels[project.status]} tone={project.status === "PAUSED" ? "warning" : project.status === "CLOSED" ? "neutral" : undefined} /><ArrowRight size={16} /></button>;
+              return <div className={styles.projectCardRow} key={project.id}><button type="button" className={styles.projectCard} onClick={() => router.push(`/gestor/projetos/${project.id}`)} aria-label={`Abrir projeto ${project.name}`}>
+                <span className={styles.projectCardIcon}><BriefcaseBusiness size={17} /></span><span className={styles.rowTitle}><strong>{project.name}</strong><small>{dateLabel(project.starts_on)} — {dateLabel(project.ends_on)}</small></span><span className={styles.projectCardMeta}><strong>{count}{project.goal_contracts ? ` / ${project.goal_contracts}` : ""}</strong><small>contratações</small></span><StatusChip active={project.status === "PUBLISHED"} label={projectStatusLabels[project.status]} tone={project.status === "PAUSED" ? "warning" : project.status === "CLOSED" || project.status === "ARCHIVED" ? "neutral" : undefined} /><ArrowRight size={16} /></button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} onClick={() => openEditProjectModal(project)} aria-label={`Editar projeto ${project.name}`} title="Editar projeto"><Pencil size={16} /></button></div>;
             })}
           </div>
-        </Panel>
+        </Panel>}
 
-        {selectedProject && <section className={styles.projectDetail} aria-label={`Detalhes de ${selectedProject.name}`}>
-          <header className={styles.projectDetailHeader}><div><p className="eyebrow">Projeto selecionado</p><h2>{selectedProject.name}</h2><p>{selectedProject.description || "Oferta comercial com etapas acompanhadas e aceite por contratação."}</p></div><div className={styles.toolbarGroup}><StatusChip active={selectedProject.status === "PUBLISHED"} label={projectStatusLabels[selectedProject.status]} /><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={openEngagementModal}><Plus size={16} /> Nova proposta</button></div></header>
-          <nav className={styles.tabs} aria-label="Seções do projeto">{([ ["overview", "Visão geral", LayoutDashboard], ["engagements", "Contratações", Users], ["kanban", "Kanban", CheckCircle2], ["finance", "Financeiro", CircleDollarSign] ] as const).map(([value, label, Icon]) => <button type="button" key={value} className={`${styles.tab} ${tab === value ? styles.tabActive : ""}`} onClick={() => setTab(value)}><Icon size={15} /> {label}</button>)}</nav>
-          {tab === "overview" && <ProjectOverview activeEngagements={activeEngagements} contractedCents={contractedCents} acceptedCents={acceptedCents} projectPackages={projectPackages} projectSteps={projectSteps} engagements={projectEngagements} />}
-          {tab === "engagements" && <EngagementsTable engagements={projectEngagements} customerById={customerById} packageById={packageById} />}
-          {tab === "kanban" && <ProjectKanban engagements={projectEngagements} customerById={customerById} />}
-          {tab === "finance" && <ProjectFinance contractedCents={contractedCents} acceptedCents={acceptedCents} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} />}
-        </section>}
-      </div>
-    </>}
+    {!isProjectDetail && props.projects.length > 0 && <GeneralProjectKanban key={JSON.stringify([kanbanSectors, props.kanbanBoards, props.projects, props.engagements])} organizationId={props.organizationId} sectors={kanbanSectors} boards={props.kanbanBoards} projects={props.projects} engagements={props.engagements} engagementsWithDueDateOverrides={eventDueDateOverrides} barbers={props.barbers} customerById={customerById} lastComments={engagementLastComments} onOpenEvent={openEventEditor} onDueDateChange={saveEventDueDate} />}
 
-    {newProjectOpen && <Modal title="Novo projeto" onClose={() => setNewProjectOpen(false)}>
-      <div className={styles.form}><Field label="Nome do projeto" wide><input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Ex.: Visagismo 2026" autoFocus /></Field><Field label="Descrição" wide><textarea value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} placeholder="O que a jornada entrega para o cliente?" /></Field><Field label="Início"><input type="date" value={projectStartsOn} onChange={(event) => setProjectStartsOn(event.target.value)} /></Field><Field label="Fim"><input type="date" value={projectEndsOn} onChange={(event) => setProjectEndsOn(event.target.value)} /></Field><Field label="Encerrar novas vendas em"><input type="date" value={projectSalesCloseOn} onChange={(event) => setProjectSalesCloseOn(event.target.value)} /></Field><Field label="Meta de contratações"><input type="number" min="1" value={projectGoal} onChange={(event) => setProjectGoal(event.target.value)} /></Field><Field label="Pacote inicial" wide><input value={packageName} onChange={(event) => setPackageName(event.target.value)} /></Field><Field label="Valor praticado"><input inputMode="decimal" value={packagePrice} onChange={(event) => setPackagePrice(event.target.value)} /></Field><Field label="Quantidade de sessões"><input type="number" min="1" value={packageSessions} onChange={(event) => setPackageSessions(event.target.value)} /></Field><Field label="Descrição do pacote" wide><input value={packageDescription} onChange={(event) => setPackageDescription(event.target.value)} placeholder="Inclui planejamento, execução e revisão" /></Field></div><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setNewProjectOpen(false)}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !projectName.trim()} onClick={() => void createProject()}>{saving ? "Criando…" : "Criar e publicar"}</button></footer>
+    {(newProjectOpen || editingProjectId) && <Modal title={editingProjectId ? "Editar projeto" : "Novo projeto"} onClose={closeProjectModal}>
+      <div className={styles.form}><Field label="Nome do projeto" wide><input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Ex.: Visagismo 2026" autoFocus /></Field><Field label="Descrição" wide><textarea value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} placeholder="O que a jornada entrega para o cliente?" /></Field><Field label="Início"><input type="date" value={projectStartsOn} onChange={(event) => setProjectStartsOn(event.target.value)} /></Field><Field label="Fim"><input type="date" value={projectEndsOn} onChange={(event) => setProjectEndsOn(event.target.value)} /></Field><Field label="Encerrar novas vendas em"><input type="date" value={projectSalesCloseOn} onChange={(event) => setProjectSalesCloseOn(event.target.value)} /></Field><Field label="Meta de contratações"><input type="number" min="1" value={projectGoal} onChange={(event) => setProjectGoal(event.target.value)} /></Field>{editingProjectId && <><Field label="Pacote inicial" wide><input value={packageName} onChange={(event) => setPackageName(event.target.value)} /></Field><Field label="Valor praticado"><input inputMode="decimal" value={packagePrice} onChange={(event) => setPackagePrice(event.target.value)} /></Field><Field label="Quantidade de sessões"><input type="number" min="1" value={packageSessions} onChange={(event) => setPackageSessions(event.target.value)} /></Field><Field label="Descrição do pacote" wide><input value={packageDescription} onChange={(event) => setPackageDescription(event.target.value)} placeholder="Inclui planejamento, execução e revisão" /></Field></>}</div><footer className={styles.modalActions}>{editingProjectId && editingProject && <button className={`${styles.button} ${editingProject.status === "ARCHIVED" ? "" : styles.buttonDanger}`} type="button" disabled={saving} onClick={() => void toggleProjectArchive()}>{editingProject.status === "ARCHIVED" ? "Publicar projeto" : "Arquivar projeto"}</button>}<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeProjectModal}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !projectName.trim()} onClick={() => void (editingProjectId ? updateProject() : createProject())}>{saving ? (editingProjectId ? "Salvando…" : "Criando…") : (editingProjectId ? "Salvar alterações" : "Criar e publicar")}</button></footer>
     </Modal>}
-    {newEngagementOpen && selectedProject && <Modal title="Nova proposta" onClose={() => setNewEngagementOpen(false)}><div className={styles.form}><Field label="Cliente" wide><select value={engagementCustomerId} onChange={(event) => setEngagementCustomerId(event.target.value)}><option value="">Selecione um cliente</option>{props.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}</option>)}</select></Field><Field label="Pacote"><select value={engagementPackageId} onChange={(event) => { const packageId = event.target.value; setEngagementPackageId(packageId); const selected = projectPackages.find((item) => item.id === packageId); if (selected) setEngagementPrice((selected.price_cents / 100).toFixed(2).replace(".", ",")); }}>{projectPackages.map((item) => <option key={item.id} value={item.id}>{item.name} · {formatCents(item.price_cents)}</option>)}</select></Field><Field label="Preço praticado"><input inputMode="decimal" value={engagementPrice} onChange={(event) => setEngagementPrice(event.target.value)} /></Field></div><p className={styles.muted}>A proposta fica pendente de ciência do cliente. O valor é congelado na contratação e as sessões do projeto não geram cobrança duplicada.</p><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setNewEngagementOpen(false)}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !engagementCustomerId || !engagementPackageId} onClick={() => void createEngagement()}>{saving ? "Salvando…" : "Criar proposta"}</button></footer></Modal>}
+    {newEngagementOpen && selectedProject && <Modal title="Novo contrato" wide onClose={closeEngagementModal}>
+      <div className={styles.form}>
+        <Field label="Cliente" wide><span className="input-shell"><UserRound size={17} /><input required aria-label="Cliente" value={selectedEngagementCustomer?.full_name ?? engagementCustomerQuery} onChange={(event) => { setEngagementCustomerQuery(event.target.value); setEngagementCustomerId(""); }} placeholder="Buscar por nome ou telefone" /></span></Field>
+        {engagementCustomerQuery.trim() && !engagementCustomerId && <div className={`${styles.formWide} customer-search-results`}>{matchingEngagementCustomers.map((customer) => <button className="customer-search-result" key={customer.id} type="button" aria-label={`Selecionar ${customer.full_name}`} onClick={() => { setEngagementCustomerId(customer.id); setEngagementCustomerQuery(customer.full_name); }}><strong>{customer.full_name}</strong><small>{customer.phone_e164 ?? "Sem telefone"}</small></button>)}{matchingEngagementCustomers.length === 0 && <p className="customer-search-selected">Nenhum cliente encontrado.</p>}</div>}
+        {selectedEngagementCustomer && <p className={`${styles.formWide} customer-search-selected`}><Check size={15} /> {selectedEngagementCustomer.full_name} selecionado</p>}
+        <Field label="Pacote"><select aria-label="Pacote" value={engagementPackageId} onChange={(event) => { const packageId = event.target.value; setEngagementPackageId(packageId); const selected = projectPackages.find((item) => item.id === packageId); if (selected) { setEngagementPrice(centsInput(selected.price_cents)); setEngagementEntry(centsInput(selected.deposit_cents)); setEngagementInstallments(String(Math.max(1, selected.sessions_count))); } }}>{projectPackages.map((item) => <option key={item.id} value={item.id}>{item.name} · {formatCents(item.price_cents)}</option>)}</select></Field>
+        <Field label="Valor"><input inputMode="decimal" value={engagementPrice} onChange={(event) => setEngagementPrice(event.target.value)} /></Field>
+        <Field label="Entrada"><input inputMode="decimal" value={engagementEntry} onChange={(event) => setEngagementEntry(event.target.value)} /></Field>
+        <Field label="Total de parcelas"><input type="number" min="1" max="120" value={engagementInstallments} onChange={(event) => setEngagementInstallments(event.target.value)} /></Field>
+        <Field label="Vencimento da Entrada"><input type="date" value={engagementEntryDueOn} onChange={(event) => setEngagementEntryDueOn(event.target.value)} /></Field>
+        <Field label="1º vencimento"><input type="date" value={engagementFirstDueOn} onChange={(event) => setEngagementFirstDueOn(event.target.value)} /></Field>
+        <div className={styles.installmentGenerator}><Field label="Valor da parcela"><input readOnly value={formatCents((generatedEngagementSchedule ?? engagementSchedule)[0]?.amount_cents ?? 0)} /></Field><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={generateEngagementInstallments} disabled={saving}>Gerar Parcelas</button></div>
+        <div className={`${styles.formWide} ${styles.contractFinance}`}><h3>Financeiro</h3><div className={styles.engagementFinanceTable}><div className={styles.engagementFinanceHeader}><span>N.</span><span>Valor da parcela</span><span>Data vencimento</span><span>Data Pgto</span><span>Forma de pagamento</span><span>Conta</span><span>Usuário que recebeu</span><span>Ações</span></div>{engagementFinanceRows.map((row) => <div className={`${styles.engagementFinanceRow} ${installmentIsOverdue(row) ? styles.engagementFinanceOverdue : ""}`} key={row.id}><span>{row.installment_number}</span><strong>{formatCents(row.amount_cents)}</strong><span>{dateLabel(row.due_on)}</span><span>{row.last_paid_at ? dateLabel(row.last_paid_at) : "—"}</span><span>{row.payment_method ?? "—"}</span><span>{row.financial_account_name ?? row.financial_account_id ?? "—"}</span><span>{row.received_by_name ?? row.received_by ?? "—"}</span><span className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={row.id.startsWith("draft-")} onClick={() => setEditingInstallment(row)}>Editar</button><button className={styles.button} type="button" disabled={!row.financial_entry_id || (row.remaining_cents ?? row.amount_cents) <= 0} onClick={() => void openReceiveInstallment(row)}>Receber</button></span></div>)}</div></div>
+      </div>
+      <p className={styles.muted}>{editingEngagementId ? "Modo de edição: altere os dados da contratação do cliente." : "Contrato gera entrada e parcelas no módulo Financeiro, sem cobrança duplicada das sessões."}</p>
+      <footer className={styles.modalActions}>{editingEngagement && <div className={styles.signDateField}><Field label="Data da assinatura"><input aria-label="Data da assinatura" type="date" value={signingDate} onChange={(event) => setSigningDate(event.target.value)} /></Field></div>}<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeEngagementModal}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !engagementCustomerId || !engagementPackageId || !engagementEntryDueOn || !engagementFirstDueOn} onClick={() => void saveEngagement()}>{saving ? "Salvando…" : editingEngagementId ? "Salvar alterações" : "Criar contrato"}</button></footer>
+    </Modal>}
+    {eventEditorEngagementId && (() => {
+      const engagement = eventEditorEngagement ?? props.engagements.find((item) => item.id === eventEditorEngagementId);
+      const eventProject = props.projects.find((project) => project.id === engagement?.project_id);
+      const board = props.kanbanBoards.find((item) => item.id === engagement?.kanban_board_id);
+      const customer = engagement ? customerById.get(engagement.customer_id) : null;
+      if (!engagement || !eventProject) return null;
+      const eventLinks: Array<{ label: string; value: string; setter: (value: string) => void }> = [
+        { label: "Link 1", value: eventLink1, setter: setEventLink1 },
+        { label: "Link 2", value: eventLink2, setter: setEventLink2 },
+        { label: "Link 3", value: eventLink3, setter: setEventLink3 },
+      ];
+      return <Modal title={board?.name ?? "Evento"} wide onClose={closeEventEditor}>
+          <div className={styles.eventModalLayout}>
+          <div className={styles.eventMain}>
+            <div className={styles.eventContext}><div><span>Data recebido</span><strong>{dateTimeLabel(engagement.kanban_received_at ?? engagement.created_at)}</strong><small>{engagement.kanban_received_by_name ?? "Usuário"}</small></div><label><span>Data prazo</span><input aria-label="Data prazo" type="date" value={eventDueOn} onChange={(event) => setEventDueOn(event.target.value)} /></label></div>
+            <Field label="Cliente" wide><input aria-label="Cliente do evento" value={customer?.full_name ?? "Cliente não informado"} readOnly /></Field>
+            <Field label="Descrição" wide><textarea aria-label="Descrição do evento" value={eventDescription} onChange={(event) => setEventDescription(event.target.value)} placeholder="Adicione detalhes para orientar a execução…" rows={6} /></Field>
+            <section className={styles.eventLinks} aria-labelledby="event-links-title"><h3 id="event-links-title">Links</h3>{eventLinks.map(({ label, value, setter }) => <Field label={label} wide key={label}><div className={styles.eventLinkField}><input aria-label={label} type="url" value={value} onChange={(event) => setter(event.target.value)} placeholder="https://" />{value.trim() && <a href={externalLink(value)} target="_blank" rel="noreferrer">Abrir link</a>}</div></Field>)}</section>
+            <footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeEventEditor}>Cancelar</button><button className={styles.button} type="button" disabled={saving} onClick={() => void saveEventDetails()}>{saving ? "Salvando…" : "Salvar evento"}</button></footer>
+          </div>
+          <aside className={styles.eventComments} aria-label="Comentários"><div className={styles.eventCommentsHeader}><h3>Comentários</h3><span>{eventComments.length}</span></div><Field label={editingCommentId ? "Editar comentário" : "Adicionar comentário"} wide><textarea aria-label={editingCommentId ? "Editar comentário" : "Adicionar comentário"} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Escreva uma atualização para a equipe…" rows={4} /></Field><button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={savingComment || !commentDraft.trim()} onClick={() => void saveEventComment()}>{savingComment ? "Salvando…" : editingCommentId ? "Salvar comentário" : "Adicionar comentário"}</button>{eventCommentsLoading ? <p className={styles.muted}>Carregando comentários…</p> : eventComments.length === 0 ? <p className={styles.muted}>Nenhum comentário ainda.</p> : <div className={styles.eventCommentList}>{eventComments.map((comment) => <article className={styles.eventComment} key={comment.id}><p>{comment.body}</p><footer><span>{comment.author_name} · {dateTimeLabel(comment.created_at)}</span><button type="button" onClick={() => { setEditingCommentId(comment.id); setCommentDraft(comment.body); }}>Editar</button></footer></article>)}</div>}</aside>
+        </div>
+      </Modal>;
+    })()}
+    {receivingInstallment && <Modal title="Receber parcela" wide onClose={() => setReceivingInstallment(null)}><form className={styles.form} onSubmit={(event) => { event.preventDefault(); void receiveInstallment(event.currentTarget); }}>
+      <Field label="Contraparte / Cliente"><input value={customerById.get(projectEngagements.find((item) => item.id === receivingInstallment.engagement_id)?.customer_id ?? "")?.full_name ?? "Cliente do contrato"} readOnly /></Field>
+      <Field label="Tipo"><input value="Receita" readOnly /></Field>
+      <Field label="Descrição" wide><input value={`Parcela ${receivingInstallment.installment_number} do contrato de projeto`} readOnly /></Field>
+      <Field label="Saldo restante"><input value={centsInput(receivingInstallment.remaining_cents ?? receivingInstallment.amount_cents)} readOnly /></Field>
+      <Field label="Valor final lançado (R$)"><input name="amount" required inputMode="decimal" defaultValue={centsInput(receivingInstallment.remaining_cents ?? receivingInstallment.amount_cents)} /></Field>
+      <Field label="Data do lançamento"><input name="issue_date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} readOnly /></Field>
+      <Field label="Vencimento"><input name="due_date" type="date" defaultValue={receivingInstallment.due_on} readOnly /></Field>
+      <Field label="Plano de conta"><select name="chart_account_id" required defaultValue={props.chartAccounts?.find((item) => item.active && item.kind === "REVENUE")?.id ?? ""}><option value="" disabled>Selecione</option>{(props.chartAccounts ?? []).filter((item) => item.active && item.kind === "REVENUE").map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select></Field>
+      <Field label="Banco ou caixa"><select name="financial_account_id" required defaultValue={(props.financialAccounts ?? []).find((item) => item.active)?.id ?? ""}><option value="" disabled>Selecione</option>{(props.financialAccounts ?? []).filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+      <Field label="Centro de custo"><select name="cost_center_id" defaultValue=""><option value="">Não informar</option>{(props.costCenters ?? []).filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+      <Field label="Número do documento"><input name="document_number" defaultValue={`PROJ-${receivingInstallment.id.slice(0, 8)}`} required /></Field>
+      <Field label="Tags"><select name="tag_ids" multiple size={Math.min(Math.max((props.tags ?? []).filter((item) => item.active).length, 2), 4)} disabled={(props.tags ?? []).filter((item) => item.active).length === 0}>{(props.tags ?? []).filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+      <Field label="Forma de recebimento"><select name="payment_method" defaultValue="CASH"><option value="CASH">Dinheiro</option><option value="PIX">PIX</option><option value="CARD">Cartão</option><option value="TRANSFER">Transferência</option><option value="OTHER">Outro</option></select></Field>
+      <Field label="Observações" wide><input name="reference" placeholder="PIX, NSU ou comprovante" /></Field>
+      <footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setReceivingInstallment(null)}>Cancelar</button><button className={styles.button} type="submit" disabled={saving}>Confirmar recebimento</button></footer>
+    </form></Modal>}
+    {editingInstallment && <Modal title="Editar parcela" onClose={() => setEditingInstallment(null)}><form className={styles.form} onSubmit={(event) => { event.preventDefault(); void updateInstallment(event.currentTarget); }}><Field label="Valor"><input name="amount" inputMode="decimal" defaultValue={centsInput(editingInstallment.amount_cents)} /></Field><Field label="Data vencimento"><input name="due_on" type="date" defaultValue={editingInstallment.due_on} /></Field><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingInstallment(null)}>Cancelar</button><button className={styles.button} type="submit">Salvar parcela</button></footer></form></Modal>}
   </div>;
 }
 
-function ProjectOverview({ activeEngagements, contractedCents, acceptedCents, projectPackages, projectSteps, engagements }: { activeEngagements: number; contractedCents: number; acceptedCents: number; projectPackages: Props["packages"]; projectSteps: Props["steps"]; engagements: Props["engagements"] }) {
-  return <div className={styles.stack}><div className={styles.projectStats}><article><span>Ativas</span><strong>{activeEngagements}</strong><small>contratações em execução</small></article><article><span>Contratado</span><strong>{formatCents(contractedCents)}</strong><small>propostas e contratos válidos</small></article><article><span>Aceito</span><strong>{formatCents(acceptedCents)}</strong><small>base para resultado realizado</small></article></div><div className={styles.projectColumns}><Panel title="Pacotes publicados" description="O cliente escolhe um pacote na proposta.">{projectPackages.length ? <div className={styles.list}>{projectPackages.map((item) => <div className={styles.row} key={item.id}><span className={styles.rowTitle}><strong>{item.name}</strong><small>{item.sessions_count} sessões · {item.description || "Sem descrição"}</small></span><strong>{formatCents(item.price_cents)}</strong><StatusChip active={item.active} label={item.active ? "Publicado" : "Pausado"} /></div>)}</div> : <EmptyState title="Sem pacotes">Adicione um pacote para vender o projeto.</EmptyState>}</Panel><Panel title="Etapas da jornada" description="Cada contratação percorre estas etapas.">{projectSteps.length ? <ol className={styles.stepList}>{projectSteps.map((step) => <li key={step.id}><span>{step.position}</span><div><strong>{step.name}</strong><small>{step.kind === "SERVICE" ? "Serviço vinculado" : "Etapa interna"}</small></div></li>)}</ol> : <EmptyState title="Sem etapas">Configure o primeiro fluxo do projeto.</EmptyState>}</Panel></div><Panel title="Últimas movimentações" description="Acompanhe o avanço sem expor notas internas ao cliente.">{engagements.length ? <div className={styles.list}>{engagements.slice(0, 4).map((item) => <div className={styles.row} key={item.id}><span>{engagementStatusLabels[item.status]}</span><strong>{formatCents(item.contracted_cents)}</strong><small>{dateLabel(item.created_at.slice(0, 10))}</small></div>)}</div> : <EmptyState title="Nenhuma contratação">Crie uma proposta para iniciar a jornada.</EmptyState>}</Panel></div>;
+const costKindLabels: Record<CostKind, string> = { FIXED: "Custos Fixos", INVESTMENT: "Investimentos" };
+const costKindDescriptions: Record<CostKind, string> = {
+  FIXED: "Despesas que existem independentemente do projeto e entram no rateio operacional.",
+  INVESTMENT: "Desembolsos iniciais para estrutura, itens essenciais e divulgação do projeto.",
+};
+
+function ProjectInvestments({ organizationId, projectId, goalContracts, items }: { organizationId: string; projectId: string; goalContracts: number | null; items: ProjectCostItemRecord[] }) {
+  const router = useRouter();
+  const [rows, setRows] = useState(items);
+  const [kind, setKind] = useState<CostKind>("FIXED");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const totals = (value: CostKind) => rows.filter((item) => item.kind === value && item.active).reduce((sum, item) => sum + item.amount_cents, 0);
+  const fixedTotal = totals("FIXED");
+  const investmentTotal = totals("INVESTMENT");
+  const total = fixedTotal + investmentTotal;
+  const allocationTotal = fixedTotal + investmentTotal;
+  const allocationPerContract = goalContracts && goalContracts > 0 ? Math.round(allocationTotal / goalContracts) : null;
+
+  async function addCostItem(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || !name.trim()) return;
+    let savedItem: ProjectCostItemRecord | null = null;
+    setSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      const result = await connectedClient().rpc("upsert_project_cost_item", {
+        p_organization_id: organizationId,
+        p_project_id: projectId,
+        p_id: null,
+        p_kind: kind,
+        p_name: name,
+        p_description: description,
+        p_amount_cents: safeCentsInput(amount),
+      });
+      await assertResult(result);
+      const row = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (row && typeof row === "object") savedItem = row as ProjectCostItemRecord;
+    }, "Custo adicionado.");
+    setSaving(false);
+    if (saved && savedItem) {
+      setRows((current) => [savedItem as ProjectCostItemRecord, ...current]);
+      setName("");
+      setDescription("");
+      setAmount("");
+      router.refresh();
+    }
+  }
+
+  async function removeCostItem(item: ProjectCostItemRecord) {
+    if (saving) return;
+    setSaving(true);
+    const removed = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("delete_project_cost_item", { p_organization_id: organizationId, p_project_id: projectId, p_id: item.id }));
+    }, "Custo removido.");
+    setSaving(false);
+    if (removed) {
+      setRows((current) => current.filter((row) => row.id !== item.id));
+      router.refresh();
+    }
+  }
+
+  return <div className={styles.investmentWorkspace}>
+    <header className={styles.sectionHeader}><div><h2>Investimentos</h2><p>Organize custos fixos e desembolsos iniciais para precificar o projeto com clareza.</p></div><div className={styles.investmentTotal}><span>Total cadastrado</span><strong>{formatCents(total)}</strong></div></header>
+    <ActionMessage message={message} />
+    <div className={styles.investmentMetrics} aria-label="Resumo de custos do projeto"><article><span>Custos fixos</span><strong>{formatCents(fixedTotal)}</strong><small>rateados na operação</small></article><article><span>Investimentos</span><strong>{formatCents(investmentTotal)}</strong><small>desembolso inicial</small></article></div>
+    <form className={styles.investmentAddForm} onSubmit={(event) => void addCostItem(event)}><div className={styles.investmentFormTitle}><Landmark size={16} /><strong>Adicionar custo ou investimento</strong></div><div className={styles.investmentFormGrid}><Field label="Item / descrição"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Cenário, aluguel, internet…" /></Field><Field label="Categoria"><select value={kind} onChange={(event) => setKind(event.target.value as CostKind)}>{Object.entries(costKindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Valor (R$)"><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0,00" /></Field><Field label="Observação" wide><input value={description} onChange={(event) => setDescription(event.target.value)} placeholder={kind === "INVESTMENT" ? "Ex.: Agência terceirizada ou campanha de ads" : "Detalhe opcional do custo"} /></Field></div><button className={styles.button} type="submit" disabled={saving || !name.trim()}><Plus size={15} /> Adicionar</button></form>
+    <div className={styles.investmentSections}>{(Object.keys(costKindLabels) as CostKind[]).map((sectionKind) => { const sectionItems = rows.filter((item) => item.kind === sectionKind && item.active); return <section className={styles.investmentSection} key={sectionKind}><header><div><h3>{costKindLabels[sectionKind]}</h3><p>{costKindDescriptions[sectionKind]}</p></div><strong>{formatCents(totals(sectionKind))}</strong></header>{sectionItems.length ? <div className={styles.investmentList}>{sectionItems.map((item) => <div className={styles.investmentRow} key={item.id}><span className={styles.investmentDot} /><span className={styles.rowTitle}><strong>{item.name}</strong><small>{item.description || "Custo do projeto"}</small></span><strong>{formatCents(item.amount_cents)}</strong><button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label={`Remover ${item.name}`} title="Remover" disabled={saving} onClick={() => void removeCostItem(item)}><X size={14} /></button></div>)}</div> : <p className={styles.investmentEmpty}>Nenhum item cadastrado nesta categoria.</p>}</section>; })}</div>
+    <div className={styles.investmentAllocation}><div><strong>Rateio estimado do projeto</strong><p>Custos fixos + investimentos iniciais divididos pela meta de contratações.</p></div><div className={styles.investmentFormula}><span>{formatCents(allocationTotal)} ÷ {goalContracts && goalContracts > 0 ? `${goalContracts} contratações` : "meta não definida"}</span><strong>{allocationPerContract === null ? "—" : formatCents(allocationPerContract)}</strong></div></div>
+  </div>;
 }
 
-function EngagementsTable({ engagements, customerById, packageById }: { engagements: Props["engagements"]; customerById: Map<string, Props["customers"][number]>; packageById: Map<string, Props["packages"][number]> }) {
-  return <Panel title="Contratações" description="Uma contratação por cliente. Propostas continuam fora do fluxo ativo até o aceite.">{engagements.length ? <div className={styles.engagementList}>{engagements.map((item) => <div className={styles.engagementRow} key={item.id}><span className={styles.avatar}>{(customerById.get(item.customer_id)?.full_name ?? "CL").split(" ").map((part) => part[0]).slice(0, 2).join("")}</span><span className={styles.rowTitle}><strong>{customerById.get(item.customer_id)?.full_name ?? "Cliente"}</strong><small>{packageById.get(item.package_id)?.name ?? "Pacote"}</small></span><strong>{formatCents(item.contracted_cents)}</strong><StatusChip active={item.status === "ACTIVE" || item.status === "COMPLETED"} label={engagementStatusLabels[item.status]} tone={item.status === "PROPOSAL" ? "warning" : item.status === "CANCELED" ? "danger" : undefined} /><small>{dateLabel((item.accepted_at ?? item.created_at).slice(0, 10))}</small></div>)}</div> : <EmptyState title="Sem contratações">Use “Nova proposta” para criar a primeira contratação.</EmptyState>}</Panel>;
+function ProjectPackages({ packages, barbers, services, fixedCostCents, savingId, onAdd, onChange, onSave }: { packages: PackageDraft[]; barbers: Props["barbers"]; services: Props["services"]; fixedCostCents: number; savingId: string | null; onAdd: () => void; onChange: (index: number, patch: Partial<PackageDraft>) => void; onSave: (draft: PackageDraft) => void }) {
+  const [message, setMessage] = useState("");
+  return <div className={styles.packageWorkspace}>
+    <header className={styles.sectionHeader}><div><h2>Pacotes</h2><p>Crie até quatro ofertas para este projeto e compare preço sugerido com o valor praticado.</p></div><div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setMessage("Função em desenvolvimento")}><BriefcaseBusiness size={15} /> Adicionar Contrato</button><button className={styles.button} type="button" onClick={onAdd} disabled={packages.length >= 4 || Boolean(savingId)}><Plus size={16} /> Adicionar pacote ({packages.length}/4)</button></div></header>
+    <ActionMessage message={message} />
+    {packages.length === 0 ? <EmptyState title="Nenhum pacote configurado">Adicione o primeiro pacote para começar a vender este projeto.</EmptyState> : <div className={styles.packageGrid}>
+      {packages.map((draft, index) => {
+        const pricing = packagePricing(draft, fixedCostCents);
+        const isSaving = savingId === (draft.id ?? "new");
+        return <article className={styles.packageCard} key={draft.id ?? `new-${index}`}>
+          <header className={styles.packageCardHeader}><div className={styles.packageHeaderEditor}><span className={styles.packageBadge}>{index + 1}º pacote</span><input className={styles.packageTitleInput} aria-label={`Título do pacote ${index + 1}`} value={draft.name} onChange={(event) => onChange(index, { name: event.target.value })} placeholder="Experiência" /><textarea className={styles.packageSubtitleInput} aria-label={`Texto do pacote ${index + 1}`} value={draft.description} onChange={(event) => onChange(index, { description: event.target.value })} placeholder="Defina uma oferta com duração, sessões e preço próprio." rows={2} /></div><span className={styles.packageLimitLabel}>Pacote {index + 1}/4</span></header>
+          <div className={styles.packagePriceHero}><span>Preço de Venda</span><strong>{formatCents(pricing.practiced)}</strong></div>
+          <div className={styles.packageForm}>
+            <div className={styles.packageFormGrid}><Field label="Duração da sessão (min)"><input type="number" min="5" max="14400" step="5" value={draft.durationMinutes} onChange={(event) => onChange(index, { durationMinutes: event.target.value })} /></Field><Field label="Total de sessões"><input type="number" min="1" max="100" value={draft.sessionsCount} onChange={(event) => onChange(index, { sessionsCount: event.target.value })} /></Field><Field label="Custo Fixo"><input className={styles.packageReadonlyField} inputMode="decimal" value={centsInput(pricing.fixedCostTotal)} readOnly aria-label="Custo Fixo" /></Field><Field label="Custos Extras (R$)"><input inputMode="decimal" value={draft.extraCosts} onChange={(event) => onChange(index, { extraCosts: event.target.value })} /></Field><Field label="Descrição dos Extras" wide><input value={draft.extraCostsDescription} onChange={(event) => onChange(index, { extraCostsDescription: event.target.value })} placeholder="Impressões, álbum, brindes…" /></Field><Field label="Impostos (%)"><input type="number" min="0" max="100" step="0.01" value={draft.taxRate} onChange={(event) => onChange(index, { taxRate: event.target.value })} /></Field><Field label="Taxas banco/cartão (%)"><input type="number" min="0" max="100" step="0.01" value={draft.cardRate} onChange={(event) => onChange(index, { cardRate: event.target.value })} /></Field><Field label="Margem de lucro (%)"><input type="number" min="0" max="100" step="0.01" value={draft.profitMargin} onChange={(event) => onChange(index, { profitMargin: event.target.value })} /></Field><Field label="Sinal/entrada (R$)"><input inputMode="decimal" value={draft.deposit} onChange={(event) => onChange(index, { deposit: event.target.value })} /></Field><Field label="Preço praticado"><input inputMode="decimal" value={draft.practicedPrice} onChange={(event) => onChange(index, { practicedPrice: event.target.value })} />{pricing.differencePercent !== null && <p className={`${styles.packagePriceDifference} ${pricing.difference >= 0 ? styles.packagePriceAbove : styles.packagePriceBelow}`}>{pricing.difference >= 0 ? "Acima" : "Abaixo"} do sugerido em {formatCents(Math.abs(pricing.difference))} ({Math.abs(pricing.differencePercent).toFixed(1).replace(".", ",")}%)</p>}{pricing.warning && <p className={styles.packagePriceWarning}>O preço está fugindo muito do padrão de precificação. Reavalie os custos e investimentos em relação ao total de vendas pretendido.</p>}</Field><Field label="Precificação Sugerida"><input className={styles.packageReadonlyField} inputMode="decimal" value={formatCents(pricing.suggested)} readOnly aria-label="Precificação Sugerida" /></Field></div>
+            <div className={styles.packageServices}><span className={styles.packageFieldLabel}>Serviços</span>{services.length ? <div className={styles.packageServiceList}>{services.map((service) => <label className={styles.packageServiceRow} key={service.id}><input type="checkbox" checked={draft.serviceIds.includes(service.id)} onChange={(event) => onChange(index, { serviceIds: event.target.checked ? [...draft.serviceIds, service.id] : draft.serviceIds.filter((id) => id !== service.id) })} /><span>{service.name}</span><strong>{formatCents(service.price_cents)}</strong></label>)}</div> : <p className={styles.muted}>Nenhum serviço ativo disponível.</p>}<div className={styles.packageServicesTotal}><span>Total dos serviços</span><strong>{formatCents(services.filter((service) => draft.serviceIds.includes(service.id)).reduce((sum, service) => sum + service.price_cents, 0))}</strong></div></div>
+            <div className={styles.packageProfessionals}><span className={styles.packageFieldLabel}>Profissionais deste pacote</span>{barbers.length ? <div className={styles.packageCheckGrid}>{barbers.map((barber) => <label key={barber.id}><input type="checkbox" checked={draft.professionalIds.includes(barber.id)} onChange={(event) => onChange(index, { professionalIds: event.target.checked ? [...draft.professionalIds, barber.id] : draft.professionalIds.filter((id) => id !== barber.id) })} /> {barber.display_name}</label>)}</div> : <p className={styles.muted}>Nenhum profissional ativo disponível.</p>}</div>
+          </div>
+          <div className={styles.packageBreakdown}><h4>Decomposição do preço</h4><dl><div><dt>Custo fixo</dt><dd>{formatCents(pricing.fixedCostTotal)}</dd></div><div><dt>Custos extras</dt><dd>{formatCents(pricing.extraCosts)}</dd></div><div><dt>Custo total da entrega</dt><dd>{formatCents(pricing.costTotal)}</dd></div><div><dt>Impostos estimados</dt><dd>{formatCents(pricing.taxAmount)}</dd></div><div><dt>Taxa cartão estimada</dt><dd>{formatCents(pricing.cardAmount)}</dd></div><div><dt>Lucro estimado</dt><dd className={pricing.profit >= 0 ? styles.packagePositive : styles.packageNegative}>{formatCents(pricing.profit)}</dd></div><div><dt>Sinal de reserva</dt><dd>{formatCents(safeCentsInput(draft.deposit))}</dd></div></dl><div className={styles.packageBalance}><span>Saldo após o sinal</span><strong>{formatCents(Math.max(0, pricing.practiced - safeCentsInput(draft.deposit)))}</strong></div></div>
+          <footer className={styles.packageCardActions}><button className={styles.button} type="button" disabled={Boolean(savingId) || !draft.name.trim()} onClick={() => void onSave(draft)}><Save size={15} /> {isSaving ? "Salvando…" : "Salvar pacote"}</button></footer>
+        </article>;
+      })}
+    </div>}
+  </div>;
 }
 
-function ProjectKanban({ engagements, customerById }: { engagements: Props["engagements"]; customerById: Map<string, Props["customers"][number]> }) {
-  const lanes = [["PROPOSAL", "Aguardando aceite"], ["ACTIVE", "Em execução"], ["COMPLETED", "Concluídas"], ["CANCELED", "Canceladas"]] as const;
-  return <div className={styles.kanban}>{lanes.map(([status, label]) => <section className={styles.kanbanLane} key={status}><header><strong>{label}</strong><span>{engagements.filter((item) => item.status === status).length}</span></header>{engagements.filter((item) => item.status === status).map((item) => <article className={styles.kanbanCard} key={item.id}><small>Contratação</small><strong>{customerById.get(item.customer_id)?.full_name ?? "Cliente"}</strong><span>{formatCents(item.contracted_cents)}</span><small>{status === "PROPOSAL" ? "Aguardando ciência do cliente" : "Próxima etapa no fluxo"}</small></article>)}{engagements.every((item) => item.status !== status) && <p className={styles.kanbanEmpty}>Nenhuma contratação</p>}</section>)}</div>;
+function projectContractIsActive(engagement: Props["engagements"][number]) {
+  return engagement.status !== "CANCELED" && Boolean(engagement.accepted_at);
+}
+
+function installmentReceivedCents(installment: Props["installments"][number]) {
+  if (installment.status !== "PAID" && (installment.settled_cents ?? 0) <= 0) return 0;
+  return (installment.settled_cents ?? 0) > 0 ? installment.settled_cents ?? 0 : installment.amount_cents;
+}
+
+function projectContractCostsCents(engagement: Props["engagements"][number], packageById: Map<string, Props["packages"][number]>) {
+  const packageRecord = packageById.get(engagement.package_id);
+  if (!packageRecord) return 0;
+  const taxCents = Math.round(engagement.contracted_cents * packageRecord.tax_rate_bps / 10000);
+  const cardCents = Math.round(engagement.contracted_cents * packageRecord.card_rate_bps / 10000);
+  return packageRecord.extra_costs_cents + taxCents + cardCents;
+}
+
+function ProjectOverview({ goalContracts, projectCostItems, projectPackages, kanbanBoards, engagements, customerById, packageById, installments }: { goalContracts: number | null; projectCostItems: ProjectCostItemRecord[]; projectPackages: Props["packages"]; kanbanBoards: ProjectKanbanBoardRecord[]; engagements: Props["engagements"]; customerById: Map<string, Props["customers"][number]>; packageById: Map<string, Props["packages"][number]>; installments: Props["installments"] }) {
+  const activeContracts = engagements.filter(projectContractIsActive);
+  const soldCents = engagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
+  const receivedCents = installments.filter((item) => engagements.some((engagement) => engagement.id === item.engagement_id && engagement.status !== "CANCELED")).reduce((sum, item) => sum + installmentReceivedCents(item), 0);
+  const projectedCents = goalContracts && projectPackages[0] ? goalContracts * projectPackages[0].price_cents : 0;
+  const investmentCents = projectCostItems.filter((item) => item.active).reduce((sum, item) => sum + item.amount_cents, 0);
+  const activeContractCostsCents = activeContracts.reduce((sum, item) => sum + projectContractCostsCents(item, packageById), 0);
+  const netProfitCents = receivedCents - investmentCents - activeContractCostsCents;
+  const remainingContracts = goalContracts === null ? null : Math.max(0, goalContracts - activeContracts.length);
+  const recentContracts = engagements
+    .filter((item) => item.status !== "PROPOSAL" && Boolean(item.accepted_at))
+    .sort((a, b) => new Date(b.accepted_at ?? b.created_at).getTime() - new Date(a.accepted_at ?? a.created_at).getTime())
+    .slice(0, 10);
+
+  return <div className={styles.stack}><div className={styles.projectStats}><article><span>Meta de contratos</span><strong>{activeContracts.length} / {goalContracts ?? "—"}</strong><small>{remainingContracts === null ? "Defina uma meta na criação do projeto" : remainingContracts > 0 ? `Faltam ${remainingContracts} ${remainingContracts === 1 ? "contrato" : "contratos"} para a meta` : "Meta de contratos atingida"}</small></article><article><span>Faturamento realizado</span><strong>{formatCents(soldCents)}</strong><div className={styles.projectStatDetails}><small>Projetado: {formatCents(projectedCents)}</small><small>Total recebido: {formatCents(receivedCents)}</small></div></article><article><span>Lucro líquido atual</span><strong>{formatCents(netProfitCents)}</strong><small>Recebido − investimentos − extras, impostos e taxas</small></article></div><div className={styles.projectColumns}><PackageClientSummary packages={projectPackages} engagements={engagements} /><KanbanFunnel boards={kanbanBoards} engagements={engagements} /></div><Panel title="Últimas movimentações" description="As 10 últimas contratações assinadas neste projeto.">{recentContracts.length ? <div className={styles.movementTableWrap}><table className={styles.movementTable}><thead><tr><th>Nome do cliente</th><th>Pacote contratado</th><th>Valor da entrada</th><th>Saldo do contrato</th><th>Data da assinatura do contrato</th></tr></thead><tbody>{recentContracts.map((item) => { const financials = engagementFinancials(item, installments); return <tr key={item.id}><td>{customerById.get(item.customer_id)?.full_name ?? "Cliente não informado"}</td><td>{packageById.get(item.package_id)?.name ?? "Pacote não informado"}</td><td>{formatCents(financials.entryCents)}</td><td>{formatCents(financials.balanceCents)}</td><td>{dateLabel((item.accepted_at ?? item.created_at).slice(0, 10))}</td></tr>; })}</tbody></table></div> : <EmptyState title="Nenhuma contratação assinada">Crie uma proposta e aguarde o aceite para iniciar a jornada.</EmptyState>}</Panel></div>;
+}
+
+function PackageClientSummary({ packages, engagements }: { packages: Props["packages"]; engagements: Props["engagements"] }) {
+  const rows = packages.map((item) => ({
+    ...item,
+    clientCount: engagements.filter((engagement) => engagement.package_id === item.id && engagement.status !== "CANCELED").length,
+  }));
+  const maxCount = Math.max(1, ...rows.map((row) => row.clientCount));
+
+  return <Panel title="Clientes por pacote" description="Pacotes publicados e total de clientes vinculados.">{rows.length ? <div className={styles.packageClientTableWrap}><table className={styles.packageClientTable} aria-label="Clientes por pacote"><thead><tr><th scope="col">#</th><th scope="col">Pacote publicado</th><th scope="col">Clientes</th></tr></thead><tbody>{rows.map((row, index) => { const width = row.clientCount > 0 ? Math.max(12, Math.round((row.clientCount / maxCount) * 100)) : 0; return <tr key={row.id}><td><span className={styles.packageClientIndex}>{index + 1}</span></td><th scope="row"><strong>{row.name}</strong><small>{row.sessions_count} sessões · {row.description || "Sem descrição"}</small><span className={styles.packageClientTrack}><span style={{ width: `${width}%` }} /></span></th><td><strong>{row.clientCount}</strong> {row.clientCount === 1 ? "cliente" : "clientes"}</td></tr>; })}</tbody></table></div> : <EmptyState title="Sem pacotes publicados">Adicione um pacote publicado para acompanhar seus clientes.</EmptyState>}</Panel>;
+}
+
+function KanbanFunnel({ boards, engagements }: { boards: ProjectKanbanBoardRecord[]; engagements: Props["engagements"] }) {
+  const orderedBoards = [...boards].sort((a, b) => a.position - b.position);
+  const counts = orderedBoards.map((board) => engagements.filter((item) => item.kanban_board_id === board.id || (!item.kanban_board_id && item.status === board.system_key)).length);
+  const maxCount = Math.max(1, ...counts);
+  return <Panel title="Funil Kanban" description={`${orderedBoards.length} ${orderedBoards.length === 1 ? "quadro" : "quadros"} no projeto; acompanhe os eventos por etapa.`}>{orderedBoards.length ? <div className={styles.kanbanFunnel} aria-label={`${orderedBoards.length} quadros no funil Kanban`}>{orderedBoards.map((board, index) => { const count = counts[index]; const width = count > 0 ? Math.max(24, Math.round((count / maxCount) * 100)) : 0; return <div className={styles.kanbanFunnelStage} key={board.id}><div className={styles.kanbanFunnelLabel}><span>{index + 1}</span><strong>{board.name}</strong><b>{count} {count === 1 ? "evento" : "eventos"}</b></div><div className={styles.kanbanFunnelTrack}><span style={{ width: `${width}%` }} /></div></div>; })}</div> : <EmptyState title="Nenhum quadro no Kanban">Adicione quadros na sub-tela Kanban para montar o funil.</EmptyState>}</Panel>;
+}
+
+function engagementFinancials(engagement: Props["engagements"][number], installments: Props["installments"]) {
+  const schedule = installments.filter((item) => item.engagement_id === engagement.id).sort((a, b) => a.installment_number - b.installment_number || a.due_on.localeCompare(b.due_on));
+  const entryCents = schedule.find((item) => item.installment_number === 0)?.amount_cents ?? 0;
+  const payableRows = schedule.filter((item) => item.installment_number > 0);
+  const balanceCents = Math.max(0, engagement.contracted_cents - entryCents);
+  const totalInstallments = payableRows.length || 1;
+  const paidInstallments = payableRows.length ? payableRows.filter((item) => item.status === "PAID").length : engagement.status === "COMPLETED" ? 1 : 0;
+  const nextDueInstallment = payableRows.find((item) => item.status === "OPEN");
+  const nextDueOn = nextDueInstallment?.due_on ?? null;
+  const installmentAmountCents = payableRows[0]?.amount_cents ?? balanceCents;
+  return { entryCents, balanceCents, totalInstallments, paidInstallments, installmentAmountCents, nextDueOn, overdue: schedule.some(installmentIsOverdue) };
+}
+
+function installmentIsOverdue(installment: Props["installments"][number] | undefined) {
+  if (!installment || installment.status !== "OPEN" || (installment.remaining_cents ?? installment.amount_cents) <= 0) return false;
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return installment.due_on < todayKey;
+}
+
+function EngagementsTable({ engagements, customerById, packageById, installments, kanbanBoards, onEdit }: { engagements: Props["engagements"]; customerById: Map<string, Props["customers"][number]>; packageById: Map<string, Props["packages"][number]>; installments: Props["installments"]; kanbanBoards: ProjectKanbanBoardRecord[]; onEdit: (engagement: Props["engagements"][number]) => void }) {
+  return <Panel title="Contratações" description="Uma contratação por cliente. Propostas continuam fora do fluxo ativo até o aceite.">{engagements.length ? <div className={styles.engagementTableWrap}><table className={styles.engagementTable}><thead><tr><th>Cliente</th><th>Pacote contratado</th><th>Valor da entrada</th><th>Total parcelas</th><th>Valor da parcela</th><th>Próx. vencimento</th><th>Saldo do contrato</th><th>Data da assinatura</th><th>Kanban</th><th>Ações</th></tr></thead><tbody>{engagements.map((item) => { const financials = engagementFinancials(item, installments); const currentBoard = kanbanBoards.find((board) => board.id === item.kanban_board_id); const customerName = customerById.get(item.customer_id)?.full_name ?? "cliente"; return <tr className={financials.overdue ? styles.engagementOverdue : undefined} key={item.id}><td>{customerById.get(item.customer_id)?.full_name ?? "Cliente não informado"}</td><td>{packageById.get(item.package_id)?.name ?? "Pacote não informado"}</td><td>{formatCents(financials.entryCents)}</td><td>{financials.paidInstallments}/{financials.totalInstallments}</td><td>{formatCents(financials.installmentAmountCents)}</td><td>{financials.nextDueOn ? dateLabel(financials.nextDueOn) : "—"}</td><td>{formatCents(financials.balanceCents)}</td><td>{item.accepted_at ? dateLabel(item.accepted_at.slice(0, 10)) : "Não assinada"}</td><td><span className={`${styles.statusSelect} ${currentBoard ? styles.statusSelectKanban : ""}`} aria-label={`Kanban atual da contratação de ${customerName}`}>{currentBoard?.name ?? "Sem quadro"}</span></td><td><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(item)} aria-label={`Editar contratação de ${customerName}`}><Pencil size={14} /> Editar</button></td></tr>; })}</tbody></table></div> : <EmptyState title="Sem contratações">Use “Novo contrato” para criar a primeira contratação.</EmptyState>}</Panel>;
+}
+
+export function kanbanDeadlineTone(dueOn: string | null | undefined) {
+  if (!dueOn) return "";
+  const today = new Date();
+  const todayKey = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const [year, month, day] = dueOn.split("-").map(Number);
+  const dueKey = Date.UTC(year, month - 1, day);
+  const daysUntil = Math.round((dueKey - todayKey) / 86400000);
+  if (daysUntil < 0) return "overdue";
+  if (daysUntil >= 7) return "green";
+  if (daysUntil >= 3) return "yellow";
+  if (daysUntil >= 1) return "orange";
+  return "";
+}
+
+function kanbanReceivedLabel(value: string | null | undefined) {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value ?? new Date().toISOString()));
+}
+
+function KanbanEventCard({ engagement, customerName, contextLabel, lastComment, dragging, onOpenEvent, onDueDateChange, onDragStart, onDragEnd }: { engagement: Props["engagements"][number]; customerName: string; contextLabel?: string; lastComment?: ProjectEngagementCommentPreview; dragging: boolean; onOpenEvent: () => void; onDueDateChange: (dueOn: string) => Promise<boolean> | void; onDragStart: (event: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void }) {
+  const tone = kanbanDeadlineTone(engagement.event_due_on);
+  return <article className={`${styles.kanbanCard} ${tone ? styles[`kanbanCardDeadline${tone[0].toUpperCase()}${tone.slice(1)}` as keyof typeof styles] : ""}`} draggable onDoubleClick={onOpenEvent} onDragStart={onDragStart} onDragEnd={onDragEnd} title="Duplo clique para abrir o evento" data-dragging={dragging ? "true" : undefined}>
+    <div className={styles.kanbanCardMeta}><div><small>Recebido</small><strong>{kanbanReceivedLabel(engagement.kanban_received_at ?? engagement.created_at)}</strong><em>{engagement.kanban_received_by_name ?? "Usuário"}</em></div><label><span>Prazo</span><input aria-label={`Data prazo de ${customerName}`} type="date" value={engagement.event_due_on ?? ""} onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => void onDueDateChange(event.target.value)} /></label></div>
+    {contextLabel && <small className={styles.kanbanCardContext}>{contextLabel}</small>}
+    <strong>{customerName}</strong>
+    {engagement.event_description && <p className={styles.kanbanCardDescription}>{engagement.event_description}</p>}
+    {lastComment && <p className={styles.kanbanCardComment}><span>Último comentário</span>{lastComment.body}</p>}
+  </article>;
+}
+
+function GeneralProjectKanban({ organizationId, sectors: initialSectors, boards, projects, engagements, engagementsWithDueDateOverrides, barbers, customerById, lastComments, onOpenEvent, onDueDateChange }: { organizationId: string; sectors: ProjectKanbanSectorRecord[]; boards: ProjectKanbanBoardRecord[]; projects: Props["projects"]; engagements: Props["engagements"]; engagementsWithDueDateOverrides: EventDueDateOverrides; barbers: Props["barbers"]; customerById: Map<string, Props["customers"][number]>; lastComments: Record<string, ProjectEngagementCommentPreview>; onOpenEvent: (engagement: Props["engagements"][number]) => void; onDueDateChange: (engagement: Props["engagements"][number], dueOn: string) => Promise<boolean> }) {
+  const router = useRouter();
+  const [sectors, setSectors] = useState<ProjectKanbanSectorRecord[]>(() => [...initialSectors].sort((a, b) => a.position - b.position));
+  const [generalEngagements, setGeneralEngagements] = useState(() => engagements);
+  const [editing, setEditing] = useState(false);
+  const [responsibleFilter, setResponsibleFilter] = useState("ALL");
+  const [projectFilter, setProjectFilter] = useState("ALL");
+  const [savingSectorId, setSavingSectorId] = useState<string | null>(null);
+  const [draggingEngagementId, setDraggingEngagementId] = useState<string | null>(null);
+  const [dragOverSectorId, setDragOverSectorId] = useState<string | null>(null);
+  const [newSectorOpen, setNewSectorOpen] = useState(false);
+  const [newSectorName, setNewSectorName] = useState("");
+  const [newSectorResponsibleId, setNewSectorResponsibleId] = useState(barbers[0]?.id ?? "");
+  const [message, setMessage] = useState("");
+  const [pendingMove, setPendingMove] = useState<{ engagementId: string; destinationSectorId: string; destinationBoardId: string; boards: ProjectKanbanBoardRecord[] } | null>(null);
+  const projectById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
+  const publishedProjectIds = useMemo(() => new Set(projects.filter((project) => project.status === "PUBLISHED").map((project) => project.id)), [projects]);
+  const publishedProjects = useMemo(() => projects.filter((project) => publishedProjectIds.has(project.id)), [projects, publishedProjectIds]);
+  const boardById = useMemo(() => new Map(boards.filter((board) => board.active && publishedProjectIds.has(board.project_id)).map((board) => [board.id, board])), [boards, publishedProjectIds]);
+  const visibleEngagements = generalEngagements.filter((engagement) => {
+    const board = boardById.get(engagement.kanban_board_id);
+    const sector = sectors.find((item) => item.id === board?.sector_id);
+    return publishedProjectIds.has(engagement.project_id) && Boolean(board?.sector_id) && (projectFilter === "ALL" || engagement.project_id === projectFilter) && (responsibleFilter === "ALL" || sector?.responsible_barber_id === responsibleFilter);
+  });
+
+  function cardsForSector(sector: ProjectKanbanSectorRecord) {
+    return visibleEngagements.filter((engagement) => sectors.find((item) => item.id === boardById.get(engagement.kanban_board_id)?.sector_id)?.id === sector.id).map((engagement) => eventWithDueDateOverride(engagement, engagementsWithDueDateOverrides));
+  }
+
+  async function saveSector(sector: ProjectKanbanSectorRecord) {
+    if (savingSectorId || !sector.name.trim() || !sector.responsible_barber_id) return;
+    setSavingSectorId(sector.id);
+    let updated: ProjectKanbanSectorRecord | null = null;
+    const saved = await runMutation(setMessage, async () => {
+      const result = await connectedClient().rpc("upsert_project_kanban_sector", { p_organization_id: organizationId, p_id: sector.id, p_name: sector.name, p_position: sector.position, p_responsible_barber_id: sector.responsible_barber_id });
+      await assertResult(result);
+      const row = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (row && typeof row === "object") updated = row as ProjectKanbanSectorRecord;
+    }, "Setor atualizado.");
+    setSavingSectorId(null);
+    if (saved) {
+      if (updated) setSectors((current) => current.map((item) => item.id === updated?.id ? updated as ProjectKanbanSectorRecord : item));
+      router.refresh();
+    }
+  }
+
+  async function createSector() {
+    if (savingSectorId || !newSectorName.trim() || !newSectorResponsibleId) return;
+    setSavingSectorId("new");
+    let created: ProjectKanbanSectorRecord | null = null;
+    const saved = await runMutation(setMessage, async () => {
+      const result = await connectedClient().rpc("upsert_project_kanban_sector", { p_organization_id: organizationId, p_id: null, p_name: newSectorName, p_position: sectors.length + 1, p_responsible_barber_id: newSectorResponsibleId });
+      await assertResult(result);
+      const row = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (row && typeof row === "object") created = row as ProjectKanbanSectorRecord;
+    }, "Setor adicionado.");
+    setSavingSectorId(null);
+    if (saved && created) {
+      setSectors((current) => [...current, created as ProjectKanbanSectorRecord]);
+      setNewSectorName("");
+      setNewSectorResponsibleId(barbers[0]?.id ?? "");
+      setNewSectorOpen(false);
+      router.refresh();
+    }
+  }
+
+  function requestMove(engagementId: string, destinationSectorId: string) {
+    const engagement = generalEngagements.find((item) => item.id === engagementId);
+    if (!engagement || savingSectorId) return;
+    if (boardById.get(engagement.kanban_board_id)?.sector_id === destinationSectorId) return;
+    const destinationBoards = boards.filter((board) => board.project_id === engagement.project_id && board.sector_id === destinationSectorId && board.active).sort((a, b) => a.position - b.position);
+    if (!destinationBoards.length) {
+      setMessage("Este setor não possui quadro deste projeto para receber o evento.");
+      return;
+    }
+    setPendingMove({ engagementId, destinationSectorId, destinationBoardId: "", boards: destinationBoards });
+  }
+
+  async function moveEngagement(engagementId: string, destinationBoardId: string) {
+    const engagement = generalEngagements.find((item) => item.id === engagementId);
+    if (!engagement || savingSectorId) return false;
+    const previousBoardId = engagement.kanban_board_id;
+    const destinationBoard = boards.find((board) => board.id === destinationBoardId && board.project_id === engagement.project_id && board.active);
+    if (!destinationBoard || previousBoardId === destinationBoard.id) return false;
+    const previousReceivedAt = engagement.kanban_received_at;
+    const previousReceivedByName = engagement.kanban_received_by_name;
+    const previousDueOn = engagement.event_due_on;
+    setGeneralEngagements((current) => current.map((item) => item.id === engagementId ? { ...item, kanban_board_id: destinationBoard.id, kanban_received_at: new Date().toISOString(), kanban_received_by_name: "Você", event_due_on: null } : item));
+    setSavingSectorId(engagementId);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("move_project_engagement_to_kanban_board", { p_organization_id: organizationId, p_project_id: engagement.project_id, p_engagement_id: engagement.id, p_destination_board_id: destinationBoard.id }));
+    }, "Evento movido para o setor destino.");
+    setSavingSectorId(null);
+    if (!saved) setGeneralEngagements((current) => current.map((item) => item.id === engagementId ? { ...item, kanban_board_id: previousBoardId, kanban_received_at: previousReceivedAt, kanban_received_by_name: previousReceivedByName, event_due_on: previousDueOn } : item));
+    else router.refresh();
+    return saved;
+  }
+
+  async function confirmMove() {
+    if (!pendingMove?.destinationBoardId || savingSectorId) return;
+    const request = pendingMove;
+    const saved = await moveEngagement(request.engagementId, request.destinationBoardId);
+    if (saved) setPendingMove(null);
+  }
+
+  return <section className={styles.generalKanbanPanel} aria-label="Kanban Geral dos projetos"><header className={styles.kanbanToolbar}><div><h2>Kanban Geral</h2><p>Visualize os eventos de todos os projetos por setor.</p></div><div className={styles.toolbarGroup}>{editing && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setNewSectorOpen(true)} disabled={Boolean(savingSectorId) || !barbers.length}><Plus size={15} /> Adicionar setor</button>}<button className={`${styles.button} ${editing ? styles.buttonSoft : ""}`} type="button" onClick={() => setEditing((current) => !current)} disabled={Boolean(savingSectorId)}><Pencil size={15} /> {editing ? "Concluir edição" : "Editar Kanban"}</button></div></header><div className={styles.generalKanbanFilters}><label><span>Responsável</span><select aria-label="Filtrar Kanban Geral por responsável" value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)}><option value="ALL">Todos</option>{barbers.filter((barber) => sectors.some((sector) => sector.responsible_barber_id === barber.id)).map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label><label><span>Projeto</span><select aria-label="Filtrar Kanban Geral por projeto" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="ALL">Todos</option>{publishedProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label></div><ActionMessage message={message} />{sectors.length === 0 ? <EmptyState title="Nenhum setor configurado">Edite o Kanban Geral para adicionar o primeiro setor.</EmptyState> : <div className={styles.kanban}>{sectors.map((sector) => { const cards = cardsForSector(sector); return <section className={`${styles.kanbanLane} ${dragOverSectorId === sector.id ? styles.kanbanLaneDropTarget : ""}`} key={sector.id} onDragOver={(event) => { event.preventDefault(); setDragOverSectorId(sector.id); }} onDrop={(event) => { event.preventDefault(); const engagementId = event.dataTransfer.getData("text/plain") || draggingEngagementId; setDraggingEngagementId(null); setDragOverSectorId(null); if (engagementId) requestMove(engagementId, sector.id); }}><header><div className={styles.kanbanLaneTitle}>{editing ? <input aria-label={`Nome do setor ${sector.name}`} value={sector.name} onChange={(event) => setSectors((current) => current.map((item) => item.id === sector.id ? { ...item, name: event.target.value } : item))} /> : <strong>{sector.name}</strong>}{editing && <button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label={`Salvar setor ${sector.name}`} disabled={savingSectorId === sector.id || !sector.name.trim() || !sector.responsible_barber_id} onClick={() => void saveSector(sector)}><Save size={14} /></button>}</div><span>{cards.length}</span></header><label className={styles.kanbanResponsible}><span>Responsável</span><select aria-label={`Responsável do setor ${sector.name}`} value={sector.responsible_barber_id} disabled={!editing || Boolean(savingSectorId)} onChange={(event) => setSectors((current) => current.map((item) => item.id === sector.id ? { ...item, responsible_barber_id: event.target.value } : item))}><option value="">Selecione</option>{barbers.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></label>{cards.map((item) => <KanbanEventCard key={item.id} engagement={item} customerName={customerById.get(item.customer_id)?.full_name ?? "Cliente"} contextLabel={projectById.get(item.project_id)?.name ?? "Projeto"} lastComment={lastComments[item.id]} dragging={draggingEngagementId === item.id} onOpenEvent={() => onOpenEvent(item)} onDueDateChange={(dueOn) => void onDueDateChange(item, dueOn)} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", item.id); setDraggingEngagementId(item.id); }} onDragEnd={() => { setDraggingEngagementId(null); setDragOverSectorId(null); }} />)}{cards.length === 0 && <p className={styles.kanbanEmpty}>Nenhum evento</p>}</section>; })}</div>}{pendingMove && <Modal title="Selecionar quadro destino" onClose={() => setPendingMove(null)}><div className={styles.form}><p className={styles.muted}>Escolha o quadro do projeto para o qual este evento será movido.</p><Field label="Quadro do projeto" wide><select aria-label="Quadro destino do evento" value={pendingMove.destinationBoardId} disabled={Boolean(savingSectorId)} onChange={(event) => setPendingMove((current) => current ? { ...current, destinationBoardId: event.target.value } : current)}><option value="">Selecione um quadro</option>{pendingMove.boards.map((board) => <option value={board.id} key={board.id}>{board.name}</option>)}</select></Field></div><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setPendingMove(null)} disabled={Boolean(savingSectorId)}>Cancelar</button><button className={styles.button} type="button" onClick={() => void confirmMove()} disabled={Boolean(savingSectorId) || !pendingMove.destinationBoardId}>Mover evento</button></footer></Modal>}{newSectorOpen && <Modal title="Adicionar setor ao Kanban Geral" onClose={() => setNewSectorOpen(false)}><div className={styles.form}><Field label="Nome do setor" wide><input aria-label="Nome do setor" value={newSectorName} onChange={(event) => setNewSectorName(event.target.value)} placeholder="Ex.: Comercial" autoFocus /></Field><Field label="Responsável" wide><select aria-label="Responsável do novo setor" value={newSectorResponsibleId} onChange={(event) => setNewSectorResponsibleId(event.target.value)}><option value="">Selecione um profissional</option>{barbers.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></Field></div><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setNewSectorOpen(false)}>Cancelar</button><button className={styles.button} type="button" disabled={Boolean(savingSectorId) || !newSectorName.trim() || !newSectorResponsibleId} onClick={() => void createSector()}><Plus size={15} /> Adicionar</button></footer></Modal>}</section>;
+}
+
+function ProjectKanban({ organizationId, projectId, boards: initialBoards, sectors, barbers, engagements, engagementsWithDueDateOverrides, customerById, lastComments, onOpenEvent, onDueDateChange }: { organizationId: string; projectId: string; boards: ProjectKanbanBoardRecord[]; sectors: ProjectKanbanSectorRecord[]; barbers: Props["barbers"]; engagements: Props["engagements"]; engagementsWithDueDateOverrides: EventDueDateOverrides; customerById: Map<string, Props["customers"][number]>; lastComments: Record<string, ProjectEngagementCommentPreview>; onOpenEvent: (engagement: Props["engagements"][number]) => void; onDueDateChange: (engagement: Props["engagements"][number], dueOn: string) => Promise<boolean> }) {
+  const router = useRouter();
+  const [boards, setBoards] = useState<KanbanBoardDraft[]>(() => [...initialBoards].sort((a, b) => a.position - b.position));
+  const [kanbanEngagements, setKanbanEngagements] = useState(() => engagements);
+  const [editing, setEditing] = useState(false);
+  const [savingBoardId, setSavingBoardId] = useState<string | null>(null);
+  const [savingEngagementId, setSavingEngagementId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [newBoardOpen, setNewBoardOpen] = useState(false);
+  const [newBoardName, setNewBoardName] = useState("");
+  const [newBoardResponsibleId, setNewBoardResponsibleId] = useState(barbers[0]?.id ?? "");
+  const [newBoardSectorId, setNewBoardSectorId] = useState(sectors[0]?.id ?? "");
+  const [pendingDelete, setPendingDelete] = useState<{ board: KanbanBoardDraft; cardsCount: number; destinationId: string } | null>(null);
+  const [draggingEngagementId, setDraggingEngagementId] = useState<string | null>(null);
+  const [dragOverBoardId, setDragOverBoardId] = useState<string | null>(null);
+  const orderedBoards = [...boards].sort((a, b) => a.position - b.position);
+  const cardsForBoard = (board: KanbanBoardDraft) => kanbanEngagements.filter((item) => item.kanban_board_id === board.id || (!item.kanban_board_id && item.status === board.system_key)).map((engagement) => eventWithDueDateOverride(engagement, engagementsWithDueDateOverrides));
+
+  function requestDelete(board: KanbanBoardDraft) {
+    const cardsCount = cardsForBoard(board).length;
+    setPendingDelete({ board, cardsCount, destinationId: orderedBoards.find((candidate) => candidate.id !== board.id)?.id ?? "" });
+  }
+
+  async function saveBoard(board: KanbanBoardDraft) {
+    if (savingBoardId || savingEngagementId || !board.name.trim() || !board.responsible_barber_id) return;
+    setSavingBoardId(board.id);
+    let updated: ProjectKanbanBoardRecord | null = null;
+    const saved = await runMutation(setMessage, async () => {
+      const rpcName = sectors.length ? "upsert_project_kanban_board_with_sector" : "upsert_project_kanban_board";
+      const result = await connectedClient().rpc(rpcName, { p_organization_id: organizationId, p_project_id: projectId, p_id: board.id, p_name: board.name, p_position: board.position, p_responsible_barber_id: board.responsible_barber_id, ...(sectors.length ? { p_sector_id: board.sector_id || null } : {}) });
+      await assertResult(result);
+      const row = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (row && typeof row === "object") updated = row as ProjectKanbanBoardRecord;
+    }, "Quadro atualizado.");
+    setSavingBoardId(null);
+    if (saved) {
+      if (updated) setBoards((current) => current.map((item) => item.id === updated?.id ? updated as ProjectKanbanBoardRecord : item));
+      router.refresh();
+    }
+  }
+
+  async function createBoard() {
+    if (savingBoardId || savingEngagementId || !newBoardName.trim() || !newBoardResponsibleId) return;
+    setSavingBoardId("new");
+    let created: ProjectKanbanBoardRecord | null = null;
+    const saved = await runMutation(setMessage, async () => {
+      const rpcName = sectors.length ? "upsert_project_kanban_board_with_sector" : "upsert_project_kanban_board";
+      const result = await connectedClient().rpc(rpcName, { p_organization_id: organizationId, p_project_id: projectId, p_id: null, p_name: newBoardName, p_position: orderedBoards.length + 1, p_responsible_barber_id: newBoardResponsibleId, ...(sectors.length ? { p_sector_id: newBoardSectorId || null } : {}) });
+      await assertResult(result);
+      const row = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (row && typeof row === "object") created = row as ProjectKanbanBoardRecord;
+    }, "Quadro adicionado.");
+    setSavingBoardId(null);
+    if (saved && created) {
+      setBoards((current) => [...current, created as ProjectKanbanBoardRecord]);
+      setNewBoardName("");
+      setNewBoardResponsibleId(barbers[0]?.id ?? "");
+      setNewBoardSectorId(sectors[0]?.id ?? "");
+      setNewBoardOpen(false);
+      router.refresh();
+    }
+  }
+
+  async function deleteBoard() {
+    if (!pendingDelete || savingBoardId || savingEngagementId || (pendingDelete.cardsCount > 0 && !pendingDelete.destinationId)) return;
+    setSavingBoardId(pendingDelete.board.id);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("delete_project_kanban_board", { p_organization_id: organizationId, p_project_id: projectId, p_id: pendingDelete.board.id, p_destination_id: pendingDelete.cardsCount > 0 ? pendingDelete.destinationId : null }));
+    }, pendingDelete.cardsCount > 0 ? "Quadro removido e cards movidos." : "Quadro removido.");
+    setSavingBoardId(null);
+    if (saved) {
+      setBoards((current) => current.filter((board) => board.id !== pendingDelete.board.id));
+      setPendingDelete(null);
+      router.refresh();
+    }
+  }
+
+  async function moveEngagement(engagementId: string, destinationBoardId: string) {
+    if (savingBoardId || savingEngagementId) return;
+    const engagement = kanbanEngagements.find((item) => item.id === engagementId);
+    if (!engagement || engagement.kanban_board_id === destinationBoardId) return;
+    const previousBoardId = engagement.kanban_board_id;
+    const previousReceivedAt = engagement.kanban_received_at;
+    const previousReceivedByName = engagement.kanban_received_by_name;
+    const previousDueOn = engagement.event_due_on;
+    setKanbanEngagements((current) => current.map((item) => item.id === engagementId ? { ...item, kanban_board_id: destinationBoardId, kanban_received_at: new Date().toISOString(), kanban_received_by_name: "Você", event_due_on: null } : item));
+    setSavingEngagementId(engagementId);
+    const saved = await runMutation(setMessage, async () => {
+      const result = await connectedClient().rpc("move_project_engagement_to_kanban_board", { p_organization_id: organizationId, p_project_id: projectId, p_engagement_id: engagementId, p_destination_board_id: destinationBoardId });
+      await assertResult(result);
+    }, "Evento movido para o quadro destino.");
+    setSavingEngagementId(null);
+    if (!saved) setKanbanEngagements((current) => current.map((item) => item.id === engagementId ? { ...item, kanban_board_id: previousBoardId, kanban_received_at: previousReceivedAt, kanban_received_by_name: previousReceivedByName, event_due_on: previousDueOn } : item));
+    else router.refresh();
+  }
+
+  function handleDragStart(event: React.DragEvent<HTMLElement>, engagementId: string) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", engagementId);
+    setDraggingEngagementId(engagementId);
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLElement>, destinationBoardId: string) {
+    event.preventDefault();
+    const engagementId = event.dataTransfer.getData("text/plain") || draggingEngagementId;
+    setDragOverBoardId(null);
+    setDraggingEngagementId(null);
+    if (engagementId) void moveEngagement(engagementId, destinationBoardId);
+  }
+
+  return <div className={styles.kanbanWorkspace}>
+    <header className={styles.kanbanToolbar}><div><h2>Quadro Kanban</h2><p>Arraste uma contratação para outro quadro para atualizar sua etapa operacional.</p></div><div className={styles.toolbarGroup}>{editing && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setNewBoardOpen(true)} disabled={Boolean(savingBoardId || savingEngagementId) || !barbers.length}><Plus size={15} /> Adicionar quadro</button>}<button className={`${styles.button} ${editing ? styles.buttonSoft : ""}`} type="button" onClick={() => setEditing((current) => !current)} disabled={Boolean(savingBoardId || savingEngagementId)}><Pencil size={15} /> {editing ? "Concluir edição" : "Editar Quadro"}</button></div></header>
+    <ActionMessage message={message} />
+    {orderedBoards.length === 0 ? <EmptyState title="Nenhum quadro configurado"><button className={styles.button} type="button" onClick={() => setNewBoardOpen(true)} disabled={!barbers.length}><Plus size={15} /> Adicionar quadro</button></EmptyState> : <div className={styles.kanban}>{orderedBoards.map((board) => { const cards = cardsForBoard(board); const laneClassName = `${styles.kanbanLane} ${dragOverBoardId === board.id ? styles.kanbanLaneDropTarget : ""}`; return <section className={laneClassName} key={board.id} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverBoardId(board.id); }} onDrop={(event) => handleDrop(event, board.id)}><header><div className={styles.kanbanLaneTitle}>{editing ? <input aria-label={`Título do quadro ${board.name}`} value={board.name} onChange={(event) => setBoards((current) => current.map((item) => item.id === board.id ? { ...item, name: event.target.value } : item))} /> : <strong>{board.name}</strong>}{editing && <button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label={`Salvar título ${board.name}`} title="Salvar título" disabled={savingBoardId === board.id || Boolean(savingEngagementId) || !board.name.trim() || !board.responsible_barber_id} onClick={() => void saveBoard(board)}><Save size={14} /></button>}</div><div className={styles.kanbanLaneActions}><span>{cards.length}</span>{editing && <button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label={`Remover quadro ${board.name}`} title="Remover quadro" disabled={orderedBoards.length <= 1 || Boolean(savingBoardId || savingEngagementId)} onClick={() => requestDelete(board)}><Trash2 size={14} /></button>}</div></header>{sectors.length > 0 && <label className={styles.kanbanResponsible}><span>Setor</span><select aria-label={`Setor do quadro ${board.name}`} value={board.sector_id ?? ""} disabled={!editing || Boolean(savingBoardId || savingEngagementId)} onChange={(event) => setBoards((current) => current.map((item) => item.id === board.id ? { ...item, sector_id: event.target.value } : item))}><option value="">Sem setor</option>{sectors.map((sector) => <option value={sector.id} key={sector.id}>{sector.name}</option>)}</select></label>}<label className={styles.kanbanResponsible}><span>Responsável</span><select aria-label={`Responsável do quadro ${board.name}`} value={board.responsible_barber_id} disabled={!editing || Boolean(savingBoardId || savingEngagementId)} onChange={(event) => setBoards((current) => current.map((item) => item.id === board.id ? { ...item, responsible_barber_id: event.target.value } : item))}><option value="">Selecione</option>{barbers.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></label>{cards.map((item) => <KanbanEventCard key={item.id} engagement={item} customerName={customerById.get(item.customer_id)?.full_name ?? "Cliente"} lastComment={lastComments[item.id]} dragging={draggingEngagementId === item.id} onOpenEvent={() => onOpenEvent(item)} onDueDateChange={(dueOn) => void onDueDateChange(item, dueOn)} onDragStart={(event) => handleDragStart(event, item.id)} onDragEnd={() => { setDraggingEngagementId(null); setDragOverBoardId(null); }} />)}{cards.length === 0 && <p className={styles.kanbanEmpty}>Nenhuma contratação</p>}</section>; })}</div>}
+    {newBoardOpen && <Modal title="Adicionar quadro" onClose={() => setNewBoardOpen(false)}><div className={styles.form}><Field label="Título do quadro" wide><input value={newBoardName} onChange={(event) => setNewBoardName(event.target.value)} placeholder="Ex.: Em revisão" autoFocus /></Field>{sectors.length > 0 && <Field label="Setor" wide><select aria-label="Setor do novo quadro" value={newBoardSectorId} onChange={(event) => setNewBoardSectorId(event.target.value)}><option value="">Sem setor</option>{sectors.map((sector) => <option value={sector.id} key={sector.id}>{sector.name}</option>)}</select></Field>}<Field label="Responsável" wide><select aria-label="Responsável do novo quadro" value={newBoardResponsibleId} onChange={(event) => setNewBoardResponsibleId(event.target.value)}><option value="">Selecione um profissional</option>{barbers.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></Field></div><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setNewBoardOpen(false)}>Cancelar</button><button className={styles.button} type="button" disabled={Boolean(savingBoardId) || !newBoardName.trim() || !newBoardResponsibleId} onClick={() => void createBoard()}><Plus size={15} /> Adicionar</button></footer></Modal>}
+    {pendingDelete && <Modal title="Remover quadro" onClose={() => setPendingDelete(null)}><p className={styles.muted}>{pendingDelete.cardsCount > 0 ? `Este quadro possui ${pendingDelete.cardsCount} card${pendingDelete.cardsCount === 1 ? "" : "s"}. Selecione o destino antes de remover.` : "Este quadro está vazio e poderá ser removido."}</p>{pendingDelete.cardsCount > 0 && <div className={styles.form}><Field label="Mover cards para" wide><select aria-label="Quadro destino" value={pendingDelete.destinationId} onChange={(event) => setPendingDelete((current) => current ? { ...current, destinationId: event.target.value } : current)}><option value="">Selecione um quadro</option>{orderedBoards.filter((board) => board.id !== pendingDelete.board.id).map((board) => <option value={board.id} key={board.id}>{board.name}</option>)}</select></Field></div>}<footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setPendingDelete(null)}>Cancelar</button><button className={styles.button} type="button" disabled={Boolean(savingBoardId) || (pendingDelete.cardsCount > 0 && !pendingDelete.destinationId)} onClick={() => void deleteBoard()}><Trash2 size={15} /> Remover quadro</button></footer></Modal>}
+    <p className={styles.kanbanNote}>Quadros sem setor definido não aparecem no kanban geral</p>
+  </div>;
 }
 
 function ProjectFinance({ contractedCents, acceptedCents, installments }: { contractedCents: number; acceptedCents: number; installments: Props["installments"] }) {
@@ -186,6 +1251,7 @@ function ProjectFinance({ contractedCents, acceptedCents, installments }: { cont
   return <div className={styles.projectColumns}><Panel title="Resultado do projeto" description="Valores do módulo separados das sessões avulsas."><div className={styles.financeRows}><div><span>Valor contratado</span><strong>{formatCents(contractedCents)}</strong></div><div><span>Aceito</span><strong>{formatCents(acceptedCents)}</strong></div><div><span>Parcelas abertas</span><strong>{formatCents(openCents)}</strong></div></div><p className={styles.muted}>Custos e comissões entram no financeiro quando as etapas forem aprovadas. “Resultado” não é lucro líquido contábil.</p></Panel><Panel title="Parcelas" description="A cobrança do projeto usa o cronograma da contratação.">{installments.length ? <div className={styles.list}>{installments.map((item) => <div className={styles.row} key={item.id}><span>{dateLabel(item.due_on)}</span><strong>{formatCents(item.amount_cents)}</strong><StatusChip active={item.status === "PAID"} label={item.status === "PAID" ? "Recebida" : item.status === "CANCELED" ? "Cancelada" : "Em aberto"} tone={item.status === "OPEN" ? "warning" : item.status === "CANCELED" ? "danger" : undefined} /></div>)}</div> : <EmptyState title="Nenhuma parcela criada">O cronograma será preenchido na proposta.</EmptyState>}</Panel></div>;
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className={styles.modalLayer} role="presentation"><button className={styles.modalBackdrop} type="button" aria-label={`Fechar ${title}`} onClick={onClose} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="projects-modal-title"><header className={styles.modalHeader}><div><small>Módulo Projetos</small><h2 id="projects-modal-title">{title}</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={onClose}><X size={18} /></button></header>{children}</section></div>;
+function Modal({ title, wide = false, onClose, children }: { title: string; wide?: boolean; onClose: () => void; children: React.ReactNode }) {
+  const titleId = useId();
+  return <div className={styles.modalLayer} role="presentation"><button className={styles.modalBackdrop} type="button" aria-label={`Fechar ${title}`} onClick={onClose} /><section className={`${styles.modal} ${wide ? styles.modalProjectWide : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId}><header className={styles.modalHeader}><div><small>Módulo Projetos</small><h2 id={titleId}>{title}</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={onClose}><X size={18} /></button></header>{children}</section></div>;
 }

@@ -65,6 +65,13 @@ export interface AgendaEnvironmentRecord {
   active: boolean;
 }
 
+export interface ProfessionalFunctionRecord {
+  id: string;
+  organization_id: string;
+  name: string;
+  created_at: string;
+}
+
 export interface AgendaEnvironmentAssignmentIssueRecord {
   id: string;
   organization_id: string;
@@ -100,6 +107,7 @@ export interface BarberRecord {
   display_name: string;
   bio: string | null;
   avatar_url: string | null;
+  professional_function_id?: string | null;
   auth_user_id?: string | null;
   is_manager?: boolean;
   commission_payment_frequency?: "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
@@ -126,6 +134,7 @@ export interface ServiceRecord {
   audiences: readonly import("@/lib/catalog-audiences").CatalogAudience[];
   accepts_subscription?: boolean;
   accepts_online_payment?: boolean;
+  availability?: "CLIENT" | "HIDDEN" | "INTERNAL";
 }
 
 export interface PackageRecord {
@@ -442,7 +451,7 @@ export interface FinancialEntryRecord {
   id: string;
   organization_id: string;
   kind: "REVENUE" | "EXPENSE";
-  source?: "MANUAL" | "APPOINTMENT" | "SUBSCRIPTION";
+  source?: "MANUAL" | "APPOINTMENT" | "SUBSCRIPTION" | "PROJECT";
   description: string;
   issue_date: string;
   due_date: string;

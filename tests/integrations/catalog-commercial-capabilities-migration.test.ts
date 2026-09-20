@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 const capabilitiesMigrationPath = resolve(process.cwd(), "supabase/migrations/20260828164510_catalog_future_commercial_capabilities.sql");
 const durationMigrationPath = resolve(process.cwd(), "supabase/migrations/20260828183915_package_duration_override.sql");
+const availabilityMigrationPath = resolve(process.cwd(), "supabase/migrations/20260916150000_service_availability.sql");
+const internalAudienceMigrationPath = resolve(process.cwd(), "supabase/migrations/20260916173859_allow_internal_services_without_audience.sql");
 
 describe("migration de elegibilidade comercial do catálogo", () => {
   it("mantém flags futuras nos dois catálogos e RPC tenant-safe", () => {
@@ -36,5 +38,23 @@ describe("migration de elegibilidade comercial do catálogo", () => {
     expect(sql).toContain("p_duration_minutes integer");
     expect(sql).toContain("v_duration := v_duration + coalesce(v_package.duration_minutes, v_package_derived_duration)");
     expect(sql).toContain("'duration_minutes', p.duration_minutes");
+  });
+
+  it("define disponibilidade cliente, oculto ou interno com proteção de pacote", () => {
+    expect(existsSync(availabilityMigrationPath)).toBe(true);
+    const sql = readFileSync(availabilityMigrationPath, "utf8");
+    expect(sql).toContain("availability text not null default 'CLIENT'");
+    expect(sql).toContain("availability in ('CLIENT', 'HIDDEN', 'INTERNAL')");
+    expect(sql).toContain("internal service cannot be included in package");
+    expect(sql).toContain("s.availability = 'CLIENT'");
+  });
+
+  it("permite serviço interno sem público", () => {
+    expect(existsSync(internalAudienceMigrationPath)).toBe(true);
+    const sql = readFileSync(internalAudienceMigrationPath, "utf8");
+    expect(sql).toContain("tg_table_name = 'services'");
+    expect(sql).toContain("availability");
+    expect(sql).toContain("return new;");
+    expect(sql).toContain("catalog item requires at least one audience");
   });
 });

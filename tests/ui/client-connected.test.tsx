@@ -827,6 +827,7 @@ describe("cliente conectado", () => {
     );
 
     expect(await screen.findByDisplayValue("ana@example.com")).toBeDisabled();
+    expect(screen.getByLabelText(/Data de nascimento/u)).toHaveValue("10/02/1990");
     fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Ana Atualizada" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar dados" }));
 
