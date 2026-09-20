@@ -434,7 +434,8 @@ select throws_ok(
       '50000000-0000-4000-8000-000000000001',
       (select v_start from test_context), null, null
     )$$,
-  '23P01', null, 'failed reschedule reports slot conflict'
+  '22023', 'barber unavailable or override reason missing',
+  'failed reschedule reports unavailable slot'
 );
 select is(
   (select service_period from public.appointments where id = '70000000-0000-4000-8000-000000000002'),
