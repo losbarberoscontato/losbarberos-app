@@ -191,8 +191,13 @@ describe("kanban board editing", () => {
     fireEvent.change(screen.getByLabelText("Título do pacote 1"), { target: { value: "Pacote teste" } });
     fireEvent.change(screen.getByLabelText("Preço praticado"), { target: { value: "50,00" } });
     fireEvent.click(screen.getByRole("button", { name: "Adicionar serviço" }));
-    fireEvent.change(screen.getByLabelText("Serviço do pacote 1"), { target: { value: "service-1" } });
-    fireEvent.change(screen.getByLabelText("Profissional do serviço 1"), { target: { value: "barber-1" } });
+    const serviceSelect = screen.getByLabelText("Serviço do pacote 1");
+    const barberSelect = screen.getByLabelText("Profissional do serviço 1");
+    expect(barberSelect).toBeDisabled();
+    expect(screen.getByText("Escolha um serviço para listar os profissionais habilitados.")).toBeInTheDocument();
+    fireEvent.change(serviceSelect, { target: { value: "service-1" } });
+    expect(barberSelect).toBeEnabled();
+    fireEvent.change(barberSelect, { target: { value: "barber-1" } });
     expect(screen.getByRole("option", { name: "Alef Gonçalves" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Alice Gonçalves" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Comissão do serviço 1"), { target: { value: "10,00" } });
