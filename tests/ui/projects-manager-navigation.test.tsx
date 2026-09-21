@@ -259,7 +259,7 @@ describe("projects navigation", () => {
     expect(title).toHaveValue("Experiência");
   });
 
-  it("uses the project allocation as a read-only fixed cost and lists package services", () => {
+  it("uses project allocation as fixed cost and adds services with project commissions", () => {
     const packageData = {
       ...data,
       costItems: [{ id: "cost-1", organization_id: "org-1", project_id: "project-1", kind: "INVESTMENT" as const, name: "Cenário", description: null, amount_cents: 2000, active: true, sort_order: 1, created_at: "2026-09-15T00:00:00.000Z" }],
@@ -267,6 +267,11 @@ describe("projects navigation", () => {
         { id: "service-1", name: "Corte", price_cents: 3500, active: true, availability: "CLIENT" as const },
         { id: "service-2", name: "Consultoria interna", price_cents: 2000, active: true, availability: "HIDDEN" as const },
         { id: "service-3", name: "Treinamento técnico", price_cents: 1500, active: true, availability: "INTERNAL" as const },
+      ],
+      barberServices: [
+        { service_id: "service-1", barber_id: "barber-1" },
+        { service_id: "service-2", barber_id: "barber-1" },
+        { service_id: "service-3", barber_id: "barber-1" },
       ],
     };
     render(<ProjectsManager {...packageData} projectId="project-1" />);
@@ -278,12 +283,18 @@ describe("projects navigation", () => {
     expect(screen.getByText("Custo fixo").parentElement).toHaveTextContent("R$ 6,00");
     expect(screen.getByText("Preço de Venda")).toBeInTheDocument();
     expect(screen.getByLabelText("Precificação Sugerida")).toHaveValue("R$\u00a012,00");
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar serviço" }));
+    const serviceSelect = screen.getByLabelText("Serviço do pacote 1");
+    expect(within(serviceSelect).getByRole("option", { name: "Corte" })).toBeInTheDocument();
+    expect(within(serviceSelect).getByRole("option", { name: "Consultoria interna" })).toBeInTheDocument();
+    expect(within(serviceSelect).getByRole("option", { name: "Treinamento técnico" })).toBeInTheDocument();
+    fireEvent.change(serviceSelect, { target: { value: "service-1" } });
+    fireEvent.change(screen.getByLabelText("Profissional do serviço 1"), { target: { value: "barber-1" } });
+    fireEvent.change(screen.getByLabelText("Comissão do serviço 1"), { target: { value: "15,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar serviço" }));
     expect(screen.getByText("Corte")).toBeInTheDocument();
-    expect(screen.getByText("Consultoria interna")).toBeInTheDocument();
-    expect(screen.getByText("Treinamento técnico")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Corte").closest("label")!.querySelector("input")!);
-    expect(screen.getAllByText("R$ 35,00")).toHaveLength(2);
-    expect(screen.getByText("Total dos serviços").parentElement).toHaveTextContent("R$ 35,00");
+    expect(screen.getByText("Custos com comissão").parentElement).toHaveTextContent("R$ 15,00");
+    expect(screen.getByLabelText("Precificação Sugerida")).toHaveValue("R$\u00a042,00");
   });
 
   it("opens the investments sub-screen with fixed costs and investments", () => {

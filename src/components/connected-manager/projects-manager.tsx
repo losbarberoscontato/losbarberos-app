@@ -12,11 +12,12 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type Props = ProjectsPageData;
-type ManagerProps = Omit<Props, "packageServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags"> & { packageServices?: Props["packageServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
+type ManagerProps = Omit<Props, "packageServiceAssignments" | "barberServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags"> & { packageServiceAssignments?: Props["packageServiceAssignments"]; barberServices?: Props["barberServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
 type ProjectTab = "overview" | "investments" | "packages" | "engagements" | "kanban" | "finance";
 type ProjectFilter = "published" | "archived" | "all";
 type CostKind = Exclude<ProjectCostItemRecord["kind"], "VARIABLE">;
 type EngagementScheduleRow = { installment_number: number; due_on: string; amount_cents: number };
+type PackageServiceAssignment = { service_id: string; barber_id: string; commission_cents: number };
 type PackageDraft = {
   id: string | null;
   name: string;
@@ -31,8 +32,7 @@ type PackageDraft = {
   profitMargin: string;
   deposit: string;
   practicedPrice: string;
-  professionalIds: string[];
-  serviceIds: string[];
+  serviceAssignments: PackageServiceAssignment[];
 };
 type KanbanBoardDraft = ProjectKanbanBoardRecord;
 
@@ -97,21 +97,19 @@ function packageDraftFromRecord(item: Props["packages"][number]): PackageDraft {
     profitMargin: String((item.profit_margin_bps ?? 5000) / 100).replace(".", ","),
     deposit: centsInput(item.deposit_cents ?? 0),
     practicedPrice: centsInput(item.price_cents ?? 0),
-    professionalIds: [],
-    serviceIds: [],
+    serviceAssignments: [],
   };
 }
 
 function emptyPackageDraft(): PackageDraft {
-  return { id: null, name: "", description: "", durationMinutes: "60", sessionsCount: "1", fixedCostPerHour: "0,00", extraCosts: "0,00", extraCostsDescription: "", taxRate: "0", cardRate: "0", profitMargin: "50", deposit: "0,00", practicedPrice: "0,00", professionalIds: [], serviceIds: [] };
+  return { id: null, name: "", description: "", durationMinutes: "60", sessionsCount: "1", fixedCostPerHour: "0,00", extraCosts: "0,00", extraCostsDescription: "", taxRate: "0", cardRate: "0", profitMargin: "50", deposit: "0,00", practicedPrice: "0,00", serviceAssignments: [] };
 }
 
 function initialPackageDrafts(props: ManagerProps): PackageDraft[] {
   if (!props.projectId) return [];
   return props.packages.filter((item) => item.project_id === props.projectId && item.active).map((item) => ({
     ...packageDraftFromRecord(item),
-    professionalIds: props.packageBarbers.filter((link) => link.project_package_id === item.id).map((link) => link.barber_id),
-    serviceIds: (props.packageServices ?? []).filter((link) => link.project_package_id === item.id).sort((a, b) => a.position - b.position).map((link) => link.service_id),
+    serviceAssignments: (props.packageServiceAssignments ?? []).filter((link) => link.project_package_id === item.id).map(({ service_id, barber_id, commission_cents }) => ({ service_id, barber_id, commission_cents })),
   }));
 }
 
@@ -140,11 +138,12 @@ function packagePricing(draft: PackageDraft, allocationPerSessionCents = safeCen
   const sessions = Number.parseInt(draft.sessionsCount, 10) || 0;
   const fixedCost = allocationPerSessionCents;
   const extraCosts = safeCentsInput(draft.extraCosts);
+  const commissionCosts = draft.serviceAssignments.reduce((sum, assignment) => sum + assignment.commission_cents, 0);
   const taxRate = percentToBps(draft.taxRate);
   const cardRate = percentToBps(draft.cardRate);
   const profitMargin = percentToBps(draft.profitMargin);
   const fixedCostTotal = fixedCost * sessions;
-  const costTotal = fixedCostTotal + extraCosts;
+  const costTotal = fixedCostTotal + extraCosts + commissionCosts;
   const denominator = 1 - (taxRate + cardRate + profitMargin) / 10000;
   const suggested = denominator > 0 ? Math.max(0, Math.round(costTotal / denominator)) : 0;
   const practiced = safeCentsInput(draft.practicedPrice);
@@ -153,7 +152,7 @@ function packagePricing(draft: PackageDraft, allocationPerSessionCents = safeCen
   const profit = practiced - costTotal - taxAmount - cardAmount;
   const difference = practiced - suggested;
   const differencePercent = suggested > 0 ? (difference / suggested) * 100 : null;
-  return { duration, sessions, fixedCost, fixedCostTotal, extraCosts, taxRate, cardRate, profitMargin, costTotal, suggested, practiced, taxAmount, cardAmount, profit, difference, differencePercent, warning: differencePercent !== null && differencePercent < -10, denominatorValid: denominator > 0 };
+  return { duration, sessions, fixedCost, fixedCostTotal, extraCosts, commissionCosts, taxRate, cardRate, profitMargin, costTotal, suggested, practiced, taxAmount, cardAmount, profit, difference, differencePercent, warning: differencePercent !== null && differencePercent < -10, denominatorValid: denominator > 0 };
 }
 
 export function ProjectsManager(props: ManagerProps) {
@@ -527,16 +526,12 @@ export function ProjectsManager(props: ManagerProps) {
         p_profit_margin_bps: pricing.profitMargin,
         p_deposit_cents: safeCentsInput(draft.deposit),
         p_practiced_price_cents: pricing.practiced,
-        p_professional_ids: draft.professionalIds,
+        p_service_assignments: draft.serviceAssignments,
       });
       await assertResult(result);
       const row = Array.isArray(result.data) ? result.data[0] : result.data;
       if (!savedPackageId && row && typeof row === "object" && "id" in row && typeof row.id === "string") savedPackageId = row.id;
       if (!savedPackageId) throw new Error("Pacote salvo sem identificador.");
-      await assertResult(await connectedClient().from("project_package_services").delete().eq("organization_id", props.organizationId).eq("project_package_id", savedPackageId));
-      if (draft.serviceIds.length) {
-        await assertResult(await connectedClient().from("project_package_services").insert(draft.serviceIds.map((serviceId, position) => ({ organization_id: props.organizationId, project_package_id: savedPackageId, service_id: serviceId, position: position + 1 }))));
-      }
     }, draft.id ? "Pacote atualizado." : "Pacote criado.");
     setPackageSavingId(null);
     if (saved) {
@@ -734,7 +729,7 @@ export function ProjectsManager(props: ManagerProps) {
           <nav className={styles.tabs} aria-label="Seções do projeto">{([ ["overview", "Visão geral", LayoutDashboard], ["investments", "Investimentos", Landmark], ["packages", "Pacotes", Calculator], ["engagements", "Contratações", Users], ["kanban", "Kanban", CheckCircle2], ["finance", "Financeiro", CircleDollarSign] ] as const).map(([value, label, Icon]) => <button type="button" key={value} className={`${styles.tab} ${tab === value ? styles.tabActive : ""}`} onClick={() => setTab(value)}><Icon size={15} /> {label}</button>)}</nav>
           {tab === "overview" && <ProjectOverview goalContracts={selectedProject.goal_contracts} projectCostItems={props.costItems.filter((item) => item.project_id === selectedProject.id)} projectPackages={projectPackages} kanbanBoards={projectKanbanBoards} engagements={projectEngagements} customerById={customerById} packageById={packageById} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} />}
           {tab === "investments" && <ProjectInvestments organizationId={props.organizationId} projectId={selectedProject.id} goalContracts={selectedProject.goal_contracts} items={props.costItems.filter((item) => item.project_id === selectedProject.id)} />}
-          {tab === "packages" && <ProjectPackages packages={packageDrafts} barbers={props.barbers} services={props.services} fixedCostCents={projectAllocationCents} savingId={packageSavingId} onAdd={addPackageDraft} onChange={updatePackageDraft} onSave={savePackage} />}
+          {tab === "packages" && <ProjectPackages packages={packageDrafts} barbers={props.barbers} barberServices={props.barberServices ?? []} services={props.services} fixedCostCents={projectAllocationCents} savingId={packageSavingId} onAdd={addPackageDraft} onChange={updatePackageDraft} onSave={savePackage} />}
           {tab === "engagements" && <EngagementsTable engagements={projectEngagements} customerById={customerById} packageById={packageById} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} kanbanBoards={projectKanbanBoards} onEdit={openEditEngagementModal} />}
           {tab === "kanban" && <ProjectKanban key={JSON.stringify([projectKanbanBoards, projectEngagements])} organizationId={props.organizationId} projectId={selectedProject.id} boards={projectKanbanBoards} sectors={kanbanSectors} engagementsWithDueDateOverrides={eventDueDateOverrides} barbers={props.barbers} engagements={projectEngagements} customerById={customerById} lastComments={engagementLastComments} onOpenEvent={openEventEditor} onDueDateChange={saveEventDueDate} />}
           {tab === "finance" && <ProjectFinance contractedCents={contractedCents} acceptedCents={acceptedCents} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} />}
@@ -889,8 +884,52 @@ function ProjectInvestments({ organizationId, projectId, goalContracts, items }:
   </div>;
 }
 
-function ProjectPackages({ packages, barbers, services, fixedCostCents, savingId, onAdd, onChange, onSave }: { packages: PackageDraft[]; barbers: Props["barbers"]; services: Props["services"]; fixedCostCents: number; savingId: string | null; onAdd: () => void; onChange: (index: number, patch: Partial<PackageDraft>) => void; onSave: (draft: PackageDraft) => void }) {
+type PackageServiceInput = { serviceId: string; barberId: string; commission: string };
+
+function ProjectPackages({ packages, barbers, barberServices, services, fixedCostCents, savingId, onAdd, onChange, onSave }: { packages: PackageDraft[]; barbers: Props["barbers"]; barberServices: NonNullable<Props["barberServices"]>; services: Props["services"]; fixedCostCents: number; savingId: string | null; onAdd: () => void; onChange: (index: number, patch: Partial<PackageDraft>) => void; onSave: (draft: PackageDraft) => void }) {
   const [message, setMessage] = useState("");
+  const [serviceInputs, setServiceInputs] = useState<Record<string, PackageServiceInput>>({});
+
+  function addServiceInput(key: string) {
+    setMessage("");
+    setServiceInputs((current) => ({ ...current, [key]: { serviceId: "", barberId: "", commission: "" } }));
+  }
+
+  function updateServiceInput(key: string, patch: Partial<PackageServiceInput>) {
+    setServiceInputs((current) => ({ ...current, [key]: { ...current[key], ...patch } }));
+  }
+
+  function saveServiceInput(index: number, key: string, draft: PackageDraft) {
+    const input = serviceInputs[key];
+    if (!input?.serviceId || !input.barberId || !input.commission.trim()) {
+      setMessage("Selecione o serviço e o profissional e informe a comissão.");
+      return;
+    }
+    let commissionCents: number;
+    try {
+      commissionCents = centsFromInput(input.commission);
+    } catch {
+      setMessage("Informe um valor válido para a comissão.");
+      return;
+    }
+    const eligible = barberServices.some((link) => link.service_id === input.serviceId && link.barber_id === input.barberId);
+    if (!eligible) {
+      setMessage("O profissional selecionado não está habilitado para este serviço.");
+      return;
+    }
+    if (draft.serviceAssignments.some((assignment) => assignment.service_id === input.serviceId && assignment.barber_id === input.barberId)) {
+      setMessage("Este profissional já foi vinculado a este serviço no pacote.");
+      return;
+    }
+    onChange(index, { serviceAssignments: [...draft.serviceAssignments, { service_id: input.serviceId, barber_id: input.barberId, commission_cents: commissionCents }] });
+    setServiceInputs((current) => { const next = { ...current }; delete next[key]; return next; });
+    setMessage("");
+  }
+
+  function removeServiceAssignment(index: number, draft: PackageDraft, assignmentIndex: number) {
+    onChange(index, { serviceAssignments: draft.serviceAssignments.filter((_, itemIndex) => itemIndex !== assignmentIndex) });
+  }
+
   return <div className={styles.packageWorkspace}>
     <header className={styles.sectionHeader}><div><h2>Pacotes</h2><p>Crie até quatro ofertas para este projeto e compare preço sugerido com o valor praticado.</p></div><div className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setMessage("Função em desenvolvimento")}><BriefcaseBusiness size={15} /> Adicionar Contrato</button><button className={styles.button} type="button" onClick={onAdd} disabled={packages.length >= 4 || Boolean(savingId)}><Plus size={16} /> Adicionar pacote ({packages.length}/4)</button></div></header>
     <ActionMessage message={message} />
@@ -898,15 +937,35 @@ function ProjectPackages({ packages, barbers, services, fixedCostCents, savingId
       {packages.map((draft, index) => {
         const pricing = packagePricing(draft, fixedCostCents);
         const isSaving = savingId === (draft.id ?? "new");
-        return <article className={styles.packageCard} key={draft.id ?? `new-${index}`}>
+        const key = draft.id ?? `new-${index}`;
+        const serviceInput = serviceInputs[key];
+        const eligibleBarbers = serviceInput?.serviceId
+          ? barbers.filter((barber) => barberServices.some((link) => link.service_id === serviceInput.serviceId && link.barber_id === barber.id))
+          : [];
+        return <article className={styles.packageCard} key={key}>
           <header className={styles.packageCardHeader}><div className={styles.packageHeaderEditor}><span className={styles.packageBadge}>{index + 1}º pacote</span><input className={styles.packageTitleInput} aria-label={`Título do pacote ${index + 1}`} value={draft.name} onChange={(event) => onChange(index, { name: event.target.value })} placeholder="Experiência" /><textarea className={styles.packageSubtitleInput} aria-label={`Texto do pacote ${index + 1}`} value={draft.description} onChange={(event) => onChange(index, { description: event.target.value })} placeholder="Defina uma oferta com duração, sessões e preço próprio." rows={2} /></div><span className={styles.packageLimitLabel}>Pacote {index + 1}/4</span></header>
           <div className={styles.packagePriceHero}><span>Preço de Venda</span><strong>{formatCents(pricing.practiced)}</strong></div>
           <div className={styles.packageForm}>
             <div className={styles.packageFormGrid}><Field label="Duração da sessão (min)"><input type="number" min="5" max="14400" step="5" value={draft.durationMinutes} onChange={(event) => onChange(index, { durationMinutes: event.target.value })} /></Field><Field label="Total de sessões"><input type="number" min="1" max="100" value={draft.sessionsCount} onChange={(event) => onChange(index, { sessionsCount: event.target.value })} /></Field><Field label="Custo Fixo"><input className={styles.packageReadonlyField} inputMode="decimal" value={centsInput(pricing.fixedCostTotal)} readOnly aria-label="Custo Fixo" /></Field><Field label="Custos Extras (R$)"><input inputMode="decimal" value={draft.extraCosts} onChange={(event) => onChange(index, { extraCosts: event.target.value })} /></Field><Field label="Descrição dos Extras" wide><input value={draft.extraCostsDescription} onChange={(event) => onChange(index, { extraCostsDescription: event.target.value })} placeholder="Impressões, álbum, brindes…" /></Field><Field label="Impostos (%)"><input type="number" min="0" max="100" step="0.01" value={draft.taxRate} onChange={(event) => onChange(index, { taxRate: event.target.value })} /></Field><Field label="Taxas banco/cartão (%)"><input type="number" min="0" max="100" step="0.01" value={draft.cardRate} onChange={(event) => onChange(index, { cardRate: event.target.value })} /></Field><Field label="Margem de lucro (%)"><input type="number" min="0" max="100" step="0.01" value={draft.profitMargin} onChange={(event) => onChange(index, { profitMargin: event.target.value })} /></Field><Field label="Sinal/entrada (R$)"><input inputMode="decimal" value={draft.deposit} onChange={(event) => onChange(index, { deposit: event.target.value })} /></Field><Field label="Preço praticado"><input inputMode="decimal" value={draft.practicedPrice} onChange={(event) => onChange(index, { practicedPrice: event.target.value })} />{pricing.differencePercent !== null && <p className={`${styles.packagePriceDifference} ${pricing.difference >= 0 ? styles.packagePriceAbove : styles.packagePriceBelow}`}>{pricing.difference >= 0 ? "Acima" : "Abaixo"} do sugerido em {formatCents(Math.abs(pricing.difference))} ({Math.abs(pricing.differencePercent).toFixed(1).replace(".", ",")}%)</p>}{pricing.warning && <p className={styles.packagePriceWarning}>O preço está fugindo muito do padrão de precificação. Reavalie os custos e investimentos em relação ao total de vendas pretendido.</p>}</Field><Field label="Precificação Sugerida"><input className={styles.packageReadonlyField} inputMode="decimal" value={formatCents(pricing.suggested)} readOnly aria-label="Precificação Sugerida" /></Field></div>
-            <div className={styles.packageServices}><span className={styles.packageFieldLabel}>Serviços</span>{services.length ? <div className={styles.packageServiceList}>{services.map((service) => <label className={styles.packageServiceRow} key={service.id}><input type="checkbox" checked={draft.serviceIds.includes(service.id)} onChange={(event) => onChange(index, { serviceIds: event.target.checked ? [...draft.serviceIds, service.id] : draft.serviceIds.filter((id) => id !== service.id) })} /><span>{service.name}</span><strong>{formatCents(service.price_cents)}</strong></label>)}</div> : <p className={styles.muted}>Nenhum serviço ativo disponível.</p>}<div className={styles.packageServicesTotal}><span>Total dos serviços</span><strong>{formatCents(services.filter((service) => draft.serviceIds.includes(service.id)).reduce((sum, service) => sum + service.price_cents, 0))}</strong></div></div>
-            <div className={styles.packageProfessionals}><span className={styles.packageFieldLabel}>Profissionais deste pacote</span>{barbers.length ? <div className={styles.packageCheckGrid}>{barbers.map((barber) => <label key={barber.id}><input type="checkbox" checked={draft.professionalIds.includes(barber.id)} onChange={(event) => onChange(index, { professionalIds: event.target.checked ? [...draft.professionalIds, barber.id] : draft.professionalIds.filter((id) => id !== barber.id) })} /> {barber.display_name}</label>)}</div> : <p className={styles.muted}>Nenhum profissional ativo disponível.</p>}</div>
+            <div className={styles.packageServices}>
+              <div className={styles.packageServicesHeader}><span className={styles.packageFieldLabel}>Serviços e profissionais do pacote</span><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => addServiceInput(key)} disabled={Boolean(serviceInput) || Boolean(savingId)}><Plus size={14} /> Adicionar serviço</button></div>
+              {draft.serviceAssignments.length > 0 && <div className={styles.packageServiceList}>{draft.serviceAssignments.map((assignment, assignmentIndex) => {
+                const service = services.find((item) => item.id === assignment.service_id);
+                const barber = barbers.find((item) => item.id === assignment.barber_id);
+                return <div className={styles.packageServiceAssignment} key={`${assignment.service_id}-${assignment.barber_id}`}><span>{service?.name ?? "Serviço"}</span><span>{barber?.display_name ?? "Profissional"}</span><strong>{formatCents(assignment.commission_cents)}</strong><button className={styles.iconButton} type="button" aria-label={`Remover ${service?.name ?? "serviço"} - ${barber?.display_name ?? "profissional"}`} onClick={() => removeServiceAssignment(index, draft, assignmentIndex)}><Trash2 size={14} /></button></div>;
+              })}</div>}
+              {serviceInput && <div className={styles.packageAssignmentEditor}>
+                <label className={styles.field}><span>Serviço</span><select aria-label={`Serviço do pacote ${index + 1}`} value={serviceInput.serviceId} onChange={(event) => updateServiceInput(key, { serviceId: event.target.value, barberId: "" })}><option value="">Selecione o serviço</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
+                <label className={styles.field}><span>Profissional</span><select aria-label={`Profissional do serviço ${index + 1}`} value={serviceInput.barberId} onChange={(event) => updateServiceInput(key, { barberId: event.target.value })} disabled={!serviceInput.serviceId}><option value="">Selecione o profissional</option>{eligibleBarbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select>{serviceInput.serviceId && eligibleBarbers.length === 0 && <small className={styles.muted}>Nenhum profissional habilitado para este serviço.</small>}</label>
+                <label className={styles.field}><span>Comissão (R$)</span><input aria-label={`Comissão do serviço ${index + 1}`} inputMode="decimal" placeholder="0,00" value={serviceInput.commission} onChange={(event) => updateServiceInput(key, { commission: event.target.value })} /></label>
+                <button className={styles.iconButton} type="button" aria-label="Salvar serviço" title="Salvar serviço" onClick={() => saveServiceInput(index, key, draft)} disabled={!serviceInput.serviceId || !serviceInput.barberId || !serviceInput.commission.trim()}><Save size={15} /></button>
+                <button className={styles.iconButton} type="button" aria-label="Cancelar serviço" title="Cancelar serviço" onClick={() => setServiceInputs((current) => { const next = { ...current }; delete next[key]; return next; })}><X size={15} /></button>
+              </div>}
+              {!services.length && <p className={styles.muted}>Nenhum serviço ativo disponível.</p>}
+              {services.length > 0 && !draft.serviceAssignments.length && !serviceInput && <p className={styles.muted}>Nenhum serviço adicionado a este pacote.</p>}
+            </div>
           </div>
-          <div className={styles.packageBreakdown}><h4>Decomposição do preço</h4><dl><div><dt>Custo fixo</dt><dd>{formatCents(pricing.fixedCostTotal)}</dd></div><div><dt>Custos extras</dt><dd>{formatCents(pricing.extraCosts)}</dd></div><div><dt>Custo total da entrega</dt><dd>{formatCents(pricing.costTotal)}</dd></div><div><dt>Impostos estimados</dt><dd>{formatCents(pricing.taxAmount)}</dd></div><div><dt>Taxa cartão estimada</dt><dd>{formatCents(pricing.cardAmount)}</dd></div><div><dt>Lucro estimado</dt><dd className={pricing.profit >= 0 ? styles.packagePositive : styles.packageNegative}>{formatCents(pricing.profit)}</dd></div><div><dt>Sinal de reserva</dt><dd>{formatCents(safeCentsInput(draft.deposit))}</dd></div></dl><div className={styles.packageBalance}><span>Saldo após o sinal</span><strong>{formatCents(Math.max(0, pricing.practiced - safeCentsInput(draft.deposit)))}</strong></div></div>
+          <div className={styles.packageBreakdown}><h4>Decomposição do preço</h4><dl><div><dt>Custo fixo</dt><dd>{formatCents(pricing.fixedCostTotal)}</dd></div><div><dt>Custos extras</dt><dd>{formatCents(pricing.extraCosts)}</dd></div><div><dt>Custos com comissão</dt><dd>{formatCents(pricing.commissionCosts)}</dd></div><div><dt>Custo total da entrega</dt><dd>{formatCents(pricing.costTotal)}</dd></div><div><dt>Impostos estimados</dt><dd>{formatCents(pricing.taxAmount)}</dd></div><div><dt>Taxa cartão estimada</dt><dd>{formatCents(pricing.cardAmount)}</dd></div><div><dt>Lucro estimado</dt><dd className={pricing.profit >= 0 ? styles.packagePositive : styles.packageNegative}>{formatCents(pricing.profit)}</dd></div><div><dt>Sinal de reserva</dt><dd>{formatCents(safeCentsInput(draft.deposit))}</dd></div></dl><div className={styles.packageBalance}><span>Saldo após o sinal</span><strong>{formatCents(Math.max(0, pricing.practiced - safeCentsInput(draft.deposit) - pricing.extraCosts - pricing.commissionCosts))}</strong></div></div>
           <footer className={styles.packageCardActions}><button className={styles.button} type="button" disabled={Boolean(savingId) || !draft.name.trim()} onClick={() => void onSave(draft)}><Save size={15} /> {isSaving ? "Salvando…" : "Salvar pacote"}</button></footer>
         </article>;
       })}

@@ -42,3 +42,29 @@ describe("projects package services migration", () => {
     expect(sql).toContain("force row level security");
   });
 });
+
+describe("project package service commissions migration", () => {
+  it("stores each package service and eligible professional commission in tenant scope", () => {
+    const sql = readFileSync("supabase/migrations/20260921140746_project_package_service_commissions.sql", "utf8");
+    expect(sql).toContain("create table public.project_package_service_assignments");
+    expect(sql).toContain("commission_cents bigint not null check (commission_cents >= 0)");
+    expect(sql).toContain("unique (project_package_id, service_id, barber_id)");
+    expect(sql).toContain("foreign key (project_package_id, organization_id)");
+    expect(sql).toContain("foreign key (service_id, organization_id)");
+    expect(sql).toContain("foreign key (barber_id, organization_id)");
+    expect(sql).toContain("force row level security");
+    expect(sql).toContain("project_package_service_assignments_owner_select");
+    expect(sql).toContain("grant select on public.project_package_service_assignments to authenticated");
+  });
+
+  it("validates service eligibility and persists package prices and commissions atomically", () => {
+    const sql = readFileSync("supabase/migrations/20260921140746_project_package_service_commissions.sql", "utf8");
+    expect(sql).toContain("p_service_assignments jsonb");
+    expect(sql).toContain("public.barber_services");
+    expect(sql).toContain("bs.active");
+    expect(sql).toContain("v_commission_total");
+    expect(sql).toContain("p_extra_costs_cents + v_commission_total");
+    expect(sql).toContain("insert into public.project_package_service_assignments");
+    expect(sql).toContain("delete from public.project_package_service_assignments");
+  });
+});

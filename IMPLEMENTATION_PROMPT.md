@@ -65,6 +65,15 @@ npm.cmd run dev
 - `payment_transactions` é a fonte única de verdade de pagamentos de agendamento. A boleta guarda metadados sem duplicar lançamento financeiro.
 - Caixa, contas, fornecedores, planos, centros, tags, lançamentos, liquidações, transferências e conta padrão `Caixa Físico` permanecem entregues.
 
+### Projetos — serviços e comissões por pacote — 21/09/2026
+
+- Cada pacote aceita linhas de serviço, profissional habilitado para o serviço e comissão definida para o projeto. As associações são salvas atomicamente com os dados do pacote via RPC `upsert_project_package`.
+- Comissões são armazenadas em centavos, discriminadas dos outros custos extras e incorporadas na precificação sugerida e no saldo após o sinal. Contas a pagar por comissão seguem fora do escopo.
+- A migration `20260921140746_project_package_service_commissions.sql` está aplicada no Supabase remoto vinculado. RLS está habilitado e forçado; a RPC exige proprietário e módulo Projetos ativos.
+- Não houve alteração de Edge Functions nesta entrega; a RPC Postgres faz parte da migration.
+- Também foi corrigido o feedback obsoleto ao iniciar um segundo cadastro de profissional; cadastro bem-sucedido fecha o modal.
+- Antes de encerrar a próxima validação, testar visualmente em produção a criação e edição de pacote com pelo menos dois serviços/profissionais, recálculo dos custos, comissão e saldo após o sinal. A validação automatizada local passou: 607 testes aprovados, 1 ignorado, lint sem erros (8 avisos existentes), typecheck e build.
+
 ### WhatsApp Evolution
 
 - Leia `docs/whatsapp-evolution-module.md` antes de tocar no módulo.

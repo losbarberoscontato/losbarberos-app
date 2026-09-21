@@ -1,5 +1,15 @@
 # Handoff — Los Barberos
 
+## Pacotes de projeto — comissões por serviço — 21/09/2026
+
+- Na edição de pacotes do projeto, cada serviço pode ter um profissional habilitado e uma comissão em centavos; a UI salva as linhas junto com o pacote pela RPC `upsert_project_package`.
+- O total das comissões é apresentado separado dos outros custos extras e entra no custo total, na precificação sugerida e no saldo após o sinal. Não foram criadas contas a pagar.
+- A migration `20260921140746_project_package_service_commissions.sql` foi aplicada no Supabase remoto `bwdjkhqshmppescunwer`; a tabela tem RLS habilitado/forçado e leitura restrita ao proprietário. A sobrecarga nova da RPC permite execução a `authenticated`, não a `anon`.
+- Não houve mudança em código de Edge Functions; a função desta entrega é uma RPC SQL implantada pela migration.
+- A correção anterior do formulário de novo profissional também está incluída: ao abrir o formulário, mensagens de sucesso anteriores são limpas, e o modal fecha após cadastro bem-sucedido.
+- Validação local: `npm.cmd run verify` — lint sem erros (8 avisos existentes), typecheck, 111 arquivos de teste aprovados / 1 ignorado (607 testes aprovados / 1 ignorado) e build Next.js aprovado.
+- Próximo passo: concluir CI/deploy associado ao push e validar visualmente, com sessão autenticada, a inclusão/edição de serviços, profissionais e comissões num pacote de projeto.
+
 ## Ambiente Demo desabilitado — 26/08/2026
 
 - Rotas operacionais exigem Supabase configurado. Sem configuração, `proxy` redireciona painel, cliente, admin, onboarding, regularização, agendamento público e fila para `/entrar?erro=supabase_not_configured`; hotsite e páginas públicas permanecem disponíveis.

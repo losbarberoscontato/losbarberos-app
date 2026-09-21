@@ -176,6 +176,38 @@ describe("kanban board editing", () => {
     expect(screen.getByRole("dialog", { name: "Aguardando aceite" })).toBeInTheDocument();
   });
 
+  it("adds a service commission to package pricing and saves assignments atomically", async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: "package-1" }, error: null });
+    const packageData = {
+      ...data,
+      services: [{ id: "service-1", name: "Corte", price_cents: 7000, active: true, availability: "CLIENT" as const }],
+      barbers: [...data.barbers, { id: "barber-2", display_name: "Alice Gonçalves" }],
+      barberServices: [{ barber_id: "barber-1", service_id: "service-1" }],
+    };
+    render(<ProjectsManager {...packageData} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Pacotes/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar pacote/ }));
+
+    fireEvent.change(screen.getByLabelText("Título do pacote 1"), { target: { value: "Pacote teste" } });
+    fireEvent.change(screen.getByLabelText("Preço praticado"), { target: { value: "50,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar serviço" }));
+    fireEvent.change(screen.getByLabelText("Serviço do pacote 1"), { target: { value: "service-1" } });
+    fireEvent.change(screen.getByLabelText("Profissional do serviço 1"), { target: { value: "barber-1" } });
+    expect(screen.getByRole("option", { name: "Alef Gonçalves" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Alice Gonçalves" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Comissão do serviço 1"), { target: { value: "10,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar serviço" }));
+
+    expect(screen.getByText("Custos com comissão").parentElement).toHaveTextContent("R$ 10,00");
+    expect(screen.getByText("Precificação Sugerida").parentElement?.querySelector("input")).toHaveValue("R$\u00a020,00");
+    expect(screen.getByText("Saldo após o sinal").parentElement).toHaveTextContent("R$ 40,00");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar pacote" }));
+
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("upsert_project_package", expect.objectContaining({
+      p_service_assignments: [{ service_id: "service-1", barber_id: "barber-1", commission_cents: 1000 }],
+    })));
+  });
+
   it("asks for the destination project board when moving an event between general sectors", async () => {
     mocks.rpc.mockResolvedValue({ data: {}, error: null });
     const moveData = {
