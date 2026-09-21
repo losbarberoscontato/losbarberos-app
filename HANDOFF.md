@@ -6,9 +6,12 @@
 - O total das comissões é apresentado separado dos outros custos extras e entra no custo total, na precificação sugerida e no saldo após o sinal. Não foram criadas contas a pagar.
 - A migration `20260921140746_project_package_service_commissions.sql` foi aplicada no Supabase remoto `bwdjkhqshmppescunwer`; a tabela tem RLS habilitado/forçado e leitura restrita ao proprietário. A sobrecarga nova da RPC permite execução a `authenticated`, não a `anon`.
 - Não houve mudança em código de Edge Functions; a função desta entrega é uma RPC SQL implantada pela migration.
+- O advisor de segurança remoto lista avisos do schema como um todo e inclui `authenticated_security_definer_function_executable` para as duas sobrecargas de `upsert_project_package`; essa RPC é necessária para a gravação atômica, permite chamada somente a `authenticated`, nega `anon` e verifica proprietário e módulo Projetos no corpo.
 - A correção anterior do formulário de novo profissional também está incluída: ao abrir o formulário, mensagens de sucesso anteriores são limpas, e o modal fecha após cadastro bem-sucedido.
 - Validação local: `npm.cmd run verify` — lint sem erros (8 avisos existentes), typecheck, 111 arquivos de teste aprovados / 1 ignorado (607 testes aprovados / 1 ignorado) e build Next.js aprovado.
-- Próximo passo: concluir CI/deploy associado ao push e validar visualmente, com sessão autenticada, a inclusão/edição de serviços, profissionais e comissões num pacote de projeto.
+- GitHub: commits `a8000c3` e `e363c0e` publicados em `main`; CI `35613874362` aprovado, incluindo Edge Functions, E2E, banco e verify.
+- Vercel: deployment de produção `dpl_5VPN5GUYkkDLaoZBNT6Y9D9ayLuu` ficou `READY` no alias `https://losbarberos-app.vercel.app`, associado ao commit `e363c0e`.
+- Smoke público após deploy: `/`, `/entrar`, `/privacidade` e `/termos` responderam HTTP 200; `/gestor` e `/gestor/projetos` redirecionaram HTTP 307 para login, como esperado. A validação visual autenticada de criação/edição de pacotes ainda cabe ao usuário.
 
 ## Ambiente Demo desabilitado — 26/08/2026
 

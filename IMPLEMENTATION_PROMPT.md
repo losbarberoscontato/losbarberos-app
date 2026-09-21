@@ -72,7 +72,9 @@ npm.cmd run dev
 - A migration `20260921140746_project_package_service_commissions.sql` está aplicada no Supabase remoto vinculado. RLS está habilitado e forçado; a RPC exige proprietário e módulo Projetos ativos.
 - Não houve alteração de Edge Functions nesta entrega; a RPC Postgres faz parte da migration.
 - Também foi corrigido o feedback obsoleto ao iniciar um segundo cadastro de profissional; cadastro bem-sucedido fecha o modal.
-- Antes de encerrar a próxima validação, testar visualmente em produção a criação e edição de pacote com pelo menos dois serviços/profissionais, recálculo dos custos, comissão e saldo após o sinal. A validação automatizada local passou: 607 testes aprovados, 1 ignorado, lint sem erros (8 avisos existentes), typecheck e build.
+- Publicado em `main` nos commits `a8000c3` e `e363c0e`; CI `35613874362` aprovado (Edge Functions, E2E, banco e verify), migration aplicada no Supabase remoto e deployment Vercel de produção `READY` em `https://losbarberos-app.vercel.app`.
+- Próximo passo de produto: validar visualmente, com sessão autenticada, a criação/edição de pacote com pelo menos dois serviços/profissionais e conferir recálculo de custos, comissão e saldo após o sinal. O smoke HTTP público não substitui essa validação visual conectada.
+- Validação automatizada local: 607 testes aprovados, 1 ignorado, lint sem erros (8 avisos existentes), typecheck e build.
 
 ### WhatsApp Evolution
 
