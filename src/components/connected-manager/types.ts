@@ -400,6 +400,10 @@ export interface FinancialCommissionDetailRecord {
   commission_cents: number;
   paid_commission_cents: number;
   payable_commission_cents: number;
+  project_session_id?: string | null;
+  project_engagement_id?: string | null;
+  project_id?: string | null;
+  is_project?: boolean;
 }
 
 export interface FinancialAccountBalanceRecord {

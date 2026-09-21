@@ -83,20 +83,27 @@ describe("projects navigation", () => {
   it("limits the projects summary cards to published projects", () => {
     const archivedProject = { ...data.projects[0], id: "project-archived", name: "Projeto Arquivado", status: "ARCHIVED" as const };
     const archivedEngagement = { ...contractData.engagements[0], id: "engagement-archived", project_id: archivedProject.id, contracted_cents: 33500 };
-    render(<ProjectsManager {...contractData} projects={[...data.projects, archivedProject]} engagements={[...contractData.engagements, archivedEngagement]} />);
+    const receivedInstallments = [
+      { ...contractData.installments[0], settled_cents: 5000 },
+      { ...contractData.installments[1], status: "OPEN" as const, settled_cents: 2500 },
+      { ...contractData.installments[2], settled_cents: 0 },
+      { ...contractData.installments[0], id: "archived-installment", engagement_id: archivedEngagement.id, amount_cents: 33500, settled_cents: 33500 },
+    ];
+    render(<ProjectsManager {...contractData} projects={[...data.projects, archivedProject]} engagements={[...contractData.engagements, archivedEngagement]} installments={receivedInstallments} />);
 
     const cards = screen.getByRole("region", { name: "Resumo de projetos" });
     const activeProjectsCard = within(cards).getByText("Projetos publicados").closest("article");
     const activeContractsCard = within(cards).getByText("Contratações ativas").closest("article");
     const contractedCard = within(cards).getByText("Valor contratado").closest("article");
-    const resultCard = within(cards).getByText("Resultado do módulo").closest("article");
+    const receivedCard = within(cards).getByText("Total Recebido").closest("article");
 
     expect(activeProjectsCard).toHaveTextContent("1");
     expect(activeProjectsCard).toHaveTextContent("Somente projetos ativos");
     expect(activeContractsCard).toHaveTextContent("1");
     expect(activeContractsCard).toHaveTextContent("0 propostas aguardando aceite");
     expect(contractedCard).toHaveTextContent("R$ 150,00");
-    expect(resultCard).toHaveTextContent("R$ 150,00");
+    expect(receivedCard).toHaveTextContent("R$ 75,00");
+    expect(within(cards).queryByText("Resultado do módulo")).not.toBeInTheDocument();
   });
 
   it("shows zero contract metrics when every project is archived", () => {
@@ -107,7 +114,7 @@ describe("projects navigation", () => {
     expect(within(cards).getByText("Projetos publicados").closest("article")).toHaveTextContent("0");
     expect(within(cards).getByText("Contratações ativas").closest("article")).toHaveTextContent("0");
     expect(within(cards).getByText("Valor contratado").closest("article")).toHaveTextContent("R$ 0,00");
-    expect(within(cards).getByText("Resultado do módulo").closest("article")).toHaveTextContent("R$ 0,00");
+    expect(within(cards).getByText("Total Recebido").closest("article")).toHaveTextContent("R$ 0,00");
   });
 
   it("opens the new-project modal prefilled for editing", () => {

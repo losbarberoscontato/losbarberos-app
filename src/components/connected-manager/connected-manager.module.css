@@ -678,6 +678,8 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .installmentGenerator > .button { margin-bottom: .05rem; white-space: nowrap; }
 .contractFinance { margin-top: .4rem; }
 .contractFinance h3 { margin: 0 0 .65rem; font-size: 1rem; }
+.sectionToggle { display: inline-flex; align-items: center; gap: .35rem; border: 0; background: transparent; padding: 0 0 .65rem; color: #17251d; font: inherit; font-weight: 800; cursor: pointer; }
+.sectionToggleOpen { transform: rotate(90deg); }
 .engagementFinanceTable { overflow-x: auto; border: 1px solid #e1e8e1; border-radius: 12px; }
 .engagementFinanceHeader, .engagementFinanceRow { display: grid; grid-template-columns: 30px minmax(78px, .95fr) minmax(92px, 1.1fr) minmax(72px, .85fr) minmax(96px, 1.1fr) minmax(76px, .85fr) minmax(112px, 1.25fr) 152px; align-items: center; gap: .4rem; padding: .45rem .55rem; font-size: .8rem; }
 .engagementFinanceHeader > span, .engagementFinanceRow > span, .engagementFinanceRow > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

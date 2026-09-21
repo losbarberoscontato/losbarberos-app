@@ -2,7 +2,7 @@ import "server-only";
 
 import { getAccessContext } from "@/lib/auth/context";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import type { ChartAccountRecord, CostCenterRecord, FinancialAccountRecord, FinancialTagRecord } from "./types";
+import type { AgendaEnvironmentRecord, ChartAccountRecord, CostCenterRecord, FinancialAccountRecord, FinancialTagRecord, FinancialCommissionDetailRecord } from "./types";
 
 export interface ProjectRecord {
   id: string;
@@ -161,6 +161,25 @@ export interface ProjectInstallmentRecord {
   received_by_name?: string | null;
 }
 
+export interface ProjectSessionRecord {
+  id: string;
+  organization_id: string;
+  engagement_id: string;
+  session_number: number;
+  status: "OPEN" | "BOOKED" | "COMPLETED" | "CANCELED";
+  appointment_id: string | null;
+  service_id: string | null;
+  barber_id: string | null;
+  appointment?: {
+    id: string;
+    status: string;
+    service_period: string;
+    barber_id: string;
+    source: string;
+    cancellation_outcome?: "ON_TIME" | "AFTER_DEADLINE" | null;
+  } | null;
+}
+
 function required<T>(result: { data: T | null; error: { message: string } | null }, label: string): T {
   if (result.error) throw new Error(`${label}: ${result.error.message}`);
   return result.data as T;
@@ -187,7 +206,7 @@ export async function loadProjectsData() {
     .maybeSingle();
   if (entitlement.error) throw new Error(`Módulo Projetos: ${entitlement.error.message}`);
 
-  const [projects, packages, steps, engagementsRaw, installments, customers, services, barbers, barberServices, packageServiceAssignments, costItems, kanbanBoardsRaw, kanbanSectorsRaw, eventCommentsRaw, financialAccounts, chartAccounts, costCenters, tags] = await Promise.all([
+  const [projects, packages, steps, engagementsRaw, installments, customers, services, barbers, barberServices, packageServiceAssignments, costItems, kanbanBoardsRaw, kanbanSectorsRaw, eventCommentsRaw, financialAccounts, chartAccounts, costCenters, tags, sessions, projectAppointments, projectCommissions, environments] = await Promise.all([
     supabase.from("projects").select("id,organization_id,name,description,status,starts_on,sales_close_on,ends_on,goal_contracts,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("project_packages").select("id,organization_id,project_id,name,description,price_cents,sessions_count,duration_minutes,fixed_cost_per_hour_cents,extra_costs_cents,extra_costs_description,tax_rate_bps,card_rate_bps,profit_margin_bps,deposit_cents,suggested_price_cents,sort_order,active").eq("organization_id", organizationId).order("sort_order"),
     supabase.from("project_steps").select("id,organization_id,project_id,name,description,position,kind,service_id,commission_rate_bps,active").eq("organization_id", organizationId).order("position"),
@@ -206,6 +225,10 @@ export async function loadProjectsData() {
     supabase.from("chart_of_accounts").select("id,organization_id,parent_id,code,name,kind,dre_group,cash_flow_activity,active").eq("organization_id", organizationId).eq("active", true).order("code").order("name"),
     supabase.from("cost_centers").select("id,organization_id,name,active").eq("organization_id", organizationId).eq("active", true).order("name"),
     supabase.from("financial_tags").select("id,organization_id,name,color,active").eq("organization_id", organizationId).eq("active", true).order("name"),
+    supabase.from("project_engagement_sessions").select("id,organization_id,engagement_id,session_number,status,appointment_id,service_id,barber_id").eq("organization_id", organizationId).order("session_number"),
+    supabase.from("appointments").select("id,status,service_period,barber_id,source,cancellation_outcome").eq("organization_id", organizationId).eq("source", "PROJECT"),
+    supabase.from("commission_service_details").select("*").eq("organization_id", organizationId).eq("is_project", true).order("service_date", { ascending: false }),
+    supabase.from("agenda_environments").select("id,organization_id,location_id,name,sort_order,active").eq("organization_id", organizationId).eq("active", true).order("sort_order").order("name"),
   ]);
 
   const installmentRows = installments.error && /project_installment_finance|relation .* does not exist/i.test(installments.error.message)
@@ -234,6 +257,14 @@ export async function loadProjectsData() {
     return result;
   }, {});
 
+  const projectAppointmentRows = required(projectAppointments, "Agendamentos de projetos") as Array<{ id: string; status: string; service_period: string; barber_id: string; source: string; cancellation_outcome?: "ON_TIME" | "AFTER_DEADLINE" | null }>;
+  const projectSessionRows = required(sessions, "Sessões dos projetos") as ProjectSessionRecord[];
+  const projectAppointmentById = new Map(projectAppointmentRows.map((row) => [String(row.id), row]));
+  const projectSessions = projectSessionRows.map((session) => ({
+    ...session,
+    appointment: session.appointment_id ? (projectAppointmentById.get(session.appointment_id) as ProjectSessionRecord["appointment"] ?? null) : null,
+  }));
+
   return {
     organizationId,
     enabled: Boolean(entitlement.data?.enabled),
@@ -256,6 +287,9 @@ export async function loadProjectsData() {
     chartAccounts: required(chartAccounts, "Plano de contas") as ChartAccountRecord[],
     costCenters: required(costCenters, "Centros de custo") as CostCenterRecord[],
     tags: required(tags, "Tags financeiras") as FinancialTagRecord[],
+    projectSessions,
+    projectCommissions: required(projectCommissions, "Comissões dos projetos") as FinancialCommissionDetailRecord[],
+    environments: required(environments, "Ambientes da agenda") as AgendaEnvironmentRecord[],
   };
 }
 

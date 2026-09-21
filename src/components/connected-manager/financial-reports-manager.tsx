@@ -227,7 +227,7 @@ function CommissionReport({ props }: { props: CommissionProps }) {
   }
 
   return <div className={styles.stack}>
-    <PageHeader title="Comissões" description="Comissões entram no saldo do profissional somente após o recebimento integral do serviço." />
+    <PageHeader title="Comissões" description="Comissões entram após a conclusão do atendimento, conforme a regra da origem." />
     <FinanceSubnav active="commissions" />
     <section className={styles.toolbar}>
       <div className={styles.toolbarGroup}>
@@ -252,7 +252,7 @@ function CommissionReport({ props }: { props: CommissionProps }) {
           {selectedDetails.map((detail) => {
             const isPaid = detail.payable_commission_cents <= 0 && detail.paid_commission_cents > 0;
             const isSelected = selectedCommissionIds.includes(detail.appointment_item_id);
-            return <div className={styles.commissionServiceRow} role="row" key={detail.appointment_item_id}><span>{detail.customer_name}</span><span>{detail.service_name}</span><span>{formatServiceDate(detail.service_date)}</span><span><strong>{formatCents(detail.service_value_paid_cents)}</strong><small>{detail.financial_account_names ?? "Conta não vinculada"}</small></span><span className={styles.commissionSelectionCell}><input type="checkbox" aria-label={`Selecionar comissão de ${detail.service_name}`} checked={isSelected} disabled={isPaid || detail.payable_commission_cents <= 0} onChange={(event) => setSelectedCommissionIds((current) => event.target.checked ? [...current, detail.appointment_item_id] : current.filter((id) => id !== detail.appointment_item_id))} /><span><strong>{formatCents(detail.payable_commission_cents || detail.paid_commission_cents)}</strong><small>{isPaid ? "Pago" : "Em aberto"}</small></span></span></div>;
+            return <div className={styles.commissionServiceRow} role="row" key={detail.appointment_item_id}><span>{detail.customer_name}</span><span>{detail.service_name}{detail.is_project && <small>Projeto</small>}</span><span>{formatServiceDate(detail.service_date)}</span><span><strong>{formatCents(detail.service_value_paid_cents)}</strong><small>{detail.financial_account_names ?? "Conta não vinculada"}</small></span><span className={styles.commissionSelectionCell}><input type="checkbox" aria-label={`Selecionar comissão de ${detail.service_name}`} checked={isSelected} disabled={isPaid || detail.payable_commission_cents <= 0} onChange={(event) => setSelectedCommissionIds((current) => event.target.checked ? [...current, detail.appointment_item_id] : current.filter((id) => id !== detail.appointment_item_id))} /><span><strong>{formatCents(detail.payable_commission_cents || detail.paid_commission_cents)}</strong><small>{isPaid ? "Pago" : "Em aberto"}</small></span></span></div>;
           })}
         </div>
         <div className={styles.commissionModalFooter}><div className={styles.commissionSummary}><strong>À pagar: {formatCents(selectedPayable)}</strong><strong>Total selecionado: {formatCents(selectedTotal)}</strong></div><button className={styles.button} type="button" disabled={selectedTotal <= 0 || !activeAccounts.length} onClick={() => { setPaymentDocumentNumber(createInternalDocumentNumber()); setPaymentOpen(true); }}>Pagar Comissão</button></div>

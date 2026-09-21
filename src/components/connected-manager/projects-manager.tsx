@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, Calculator, Check, CheckCircle2, ChevronRight, CircleDollarSign, Landmark, LayoutDashboard, Pencil, Plus, Save, Trash2, UserRound, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, Calculator, CalendarDays, Check, CheckCircle2, ChevronRight, CircleDollarSign, Clock3, Landmark, LayoutDashboard, Pencil, Plus, Save, Trash2, UserRound, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import type { ProjectCostItemRecord, ProjectEngagementCommentPreview, ProjectKanbanBoardRecord, ProjectKanbanSectorRecord, ProjectsPageData } from "./projects-server";
 import type { ChartAccountRecord, CostCenterRecord, FinancialAccountRecord, FinancialTagRecord } from "./types";
@@ -13,7 +13,7 @@ import { normalizePhoneE164 } from "@/lib/phone";
 import styles from "./connected-manager.module.css";
 
 type Props = ProjectsPageData;
-type ManagerProps = Omit<Props, "packageServiceAssignments" | "barberServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags"> & { packageServiceAssignments?: Props["packageServiceAssignments"]; barberServices?: Props["barberServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
+type ManagerProps = Omit<Props, "packageServiceAssignments" | "barberServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags" | "projectSessions" | "projectCommissions" | "environments"> & { packageServiceAssignments?: Props["packageServiceAssignments"]; barberServices?: Props["barberServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectSessions?: Props["projectSessions"]; projectCommissions?: Props["projectCommissions"]; environments?: Props["environments"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
 type ProjectTab = "overview" | "investments" | "packages" | "engagements" | "kanban" | "finance";
 type ProjectFilter = "published" | "archived" | "all";
 type CostKind = Exclude<ProjectCostItemRecord["kind"], "VARIABLE">;
@@ -50,6 +50,9 @@ type ProjectEventComment = {
 };
 type EventDueDateOverride = { fromDueOn: string | null; dueOn: string | null; boardId: string | null; receivedAt: string | null };
 type EventDueDateOverrides = Record<string, EventDueDateOverride>;
+
+const projectSessionStatusLabels: Record<string, string> = { OPEN: "Disponível", BOOKED: "Agendado", COMPLETED: "Concluído", CANCELED: "Cancelado após o prazo" };
+const projectAppointmentStatusLabels: Record<string, string> = { CONFIRMED: "Agendado", IN_SERVICE: "Em serviço", COMPLETED: "Concluído", CANCELED: "Cancelado" };
 
 function eventWithDueDateOverride<T extends Props["engagements"][number]>(engagement: T, overrides: EventDueDateOverrides): T {
   const override = overrides[engagement.id];
@@ -169,6 +172,9 @@ function packagePriceShare(amountCents: number, practicedCents: number) {
 
 export function ProjectsManager(props: ManagerProps) {
   const router = useRouter();
+  const projectSessionsData = useMemo(() => props.projectSessions ?? [], [props.projectSessions]);
+  const projectCommissionsData = useMemo(() => props.projectCommissions ?? [], [props.projectCommissions]);
+  const environmentsData = useMemo(() => props.environments ?? [], [props.environments]);
   const [tab, setTab] = useState<ProjectTab>("overview");
   const [message, setMessage] = useState("");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -224,6 +230,15 @@ export function ProjectsManager(props: ManagerProps) {
   const [savingComment, setSavingComment] = useState(false);
   const [packageDrafts, setPackageDrafts] = useState<PackageDraft[]>(() => initialPackageDrafts(props));
   const [packageSavingId, setPackageSavingId] = useState<string | null>(null);
+  const [financeOpen, setFinanceOpen] = useState(true);
+  const [sessionsOpen, setSessionsOpen] = useState(true);
+  const [bookingSession, setBookingSession] = useState<Props["projectSessions"][number] | null>(null);
+  const [bookingProfessionalId, setBookingProfessionalId] = useState("");
+  const [bookingServiceId, setBookingServiceId] = useState("");
+  const [bookingDate, setBookingDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
+  const [bookingTime, setBookingTime] = useState("09:00");
+  const [bookingEnvironmentId, setBookingEnvironmentId] = useState("");
+  const [bookingSaving, setBookingSaving] = useState(false);
 
   const isProjectDetail = Boolean(props.projectId);
   const selectedProject = props.projectId ? props.projects.find((project) => project.id === props.projectId) ?? null : null;
@@ -233,7 +248,8 @@ export function ProjectsManager(props: ManagerProps) {
   const activeProjectEngagements = useMemo(() => props.engagements.filter((engagement) => activeProjectIds.has(engagement.project_id)), [activeProjectIds, props.engagements]);
   const activeProjectContractsCount = activeProjectEngagements.filter(projectContractIsActive).length;
   const activeProjectContractedCents = activeProjectEngagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
-  const activeProjectAcceptedCents = activeProjectEngagements.filter((item) => item.status === "ACTIVE" || item.status === "COMPLETED").reduce((sum, item) => sum + item.contracted_cents, 0);
+  const activeProjectEngagementIds = new Set(activeProjectEngagements.filter((item) => item.status !== "CANCELED").map((item) => item.id));
+  const activeProjectReceivedCents = props.installments.filter((item) => activeProjectEngagementIds.has(item.engagement_id)).reduce((sum, item) => sum + installmentReceivedCents(item), 0);
   const visibleProjects = useMemo(() => {
     if (projectFilter === "published") return props.projects.filter((project) => project.status === "PUBLISHED");
     if (projectFilter === "archived") return props.projects.filter((project) => project.status === "ARCHIVED");
@@ -260,6 +276,8 @@ export function ProjectsManager(props: ManagerProps) {
   const packageById = useMemo(() => new Map(props.packages.map((item) => [item.id, item])), [props.packages]);
   const contractedCents = projectEngagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
   const acceptedCents = projectEngagements.filter((item) => item.status === "ACTIVE" || item.status === "COMPLETED").reduce((sum, item) => sum + item.contracted_cents, 0);
+  const projectSessions = useMemo(() => projectSessionsData.filter((session) => projectEngagements.some((engagement) => engagement.id === session.engagement_id)), [projectEngagements, projectSessionsData]);
+  const projectCommissions = useMemo(() => projectCommissionsData.filter((commission) => commission.project_id === selectedProject?.id), [projectCommissionsData, selectedProject?.id]);
   const engagementSchedule = useMemo(() => {
     const total = Math.max(1, Number.parseInt(engagementInstallments, 10) || 1);
     const value = safeCentsInput(engagementPrice || "0");
@@ -502,6 +520,61 @@ export function ProjectsManager(props: ManagerProps) {
       setGeneratedEngagementSchedule(null);
       router.refresh();
     }
+  }
+
+  function openProjectSessionBooking(session: Props["projectSessions"][number]) {
+    const engagement = props.engagements.find((item) => item.id === session.engagement_id);
+    if (!engagement || session.status !== "OPEN") return;
+    const assignments = (props.packageServiceAssignments ?? []).filter((item) => item.project_package_id === engagement.package_id);
+    const firstAssignment = assignments[0];
+    setBookingSession(session);
+    setBookingProfessionalId(firstAssignment?.barber_id ?? props.barbers[0]?.id ?? "");
+    setBookingServiceId(firstAssignment?.service_id ?? "");
+    setBookingEnvironmentId(environmentsData[0]?.id ?? "");
+    setBookingTime("09:00");
+  }
+
+  function closeProjectSessionBooking() {
+    if (bookingSaving) return;
+    setBookingSession(null);
+    setBookingProfessionalId("");
+    setBookingServiceId("");
+  }
+
+  async function bookProjectSession() {
+    if (!bookingSession || !bookingProfessionalId || !bookingServiceId || !bookingDate || !bookingTime || bookingSaving) return;
+    setBookingSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("create_project_appointment", {
+        p_organization_id: props.organizationId,
+        p_session_id: bookingSession.id,
+        p_barber_id: bookingProfessionalId,
+        p_service_id: bookingServiceId,
+        p_starts_at: new Date(`${bookingDate}T${bookingTime}:00`).toISOString(),
+        p_environment_id: bookingEnvironmentId || null,
+        p_override_reason: null,
+        p_notes: "Atendimento de projeto",
+      }));
+    }, "Sessão agendada.");
+    setBookingSaving(false);
+    if (saved) {
+      closeProjectSessionBooking();
+      router.refresh();
+    }
+  }
+
+  async function cancelProjectSession(session: Props["projectSessions"][number]) {
+    if (!session.appointment_id || bookingSaving) return;
+    setBookingSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("cancel_appointment", {
+        p_appointment_id: session.appointment_id,
+        p_reason: "Cancelamento de sessão do projeto",
+        p_requested_by_customer: false,
+      }));
+    }, "Sessão cancelada.");
+    setBookingSaving(false);
+    if (saved) router.refresh();
   }
 
   function generateEngagementInstallments() {
@@ -805,7 +878,7 @@ export function ProjectsManager(props: ManagerProps) {
       <article><span>Projetos publicados</span><strong>{activeProjects.length}</strong><small>Somente projetos ativos</small></article>
       <article><span>Contratações ativas</span><strong>{activeProjectContractsCount}</strong><small>{activeProjectEngagements.filter((item) => item.status === "PROPOSAL").length} propostas aguardando aceite</small></article>
       <article><span>Valor contratado</span><strong>{formatCents(activeProjectContractedCents)}</strong><small>Contratos e propostas válidos</small></article>
-      <article><span>Resultado do módulo</span><strong>{formatCents(activeProjectAcceptedCents)}</strong><small>Contratações aceitas, sem duplicar sessões</small></article>
+      <article><span>Total Recebido</span><strong>{formatCents(activeProjectReceivedCents)}</strong><small>Entradas e parcelas recebidas nos projetos ativos</small></article>
     </section>}
 
     {props.projects.length === 0 ? <Panel title="Comece pelo primeiro projeto" description="Crie uma oferta comercial com prazo, pacote inicial e etapas padrão."><EmptyState title="Nenhum projeto criado" action={<button className={styles.button} type="button" onClick={openNewProjectModal}><Plus size={16} /> Criar projeto</button>}>O projeto é a oferta reutilizável. A contratação será criada depois para cada cliente.</EmptyState></Panel> : isProjectDetail ? selectedProject ? <section className={styles.projectDetail} aria-label={`Detalhes de ${selectedProject.name}`}>
@@ -815,7 +888,7 @@ export function ProjectsManager(props: ManagerProps) {
           {tab === "packages" && <ProjectPackages packages={packageDrafts} barbers={props.barbers} barberServices={props.barberServices ?? []} services={props.services} fixedCostCents={projectAllocationCents} savingId={packageSavingId} onAdd={addPackageDraft} onChange={updatePackageDraft} onSave={savePackage} />}
           {tab === "engagements" && <EngagementsTable engagements={projectEngagements} customerById={customerById} packageById={packageById} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} kanbanBoards={projectKanbanBoards} onEdit={openEditEngagementModal} />}
           {tab === "kanban" && <ProjectKanban key={JSON.stringify([projectKanbanBoards, projectEngagements])} organizationId={props.organizationId} projectId={selectedProject.id} boards={projectKanbanBoards} sectors={kanbanSectors} engagementsWithDueDateOverrides={eventDueDateOverrides} barbers={props.barbers} engagements={projectEngagements} customerById={customerById} lastComments={engagementLastComments} onOpenEvent={openEventEditor} onDueDateChange={saveEventDueDate} />}
-          {tab === "finance" && <ProjectFinance contractedCents={contractedCents} acceptedCents={acceptedCents} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} />}
+          {tab === "finance" && <ProjectFinance contractedCents={contractedCents} acceptedCents={acceptedCents} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} commissions={projectCommissions} />}
         </section> : <Panel title="Projeto não encontrado" description="Este projeto não está disponível para esta barbearia."><EmptyState title="Volte para Projetos"><button className={styles.button} type="button" onClick={() => router.push("/gestor/projetos")}><ArrowLeft size={16} /> Voltar para Projetos</button></EmptyState></Panel> : <Panel className={styles.projectListPanel} title="Projetos em andamento" description="Selecione um projeto para abrir o painel operacional." action={<label className={styles.projectFilter}><span>Exibir</span><select aria-label="Filtrar projetos" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value as ProjectFilter)}><option value="published">Publicados</option><option value="archived">Arquivados</option><option value="all">Todos</option></select></label>}>
           <div className={styles.projectList}>
             {visibleProjects.length === 0 ? <EmptyState title={projectFilter === "archived" ? "Nenhum projeto arquivado" : "Nenhum projeto publicado"}>{projectFilter === "archived" ? "Arquive um projeto para encontrá-lo nesta lista." : "Crie e publique um projeto para começar."}</EmptyState> : visibleProjects.map((project) => {
@@ -843,11 +916,19 @@ export function ProjectsManager(props: ManagerProps) {
         <Field label="Vencimento da Entrada"><input type="date" value={engagementEntryDueOn} onChange={(event) => setEngagementEntryDueOn(event.target.value)} /></Field>
         <Field label="1º vencimento"><input type="date" value={engagementFirstDueOn} onChange={(event) => setEngagementFirstDueOn(event.target.value)} /></Field>
         <div className={styles.installmentGenerator}><Field label="Valor da parcela"><input readOnly value={formatCents((generatedEngagementSchedule ?? engagementSchedule)[0]?.amount_cents ?? 0)} /></Field><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={generateEngagementInstallments} disabled={saving}>Gerar Parcelas</button></div>
-        <div className={`${styles.formWide} ${styles.contractFinance}`}><h3>Financeiro</h3><div className={styles.engagementFinanceTable}><div className={styles.engagementFinanceHeader}><span>N.</span><span>Valor da parcela</span><span>Data vencimento</span><span>Data Pgto</span><span>Forma de pagamento</span><span>Conta</span><span>Usuário que recebeu</span><span>Ações</span></div>{engagementFinanceRows.map((row) => <div className={`${styles.engagementFinanceRow} ${installmentIsOverdue(row) ? styles.engagementFinanceOverdue : ""}`} key={row.id}><span>{row.installment_number}</span><strong>{formatCents(row.amount_cents)}</strong><span>{dateLabel(row.due_on)}</span><span>{row.last_paid_at ? dateLabel(row.last_paid_at) : "—"}</span><span>{row.payment_method ?? "—"}</span><span>{row.financial_account_name ?? row.financial_account_id ?? "—"}</span><span>{row.received_by_name ?? row.received_by ?? "—"}</span><span className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={row.id.startsWith("draft-")} onClick={() => setEditingInstallment(row)}>Editar</button><button className={styles.button} type="button" disabled={!row.financial_entry_id || (row.remaining_cents ?? row.amount_cents) <= 0} onClick={() => void openReceiveInstallment(row)}>Receber</button></span></div>)}</div></div>
+        <div className={`${styles.formWide} ${styles.contractFinance}`}><button className={styles.sectionToggle} type="button" onClick={() => setFinanceOpen((current) => !current)} aria-expanded={financeOpen}><ChevronRight size={16} className={financeOpen ? styles.sectionToggleOpen : ""} /> Financeiro</button>{financeOpen && <div className={styles.engagementFinanceTable}><div className={styles.engagementFinanceHeader}><span>N.</span><span>Valor da parcela</span><span>Data vencimento</span><span>Data Pgto</span><span>Forma de pagamento</span><span>Conta</span><span>Usuário que recebeu</span><span>Ações</span></div>{engagementFinanceRows.map((row) => <div className={`${styles.engagementFinanceRow} ${installmentIsOverdue(row) ? styles.engagementFinanceOverdue : ""}`} key={row.id}><span>{row.installment_number}</span><strong>{formatCents(row.amount_cents)}</strong><span>{dateLabel(row.due_on)}</span><span>{row.last_paid_at ? dateLabel(row.last_paid_at) : "—"}</span><span>{row.payment_method ?? "—"}</span><span>{row.financial_account_name ?? row.financial_account_id ?? "—"}</span><span>{row.received_by_name ?? row.received_by ?? "—"}</span><span className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={row.id.startsWith("draft-")} onClick={() => setEditingInstallment(row)}>Editar</button><button className={styles.button} type="button" disabled={!row.financial_entry_id || (row.remaining_cents ?? row.amount_cents) <= 0} onClick={() => void openReceiveInstallment(row)}>Receber</button></span></div>)}</div>}</div>
+        {editingEngagementId && <div className={`${styles.formWide} ${styles.contractFinance}`}><button className={styles.sectionToggle} type="button" onClick={() => setSessionsOpen((current) => !current)} aria-expanded={sessionsOpen}><ChevronRight size={16} className={sessionsOpen ? styles.sectionToggleOpen : ""} /> Sessões</button>{sessionsOpen && <div className={styles.engagementFinanceTable}><div className={styles.engagementFinanceHeader}><span>Sessão</span><span>Data</span><span>Hora</span><span>Profissional</span><span>Status</span><span>Ações</span></div>{projectSessions.filter((session) => session.engagement_id === editingEngagementId).map((session) => { const appointment = session.appointment; const barber = props.barbers.find((item) => item.id === session.barber_id); const date = appointment?.service_period ? new Date(appointment.service_period.slice(1, 25)).toLocaleDateString("pt-BR") : "—"; const time = appointment?.service_period ? new Date(appointment.service_period.slice(1, 25)).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"; const statusLabel = appointment?.status === "CANCELED" ? (appointment.cancellation_outcome === "ON_TIME" ? "Cancelado no prazo" : "Cancelado após o prazo") : appointment ? projectAppointmentStatusLabels[appointment.status] ?? appointment.status : projectSessionStatusLabels[session.status]; return <div className={styles.engagementFinanceRow} key={session.id}><strong>{session.session_number}</strong><span>{date}</span><span>{time}</span><span>{barber?.display_name ?? "—"}</span><StatusChip active={session.status === "COMPLETED"} label={statusLabel} tone={appointment?.status === "CANCELED" || session.status === "CANCELED" ? "danger" : appointment?.status === "IN_SERVICE" ? "warning" : undefined} /><span className={styles.toolbarGroup}>{session.status === "OPEN" && <button className={styles.button} type="button" onClick={() => openProjectSessionBooking(session)}><CalendarDays size={14} /> Agendar</button>}{session.status === "BOOKED" && session.appointment_id && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={bookingSaving} onClick={() => void cancelProjectSession(session)}>Cancelar</button>}</span></div>; })}</div>}</div>}
       </div>
       <p className={styles.muted}>{editingEngagementId ? "Modo de edição: altere os dados da contratação do cliente." : "Contrato gera entrada e parcelas no módulo Financeiro, sem cobrança duplicada das sessões."}</p>
       <footer className={styles.modalActions}>{editingEngagement && <div className={styles.signDateField}><Field label="Data da assinatura"><input aria-label="Data da assinatura" type="date" value={signingDate} onChange={(event) => setSigningDate(event.target.value)} /></Field></div>}<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeEngagementModal}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !engagementCustomerId || !engagementPackageId || !engagementEntryDueOn || !engagementFirstDueOn} onClick={() => void saveEngagement()}>{saving ? "Salvando…" : editingEngagementId ? "Salvar alterações" : "Criar contrato"}</button></footer>
     </Modal>}
+    {bookingSession && (() => {
+      const bookingEngagement = props.engagements.find((item) => item.id === bookingSession.engagement_id);
+      const assignments = (props.packageServiceAssignments ?? []).filter((item) => item.project_package_id === bookingEngagement?.package_id);
+      const professionals = [...new Map(assignments.map((assignment) => [assignment.barber_id, props.barbers.find((barber) => barber.id === assignment.barber_id)]).filter((entry): entry is [string, Props["barbers"][number]] => Boolean(entry[1]))).values()];
+      const services = assignments.filter((assignment) => assignment.barber_id === bookingProfessionalId).map((assignment) => ({ assignment, service: props.services.find((service) => service.id === assignment.service_id) })).filter((item): item is { assignment: typeof assignments[number]; service: Props["services"][number] } => Boolean(item.service));
+      return <Modal title="Reserve um horário" onClose={closeProjectSessionBooking}><div className={styles.form}><p className={styles.muted}>Sessão {bookingSession.session_number} · cliente e pacote contratado ficam vinculados ao atendimento.</p><Field label="Profissional" wide><select value={bookingProfessionalId} onChange={(event) => { setBookingProfessionalId(event.target.value); const first = assignments.find((assignment) => assignment.barber_id === event.target.value); setBookingServiceId(first?.service_id ?? ""); }}><option value="">Selecione</option>{professionals.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></Field><Field label="Serviço do pacote" wide><select value={bookingServiceId} onChange={(event) => setBookingServiceId(event.target.value)} disabled={!services.length}><option value="">Selecione</option>{services.map(({ service }) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></Field><Field label="Data"><span className="input-shell"><CalendarDays size={16} /><input type="date" value={bookingDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setBookingDate(event.target.value)} /></span></Field><Field label="Hora"><span className="input-shell"><Clock3 size={16} /><input type="time" value={bookingTime} onChange={(event) => setBookingTime(event.target.value)} /></span></Field><Field label="Ambiente" wide><select value={bookingEnvironmentId} onChange={(event) => setBookingEnvironmentId(event.target.value)}><option value="">Selecionar automaticamente</option>{environmentsData.map((environment) => <option value={environment.id} key={environment.id}>{environment.name}</option>)}</select></Field></div><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeProjectSessionBooking}>Cancelar</button><button className={styles.button} type="button" disabled={bookingSaving || !bookingProfessionalId || !bookingServiceId || !bookingDate || !bookingTime} onClick={() => void bookProjectSession()}>{bookingSaving ? "Agendando…" : "Agendar sessão"}</button></footer></Modal>;
+    })()}
     {newEngagementCustomerOpen && newEngagementOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar cadastro de cliente" onClick={closeNewEngagementCustomer} /><form className="form-modal" role="dialog" aria-modal="true" aria-label="Novo cliente" onSubmit={(event) => void createEngagementCustomer(event)}>
       <div className="form-modal__head"><span><small>Cadastro manual</small><strong>Cadastre um cliente</strong></span><button type="button" className="icon-button" onClick={closeNewEngagementCustomer} aria-label="Fechar cadastro de cliente" disabled={newEngagementCustomerSaving}><X size={19} /></button></div>
       <div className="form-modal__body">
@@ -1404,9 +1485,9 @@ function ProjectKanban({ organizationId, projectId, boards: initialBoards, secto
   </div>;
 }
 
-function ProjectFinance({ contractedCents, acceptedCents, installments }: { contractedCents: number; acceptedCents: number; installments: Props["installments"] }) {
+function ProjectFinance({ contractedCents, acceptedCents, installments, commissions }: { contractedCents: number; acceptedCents: number; installments: Props["installments"]; commissions: Props["projectCommissions"] }) {
   const openCents = installments.filter((item) => item.status === "OPEN").reduce((sum, item) => sum + item.amount_cents, 0);
-  return <div className={styles.projectColumns}><Panel title="Resultado do projeto" description="Valores do módulo separados das sessões avulsas."><div className={styles.financeRows}><div><span>Valor contratado</span><strong>{formatCents(contractedCents)}</strong></div><div><span>Aceito</span><strong>{formatCents(acceptedCents)}</strong></div><div><span>Parcelas abertas</span><strong>{formatCents(openCents)}</strong></div></div><p className={styles.muted}>Custos e comissões entram no financeiro quando as etapas forem aprovadas. “Resultado” não é lucro líquido contábil.</p></Panel><Panel title="Parcelas" description="A cobrança do projeto usa o cronograma da contratação.">{installments.length ? <div className={styles.list}>{installments.map((item) => <div className={styles.row} key={item.id}><span>{dateLabel(item.due_on)}</span><strong>{formatCents(item.amount_cents)}</strong><StatusChip active={item.status === "PAID"} label={item.status === "PAID" ? "Recebida" : item.status === "CANCELED" ? "Cancelada" : "Em aberto"} tone={item.status === "OPEN" ? "warning" : item.status === "CANCELED" ? "danger" : undefined} /></div>)}</div> : <EmptyState title="Nenhuma parcela criada">O cronograma será preenchido na proposta.</EmptyState>}</Panel></div>;
+  return <div className={styles.projectColumns}><Panel title="Resultado do projeto" description="Valores do módulo separados das sessões avulsas."><div className={styles.financeRows}><div><span>Valor contratado</span><strong>{formatCents(contractedCents)}</strong></div><div><span>Aceito</span><strong>{formatCents(acceptedCents)}</strong></div><div><span>Parcelas abertas</span><strong>{formatCents(openCents)}</strong></div><div><span>Comissões geradas</span><strong>{formatCents(commissions.reduce((sum, item) => sum + item.commission_cents, 0))}</strong></div></div><p className={styles.muted}>Comissões são calculadas exclusivamente pelo valor cadastrado no pacote e entram após a conclusão do atendimento.</p></Panel><Panel title="Parcelas" description="A cobrança do projeto usa o cronograma da contratação.">{installments.length ? <div className={styles.list}>{installments.map((item) => <div className={styles.row} key={item.id}><span>{dateLabel(item.due_on)}</span><strong>{formatCents(item.amount_cents)}</strong><StatusChip active={item.status === "PAID"} label={item.status === "PAID" ? "Recebida" : item.status === "CANCELED" ? "Cancelada" : "Em aberto"} tone={item.status === "OPEN" ? "warning" : item.status === "CANCELED" ? "danger" : undefined} /></div>)}</div> : <EmptyState title="Nenhuma parcela criada">O cronograma será preenchido na proposta.</EmptyState>}</Panel><Panel title="Comissões do projeto" description="Lançamentos criados após a conclusão das sessões.">{commissions.length ? <div className={styles.list}>{commissions.map((item) => <div className={styles.row} key={item.appointment_item_id}><span>{item.customer_name} · {item.service_name}</span><strong>{formatCents(item.commission_cents)}</strong><StatusChip active={item.payable_commission_cents <= 0} label={item.paid_commission_cents > 0 ? "Paga" : "À pagar"} tone={item.paid_commission_cents > 0 ? undefined : "warning"} /></div>)}</div> : <EmptyState title="Nenhuma comissão gerada">Conclua uma sessão para gerar a comissão do profissional.</EmptyState>}</Panel></div>;
 }
 
 function Modal({ title, wide = false, onClose, children }: { title: string; wide?: boolean; onClose: () => void; children: React.ReactNode }) {
