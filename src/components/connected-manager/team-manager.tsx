@@ -79,6 +79,11 @@ export function TeamManager(props: Props) {
   const selectedBarber = props.barbers.find((barber) => barber.id === scheduleBarber);
   const filteredBarbers = props.barbers.filter((barber) => barber.active === (professionalFilter === "ACTIVE") && `${barber.display_name} ${barber.whatsapp_e164 ?? ""} ${barber.bio ?? ""}`.toLowerCase().includes(query.toLowerCase()));
 
+  function openBarberForm(form: BarberRecord | "new") {
+    setMessage("");
+    setBarberForm(form);
+  }
+
   async function saveBarber(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -312,7 +317,7 @@ export function TeamManager(props: Props) {
   return <div className={styles.stack}>
     <PageHeader title="Equipe" description="Profissionais, serviços, escalas, folgas e regras versionadas." />
     <ActionMessage message={message} />
-    <Panel title="Profissionais" titleAdornment={<select aria-label="Filtro de profissionais" className={styles.professionalFilter} value={professionalFilter} onChange={(event) => setProfessionalFilter(event.target.value as ProfessionalFilter)}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select>} description={`${props.barbers.filter((item) => item.active).length} ativos`} action={<button className={styles.button} type="button" onClick={() => setBarberForm("new")}>Novo profissional</button>}>
+    <Panel title="Profissionais" titleAdornment={<select aria-label="Filtro de profissionais" className={styles.professionalFilter} value={professionalFilter} onChange={(event) => setProfessionalFilter(event.target.value as ProfessionalFilter)}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select>} description={`${props.barbers.filter((item) => item.active).length} ativos`} action={<button className={styles.button} type="button" onClick={() => openBarberForm("new")}>Novo profissional</button>}>
       {barberForm && <div className="modal-layer" role="presentation">
         <button className="modal-layer__backdrop" type="button" aria-label="Fechar" onClick={() => setBarberForm(null)} />
         <form className="form-modal" role="dialog" aria-modal="true" aria-label={barberForm === "new" ? "Novo profissional" : "Editar profissional"} onSubmit={saveBarber} key={barberForm === "new" ? "new" : barberForm.id}>
@@ -339,7 +344,7 @@ export function TeamManager(props: Props) {
         return <article className={`${styles.row} ${styles.professionalRow}`} key={barber.id}><span className={styles.professionalTitle}><i className={styles.avatar}>{barber.avatar_url ? <Image src={barber.avatar_url} alt="" width={42} height={42} sizes="42px" /> : initials(barber.display_name)}</i><span className={styles.rowTitle}><span className={styles.professionalName}><strong>{barber.display_name}</strong>{isManager && <StatusChip active label="Administrador" tone="info" />}</span><small>{barber.bio ?? "Sem apresentação"}</small></span></span>
           <span className={styles.professionalWhatsapp}>{barber.whatsapp_e164 ?? "WhatsApp não cadastrado"}</span>
           <StatusChip active={barber.active} />
-          <div className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => openScale(barber.id)}>Escala</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => openServices(barber.id)}>Serviços</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => setBarberForm(barber)}>Editar</button>{!isManager && <button className={`${styles.button} ${barber.active ? styles.buttonDanger : styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => toggleBarber(barber)}>{barber.active ? "Inativar" : "Reativar"}</button>}</div>
+          <div className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => openScale(barber.id)}>Escala</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => openServices(barber.id)}>Serviços</button><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => openBarberForm(barber)}>Editar</button>{!isManager && <button className={`${styles.button} ${barber.active ? styles.buttonDanger : styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => toggleBarber(barber)}>{barber.active ? "Inativar" : "Reativar"}</button>}</div>
         </article>;
       })}</div>}
     </Panel>

@@ -18,14 +18,18 @@ const mutationMocks = vi.hoisted(() => ({
     })),
   })),
   upsert: vi.fn(() => Promise.resolve({ error: null, data: null })),
-  insert: vi.fn(() => Promise.resolve({ error: null, data: null })),
+  insert: vi.fn(() => ({ error: null, select: vi.fn(() => ({ single: vi.fn(() => Promise.resolve({ error: null, data: { id: "barber-new" } })) })) })),
   rpc: vi.fn(() => Promise.resolve({ error: null, data: null })),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push }) }));
 vi.mock("@/components/connected-manager/mutation-utils", () => ({
   connectedClient: () => ({ from: () => ({ update: mutationMocks.update, upsert: mutationMocks.upsert, insert: mutationMocks.insert }), rpc: mutationMocks.rpc }),
   assertResult: (result: unknown) => result,
-  runMutation: async (_setMessage: unknown, mutation: () => Promise<unknown>) => { await mutation(); return true; },
+  runMutation: async (setMessage: (message: string) => void, mutation: () => Promise<unknown>, success: string) => {
+    setMessage("Salvando…");
+    try { await mutation(); setMessage(success); return true; }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Erro"); return false; }
+  },
 }));
 
 const organization = {
@@ -80,7 +84,7 @@ function renderTeam(options: { professionalFunctions?: Array<{ id: string; organ
 }
 
 describe("connected manager UI", () => {
-  beforeEach(() => { cleanup(); refresh.mockReset(); push.mockReset(); mutationMocks.update.mockClear(); mutationMocks.rpc.mockClear(); });
+  beforeEach(() => { cleanup(); refresh.mockReset(); push.mockReset(); mutationMocks.update.mockClear(); mutationMocks.insert.mockClear(); mutationMocks.rpc.mockClear(); });
 
   it("renders only tenant records on the dashboard", () => {
     render(<ManagerDashboard organizationId="org-1" billingStatus="ACTIVE" organization={organization} appointments={[]} customers={[customer]} barbers={[barber]} financial={[]} openPayouts={[]} />);
@@ -173,6 +177,34 @@ describe("connected manager UI", () => {
     expect(nameField.closest(".form-grid")).toBe(functionField.closest(".form-grid"));
     expect(functionField).toHaveDisplayValue("Sem função");
     expect(within(functionField).getByRole("option", { name: "Barbeiro" })).toBeInTheDocument();
+  });
+
+  it("fecha o modal após salvar e limpa a confirmação antes do próximo cadastro", async () => {
+    mutationMocks.insert
+      .mockImplementationOnce(() => ({ error: null, select: vi.fn(() => ({ single: vi.fn(() => Promise.resolve({ error: null, data: { id: "barber-new-1" } })) })) }))
+      .mockImplementationOnce(() => ({ error: null, select: vi.fn(() => ({ single: vi.fn(() => Promise.resolve({ error: null, data: { id: "barber-new-2" } })) })) }));
+    renderTeam();
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo profissional" }));
+    let dialog = screen.getByRole("dialog", { name: "Novo profissional" });
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Profissional Um" } });
+    fireEvent.change(within(dialog).getByLabelText(/WhatsApp do profissional/), { target: { value: "47999999999" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cadastrar" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo profissional" })).not.toBeInTheDocument());
+    expect(screen.getByRole("status")).toHaveTextContent("Profissional cadastrado.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo profissional" }));
+    dialog = screen.getByRole("dialog", { name: "Novo profissional" });
+    expect(within(dialog).queryByText("Profissional cadastrado.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Profissional cadastrado.")).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), { target: { value: "Profissional Dois" } });
+    fireEvent.change(within(dialog).getByLabelText(/WhatsApp do profissional/), { target: { value: "47999999998" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cadastrar" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo profissional" })).not.toBeInTheDocument());
+    expect(mutationMocks.insert).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   it("salva serviços habilitados e comissão pelo modal de serviços", async () => {
