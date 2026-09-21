@@ -3,11 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { kanbanDeadlineTone, ProjectsManager } from "@/components/connected-manager/projects-manager";
 import styles from "@/components/connected-manager/connected-manager.module.css";
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }) }));
 vi.mock("@/components/connected-manager/mutation-utils", () => ({
-  connectedClient: () => ({ rpc: mocks.rpc }),
+  connectedClient: () => ({ rpc: mocks.rpc, from: mocks.from }),
   assertResult: async (result: { error: unknown }) => { if (result.error) throw new Error(String(result.error)); },
   runMutation: async (_setMessage: unknown, mutation: () => Promise<void>) => { await mutation(); return true; },
 }));
@@ -30,7 +30,7 @@ const generalData = {
 };
 
 describe("kanban board editing", () => {
-  afterEach(() => { cleanup(); mocks.rpc.mockReset(); mocks.refresh.mockReset(); mocks.push.mockReset(); vi.useRealTimers(); });
+  afterEach(() => { cleanup(); mocks.rpc.mockReset(); mocks.from.mockReset(); mocks.refresh.mockReset(); mocks.push.mockReset(); vi.useRealTimers(); });
 
   it("classifica as cores do prazo por dias corridos", () => {
     vi.useFakeTimers();
@@ -230,6 +230,27 @@ describe("kanban board editing", () => {
     })));
   });
 
+  it("rehydrates and preserves saved tax and card rates", async () => {
+    const savedPackage = {
+      id: "package-1", organization_id: "org-1", project_id: "project-1", name: "Pacote salvo", description: null,
+      price_cents: 39000, sessions_count: 1, duration_minutes: 60, fixed_cost_per_hour_cents: 10420,
+      extra_costs_cents: 4000, extra_costs_description: null, tax_rate_bps: 750, card_rate_bps: 199,
+      profit_margin_bps: 3800, deposit_cents: 5000, suggested_price_cents: 0, sort_order: 1, active: true,
+    };
+    mocks.rpc.mockResolvedValue({ data: savedPackage, error: null });
+    render(<ProjectsManager {...data} packages={[savedPackage]} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Pacotes/ }));
+
+    expect(screen.getByLabelText("Impostos (%)")).toHaveValue(7.5);
+    expect(screen.getByLabelText("Taxas banco/cartão (%)")).toHaveValue(1.99);
+    fireEvent.click(screen.getByRole("button", { name: "Salvar pacote" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("upsert_project_package", expect.objectContaining({
+      p_tax_rate_bps: 750,
+      p_card_rate_bps: 199,
+      p_profit_margin_bps: 3800,
+    })));
+  });
+
   it("collapses only the selected package price breakdown", () => {
     render(<ProjectsManager {...data} projectId="project-1" />);
     fireEvent.click(screen.getByRole("button", { name: /Pacotes/ }));
@@ -339,5 +360,51 @@ describe("kanban board editing", () => {
     })));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo contrato" })).not.toBeInTheDocument());
     expect(mocks.refresh).toHaveBeenCalled();
+  });
+
+  it("creates a missing customer from the new-contract modal and selects them", async () => {
+    const createdCustomer = { id: "customer-new", full_name: "Cliente manual", phone_e164: "+5511999999999", email: "cliente@example.com" };
+    const single = vi.fn().mockResolvedValue({ data: createdCustomer, error: null });
+    const select = vi.fn(() => ({ single }));
+    const insert = vi.fn(() => ({ select }));
+    mocks.from.mockReturnValue({ insert });
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+    const packageRecord = {
+      id: "package-1", organization_id: "org-1", project_id: "project-1", name: "Pacote", description: null,
+      price_cents: 39000, sessions_count: 1, duration_minutes: 60, fixed_cost_per_hour_cents: 0,
+      extra_costs_cents: 0, extra_costs_description: null, tax_rate_bps: 0, card_rate_bps: 0,
+      profit_margin_bps: 5000, deposit_cents: 5000, suggested_price_cents: 39000, sort_order: 1, active: true,
+    };
+    render(<ProjectsManager {...data} customers={[]} packages={[packageRecord]} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Novo contrato" }));
+    const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    fireEvent.change(within(contractDialog).getByLabelText("Cliente"), { target: { value: "Cliente manual" } });
+    fireEvent.click(within(contractDialog).getByRole("button", { name: "Cadastrar novo cliente" }));
+
+    const customerDialog = screen.getByRole("dialog", { name: "Novo cliente" });
+    expect(within(customerDialog).getByLabelText("Nome completo")).toHaveValue("Cliente manual");
+    fireEvent.change(within(customerDialog).getByLabelText("Telefone"), { target: { value: "11999999999" } });
+    fireEvent.change(within(customerDialog).getByLabelText("E-mail"), { target: { value: "cliente@example.com" } });
+    fireEvent.click(within(customerDialog).getByRole("button", { name: "Cadastrar" }));
+
+    await waitFor(() => expect(mocks.from).toHaveBeenCalledWith("customers"));
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      organization_id: "org-1",
+      full_name: "Cliente manual",
+      phone_e164: "+5511999999999",
+      email: "cliente@example.com",
+      active: true,
+    }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo cliente" })).not.toBeInTheDocument());
+    expect(screen.getByRole("dialog", { name: "Novo contrato" })).toBeInTheDocument();
+    expect(within(contractDialog).getByText("Cliente manual selecionado")).toBeInTheDocument();
+    expect(within(contractDialog).getByLabelText("Cliente")).toHaveValue("Cliente manual");
+    fireEvent.click(within(contractDialog).getByRole("button", { name: "Criar contrato" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("save_project_contract", expect.objectContaining({
+      p_customer_id: "customer-new",
+      p_project_id: "project-1",
+    })));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo contrato" })).not.toBeInTheDocument());
   });
 });

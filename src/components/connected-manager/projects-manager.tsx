@@ -9,6 +9,7 @@ import type { ChartAccountRecord, CostCenterRecord, FinancialAccountRecord, Fina
 import { centsFromInput, formatCents } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
+import { normalizePhoneE164 } from "@/lib/phone";
 import styles from "./connected-manager.module.css";
 
 type Props = ProjectsPageData;
@@ -92,9 +93,10 @@ function packageDraftFromRecord(item: Props["packages"][number]): PackageDraft {
     fixedCostPerHour: centsInput(item.fixed_cost_per_hour_cents ?? 0),
     extraCosts: centsInput(item.extra_costs_cents ?? 0),
     extraCostsDescription: item.extra_costs_description ?? "",
-    taxRate: String((item.tax_rate_bps ?? 0) / 100).replace(".", ","),
-    cardRate: String((item.card_rate_bps ?? 0) / 100).replace(".", ","),
-    profitMargin: String((item.profit_margin_bps ?? 5000) / 100).replace(".", ","),
+    // These are rendered by <input type="number">; keep its required decimal-dot format.
+    taxRate: String((item.tax_rate_bps ?? 0) / 100),
+    cardRate: String((item.card_rate_bps ?? 0) / 100),
+    profitMargin: String((item.profit_margin_bps ?? 5000) / 100),
     deposit: centsInput(item.deposit_cents ?? 0),
     practicedPrice: centsInput(item.price_cents ?? 0),
     serviceAssignments: [],
@@ -182,6 +184,15 @@ export function ProjectsManager(props: ManagerProps) {
   const [packageSessions, setPackageSessions] = useState("3");
   const [engagementCustomerId, setEngagementCustomerId] = useState("");
   const [engagementCustomerQuery, setEngagementCustomerQuery] = useState("");
+  const [createdEngagementCustomers, setCreatedEngagementCustomers] = useState<Props["customers"]>([]);
+  const [newEngagementCustomerOpen, setNewEngagementCustomerOpen] = useState(false);
+  const [newEngagementCustomerSaving, setNewEngagementCustomerSaving] = useState(false);
+  const [newEngagementCustomerMessage, setNewEngagementCustomerMessage] = useState("");
+  const [newEngagementCustomerName, setNewEngagementCustomerName] = useState("");
+  const [newEngagementCustomerPhone, setNewEngagementCustomerPhone] = useState("");
+  const [newEngagementCustomerEmail, setNewEngagementCustomerEmail] = useState("");
+  const [newEngagementCustomerBirthDate, setNewEngagementCustomerBirthDate] = useState("");
+  const [newEngagementCustomerNotes, setNewEngagementCustomerNotes] = useState("");
   const [engagementPackageId, setEngagementPackageId] = useState("");
   const [engagementPrice, setEngagementPrice] = useState("");
   const [engagementEntry, setEngagementEntry] = useState("0,00");
@@ -230,12 +241,16 @@ export function ProjectsManager(props: ManagerProps) {
   const engagementLastComments = props.engagementLastComments ?? {};
   const projectAllocationCents = useMemo(() => projectAllocationPerContract(props.costItems.filter((item) => item.project_id === selectedProject?.id), selectedProject?.goal_contracts ?? null), [props.costItems, selectedProject?.id, selectedProject?.goal_contracts]);
   const customerById = useMemo(() => new Map(props.customers.map((customer) => [customer.id, customer])), [props.customers]);
+  const engagementCustomers = useMemo(() => {
+    const customerIds = new Set(props.customers.map((customer) => customer.id));
+    return [...props.customers, ...createdEngagementCustomers.filter((customer) => !customerIds.has(customer.id))];
+  }, [createdEngagementCustomers, props.customers]);
   const matchingEngagementCustomers = useMemo(() => {
     const query = engagementCustomerQuery.trim().toLocaleLowerCase("pt-BR");
     if (!query) return [];
-    return props.customers.filter((customer) => `${customer.full_name} ${customer.phone_e164 ?? ""}`.toLocaleLowerCase("pt-BR").includes(query));
-  }, [engagementCustomerQuery, props.customers]);
-  const selectedEngagementCustomer = props.customers.find((customer) => customer.id === engagementCustomerId) ?? null;
+    return engagementCustomers.filter((customer) => `${customer.full_name} ${customer.phone_e164 ?? ""}`.toLocaleLowerCase("pt-BR").includes(query));
+  }, [engagementCustomerQuery, engagementCustomers]);
+  const selectedEngagementCustomer = engagementCustomers.find((customer) => customer.id === engagementCustomerId) ?? null;
   const editingEngagement = editingEngagementId ? projectEngagements.find((item) => item.id === editingEngagementId) ?? null : null;
   const packageById = useMemo(() => new Map(props.packages.map((item) => [item.id, item])), [props.packages]);
   const contractedCents = projectEngagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
@@ -373,6 +388,63 @@ export function ProjectsManager(props: ManagerProps) {
     }
   }
 
+  function openNewEngagementCustomer() {
+    setNewEngagementCustomerName(engagementCustomerQuery.trim());
+    setNewEngagementCustomerPhone("");
+    setNewEngagementCustomerEmail("");
+    setNewEngagementCustomerBirthDate("");
+    setNewEngagementCustomerNotes("");
+    setNewEngagementCustomerMessage("");
+    setNewEngagementCustomerOpen(true);
+  }
+
+  function closeNewEngagementCustomer() {
+    if (newEngagementCustomerSaving) return;
+    setNewEngagementCustomerOpen(false);
+    setNewEngagementCustomerMessage("");
+  }
+
+  async function createEngagementCustomer(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (newEngagementCustomerSaving) return;
+    const formData = new FormData(event.currentTarget);
+    const fullName = String(formData.get("full_name") ?? "").trim();
+    const rawPhone = String(formData.get("phone_e164") ?? "").trim();
+    const phone = normalizePhoneE164(rawPhone);
+    if (!fullName) return;
+    if (rawPhone && !phone) {
+      setNewEngagementCustomerMessage("Informe um telefone válido com DDD e, se necessário, DDI.");
+      return;
+    }
+
+    let createdCustomer: Props["customers"][number] | null = null;
+    setNewEngagementCustomerSaving(true);
+    const saved = await runMutation(setNewEngagementCustomerMessage, async () => {
+      const result = await connectedClient().from("customers").insert({
+        organization_id: props.organizationId,
+        full_name: fullName,
+        phone_e164: phone,
+        email: String(formData.get("email") ?? "").trim().toLowerCase() || null,
+        birth_date: String(formData.get("birth_date") ?? "") || null,
+        notes: String(formData.get("notes") ?? "").trim() || null,
+        active: true,
+      }).select("id,full_name,phone_e164,email").single();
+      await assertResult(result);
+      if (!result.data) throw new Error("O cliente não retornou os dados após o cadastro.");
+      createdCustomer = result.data as Props["customers"][number];
+    }, "Cliente cadastrado e selecionado.");
+    setNewEngagementCustomerSaving(false);
+
+    const customer = createdCustomer as Props["customers"][number] | null;
+    if (saved && customer) {
+      setCreatedEngagementCustomers((current) => current.some((item) => item.id === customer.id) ? current : [...current, customer]);
+      setEngagementCustomerId(customer.id);
+      setEngagementCustomerQuery(customer.full_name);
+      setNewEngagementCustomerOpen(false);
+      setNewEngagementCustomerMessage("");
+    }
+  }
+
   async function saveEngagement() {
     if (!selectedProject || saving || !engagementCustomerId || !engagementPackageId) return;
     setSaving(true);
@@ -488,6 +560,7 @@ export function ProjectsManager(props: ManagerProps) {
 
   function closeEngagementModal() {
     setNewEngagementOpen(false);
+    setNewEngagementCustomerOpen(false);
     setEditingEngagementId(null);
     setGeneratedEngagementSchedule(null);
   }
@@ -756,7 +829,7 @@ export function ProjectsManager(props: ManagerProps) {
     {newEngagementOpen && selectedProject && <Modal title="Novo contrato" wide onClose={closeEngagementModal}>
       <div className={styles.form}>
         <Field label="Cliente" wide><span className="input-shell"><UserRound size={17} /><input required aria-label="Cliente" value={selectedEngagementCustomer?.full_name ?? engagementCustomerQuery} onChange={(event) => { setEngagementCustomerQuery(event.target.value); setEngagementCustomerId(""); }} placeholder="Buscar por nome ou telefone" /></span></Field>
-        {engagementCustomerQuery.trim() && !engagementCustomerId && <div className={`${styles.formWide} customer-search-results`}>{matchingEngagementCustomers.map((customer) => <button className="customer-search-result" key={customer.id} type="button" aria-label={`Selecionar ${customer.full_name}`} onClick={() => { setEngagementCustomerId(customer.id); setEngagementCustomerQuery(customer.full_name); }}><strong>{customer.full_name}</strong><small>{customer.phone_e164 ?? "Sem telefone"}</small></button>)}{matchingEngagementCustomers.length === 0 && <p className="customer-search-selected">Nenhum cliente encontrado.</p>}</div>}
+        {engagementCustomerQuery.trim() && !engagementCustomerId && <div className={`${styles.formWide} customer-search-results`}>{matchingEngagementCustomers.map((customer) => <button className="customer-search-result" key={customer.id} type="button" aria-label={`Selecionar ${customer.full_name}`} onClick={() => { setEngagementCustomerId(customer.id); setEngagementCustomerQuery(customer.full_name); }}><strong>{customer.full_name}</strong><small>{customer.phone_e164 ?? "Sem telefone"}</small></button>)}{matchingEngagementCustomers.length === 0 && <><p className="customer-search-selected">Nenhum cliente encontrado.</p><button className="customer-search-create" type="button" onClick={openNewEngagementCustomer}><Plus size={15} /> Cadastrar novo cliente</button></>}</div>}
         {selectedEngagementCustomer && <p className={`${styles.formWide} customer-search-selected`}><Check size={15} /> {selectedEngagementCustomer.full_name} selecionado</p>}
         <Field label="Pacote"><select aria-label="Pacote" value={engagementPackageId} onChange={(event) => { const packageId = event.target.value; setEngagementPackageId(packageId); const selected = projectPackages.find((item) => item.id === packageId); if (selected) { setEngagementPrice(centsInput(selected.price_cents)); setEngagementEntry(centsInput(selected.deposit_cents)); setEngagementInstallments(String(Math.max(1, selected.sessions_count))); } }}>{projectPackages.map((item) => <option key={item.id} value={item.id}>{item.name} · {formatCents(item.price_cents)}</option>)}</select></Field>
         <Field label="Valor"><input inputMode="decimal" value={engagementPrice} onChange={(event) => setEngagementPrice(event.target.value)} /></Field>
@@ -770,6 +843,18 @@ export function ProjectsManager(props: ManagerProps) {
       <p className={styles.muted}>{editingEngagementId ? "Modo de edição: altere os dados da contratação do cliente." : "Contrato gera entrada e parcelas no módulo Financeiro, sem cobrança duplicada das sessões."}</p>
       <footer className={styles.modalActions}>{editingEngagement && <div className={styles.signDateField}><Field label="Data da assinatura"><input aria-label="Data da assinatura" type="date" value={signingDate} onChange={(event) => setSigningDate(event.target.value)} /></Field></div>}<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeEngagementModal}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !engagementCustomerId || !engagementPackageId || !engagementEntryDueOn || !engagementFirstDueOn} onClick={() => void saveEngagement()}>{saving ? "Salvando…" : editingEngagementId ? "Salvar alterações" : "Criar contrato"}</button></footer>
     </Modal>}
+    {newEngagementCustomerOpen && newEngagementOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar cadastro de cliente" onClick={closeNewEngagementCustomer} /><form className="form-modal" role="dialog" aria-modal="true" aria-label="Novo cliente" onSubmit={(event) => void createEngagementCustomer(event)}>
+      <div className="form-modal__head"><span><small>Cadastro manual</small><strong>Cadastre um cliente</strong></span><button type="button" className="icon-button" onClick={closeNewEngagementCustomer} aria-label="Fechar cadastro de cliente" disabled={newEngagementCustomerSaving}><X size={19} /></button></div>
+      <div className="form-modal__body">
+        <ActionMessage message={newEngagementCustomerMessage} tone="error" />
+        <Field label="Nome completo"><input name="full_name" required minLength={2} maxLength={160} value={newEngagementCustomerName} onChange={(event) => setNewEngagementCustomerName(event.target.value)} autoFocus /></Field>
+        <Field label="Telefone"><input name="phone_e164" inputMode="tel" placeholder="11999999999 ou +5511999999999" pattern="[+0-9][0-9\s().-]{7,20}" value={newEngagementCustomerPhone} onChange={(event) => setNewEngagementCustomerPhone(event.target.value)} /></Field>
+        <Field label="E-mail"><input name="email" type="email" value={newEngagementCustomerEmail} onChange={(event) => setNewEngagementCustomerEmail(event.target.value)} /></Field>
+        <Field label="Nascimento (opcional)"><input name="birth_date" type="date" value={newEngagementCustomerBirthDate} onChange={(event) => setNewEngagementCustomerBirthDate(event.target.value)} /></Field>
+        <Field label="Observações" wide><textarea name="notes" maxLength={1000} value={newEngagementCustomerNotes} onChange={(event) => setNewEngagementCustomerNotes(event.target.value)} /></Field>
+      </div>
+      <div className="form-modal__footer"><button className="button button--ghost" type="button" onClick={closeNewEngagementCustomer} disabled={newEngagementCustomerSaving}>Cancelar</button><button className="button button--dark" type="submit" disabled={newEngagementCustomerSaving}>{newEngagementCustomerSaving ? "Cadastrando…" : "Cadastrar"}</button></div>
+    </form></div>}
     {eventEditorEngagementId && (() => {
       const engagement = eventEditorEngagement ?? props.engagements.find((item) => item.id === eventEditorEngagementId);
       const eventProject = props.projects.find((project) => project.id === engagement?.project_id);
