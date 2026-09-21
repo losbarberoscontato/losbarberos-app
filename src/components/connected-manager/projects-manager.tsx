@@ -66,6 +66,11 @@ function dateTimeLabel(value: string) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function localTodayInputValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 function externalLink(value: string) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`;
 }
@@ -887,6 +892,7 @@ export function ProjectsManager(props: ManagerProps) {
       <Field label="Valor final lançado (R$)"><input name="amount" required inputMode="decimal" defaultValue={centsInput(receivingInstallment.remaining_cents ?? receivingInstallment.amount_cents)} /></Field>
       <Field label="Data do lançamento"><input name="issue_date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} readOnly /></Field>
       <Field label="Vencimento"><input name="due_date" type="date" defaultValue={receivingInstallment.due_on} readOnly /></Field>
+      <Field label="Data de recebimento"><input name="settled_on" type="date" required defaultValue={localTodayInputValue()} /></Field>
       <Field label="Plano de conta"><select name="chart_account_id" required defaultValue={props.chartAccounts?.find((item) => item.active && item.kind === "REVENUE")?.id ?? ""}><option value="" disabled>Selecione</option>{(props.chartAccounts ?? []).filter((item) => item.active && item.kind === "REVENUE").map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} · ` : ""}{item.name}</option>)}</select></Field>
       <Field label="Banco ou caixa"><select name="financial_account_id" required defaultValue={(props.financialAccounts ?? []).find((item) => item.active)?.id ?? ""}><option value="" disabled>Selecione</option>{(props.financialAccounts ?? []).filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
       <Field label="Centro de custo"><select name="cost_center_id" defaultValue=""><option value="">Não informar</option>{(props.costCenters ?? []).filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>

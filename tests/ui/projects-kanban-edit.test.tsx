@@ -407,4 +407,58 @@ describe("kanban board editing", () => {
     })));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo contrato" })).not.toBeInTheDocument());
   });
+
+  it("sends the explicit receipt date when settling a project installment", async () => {
+    mocks.rpc.mockResolvedValue({ data: "settlement-1", error: null });
+    const installment = {
+      id: "installment-1", organization_id: "org-1", engagement_id: "engagement-1", installment_number: 0,
+      due_on: "2026-09-21", amount_cents: 5000, status: "OPEN" as const, paid_at: null,
+      financial_entry_id: "entry-1", settled_cents: 0, remaining_cents: 5000, last_paid_at: null,
+      payment_method: null, financial_account_id: null, financial_account_name: null, received_by: null, received_by_name: null,
+    };
+    render(<ProjectsManager {...data} projectId="project-1" installments={[installment]} chartAccounts={[{
+      id: "chart-1", organization_id: "org-1", parent_id: null, code: null, name: "Receita de contratos", kind: "REVENUE", active: true,
+    }]} financialAccounts={[{
+      id: "account-1", organization_id: "org-1", kind: "CASH", name: "Caixa físico", bank_code: null, branch: null,
+      account_number: null, description: null, opening_balance_cents: 0, active: true,
+    }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
+    const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    fireEvent.click(within(contractDialog).getByRole("button", { name: "Receber" }));
+    const receiptDialog = screen.getByRole("dialog", { name: "Receber parcela" });
+    fireEvent.change(within(receiptDialog).getByLabelText("Data de recebimento"), { target: { value: "2026-09-22" } });
+    fireEvent.click(within(receiptDialog).getByRole("button", { name: "Confirmar recebimento" }));
+
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("settle_project_installment_receipt", expect.objectContaining({
+      p_entry_id: "entry-1",
+      p_financial_account_id: "account-1",
+      p_amount_cents: 5000,
+      p_settled_on: "2026-09-22",
+      p_payment_method: "CASH",
+      p_chart_account_id: "chart-1",
+    })));
+    expect(mocks.refresh).toHaveBeenCalled();
+  });
+
+  it("shows receipt date, method, account, and receiver on the contract finance card", () => {
+    const installment = {
+      id: "installment-1", organization_id: "org-1", engagement_id: "engagement-1", installment_number: 0,
+      due_on: "2026-09-21", amount_cents: 5000, status: "PAID" as const, paid_at: "2026-09-22T12:00:00.000Z",
+      financial_entry_id: "entry-1", settled_cents: 5000, remaining_cents: 0, last_paid_at: "2026-09-22",
+      payment_method: "PIX", financial_account_id: "account-1", financial_account_name: "Caixa físico",
+      received_by: "owner-1", received_by_name: "Julio Heiden",
+    };
+    render(<ProjectsManager {...data} projectId="project-1" installments={[installment]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
+    const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    const receiptRow = within(contractDialog).getByText("PIX").closest("div");
+
+    expect(receiptRow).toHaveTextContent("22 de set. de 2026");
+    expect(receiptRow).toHaveTextContent("Caixa físico");
+    expect(receiptRow).toHaveTextContent("Julio Heiden");
+  });
 });

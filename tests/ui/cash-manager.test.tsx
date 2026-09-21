@@ -196,6 +196,44 @@ describe("cash manager", () => {
     }
   });
 
+  it("moves a settled project installment from receivables into the cash ledger", () => {
+    const projectEntry = {
+      ...props.entries[0],
+      id: "project-entry-1",
+      source: "PROJECT" as const,
+      kind: "REVENUE" as const,
+      description: "Entrada do contrato de projeto",
+      issue_date: "2026-08-10",
+      due_date: "2026-08-10",
+      total_cents: 5000,
+      settled_cents: 5000,
+      remaining_cents: 0,
+      status: "SETTLED" as const,
+      chart_account_id: "chart-revenue",
+      counterparty_kind: "CUSTOMER" as const,
+      customer_id: "customer-1",
+      supplier_id: null,
+    };
+    const settlement = { id: "settlement-project-1", entry_id: projectEntry.id, financial_account_id: "account-1", kind: "SETTLEMENT" as const, amount_cents: 5000, settled_on: "2026-08-10", payment_method: "PIX", reference: null };
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
+    try {
+      const { rerender } = render(<CashManager {...props} section="cash" entries={[projectEntry]} settlements={[settlement]} />);
+
+      const projectCashRow = screen.getByText("Entrada do contrato de projeto").closest('[role="row"]');
+      expect(projectCashRow).toBeInTheDocument();
+      expect(projectCashRow).toHaveTextContent("Cliente Real");
+      expect(projectCashRow).toHaveTextContent("10/08/2026");
+
+      rerender(<CashManager {...props} section="receivables" entries={[projectEntry]} settlements={[settlement]} />);
+      expect(screen.queryByText("Entrada do contrato de projeto")).not.toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it("exibe pagamento de comissão como saída na conta financeira correta", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-15T12:00:00.000Z"));
