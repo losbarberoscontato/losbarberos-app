@@ -440,15 +440,27 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .packageAssignmentEditor .iconButton { width: 2.35rem; height: 2.35rem; }
 .packageFieldLabel { display: block; margin-bottom: .35rem; color: #5f6c62; font-size: .68rem; font-weight: 700; }
 .packageBreakdown { margin-top: .55rem; padding: .72rem .75rem; background: #111d2d; color: #e8f0e7; }
-.packageBreakdown h4 { margin: 0 0 .65rem; color: #f1d28b; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
+.packageBreakdownHeader { display: flex; align-items: center; gap: .4rem; margin-bottom: .65rem; }
+.packageBreakdownHeaderCollapsed { margin-bottom: 0; }
+.packageBreakdown h4 { margin: 0; color: #f1d28b; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
+.packageBreakdownToggle { display: grid; flex: 0 0 28px; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid rgba(241, 210, 139, .28); border-radius: 50%; background: rgba(241, 210, 139, .08); color: #f1d28b; cursor: pointer; }
+.packageBreakdownToggle:hover { background: rgba(241, 210, 139, .18); }
+.packageBreakdownToggle:focus-visible { outline: 2px solid #f1d28b; outline-offset: 2px; }
+.packageBreakdownToggleExpanded { transform: rotate(90deg); }
 .packageBreakdown dl { display: grid; gap: .38rem; margin: 0; }
-.packageBreakdown dl div { display: flex; justify-content: space-between; gap: .75rem; }
-.packageBreakdown dt { color: #bdcabc; font-size: .72rem; }
-.packageBreakdown dd { margin: 0; color: #fff; font-size: .74rem; font-weight: 700; text-align: right; }
+.packageBreakdown dl div { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.packageBreakdown .packageCostTotal { margin-inline: -.45rem; padding: .38rem .45rem; border-block: 1px solid rgba(241, 210, 139, .28); border-radius: 7px; background: rgba(241, 210, 139, .08); }
+.packageBreakdown .packageCostTotal dt, .packageBreakdown .packageCostTotal dd { color: #f1d28b; font-weight: 800; }
+.packageBreakdown dt { flex: 1; min-width: 0; color: #bdcabc; font-size: .72rem; }
+.packageBreakdown dd { display: flex; flex: 0 0 auto; align-items: baseline; justify-content: flex-end; gap: .22rem; margin: 0; color: #fff; font-size: .74rem; font-weight: 700; text-align: right; white-space: nowrap; }
+.packageBreakdown .packageCostTotal dd { font-size: .8rem; }
+.packageBreakdownPercent { color: #bdcabc; font-size: .62rem; font-weight: 500; }
+.packageCostTotal .packageBreakdownPercent { color: #e6cc90; font-size: .64rem; font-weight: 600; }
 .packagePositive { color: #57ce9b !important; }
 .packageNegative { color: #ff9994 !important; }
 .packageBalance { display: flex; justify-content: space-between; gap: .75rem; margin-top: .75rem; padding: .6rem .7rem; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: rgba(255,255,255,.06); font-size: .74rem; }
-.packageBalance strong { color: #f1d28b; }
+.packageBalance strong { display: flex; align-items: baseline; justify-content: flex-end; gap: .28rem; color: #f1d28b; white-space: nowrap; }
+.packageBalancePercent { color: #e6cc90; font-size: .64rem; font-weight: 600; }
 .packageCardActions { display: flex; justify-content: space-between; gap: .5rem; align-items: center; padding: .6rem .75rem .75rem; }
 .packageCardActions .muted { max-width: 38ch; font-size: .68rem; line-height: 1.35; }
 .packageCardActions .button { flex: 0 0 auto; padding: .5rem .68rem; font-size: .72rem; white-space: nowrap; }

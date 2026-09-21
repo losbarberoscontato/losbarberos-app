@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, Calculator, Check, CheckCircle2, CircleDollarSign, Landmark, LayoutDashboard, Pencil, Plus, Save, Trash2, UserRound, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, Calculator, Check, CheckCircle2, ChevronRight, CircleDollarSign, Landmark, LayoutDashboard, Pencil, Plus, Save, Trash2, UserRound, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import type { ProjectCostItemRecord, ProjectEngagementCommentPreview, ProjectKanbanBoardRecord, ProjectKanbanSectorRecord, ProjectsPageData } from "./projects-server";
 import type { ChartAccountRecord, CostCenterRecord, FinancialAccountRecord, FinancialTagRecord } from "./types";
@@ -153,6 +153,11 @@ function packagePricing(draft: PackageDraft, allocationPerSessionCents = safeCen
   const difference = practiced - suggested;
   const differencePercent = suggested > 0 ? (difference / suggested) * 100 : null;
   return { duration, sessions, fixedCost, fixedCostTotal, extraCosts, commissionCosts, taxRate, cardRate, profitMargin, costTotal, suggested, practiced, taxAmount, cardAmount, profit, difference, differencePercent, warning: differencePercent !== null && differencePercent < -10, denominatorValid: denominator > 0 };
+}
+
+function packagePriceShare(amountCents: number, practicedCents: number) {
+  if (practicedCents <= 0) return "(—)";
+  return `(${((amountCents / practicedCents) * 100).toFixed(2).replace(".", ",")}%)`;
 }
 
 export function ProjectsManager(props: ManagerProps) {
@@ -889,6 +894,7 @@ type PackageServiceInput = { serviceId: string; barberId: string; commission: st
 function ProjectPackages({ packages, barbers, barberServices, services, fixedCostCents, savingId, onAdd, onChange, onSave }: { packages: PackageDraft[]; barbers: Props["barbers"]; barberServices: NonNullable<Props["barberServices"]>; services: Props["services"]; fixedCostCents: number; savingId: string | null; onAdd: () => void; onChange: (index: number, patch: Partial<PackageDraft>) => void; onSave: (draft: PackageDraft) => void }) {
   const [message, setMessage] = useState("");
   const [serviceInputs, setServiceInputs] = useState<Record<string, PackageServiceInput>>({});
+  const [collapsedBreakdowns, setCollapsedBreakdowns] = useState<Record<string, boolean>>({});
 
   function addServiceInput(key: string) {
     setMessage("");
@@ -938,6 +944,8 @@ function ProjectPackages({ packages, barbers, barberServices, services, fixedCos
         const pricing = packagePricing(draft, fixedCostCents);
         const isSaving = savingId === (draft.id ?? "new");
         const key = draft.id ?? `new-${index}`;
+        const breakdownCollapsed = Boolean(collapsedBreakdowns[key]);
+        const breakdownContentId = `package-breakdown-${key}`;
         const serviceInput = serviceInputs[key];
         const eligibleBarbers = serviceInput?.serviceId
           ? barbers.filter((barber) => barberServices.some((link) => link.service_id === serviceInput.serviceId && link.barber_id === barber.id))
@@ -952,20 +960,20 @@ function ProjectPackages({ packages, barbers, barberServices, services, fixedCos
               {draft.serviceAssignments.length > 0 && <div className={styles.packageServiceList}>{draft.serviceAssignments.map((assignment, assignmentIndex) => {
                 const service = services.find((item) => item.id === assignment.service_id);
                 const barber = barbers.find((item) => item.id === assignment.barber_id);
-                return <div className={styles.packageServiceAssignment} key={`${assignment.service_id}-${assignment.barber_id}`}><span>{service?.name ?? "Serviço"}</span><span>{barber?.display_name ?? "Profissional"}</span><strong>{formatCents(assignment.commission_cents)}</strong><button className={styles.iconButton} type="button" aria-label={`Remover ${service?.name ?? "serviço"} - ${barber?.display_name ?? "profissional"}`} onClick={() => removeServiceAssignment(index, draft, assignmentIndex)}><Trash2 size={14} /></button></div>;
+                return <div className={styles.packageServiceAssignment} key={`${assignment.service_id}-${assignment.barber_id}`}><span>{service?.name ?? "Serviço"}</span><span>{barber?.display_name ?? "Profissional"}</span><strong>{formatCents(assignment.commission_cents)}</strong><button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label={`Remover ${service?.name ?? "serviço"} - ${barber?.display_name ?? "profissional"}`} onClick={() => removeServiceAssignment(index, draft, assignmentIndex)}><Trash2 size={14} /></button></div>;
               })}</div>}
               {serviceInput && <div className={styles.packageAssignmentEditor}>
                 <label className={`${styles.field} ${styles.packageAssignmentWideField}`}><span>Serviço</span><select aria-label={`Serviço do pacote ${index + 1}`} value={serviceInput.serviceId} onChange={(event) => updateServiceInput(key, { serviceId: event.target.value, barberId: "" })}><option value="">Selecione o serviço</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
                 <label className={`${styles.field} ${styles.packageAssignmentWideField}`}><span>Profissional</span><select aria-label={`Profissional do serviço ${index + 1}`} value={serviceInput.barberId} onChange={(event) => updateServiceInput(key, { barberId: event.target.value })} disabled={!serviceInput.serviceId}><option value="">Selecione o profissional</option>{eligibleBarbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select>{!serviceInput.serviceId && <small className={styles.packageAssignmentHint}>Escolha um serviço para listar os profissionais habilitados.</small>}{serviceInput.serviceId && eligibleBarbers.length === 0 && <small className={`${styles.muted} ${styles.packageAssignmentHint}`}>Nenhum profissional habilitado para este serviço.</small>}</label>
                 <label className={styles.field}><span>Comissão (R$)</span><input aria-label={`Comissão do serviço ${index + 1}`} inputMode="decimal" placeholder="0,00" value={serviceInput.commission} onChange={(event) => updateServiceInput(key, { commission: event.target.value })} /></label>
-                <button className={styles.iconButton} type="button" aria-label="Salvar serviço" title="Salvar serviço" onClick={() => saveServiceInput(index, key, draft)} disabled={!serviceInput.serviceId || !serviceInput.barberId || !serviceInput.commission.trim()}><Save size={15} /></button>
-                <button className={styles.iconButton} type="button" aria-label="Cancelar serviço" title="Cancelar serviço" onClick={() => setServiceInputs((current) => { const next = { ...current }; delete next[key]; return next; })}><X size={15} /></button>
+                <button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label="Salvar serviço" title="Salvar serviço" onClick={() => saveServiceInput(index, key, draft)} disabled={!serviceInput.serviceId || !serviceInput.barberId || !serviceInput.commission.trim()}><Save size={15} /></button>
+                <button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label="Cancelar serviço" title="Cancelar serviço" onClick={() => setServiceInputs((current) => { const next = { ...current }; delete next[key]; return next; })}><X size={15} /></button>
               </div>}
               {!services.length && <p className={styles.muted}>Nenhum serviço ativo disponível.</p>}
               {services.length > 0 && !draft.serviceAssignments.length && !serviceInput && <p className={styles.muted}>Nenhum serviço adicionado a este pacote.</p>}
             </div>
           </div>
-          <div className={styles.packageBreakdown}><h4>Decomposição do preço</h4><dl><div><dt>Custo fixo</dt><dd>{formatCents(pricing.fixedCostTotal)}</dd></div><div><dt>Custos extras</dt><dd>{formatCents(pricing.extraCosts)}</dd></div><div><dt>Custos com comissão</dt><dd>{formatCents(pricing.commissionCosts)}</dd></div><div><dt>Custo total da entrega</dt><dd>{formatCents(pricing.costTotal)}</dd></div><div><dt>Impostos estimados</dt><dd>{formatCents(pricing.taxAmount)}</dd></div><div><dt>Taxa cartão estimada</dt><dd>{formatCents(pricing.cardAmount)}</dd></div><div><dt>Lucro estimado</dt><dd className={pricing.profit >= 0 ? styles.packagePositive : styles.packageNegative}>{formatCents(pricing.profit)}</dd></div><div><dt>Sinal de reserva</dt><dd>{formatCents(safeCentsInput(draft.deposit))}</dd></div></dl><div className={styles.packageBalance}><span>Saldo após o sinal</span><strong>{formatCents(Math.max(0, pricing.practiced - safeCentsInput(draft.deposit) - pricing.extraCosts - pricing.commissionCosts))}</strong></div></div>
+          <div className={styles.packageBreakdown}><header className={`${styles.packageBreakdownHeader} ${breakdownCollapsed ? styles.packageBreakdownHeaderCollapsed : ""}`}><button className={styles.packageBreakdownToggle} type="button" aria-label={`${breakdownCollapsed ? "Expandir" : "Recolher"} decomposição do preço`} aria-expanded={!breakdownCollapsed} aria-controls={breakdownContentId} onClick={() => setCollapsedBreakdowns((current) => ({ ...current, [key]: !current[key] }))}><ChevronRight className={breakdownCollapsed ? "" : styles.packageBreakdownToggleExpanded} size={15} /></button><h4>Decomposição do preço</h4></header><div id={breakdownContentId} hidden={breakdownCollapsed}><dl><div><dt>Custo fixo</dt><dd>{formatCents(pricing.fixedCostTotal)} <small className={styles.packageBreakdownPercent}>{packagePriceShare(pricing.fixedCostTotal, pricing.practiced)}</small></dd></div><div><dt>Custos extras</dt><dd>{formatCents(pricing.extraCosts)} <small className={styles.packageBreakdownPercent}>{packagePriceShare(pricing.extraCosts, pricing.practiced)}</small></dd></div><div><dt>Custos com comissão</dt><dd>{formatCents(pricing.commissionCosts)} <small className={styles.packageBreakdownPercent}>{packagePriceShare(pricing.commissionCosts, pricing.practiced)}</small></dd></div><div className={styles.packageCostTotal}><dt>Custo total da entrega</dt><dd>{formatCents(pricing.costTotal)} <small className={styles.packageBreakdownPercent}>{packagePriceShare(pricing.costTotal, pricing.practiced)}</small></dd></div><div><dt>Impostos estimados</dt><dd>{formatCents(pricing.taxAmount)} <small className={styles.packageBreakdownPercent}>{packagePriceShare(pricing.taxAmount, pricing.practiced)}</small></dd></div><div><dt>Taxa cartão estimada</dt><dd>{formatCents(pricing.cardAmount)} <small className={styles.packageBreakdownPercent}>{packagePriceShare(pricing.cardAmount, pricing.practiced)}</small></dd></div><div><dt>Lucro estimado</dt><dd className={pricing.profit >= 0 ? styles.packagePositive : styles.packageNegative}>{formatCents(pricing.profit)} <small className={styles.packageBreakdownPercent}>{packagePriceShare(pricing.profit, pricing.practiced)}</small></dd></div><div><dt>Sinal de reserva</dt><dd>{formatCents(safeCentsInput(draft.deposit))} <small className={styles.packageBreakdownPercent}>{packagePriceShare(safeCentsInput(draft.deposit), pricing.practiced)}</small></dd></div></dl><div className={styles.packageBalance}><span>Saldo após o sinal</span><strong>{formatCents(pricing.practiced - safeCentsInput(draft.deposit))}{" "}<small className={styles.packageBalancePercent}>{packagePriceShare(pricing.practiced - safeCentsInput(draft.deposit), pricing.practiced)}</small></strong></div></div></div>
           <footer className={styles.packageCardActions}><button className={styles.button} type="button" disabled={Boolean(savingId) || !draft.name.trim()} onClick={() => void onSave(draft)}><Save size={15} /> {isSaving ? "Salvando…" : "Salvar pacote"}</button></footer>
         </article>;
       })}

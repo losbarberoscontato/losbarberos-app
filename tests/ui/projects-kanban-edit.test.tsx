@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { kanbanDeadlineTone, ProjectsManager } from "@/components/connected-manager/projects-manager";
+import styles from "@/components/connected-manager/connected-manager.module.css";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
 
@@ -180,6 +181,8 @@ describe("kanban board editing", () => {
     mocks.rpc.mockResolvedValue({ data: { id: "package-1" }, error: null });
     const packageData = {
       ...data,
+      projects: data.projects.map((project) => ({ ...project, goal_contracts: 1 })),
+      costItems: [{ id: "cost-1", organization_id: "org-1", project_id: "project-1", kind: "FIXED" as const, name: "Custo fixo", description: null, amount_cents: 10420, active: true, sort_order: 0, created_at: "2026-09-15T00:00:00.000Z" }],
       services: [{ id: "service-1", name: "Corte", price_cents: 7000, active: true, availability: "CLIENT" as const }],
       barbers: [...data.barbers, { id: "barber-2", display_name: "Alice Gonçalves" }],
       barberServices: [{ barber_id: "barber-1", service_id: "service-1" }],
@@ -189,8 +192,13 @@ describe("kanban board editing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Adicionar pacote/ }));
 
     fireEvent.change(screen.getByLabelText("Título do pacote 1"), { target: { value: "Pacote teste" } });
-    fireEvent.change(screen.getByLabelText("Preço praticado"), { target: { value: "50,00" } });
+    expect(screen.getByText("Custo fixo").parentElement).toHaveTextContent("R$ 104,20 (—)");
+    fireEvent.change(screen.getByLabelText(/Preço praticado/), { target: { value: "390,10" } });
+    fireEvent.change(screen.getByLabelText("Sinal/entrada (R$)"), { target: { value: "50,00" } });
+    fireEvent.change(screen.getByLabelText("Custos Extras (R$)"), { target: { value: "60,00" } });
     fireEvent.click(screen.getByRole("button", { name: "Adicionar serviço" }));
+    expect(screen.getByRole("button", { name: "Salvar serviço" })).toHaveClass(styles.button, styles.buttonSoft, styles.iconButton);
+    expect(screen.getByRole("button", { name: "Cancelar serviço" })).toHaveClass(styles.button, styles.buttonSoft, styles.iconButton);
     const serviceSelect = screen.getByLabelText("Serviço do pacote 1");
     const barberSelect = screen.getByLabelText("Profissional do serviço 1");
     expect(barberSelect).toBeDisabled();
@@ -200,17 +208,49 @@ describe("kanban board editing", () => {
     fireEvent.change(barberSelect, { target: { value: "barber-1" } });
     expect(screen.getByRole("option", { name: "Alef Gonçalves" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Alice Gonçalves" })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Comissão do serviço 1"), { target: { value: "10,00" } });
+    fireEvent.change(screen.getByLabelText("Comissão do serviço 1"), { target: { value: "60,00" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar serviço" }));
 
-    expect(screen.getByText("Custos com comissão").parentElement).toHaveTextContent("R$ 10,00");
-    expect(screen.getByText("Precificação Sugerida").parentElement?.querySelector("input")).toHaveValue("R$\u00a020,00");
-    expect(screen.getByText("Saldo após o sinal").parentElement).toHaveTextContent("R$ 40,00");
+    expect(screen.getByRole("button", { name: "Remover Corte - Alef Gonçalves" })).toHaveClass(styles.button, styles.buttonSoft, styles.iconButton);
+    expect(screen.getByText("Custo fixo").parentElement).toHaveTextContent("R$ 104,20 (26,71%)");
+    expect(screen.getByText("Custos extras").parentElement).toHaveTextContent("R$ 60,00 (15,38%)");
+    expect(screen.getByText("Custos com comissão").parentElement).toHaveTextContent("R$ 60,00 (15,38%)");
+    expect(screen.getByText("Custo total da entrega").parentElement).toHaveTextContent("R$ 224,20 (57,47%)");
+    expect(screen.getByText("Custo total da entrega").parentElement).toHaveClass(styles.packageCostTotal);
+    expect(screen.getByText("Impostos estimados").parentElement).toHaveTextContent("R$ 0,00 (0,00%)");
+    expect(screen.getByText("Taxa cartão estimada").parentElement).toHaveTextContent("R$ 0,00 (0,00%)");
+    expect(screen.getByText("Lucro estimado").parentElement).toHaveTextContent("R$ 165,90 (42,53%)");
+    expect(screen.getByText("Sinal de reserva").parentElement).toHaveTextContent("R$ 50,00 (12,82%)");
+    expect(screen.getByText("Saldo após o sinal").parentElement).toHaveTextContent("R$ 340,10 (87,18%)");
+    expect(screen.getByText("Precificação Sugerida").parentElement?.querySelector("input")).toHaveValue("R$\u00a0448,40");
     fireEvent.click(screen.getByRole("button", { name: "Salvar pacote" }));
 
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("upsert_project_package", expect.objectContaining({
-      p_service_assignments: [{ service_id: "service-1", barber_id: "barber-1", commission_cents: 1000 }],
+      p_service_assignments: [{ service_id: "service-1", barber_id: "barber-1", commission_cents: 6000 }],
     })));
+  });
+
+  it("collapses only the selected package price breakdown", () => {
+    render(<ProjectsManager {...data} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Pacotes/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar pacote/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar pacote/ }));
+
+    const toggles = screen.getAllByRole("button", { name: "Recolher decomposição do preço" });
+    const firstPanel = document.getElementById(toggles[0].getAttribute("aria-controls") ?? "");
+    const secondPanel = document.getElementById(toggles[1].getAttribute("aria-controls") ?? "");
+    expect(firstPanel).toBeInTheDocument();
+    expect(secondPanel).toBeInTheDocument();
+    expect(toggles[0]).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(toggles[0]);
+    expect(toggles[0]).toHaveAttribute("aria-expanded", "false");
+    expect(firstPanel).not.toBeVisible();
+    expect(secondPanel).toBeVisible();
+
+    fireEvent.click(toggles[0]);
+    expect(toggles[0]).toHaveAttribute("aria-expanded", "true");
+    expect(firstPanel).toBeVisible();
   });
 
   it("asks for the destination project board when moving an event between general sectors", async () => {
