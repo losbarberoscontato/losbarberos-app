@@ -560,6 +560,19 @@ describe("kanban board editing", () => {
     })));
   });
 
+  it("allows deleting an open internal service after confirmation", async () => {
+    const existing = { id: "internal-1", organization_id: "org-1", project_id: "project-1", engagement_id: "engagement-1", internal_card_id: null, kanban_board_id: "board-1", package_assignment_id: "assignment-1", service_id: "service-1", service_name: "Datas Comemorativas", barber_id: "barber-1", commission_cents: 1000, delivery_on: "2026-09-22", status: "OPEN" as const, commission_ledger_entry_id: null };
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
+    render(<ProjectsManager {...internalServiceData} internalServices={[existing]} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Kanban/ }));
+    fireEvent.doubleClick(screen.getByText("Cliente").closest("article") as HTMLElement);
+    const eventDialog = screen.getByRole("dialog", { name: "Aguardando aceite" });
+    fireEvent.click(within(eventDialog).getByRole("button", { name: "Excluir serviço interno" }));
+    const confirmDialog = screen.getByRole("dialog", { name: "Excluir serviço interno" });
+    fireEvent.click(within(confirmDialog).getByRole("button", { name: "Excluir serviço" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("delete_project_engagement_internal_service", { p_organization_id: "org-1", p_id: "internal-1" }));
+  });
+
   it("pede confirmação antes de concluir serviço interno e gerar comissão a pagar", async () => {
     const existing = { id: "internal-1", organization_id: "org-1", project_id: "project-1", engagement_id: "engagement-1", kanban_board_id: "board-1", package_assignment_id: "assignment-1", service_id: "service-1", service_name: "Datas Comemorativas", barber_id: "barber-1", commission_cents: 1000, delivery_on: "2026-09-22", status: "OPEN" as const, commission_ledger_entry_id: null };
     mocks.rpc.mockResolvedValue({ data: { ...existing, status: "COMPLETED" }, error: null });

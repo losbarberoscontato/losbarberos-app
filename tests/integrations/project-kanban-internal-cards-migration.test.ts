@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync("supabase/migrations/20260922195504_project_kanban_standalone_internal_cards.sql", "utf8");
+const serviceRulesMigration = readFileSync("supabase/migrations/20260922202742_project_internal_service_delete_and_move_notice.sql", "utf8");
 
 describe("standalone project Kanban cards migration", () => {
   it("stores internal cards independently from customers and engagements", () => {
@@ -21,5 +22,16 @@ describe("standalone project Kanban cards migration", () => {
     expect(migration).toMatch(/order by position, created_at, id\s+limit 1/i);
     expect(migration).toMatch(/move_project_kanban_internal_card/i);
     expect(migration).toMatch(/complete the internal service before moving this card/i);
+  });
+});
+
+describe("project internal service move and delete rules migration", () => {
+  it("blocks moving cards with an open service and provides a guarded delete RPC", () => {
+    expect(serviceRulesMigration).toMatch(/status = 'OPEN'[\s\S]{0,180}open internal service pending completion/i);
+    expect(serviceRulesMigration).toMatch(/create or replace function public\.delete_project_engagement_internal_service/i);
+    expect(serviceRulesMigration).toContain("v_service.status <> 'OPEN'");
+    expect(serviceRulesMigration).toContain("only open internal services can be deleted");
+    expect(serviceRulesMigration).toMatch(/commission_ledger_entry_id is not null/i);
+    expect(serviceRulesMigration).toMatch(/grant execute on function public\.delete_project_engagement_internal_service\(uuid, uuid\) to authenticated/i);
   });
 });

@@ -33,6 +33,11 @@ describe("connected manager formatting contracts", () => {
     expect(humanizeError(new Error("start time is not aligned to slot interval"))).toBe("Escolha um horário alinhado ao intervalo de slots da agenda.");
   });
 
+  it("explains that open internal services block moving a Kanban card", () => {
+    expect(humanizeError(new Error("complete the internal service before moving this card"))).toBe("Não é possível mover o card: há serviço interno pendente de conclusão. Conclua ou exclua o serviço antes de transferir.");
+    expect(humanizeError(new Error("complete the internal service before moving this card to another board"))).toBe("Não é possível mover o card: há serviço interno pendente de conclusão. Conclua ou exclua o serviço antes de transferir.");
+  });
+
   it("explains when the App do Barbeiro migration is missing", () => {
     expect(humanizeError(new Error("Could not find the 'login_email' column of 'barbers' in the schema cache"))).toBe("O banco ainda não recebeu a atualização do App do Barbeiro. Aplique as migrations pendentes antes de salvar o e-mail de acesso.");
   });

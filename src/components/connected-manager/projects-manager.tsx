@@ -1277,6 +1277,7 @@ function ProjectInternalServiceCard({ organizationId, projectId, engagementId, i
 }) {
   const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [assignmentId, setAssignmentId] = useState("");
   const [draftAssignmentId, setDraftAssignmentId] = useState(existing?.package_assignment_id ?? "");
   const [commission, setCommission] = useState(centsInput(existing?.commission_cents ?? 0));
@@ -1335,6 +1336,22 @@ function ProjectInternalServiceCard({ organizationId, projectId, engagementId, i
     if (completed) onSaved();
   }
 
+  async function deleteInternalService() {
+    if (!record?.id || record.status !== "OPEN" || busy) return;
+    setBusy(true); setMessage("");
+    const deleted = await runMutation(setMessage, async () => {
+      const response = await connectedClient().rpc("delete_project_engagement_internal_service", {
+        p_organization_id: organizationId,
+        p_id: record.id,
+      });
+      await assertResult(response);
+      setRecord(null);
+      setEditing(false);
+    }, "Serviço interno excluído.");
+    setBusy(false); setDeleteConfirmOpen(false);
+    if (deleted) onSaved();
+  }
+
   return <section className={styles.internalServiceCard} aria-label="Serviço Interno">
     <header><div><h3>Serviço Interno</h3><p>Responsável do quadro: <strong>{barberName}</strong></p></div>{!record && !(draftAssignmentId && editing) && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => { setAssignmentId(""); setCommission("0,00"); setDeliveryOn(""); setServiceDialogOpen(true); }} disabled={options.length === 0}><Plus size={15} /> Adicionar Serviço Interno</button>}</header>
     {options.length === 0 && !record && <p className={styles.muted}>Não há serviços deste pacote vinculados ao responsável do quadro.</p>}
@@ -1345,6 +1362,7 @@ function ProjectInternalServiceCard({ organizationId, projectId, engagementId, i
         {record.status !== "COMPLETED" && editing && <button className={styles.iconButton} type="button" aria-label="Salvar serviço interno" title="Salvar" disabled={busy} onClick={() => void saveInternalService()}><Save size={16} /></button>}
         {record.status !== "COMPLETED" && !editing && <button className={styles.iconButton} type="button" aria-label="Editar serviço interno" title="Editar" onClick={() => { setCommission(centsInput(record.commission_cents)); setDeliveryOn(record.delivery_on ?? ""); setAssignmentId(record.package_assignment_id); setEditing(true); }}><Pencil size={16} /></button>}
         {record.status !== "COMPLETED" && !editing && <button className={`${styles.iconButton} ${styles.internalServicePay}`} type="button" aria-label="Pagar serviço e gerar comissão" title="Concluir serviço e gerar comissão a pagar" disabled={busy || !record.delivery_on} onClick={() => setConfirmOpen(true)}><CircleDollarSign size={17} /></button>}
+        {record.status === "OPEN" && !editing && <button className={styles.iconButton} type="button" aria-label="Excluir serviço interno" title="Excluir serviço" disabled={busy} onClick={() => setDeleteConfirmOpen(true)}><Trash2 size={16} /></button>}
         {record.status === "COMPLETED" && <StatusChip active tone="success" label="Concluído · comissão a pagar" />}
       </div>
     </div>}
@@ -1364,6 +1382,7 @@ function ProjectInternalServiceCard({ organizationId, projectId, engagementId, i
       <div className={styles.internalServiceActions}><button className={styles.iconButton} type="button" aria-label="Salvar serviço interno" title="Salvar" disabled={busy} onClick={() => { setAssignmentId(draftAssignmentId); void saveInternalService(); }}><Save size={16} /></button><button className={styles.iconButton} type="button" aria-label="Cancelar serviço interno" title="Cancelar" onClick={() => { setDraftAssignmentId(""); setEditing(false); }}><X size={16} /></button></div>
     </div>}
     {confirmOpen && <Modal title="Confirmar geração de comissão" onClose={() => setConfirmOpen(false)}><div className={styles.form}><p>{(record?.commission_cents ?? 0) > 0 ? <>Concluir este serviço gerará uma comissão de <strong>{formatCents(record?.commission_cents ?? 0)}</strong> a pagar para {barberName}. Esta ação não realiza o pagamento agora.</> : <>A comissão cadastrada é <strong>R$ 0,00</strong>. O serviço será concluído sem gerar valor a pagar.</>}</p><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setConfirmOpen(false)}>Voltar</button><button className={styles.button} type="button" disabled={busy} onClick={() => void completeInternalService()}>Confirmar e concluir</button></footer></div></Modal>}
+    {deleteConfirmOpen && <Modal title="Excluir serviço interno" onClose={() => setDeleteConfirmOpen(false)}><div className={styles.form}><p>Excluir <strong>{record?.service_name}</strong>? Só serviços sem conclusão podem ser excluídos. Essa ação não gera comissão.</p><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={busy} onClick={() => setDeleteConfirmOpen(false)}>Manter serviço</button><button className={styles.button} type="button" disabled={busy} onClick={() => void deleteInternalService()}><Trash2 size={15} /> Excluir serviço</button></footer></div></Modal>}
   </section>;
 }
 
