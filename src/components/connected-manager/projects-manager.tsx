@@ -288,7 +288,6 @@ export function ProjectsManager(props: ManagerProps) {
   const editingEngagement = editingEngagementId ? projectEngagements.find((item) => item.id === editingEngagementId) ?? null : null;
   const packageById = useMemo(() => new Map(props.packages.map((item) => [item.id, item])), [props.packages]);
   const contractedCents = projectEngagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
-  const acceptedCents = projectEngagements.filter((item) => item.status === "ACTIVE" || item.status === "COMPLETED").reduce((sum, item) => sum + item.contracted_cents, 0);
   const projectSessions = useMemo(() => projectSessionsData.filter((session) => projectEngagements.some((engagement) => engagement.id === session.engagement_id)), [projectEngagements, projectSessionsData]);
   const projectCommissions = useMemo(() => projectCommissionsData.filter((commission) => commission.project_id === selectedProject?.id), [projectCommissionsData, selectedProject?.id]);
   const engagementSchedule = useMemo(() => {
@@ -934,7 +933,7 @@ export function ProjectsManager(props: ManagerProps) {
           {tab === "packages" && <ProjectPackages packages={packageDrafts} barbers={props.barbers} barberServices={props.barberServices ?? []} services={props.services} fixedCostCents={projectAllocationCents} savingId={packageSavingId} onAdd={addPackageDraft} onChange={updatePackageDraft} onSave={savePackage} />}
           {tab === "engagements" && <EngagementsTable engagements={projectEngagements} customerById={customerById} packageById={packageById} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} projectSessions={projectSessions} kanbanBoards={projectKanbanBoards} onEdit={openEditEngagementModal} />}
           {tab === "kanban" && <ProjectKanban key={JSON.stringify([projectKanbanBoards, projectEngagements])} organizationId={props.organizationId} projectId={selectedProject.id} boards={projectKanbanBoards} sectors={kanbanSectors} engagementsWithDueDateOverrides={eventDueDateOverrides} barbers={props.barbers} engagements={projectEngagements} customerById={customerById} lastComments={engagementLastComments} onOpenEvent={openEventEditor} onDueDateChange={saveEventDueDate} />}
-          {tab === "finance" && <ProjectFinance contractedCents={contractedCents} acceptedCents={acceptedCents} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} commissions={projectCommissions} />}
+          {tab === "finance" && <ProjectFinance contractedCents={contractedCents} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} commissions={projectCommissions} barbers={props.barbers} />}
         </section> : <Panel title="Projeto não encontrado" description="Este projeto não está disponível para esta barbearia."><EmptyState title="Volte para Projetos"><button className={styles.button} type="button" onClick={() => router.push("/gestor/projetos")}><ArrowLeft size={16} /> Voltar para Projetos</button></EmptyState></Panel> : <Panel className={styles.projectListPanel} title="Projetos em andamento" description="Selecione um projeto para abrir o painel operacional." action={<label className={styles.projectFilter}><span>Exibir</span><select aria-label="Filtrar projetos" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value as ProjectFilter)}><option value="published">Publicados</option><option value="archived">Arquivados</option><option value="all">Todos</option></select></label>}>
           <div className={styles.projectList}>
             {visibleProjects.length === 0 ? <EmptyState title={projectFilter === "archived" ? "Nenhum projeto arquivado" : "Nenhum projeto publicado"}>{projectFilter === "archived" ? "Arquive um projeto para encontrá-lo nesta lista." : "Crie e publique um projeto para começar."}</EmptyState> : visibleProjects.map((project) => {
@@ -1546,9 +1545,50 @@ function ProjectKanban({ organizationId, projectId, boards: initialBoards, secto
   </div>;
 }
 
-function ProjectFinance({ contractedCents, acceptedCents, installments, commissions }: { contractedCents: number; acceptedCents: number; installments: Props["installments"]; commissions: Props["projectCommissions"] }) {
-  const openCents = installments.filter((item) => item.status === "OPEN").reduce((sum, item) => sum + item.amount_cents, 0);
-  return <div className={styles.projectColumns}><Panel title="Resultado do projeto" description="Valores do módulo separados das sessões avulsas."><div className={styles.financeRows}><div><span>Valor contratado</span><strong>{formatCents(contractedCents)}</strong></div><div><span>Aceito</span><strong>{formatCents(acceptedCents)}</strong></div><div><span>Parcelas abertas</span><strong>{formatCents(openCents)}</strong></div><div><span>Comissões geradas</span><strong>{formatCents(commissions.reduce((sum, item) => sum + item.commission_cents, 0))}</strong></div></div><p className={styles.muted}>Comissões são calculadas exclusivamente pelo valor cadastrado no pacote e entram após a conclusão do atendimento.</p></Panel><Panel title="Parcelas" description="A cobrança do projeto usa o cronograma da contratação.">{installments.length ? <div className={styles.list}>{installments.map((item) => <div className={styles.row} key={item.id}><span>{dateLabel(item.due_on)}</span><strong>{formatCents(item.amount_cents)}</strong><StatusChip active={item.status === "PAID"} label={item.status === "PAID" ? "Recebida" : item.status === "CANCELED" ? "Cancelada" : "Em aberto"} tone={item.status === "OPEN" ? "warning" : item.status === "CANCELED" ? "danger" : undefined} /></div>)}</div> : <EmptyState title="Nenhuma parcela criada">O cronograma será preenchido na proposta.</EmptyState>}</Panel><Panel title="Comissões do projeto" description="Lançamentos criados após a conclusão das sessões.">{commissions.length ? <div className={styles.list}>{commissions.map((item) => <div className={styles.row} key={item.appointment_item_id}><span>{item.customer_name} · {item.service_name}</span><strong>{formatCents(item.commission_cents)}</strong><StatusChip active={item.payable_commission_cents <= 0} label={item.paid_commission_cents > 0 ? "Paga" : "À pagar"} tone={item.paid_commission_cents > 0 ? undefined : "warning"} /></div>)}</div> : <EmptyState title="Nenhuma comissão gerada">Conclua uma sessão para gerar a comissão do profissional.</EmptyState>}</Panel></div>;
+function ProjectFinance({ contractedCents, installments, commissions, barbers }: { contractedCents: number; installments: Props["installments"]; commissions: Props["projectCommissions"]; barbers: Props["barbers"] }) {
+  const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null);
+  const receivedCents = installments.reduce((sum, item) => sum + installmentReceivedCents(item), 0);
+  const outstandingCents = installments.reduce((sum, item) => sum + installmentOutstandingCents(item), 0);
+  const commissionCents = commissions.reduce((sum, item) => sum + item.commission_cents, 0);
+  const monthlyInstallments = [...installments.reduce((groups, item) => {
+    if (item.status === "CANCELED") return groups;
+    const month = item.due_on.slice(0, 7);
+    const group = groups.get(month) ?? { month, outstandingCents: 0, receivedCents: 0 };
+    group.outstandingCents += installmentOutstandingCents(item);
+    group.receivedCents += installmentReceivedCents(item);
+    groups.set(month, group);
+    return groups;
+  }, new Map<string, { month: string; outstandingCents: number; receivedCents: number }>()).values()].sort((a, b) => a.month.localeCompare(b.month));
+  const commissionTotals = [...commissions.reduce((groups, item) => {
+    const group = groups.get(item.barber_id) ?? { barberId: item.barber_id, generatedCents: 0, paidCents: 0 };
+    group.generatedCents += item.commission_cents;
+    group.paidCents += item.paid_commission_cents;
+    groups.set(item.barber_id, group);
+    return groups;
+  }, new Map<string, { barberId: string; generatedCents: number; paidCents: number }>()).values()].sort((a, b) => barberName(a.barberId, barbers).localeCompare(barberName(b.barberId, barbers), "pt-BR"));
+  const selectedBarber = selectedBarberId ? commissionTotals.find((item) => item.barberId === selectedBarberId) : null;
+  const selectedBarberCommissions = selectedBarberId ? commissions.filter((item) => item.barber_id === selectedBarberId && item.payable_commission_cents > 0).sort((a, b) => b.service_date.localeCompare(a.service_date)) : [];
+
+  return <div className={styles.projectColumns}>
+    <Panel title="Resultado do projeto" description="Valores do módulo separados das sessões avulsas."><div className={styles.financeRows}><div><span>Total Faturado</span><strong>{formatCents(contractedCents)}</strong></div><div><span>Total Recebido</span><strong>{formatCents(receivedCents)}</strong></div><div><span>À Receber</span><strong>{formatCents(outstandingCents)}</strong></div><div><span>Comissões à pagar</span><strong>{formatCents(commissionCents)}</strong></div></div><p className={styles.muted}>Comissões são calculadas exclusivamente pelo valor cadastrado no pacote e entram após a conclusão do atendimento.</p></Panel>
+    <Panel title="Parcelas" description="Totais recebidos e à receber agrupados pelo mês de vencimento.">{monthlyInstallments.length ? <div className={styles.movementTableWrap}><table className={styles.financeReportTable}><thead><tr><th>Mês de referência</th><th>À receber</th><th>Recebido</th></tr></thead><tbody>{monthlyInstallments.map((item) => <tr key={item.month}><th scope="row">{monthReferenceLabel(item.month)}</th><td>{formatCents(item.outstandingCents)}</td><td>{formatCents(item.receivedCents)}</td></tr>)}</tbody></table></div> : <EmptyState title="Nenhuma parcela criada">O cronograma será preenchido na proposta.</EmptyState>}</Panel>
+    <Panel title="Comissões do projeto" description="Totais agrupados por profissional. Dê duplo clique em uma linha para abrir o relatório de valores à receber.">{commissionTotals.length ? <div className={styles.movementTableWrap}><table className={styles.financeReportTable}><thead><tr><th>Profissional</th><th>Total gerado</th><th>Total pago</th></tr></thead><tbody>{commissionTotals.map((item) => <tr key={item.barberId} onDoubleClick={() => setSelectedBarberId(item.barberId)} title="Duplo clique para ver serviços, clientes e valores à receber"><th scope="row"><button className={styles.financeReportLink} type="button" onClick={() => setSelectedBarberId(item.barberId)}>{barberName(item.barberId, barbers)}</button></th><td>{formatCents(item.generatedCents)}</td><td>{formatCents(item.paidCents)}</td></tr>)}</tbody></table></div> : <EmptyState title="Nenhuma comissão gerada">Conclua uma sessão para gerar a comissão do profissional.</EmptyState>}</Panel>
+    {selectedBarber && <Modal title={`Comissões à receber · ${barberName(selectedBarber.barberId, barbers)}`} wide onClose={() => setSelectedBarberId(null)}><div className={styles.financeReportModalBody}>{selectedBarberCommissions.length ? <div className={styles.movementTableWrap}><table className={styles.financeReportTable}><thead><tr><th>Serviço</th><th>Cliente</th><th>À receber</th></tr></thead><tbody>{selectedBarberCommissions.map((item) => <tr key={item.appointment_item_id}><td>{item.service_name}</td><td>{item.customer_name}</td><td>{formatCents(item.payable_commission_cents)}</td></tr>)}</tbody></table></div> : <EmptyState title="Nenhum valor pendente">Este profissional não possui comissão à receber no projeto.</EmptyState>}<div className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setSelectedBarberId(null)}>Fechar</button></div></div></Modal>}
+  </div>;
+}
+
+function installmentOutstandingCents(installment: Props["installments"][number]) {
+  if (installment.status === "CANCELED") return 0;
+  if (installment.remaining_cents !== null && installment.remaining_cents !== undefined) return Math.max(0, installment.remaining_cents);
+  return Math.max(0, installment.amount_cents - installmentReceivedCents(installment));
+}
+
+function barberName(barberId: string, barbers: Props["barbers"]) {
+  return barbers.find((item) => item.id === barberId)?.display_name ?? "Profissional não encontrado";
+}
+
+function monthReferenceLabel(month: string) {
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`));
 }
 
 function Modal({ title, wide = false, onClose, children }: { title: string; wide?: boolean; onClose: () => void; children: React.ReactNode }) {

@@ -610,6 +610,16 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .financeRows div { display: grid; gap: .25rem; padding: .75rem; border-radius: 12px; background: #f4f7f2; }
 .financeRows span { color: #728077; font-size: .75rem; }
 .financeRows strong { color: #2c573d; font-size: 1rem; }
+.financeReportTable { width: 100%; min-width: 460px; border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid #e5eae3; border-radius: 13px; background: #fff; }
+.financeReportTable th, .financeReportTable td { padding: .72rem .8rem; border-bottom: 1px solid #edf0eb; text-align: left; vertical-align: middle; }
+.financeReportTable thead th { color: #687169; background: #f7faf5; font-size: .7rem; font-weight: 800; white-space: nowrap; }
+.financeReportTable tbody th { color: #334037; font-size: .8rem; font-weight: 600; }
+.financeReportTable tbody td { color: #1f5d40; font-size: .8rem; font-weight: 800; white-space: nowrap; }
+.financeReportTable tbody tr:last-child th, .financeReportTable tbody tr:last-child td { border-bottom: 0; }
+.financeReportTable tbody tr:hover { background: #fafcf9; }
+.financeReportLink { padding: 0; border: 0; background: transparent; color: #2f6045; font: inherit; text-align: left; cursor: pointer; }
+.financeReportLink:hover { text-decoration: underline; }
+.financeReportModalBody { display: grid; gap: .8rem; padding: 0 1.25rem 1.25rem; }
 .modalLayer { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 1rem; background: rgba(22, 32, 25, .46); }
 .modalBackdrop { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
 .modal { position: relative; z-index: 1; width: min(680px, 100%); max-height: min(90vh, 760px); overflow: auto; border: 1px solid rgba(36, 42, 38, .12); border-radius: 20px; background: #fff; box-shadow: 0 24px 70px rgba(20, 31, 23, .22); }
