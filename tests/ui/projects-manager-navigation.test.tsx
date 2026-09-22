@@ -223,18 +223,19 @@ describe("projects navigation", () => {
   it("shows contract financial columns and opens Nova proposta in edit mode", () => {
     render(<ProjectsManager {...contractData} projectId="project-1" />);
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
-    expect(screen.getByRole("columnheader", { name: "Total parcelas" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Valor da parcela" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Próx. vencimento" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Valor da entrada" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Saldo do contrato" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Data da assinatura" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Parcelas" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Valor" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Vencimento" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Entrada" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Saldo" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Assinatura" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Pacote" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Kanban" })).toBeInTheDocument();
     expect(screen.getByLabelText("Kanban atual da contratação de Cliente Teste")).toHaveTextContent("Em execução");
     expect(screen.queryByRole("combobox", { name: "Kanban atual da contratação de Cliente Teste" })).not.toBeInTheDocument();
     const contractRow = screen.getByRole("row", { name: /Cliente Teste/ });
     expect(contractRow).toHaveTextContent("1/2");
-    expect(contractRow).toHaveTextContent("15 de out. de 2026");
+    expect(contractRow).toHaveTextContent("15/10/2026");
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente Teste" }));
     expect(screen.getByRole("dialog", { name: "Novo contrato" })).toBeInTheDocument();
     const customerInput = screen.getByLabelText("Cliente");
