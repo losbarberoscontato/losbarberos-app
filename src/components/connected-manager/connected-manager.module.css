@@ -508,12 +508,13 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .engagementList { display: grid; gap: .55rem; overflow-x: auto; }
 .engagementRow { display: grid; grid-template-columns: auto minmax(160px, 1fr) minmax(100px, auto) auto minmax(100px, auto); gap: .75rem; align-items: center; min-width: 620px; padding: .75rem; border: 1px solid #edf0eb; border-radius: 13px; }
 .engagementTableWrap { overflow-x: auto; }
-.engagementTable { width: 100%; min-width: 980px; border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid #e5eae3; border-radius: 13px; background: #fff; }
+.engagementTable { width: 100%; min-width: 1080px; border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid #e5eae3; border-radius: 13px; background: #fff; }
 .engagementTable th, .engagementTable td { padding: .68rem .7rem; border-bottom: 1px solid #edf0eb; text-align: left; vertical-align: middle; }
 .engagementTable th { color: #687169; background: #f7faf5; font-size: .68rem; font-weight: 800; white-space: nowrap; }
 .engagementTable td { color: #334037; font-size: .78rem; }
 .engagementTable td:nth-child(3), .engagementTable td:nth-child(5), .engagementTable td:nth-child(7) { color: #1f5d40; font-weight: 800; white-space: nowrap; }
 .engagementTable td:nth-child(4), .engagementTable td:nth-child(6), .engagementTable td:nth-child(8) { color: #687169; white-space: nowrap; }
+.engagementTable td:nth-child(10) { white-space: nowrap; }
 .engagementTable td:last-child { white-space: nowrap; }
 .engagementTable tbody tr:last-child td { border-bottom: 0; }
 .engagementTable tbody tr:hover { background: #fafcf9; }

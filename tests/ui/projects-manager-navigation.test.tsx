@@ -51,6 +51,21 @@ const contractData = {
   ],
 };
 
+const contractWithSessionsData = {
+  ...contractData,
+  projectSessions: [{
+    id: "session-1",
+    organization_id: "org-1",
+    engagement_id: "engagement-1",
+    session_number: 1,
+    status: "BOOKED" as const,
+    appointment_id: "appointment-1",
+    service_id: "service-1",
+    barber_id: "barber-1",
+    appointment: { id: "appointment-1", status: "CONFIRMED", service_period: "[2026-11-25 14:30:00+00,2026-11-25 15:30:00+00)", barber_id: "barber-1", source: "PROJECT" },
+  }],
+};
+
 describe("projects navigation", () => {
   afterEach(() => { cleanup(); push.mockReset(); });
 
@@ -239,6 +254,14 @@ describe("projects navigation", () => {
     expect(screen.getAllByText("R$ 40,00")).toHaveLength(2);
     expect(screen.getByText("15 de nov. de 2026")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Salvar alterações" })).toBeInTheDocument();
+  });
+
+  it("shows the latest project session status beside Kanban", () => {
+    render(<ProjectsManager {...contractWithSessionsData} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
+    expect(screen.getByRole("columnheader", { name: "Sessões" })).toBeInTheDocument();
+    const contractRow = screen.getByRole("row", { name: /Cliente Teste/ });
+    expect(contractRow).toHaveTextContent("1/5 Agendado");
   });
 
   it("marks a contract row red when the next installment is overdue", () => {
