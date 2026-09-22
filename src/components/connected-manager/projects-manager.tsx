@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, BriefcaseBusiness, Calculator, CalendarDays, Che
 import { PageHeader } from "@/components/ui";
 import type { ProjectCostItemRecord, ProjectEngagementCommentPreview, ProjectKanbanBoardRecord, ProjectKanbanSectorRecord, ProjectsPageData } from "./projects-server";
 import type { ChartAccountRecord, CostCenterRecord, FinancialAccountRecord, FinancialTagRecord } from "./types";
-import { centsFromInput, formatCents } from "./format";
+import { centsFromInput, formatCents, humanizeError } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { normalizePhoneE164 } from "@/lib/phone";
@@ -19,6 +19,7 @@ type ProjectFilter = "published" | "archived" | "all";
 type CostKind = Exclude<ProjectCostItemRecord["kind"], "VARIABLE">;
 type EngagementScheduleRow = { installment_number: number; due_on: string; amount_cents: number };
 type PackageServiceAssignment = { service_id: string; barber_id: string; commission_cents: number };
+type BookingEnvironmentOption = { id: string; name: string; sort_order: number };
 type PackageDraft = {
   id: string | null;
   name: string;
@@ -72,6 +73,12 @@ function dateTimeLabel(value: string) {
 function localTodayInputValue() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function localTomorrowInputValue() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
 }
 
 function externalLink(value: string) {
@@ -174,7 +181,6 @@ export function ProjectsManager(props: ManagerProps) {
   const router = useRouter();
   const projectSessionsData = useMemo(() => props.projectSessions ?? [], [props.projectSessions]);
   const projectCommissionsData = useMemo(() => props.projectCommissions ?? [], [props.projectCommissions]);
-  const environmentsData = useMemo(() => props.environments ?? [], [props.environments]);
   const [tab, setTab] = useState<ProjectTab>("overview");
   const [message, setMessage] = useState("");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -238,6 +244,8 @@ export function ProjectsManager(props: ManagerProps) {
   const [bookingDate, setBookingDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
   const [bookingTime, setBookingTime] = useState("09:00");
   const [bookingEnvironmentId, setBookingEnvironmentId] = useState("");
+  const [bookingEnvironments, setBookingEnvironments] = useState<BookingEnvironmentOption[]>([]);
+  const [bookingAvailabilityLoading, setBookingAvailabilityLoading] = useState(false);
   const [bookingSaving, setBookingSaving] = useState(false);
 
   const isProjectDetail = Boolean(props.projectId);
@@ -527,11 +535,15 @@ export function ProjectsManager(props: ManagerProps) {
     if (!engagement || session.status !== "OPEN") return;
     const assignments = (props.packageServiceAssignments ?? []).filter((item) => item.project_package_id === engagement.package_id);
     const firstAssignment = assignments[0];
+    const defaultDate = localTomorrowInputValue();
     setBookingSession(session);
     setBookingProfessionalId(firstAssignment?.barber_id ?? props.barbers[0]?.id ?? "");
     setBookingServiceId(firstAssignment?.service_id ?? "");
-    setBookingEnvironmentId(environmentsData[0]?.id ?? "");
+    setBookingDate(defaultDate);
     setBookingTime("09:00");
+    setBookingEnvironmentId("");
+    setBookingEnvironments([]);
+    void loadBookingEnvironments(session, firstAssignment?.barber_id ?? props.barbers[0]?.id ?? "", firstAssignment?.service_id ?? "", defaultDate, "09:00");
   }
 
   function closeProjectSessionBooking() {
@@ -539,6 +551,35 @@ export function ProjectsManager(props: ManagerProps) {
     setBookingSession(null);
     setBookingProfessionalId("");
     setBookingServiceId("");
+    setBookingEnvironmentId("");
+    setBookingEnvironments([]);
+  }
+
+  async function loadBookingEnvironments(session: Props["projectSessions"][number], barberId: string, serviceId: string, date: string, time: string) {
+    setBookingEnvironments([]);
+    setBookingEnvironmentId("");
+    if (!barberId || !serviceId || !date || !time) {
+      setBookingAvailabilityLoading(false);
+      return;
+    }
+    setBookingAvailabilityLoading(true);
+    try {
+      const result = await connectedClient().rpc("get_project_session_environments", {
+        p_organization_id: props.organizationId,
+        p_session_id: session.id,
+        p_barber_id: barberId,
+        p_service_id: serviceId,
+        p_starts_at: new Date(`${date}T${time}:00`).toISOString(),
+      });
+      await assertResult(result);
+      const environments = (result.data ?? []) as BookingEnvironmentOption[];
+      setBookingEnvironments(environments);
+      setBookingEnvironmentId(environments[0]?.id ?? "");
+    } catch (error) {
+      setMessage(humanizeError(error));
+    } finally {
+      setBookingAvailabilityLoading(false);
+    }
   }
 
   async function bookProjectSession() {
@@ -927,7 +968,7 @@ export function ProjectsManager(props: ManagerProps) {
       const assignments = (props.packageServiceAssignments ?? []).filter((item) => item.project_package_id === bookingEngagement?.package_id);
       const professionals = [...new Map(assignments.map((assignment) => [assignment.barber_id, props.barbers.find((barber) => barber.id === assignment.barber_id)]).filter((entry): entry is [string, Props["barbers"][number]] => Boolean(entry[1]))).values()];
       const services = assignments.filter((assignment) => assignment.barber_id === bookingProfessionalId).map((assignment) => ({ assignment, service: props.services.find((service) => service.id === assignment.service_id) })).filter((item): item is { assignment: typeof assignments[number]; service: Props["services"][number] } => Boolean(item.service));
-      return <Modal title="Reserve um horário" onClose={closeProjectSessionBooking}><div className={styles.form}><p className={styles.muted}>Sessão {bookingSession.session_number} · cliente e pacote contratado ficam vinculados ao atendimento.</p><Field label="Profissional" wide><select value={bookingProfessionalId} onChange={(event) => { setBookingProfessionalId(event.target.value); const first = assignments.find((assignment) => assignment.barber_id === event.target.value); setBookingServiceId(first?.service_id ?? ""); }}><option value="">Selecione</option>{professionals.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></Field><Field label="Serviço do pacote" wide><select value={bookingServiceId} onChange={(event) => setBookingServiceId(event.target.value)} disabled={!services.length}><option value="">Selecione</option>{services.map(({ service }) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></Field><Field label="Data"><span className="input-shell"><CalendarDays size={16} /><input type="date" value={bookingDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setBookingDate(event.target.value)} /></span></Field><Field label="Hora"><span className="input-shell"><Clock3 size={16} /><input type="time" value={bookingTime} onChange={(event) => setBookingTime(event.target.value)} /></span></Field><Field label="Ambiente" wide><select value={bookingEnvironmentId} onChange={(event) => setBookingEnvironmentId(event.target.value)}><option value="">Selecionar automaticamente</option>{environmentsData.map((environment) => <option value={environment.id} key={environment.id}>{environment.name}</option>)}</select></Field></div><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeProjectSessionBooking}>Cancelar</button><button className={styles.button} type="button" disabled={bookingSaving || !bookingProfessionalId || !bookingServiceId || !bookingDate || !bookingTime} onClick={() => void bookProjectSession()}>{bookingSaving ? "Agendando…" : "Agendar sessão"}</button></footer></Modal>;
+      return <Modal title="Reserve um horário" onClose={closeProjectSessionBooking}><div className={styles.form}><p className={styles.muted}>Sessão {bookingSession.session_number} · cliente e pacote contratado ficam vinculados ao atendimento.</p><Field label="Profissional" wide><select value={bookingProfessionalId} onChange={(event) => { const barberId = event.target.value; const first = assignments.find((assignment) => assignment.barber_id === barberId); const serviceId = first?.service_id ?? ""; setBookingProfessionalId(barberId); setBookingServiceId(serviceId); void loadBookingEnvironments(bookingSession, barberId, serviceId, bookingDate, bookingTime); }}><option value="">Selecione</option>{professionals.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></Field><Field label="Serviço do pacote" wide><select value={bookingServiceId} onChange={(event) => { const serviceId = event.target.value; setBookingServiceId(serviceId); void loadBookingEnvironments(bookingSession, bookingProfessionalId, serviceId, bookingDate, bookingTime); }} disabled={!services.length}><option value="">Selecione</option>{services.map(({ service }) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></Field><Field label="Data"><span className="input-shell"><CalendarDays size={16} /><input type="date" value={bookingDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => { const date = event.target.value; setBookingDate(date); void loadBookingEnvironments(bookingSession, bookingProfessionalId, bookingServiceId, date, bookingTime); }} /></span></Field><Field label="Hora"><span className="input-shell"><Clock3 size={16} /><input type="time" value={bookingTime} onChange={(event) => { const time = event.target.value; setBookingTime(time); void loadBookingEnvironments(bookingSession, bookingProfessionalId, bookingServiceId, bookingDate, time); }} /></span></Field><Field label="Ambiente" wide><select value={bookingEnvironmentId} onChange={(event) => setBookingEnvironmentId(event.target.value)} disabled={bookingAvailabilityLoading || !bookingProfessionalId || !bookingServiceId}><option value="">{bookingAvailabilityLoading ? "Consultando ambientes…" : bookingEnvironments.length ? "Selecione um ambiente disponível" : "Nenhuma sala disponível"}</option>{bookingEnvironments.map((environment) => <option value={environment.id} key={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select>{!bookingAvailabilityLoading && !bookingEnvironments.length && <small className={styles.muted}>Nenhuma cadeira/sala está livre para este profissional no dia e horário escolhidos.</small>}</Field></div><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeProjectSessionBooking}>Cancelar</button><button className={styles.button} type="button" disabled={bookingSaving || bookingAvailabilityLoading || !bookingProfessionalId || !bookingServiceId || !bookingDate || !bookingTime || !bookingEnvironmentId} onClick={() => void bookProjectSession()}>{bookingSaving ? "Agendando…" : "Agendar sessão"}</button></footer></Modal>;
     })()}
     {newEngagementCustomerOpen && newEngagementOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar cadastro de cliente" onClick={closeNewEngagementCustomer} /><form className="form-modal" role="dialog" aria-modal="true" aria-label="Novo cliente" onSubmit={(event) => void createEngagementCustomer(event)}>
       <div className="form-modal__head"><span><small>Cadastro manual</small><strong>Cadastre um cliente</strong></span><button type="button" className="icon-button" onClick={closeNewEngagementCustomer} aria-label="Fechar cadastro de cliente" disabled={newEngagementCustomerSaving}><X size={19} /></button></div>

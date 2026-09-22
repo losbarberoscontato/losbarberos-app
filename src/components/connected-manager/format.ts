@@ -98,6 +98,8 @@ export function humanizeError(error: unknown) {
   const dictionary: Array<[RegExp, string]> = [
     [/start time is not aligned to slot interval/i, "Escolha um horário alinhado ao intervalo de slots da agenda."],
     [/requested slot is no longer available|exclusion constraint/i, "Esse horário acabou de ser ocupado."],
+    [/environment is not assigned to barber for requested period/i, "A cadeira/sala escolhida não está vinculada ao profissional nesse horário."],
+    [/barber is unavailable for requested period|no active environment available for requested period/i, "O profissional não está disponível nesse período."],
     [/projects_active_name_key/i, "Já existe um projeto com o mesmo nome."],
     [/duplicate key|unique constraint/i, "Já existe um cadastro igual ativo."],
     [/organization is not accepting/i, "A assinatura está bloqueada para novas reservas."],

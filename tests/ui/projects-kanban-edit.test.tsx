@@ -29,6 +29,17 @@ const generalData = {
   kanbanBoards: data.kanbanBoards.map((item) => ({ ...item, sector_id: "sector-1" })),
 };
 
+const sessionData = {
+  ...data,
+  customers: [{ id: "customer-1", full_name: "Cliente", phone_e164: null, email: null }],
+  packages: [{ id: "package-1", organization_id: "org-1", project_id: "project-1", name: "Experiência", description: null, price_cents: 15000, sessions_count: 1, duration_minutes: 60, fixed_cost_per_hour_cents: 0, extra_costs_cents: 0, extra_costs_description: null, tax_rate_bps: 0, card_rate_bps: 0, profit_margin_bps: 5000, deposit_cents: 0, suggested_price_cents: 15000, sort_order: 1, active: true }],
+  services: [{ id: "service-1", name: "Datas Comemorativas", price_cents: 5000, active: true }],
+  engagements: [{ ...data.engagements[0], package_id: "package-1", status: "ACTIVE" as const }],
+  packageServiceAssignments: [{ id: "assignment-1", project_package_id: "package-1", service_id: "service-1", barber_id: "barber-1", commission_cents: 1000 }],
+  projectSessions: [{ id: "project-session-1", organization_id: "org-1", engagement_id: "engagement-1", session_number: 1, status: "OPEN" as const, appointment_id: null, service_id: null, barber_id: null, appointment: null }],
+  environments: [{ id: "environment-1", organization_id: "org-1", location_id: "location-1", name: "Sala/Cadeira 1", sort_order: 1, active: true }],
+};
+
 describe("kanban board editing", () => {
   afterEach(() => { cleanup(); mocks.rpc.mockReset(); mocks.from.mockReset(); mocks.refresh.mockReset(); mocks.push.mockReset(); vi.useRealTimers(); });
 
@@ -117,6 +128,23 @@ describe("kanban board editing", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Salvar evento" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("save_project_engagement_event", expect.objectContaining({ p_engagement_id: "engagement-1", p_due_on: "2026-09-30" })));
     expect(screen.getByLabelText("Data prazo de Cliente")).toHaveValue("2026-09-30");
+  });
+
+  it("loads only environments available for the selected project professional", async () => {
+    mocks.rpc.mockResolvedValue({ data: [{ id: "environment-1", name: "Sala/Cadeira 1", sort_order: 1 }], error: null });
+    render(<ProjectsManager {...sessionData} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
+    const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    fireEvent.click(within(contractDialog).getByRole("button", { name: /Agendar/ }));
+
+    const bookingDialog = await screen.findByRole("dialog", { name: "Reserve um horário" });
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("get_project_session_environments", expect.objectContaining({
+      p_session_id: "project-session-1",
+      p_barber_id: "barber-1",
+      p_service_id: "service-1",
+    })));
+    expect(within(bookingDialog).getByRole("option", { name: /Sala\/Cadeira 1/ })).toBeInTheDocument();
   });
 
   it("opens the event editor on double click and saves event details separately from comments", async () => {
