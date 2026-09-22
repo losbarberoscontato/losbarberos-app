@@ -5,8 +5,23 @@ const migration = readFileSync("supabase/migrations/20260921222752_project_sessi
 const backfillMigration = readFileSync("supabase/migrations/20260922122126_backfill_project_engagement_sessions.sql", "utf8");
 const environmentAvailabilityMigration = readFileSync("supabase/migrations/20260922144849_project_session_environment_availability.sql", "utf8");
 const environmentAvailabilityFixMigration = readFileSync("supabase/migrations/20260922150000_fix_project_session_environment_availability.sql", "utf8");
+const internalServicesMigration = readFileSync("supabase/migrations/20260922192330_project_engagement_internal_services.sql", "utf8");
 
 describe("project sessions and package commissions migration", () => {
+  it("creates tenant-scoped internal services and generates their payable commission atomically", () => {
+    expect(internalServicesMigration).toContain("unique (engagement_id, kanban_board_id)");
+    expect(internalServicesMigration).toContain("project_engagement_internal_service_move_guard");
+    expect(internalServicesMigration).toContain("project_internal_service_responsible_guard");
+    expect(internalServicesMigration).toContain("project_internal_service_commission_guard");
+    expect(internalServicesMigration).toContain("public.is_organization_owner(organization_id)");
+    expect(internalServicesMigration).toContain("v_board.responsible_barber_id");
+    expect(internalServicesMigration).toContain("create or replace function public.upsert_project_engagement_internal_service");
+    expect(internalServicesMigration).toContain("create or replace function public.complete_project_engagement_internal_service");
+    expect(internalServicesMigration).toContain("project-internal-service:");
+    expect(internalServicesMigration).toContain("'PROJECT_INTERNAL'::text source_type");
+    expect(internalServicesMigration).toContain("coalesce(detail.appointment_item_id, detail.internal_service_id)");
+  });
+
   it("creates tenant-scoped sessions and the project booking RPC", () => {
     expect(migration).toContain("add value if not exists 'PROJECT'");
     expect(migration).toContain("create table public.project_engagement_sessions");

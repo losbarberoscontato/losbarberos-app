@@ -128,6 +128,32 @@ export interface ProjectPackageServiceAssignmentRecord {
   commission_cents: number;
 }
 
+export interface ProjectEngagementInternalServiceRecord {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  engagement_id: string | null;
+  internal_card_id?: string | null;
+  kanban_board_id: string;
+  package_assignment_id: string;
+  service_id: string;
+  service_name: string;
+  barber_id: string;
+  commission_cents: number;
+  delivery_on: string | null;
+  status: "OPEN" | "COMPLETED";
+  commission_ledger_entry_id: string | null;
+}
+
+export interface ProjectKanbanInternalCardRecord {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  kanban_board_id: string;
+  title: string;
+  created_at: string;
+}
+
 export interface ProjectCostItemRecord {
   id: string;
   organization_id: string;
@@ -206,7 +232,7 @@ export async function loadProjectsData() {
     .maybeSingle();
   if (entitlement.error) throw new Error(`Módulo Projetos: ${entitlement.error.message}`);
 
-  const [projects, packages, steps, engagementsRaw, installments, customers, services, barbers, barberServices, packageServiceAssignments, costItems, kanbanBoardsRaw, kanbanSectorsRaw, eventCommentsRaw, financialAccounts, chartAccounts, costCenters, tags, sessions, projectAppointments, projectCommissions, environments] = await Promise.all([
+  const [projects, packages, steps, engagementsRaw, installments, customers, services, barbers, barberServices, packageServiceAssignments, costItems, kanbanBoardsRaw, kanbanSectorsRaw, eventCommentsRaw, financialAccounts, chartAccounts, costCenters, tags, sessions, projectAppointments, projectCommissions, environments, internalServices, internalCards] = await Promise.all([
     supabase.from("projects").select("id,organization_id,name,description,status,starts_on,sales_close_on,ends_on,goal_contracts,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("project_packages").select("id,organization_id,project_id,name,description,price_cents,sessions_count,duration_minutes,fixed_cost_per_hour_cents,extra_costs_cents,extra_costs_description,tax_rate_bps,card_rate_bps,profit_margin_bps,deposit_cents,suggested_price_cents,sort_order,active").eq("organization_id", organizationId).order("sort_order"),
     supabase.from("project_steps").select("id,organization_id,project_id,name,description,position,kind,service_id,commission_rate_bps,active").eq("organization_id", organizationId).order("position"),
@@ -229,6 +255,8 @@ export async function loadProjectsData() {
     supabase.from("appointments").select("id,status,service_period,barber_id,source,cancellation_outcome").eq("organization_id", organizationId).eq("source", "PROJECT"),
     supabase.from("commission_service_details").select("*").eq("organization_id", organizationId).eq("is_project", true).order("service_date", { ascending: false }),
     supabase.from("agenda_environments").select("id,organization_id,location_id,name,sort_order,active").eq("organization_id", organizationId).eq("active", true).order("sort_order").order("name"),
+    supabase.from("project_engagement_internal_services").select("id,organization_id,project_id,engagement_id,internal_card_id,kanban_board_id,package_assignment_id,service_id,service_name,barber_id,commission_cents,delivery_on,status,commission_ledger_entry_id").eq("organization_id", organizationId).order("created_at"),
+    supabase.from("project_kanban_internal_cards").select("id,organization_id,project_id,kanban_board_id,title,created_at").eq("organization_id", organizationId).order("created_at"),
   ]);
 
   const installmentRows = installments.error && /project_installment_finance|relation .* does not exist/i.test(installments.error.message)
@@ -290,6 +318,8 @@ export async function loadProjectsData() {
     projectSessions,
     projectCommissions: required(projectCommissions, "Comissões dos projetos") as FinancialCommissionDetailRecord[],
     environments: required(environments, "Ambientes da agenda") as AgendaEnvironmentRecord[],
+    internalServices: required(internalServices, "Serviços internos dos projetos") as ProjectEngagementInternalServiceRecord[],
+    internalCards: required(internalCards, "Cards avulsos dos projetos") as ProjectKanbanInternalCardRecord[],
   };
 }
 

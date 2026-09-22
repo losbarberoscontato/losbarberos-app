@@ -385,14 +385,14 @@ export interface FinancialAccountRecord {
 
 export interface FinancialCommissionDetailRecord {
   organization_id: string;
-  appointment_id: string;
-  appointment_item_id: string;
-  customer_id: string;
-  customer_name: string;
+  appointment_id: string | null;
+  appointment_item_id: string | null;
+  customer_id: string | null;
+  customer_name: string | null;
   barber_id: string;
   service_id: string | null;
   service_name: string;
-  location_id: string;
+  location_id: string | null;
   service_date: string;
   received_on: string | null;
   service_value_paid_cents: number;
@@ -404,6 +404,8 @@ export interface FinancialCommissionDetailRecord {
   project_engagement_id?: string | null;
   project_id?: string | null;
   is_project?: boolean;
+  source_type?: "APPOINTMENT" | "PROJECT_INTERNAL";
+  internal_service_id?: string | null;
 }
 
 export interface FinancialAccountBalanceRecord {

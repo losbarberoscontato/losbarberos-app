@@ -144,4 +144,22 @@ describe("manager commissions", () => {
     })));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
+
+  it("inclui comissão de serviço interno no mesmo fluxo de pagamento sem cliente ou agenda", async () => {
+    render(<FinancialReportsManager {...props} initialReport="COMMISSIONS" commissionDetails={[
+      ...props.commissionDetails,
+      { organization_id: "org-1", appointment_id: null, appointment_item_id: null, internal_service_id: "internal-service-1", source_type: "PROJECT_INTERNAL", customer_id: null, customer_name: null, barber_id: "barber-1", service_id: "service-4", service_name: "Organização de arquivos", location_id: null, service_date: "2026-09-10", received_on: null, service_value_paid_cents: 0, financial_account_names: null, commission_cents: 1200, paid_commission_cents: 0, payable_commission_cents: 1200, is_project: true },
+    ] as never} />);
+    fireEvent.click(screen.getByRole("row", { name: /Barbeiro Real/ }));
+    expect(screen.getByText("Projeto · Serviço interno")).toBeInTheDocument();
+    const internalCheckbox = screen.getByRole("checkbox", { name: "Selecionar comissão de Organização de arquivos" });
+    fireEvent.click(internalCheckbox);
+    expect(screen.getByText("Total selecionado: R$ 12,00")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Pagar Comissão" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Banco ou caixa" }), { target: { value: "account-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar" }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("pay_commission", expect.objectContaining({
+      p_appointment_item_ids: ["internal-service-1"],
+    })));
+  });
 });

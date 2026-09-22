@@ -586,6 +586,23 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .eventContext strong { color: #27523b; font-size: .78rem; }
 .eventContext small { color: #718076; font-size: .68rem; }
 .eventContext input { min-width: 0; width: 100%; padding: .42rem .5rem; border: 1px solid #d2dfd0; border-radius: 8px; background: #fff; color: #2f4936; font: inherit; font-size: .76rem; }
+.internalServiceCard { display: grid; gap: .7rem; margin: 0 0 .9rem; padding: .8rem; border: 1px solid #dfe8dd; border-radius: 11px; background: #f7f9f6; }
+.internalServiceCard > header { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }
+.internalServiceCard h3 { margin: 0; color: #25342b; font-size: .92rem; }
+.internalServiceCard p { margin: .2rem 0 0; color: #718076; font-size: .74rem; }
+.internalServiceCard p strong { color: #27523b; }
+.internalServiceRow, .internalServiceDraft { display: grid; grid-template-columns: minmax(8rem, 1.4fr) minmax(7rem, .7fr) minmax(9rem, 1fr) auto; align-items: center; gap: .6rem; padding: .65rem; border: 1px solid #e1e9df; border-radius: 9px; background: #fff; }
+.internalServiceName { display: grid; gap: .15rem; min-width: 0; }
+.internalServiceName strong, .internalServiceDraft > strong { min-width: 0; overflow-wrap: anywhere; color: #26352b; font-size: .82rem; }
+.internalServiceName small { color: #718076; font-size: .68rem; }
+.internalServiceRow > span { color: #42574a; font-size: .78rem; }
+.internalServiceRow > label, .internalServiceDraft > label { display: grid; gap: .25rem; color: #587060; font-size: .68rem; font-weight: 700; }
+.internalServiceRow input, .internalServiceDraft input { min-width: 0; width: 100%; padding: .42rem .5rem; border: 1px solid #d2dfd0; border-radius: 8px; background: #fff; color: #2f4936; font: inherit; font-size: .76rem; }
+.internalServiceActions { display: flex; align-items: center; justify-content: flex-end; gap: .35rem; }
+.internalServiceActions .iconButton { display: inline-grid; width: 2.25rem; height: 2.25rem; place-items: center; border: 1px solid #dce5da; border-radius: 50%; background: #eef2ec; color: #33453a; cursor: pointer; }
+.internalServiceActions .iconButton:disabled { cursor: not-allowed; opacity: .55; }
+.internalServiceActions .internalServicePay { background: #202a25; color: #fff; }
+.internalServiceDraft { margin-top: .2rem; }
 .eventLinks { display: grid; gap: .7rem; margin-top: .9rem; padding-top: .9rem; border-top: 1px solid #e5ebe2; }
 .eventLinks h3, .eventComments h3 { margin: 0; color: #25342b; font-size: 1rem; }
 .eventLinkField { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem; }
@@ -768,6 +785,8 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
   .qrConnection { align-items: flex-start; flex-direction: column; }
   .toolbarGroup, .toolbarGroup .button { width: 100%; }
   .eventContext { grid-template-columns: 1fr; }
+  .internalServiceRow, .internalServiceDraft { grid-template-columns: 1fr 1fr; }
+  .internalServiceName, .internalServiceDraft > strong { grid-column: 1 / -1; }
   .professionalFunctionForm { grid-template-columns: 1fr; }
   .professionalFunctionForm > .button { width: 100%; }
 }

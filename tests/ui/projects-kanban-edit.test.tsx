@@ -40,6 +40,14 @@ const sessionData = {
   environments: [{ id: "environment-1", organization_id: "org-1", location_id: "location-1", name: "Sala/Cadeira 1", sort_order: 1, active: true }],
 };
 
+const internalServiceData = {
+  ...generalData,
+  packages: sessionData.packages,
+  services: [...sessionData.services, { id: "service-2", name: "Organização de arquivos", price_cents: 0, active: true, availability: "INTERNAL" as const }],
+  packageServiceAssignments: sessionData.packageServiceAssignments,
+  internalServices: [],
+};
+
 describe("kanban board editing", () => {
   afterEach(() => { cleanup(); mocks.rpc.mockReset(); mocks.from.mockReset(); mocks.refresh.mockReset(); mocks.push.mockReset(); vi.useRealTimers(); });
 
@@ -128,6 +136,47 @@ describe("kanban board editing", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Salvar evento" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("save_project_engagement_event", expect.objectContaining({ p_engagement_id: "engagement-1", p_due_on: "2026-09-30" })));
     expect(screen.getByLabelText("Data prazo de Cliente")).toHaveValue("2026-09-30");
+  });
+
+  it("creates a standalone card in the first board without associating a customer", async () => {
+    const createdCard = { id: "internal-card-1", organization_id: "org-1", project_id: "project-1", kanban_board_id: "board-1", title: "Card avulso", created_at: "2026-09-22T12:00:00.000Z" };
+    mocks.rpc.mockResolvedValue({ data: createdCard, error: null });
+    render(<ProjectsManager {...internalServiceData} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Kanban/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Criar Card" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("create_project_kanban_internal_card", {
+      p_organization_id: "org-1", p_project_id: "project-1",
+    }));
+    expect(screen.getByText("Card avulso")).toBeInTheDocument();
+    const card = screen.getByText("Card avulso").closest("article");
+    expect(card).not.toHaveTextContent("Cliente");
+    fireEvent.doubleClick(card as HTMLElement);
+    expect(screen.getByRole("dialog", { name: "Card avulso · Serviço Interno" })).toBeInTheDocument();
+  });
+
+  it("saves an internal service on a standalone card using the selected package commission", async () => {
+    const standaloneCard = { id: "internal-card-1", organization_id: "org-1", project_id: "project-1", kanban_board_id: "board-1", title: "Card avulso", created_at: "2026-09-22T12:00:00.000Z" };
+    mocks.rpc.mockImplementation(async (name: string) => name === "create_project_kanban_internal_card"
+      ? { data: standaloneCard, error: null }
+      : { data: { id: "internal-service-1", organization_id: "org-1", project_id: "project-1", engagement_id: null, internal_card_id: standaloneCard.id, kanban_board_id: "board-1", package_assignment_id: "assignment-1", service_id: "service-1", service_name: "Datas Comemorativas", barber_id: "barber-1", commission_cents: 1000, delivery_on: "2026-09-22", status: "OPEN" }, error: null });
+    render(<ProjectsManager {...internalServiceData} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Kanban/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Criar Card" }));
+    await waitFor(() => expect(screen.getByText("Card avulso")).toBeInTheDocument());
+    fireEvent.doubleClick(screen.getByText("Card avulso").closest("article") as HTMLElement);
+    const dialog = screen.getByRole("dialog", { name: "Card avulso · Serviço Interno" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Adicionar Serviço Interno" }));
+    const serviceDialog = screen.getByRole("dialog", { name: "Adicionar Serviço Interno" });
+    expect(within(serviceDialog).getByRole("option", { name: /Experiência · Datas Comemorativas/ })).toBeInTheDocument();
+    fireEvent.change(within(serviceDialog).getByLabelText("Serviço interno"), { target: { value: "assignment-1" } });
+    fireEvent.click(within(serviceDialog).getByRole("button", { name: "Adicionar serviço" }));
+    fireEvent.change(within(dialog).getByLabelText("Entrega do serviço interno"), { target: { value: "2026-09-22" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar serviço interno" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("upsert_project_kanban_internal_card_service", expect.objectContaining({
+      p_organization_id: "org-1", p_project_id: "project-1", p_internal_card_id: standaloneCard.id,
+      p_board_id: "board-1", p_service_assignment_id: "assignment-1", p_commission_cents: 1000,
+      p_delivery_on: "2026-09-22",
+    })));
   });
 
   it("loads only environments available for the selected project professional", async () => {
@@ -488,5 +537,53 @@ describe("kanban board editing", () => {
     expect(receiptRow).toHaveTextContent("22 de set. de 2026");
     expect(receiptRow).toHaveTextContent("Caixa físico");
     expect(receiptRow).toHaveTextContent("Julio Heiden");
+  });
+
+  it("adiciona serviço interno usando o serviço e comissão do pacote e do responsável do quadro", async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: "internal-1", organization_id: "org-1", project_id: "project-1", engagement_id: "engagement-1", kanban_board_id: "board-1", package_assignment_id: "assignment-1", service_id: "service-1", service_name: "Datas Comemorativas", barber_id: "barber-1", commission_cents: 1000, delivery_on: "2026-09-22", status: "OPEN" }, error: null });
+    render(<ProjectsManager {...internalServiceData} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Kanban/ }));
+    fireEvent.doubleClick(screen.getByText("Cliente").closest("article") as HTMLElement);
+    const eventDialog = screen.getByRole("dialog", { name: "Aguardando aceite" });
+    expect(within(eventDialog).getByText("Alef Gonçalves")).toBeInTheDocument();
+    fireEvent.click(within(eventDialog).getByRole("button", { name: "Adicionar Serviço Interno" }));
+    const serviceDialog = screen.getByRole("dialog", { name: "Adicionar Serviço Interno" });
+    expect(within(serviceDialog).getByRole("option", { name: /Datas Comemorativas/ })).toBeInTheDocument();
+    expect(within(serviceDialog).queryByRole("option", { name: /Organização de arquivos/ })).not.toBeInTheDocument();
+    fireEvent.change(within(serviceDialog).getByLabelText("Serviço interno"), { target: { value: "assignment-1" } });
+    fireEvent.click(within(serviceDialog).getByRole("button", { name: "Adicionar serviço" }));
+    fireEvent.change(within(eventDialog).getByLabelText("Entrega do serviço interno"), { target: { value: "2026-09-22" } });
+    fireEvent.click(within(eventDialog).getByRole("button", { name: "Salvar serviço interno" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("upsert_project_engagement_internal_service", expect.objectContaining({
+      p_organization_id: "org-1", p_project_id: "project-1", p_engagement_id: "engagement-1", p_board_id: "board-1",
+      p_service_assignment_id: "assignment-1", p_commission_cents: 1000, p_delivery_on: "2026-09-22",
+    })));
+  });
+
+  it("pede confirmação antes de concluir serviço interno e gerar comissão a pagar", async () => {
+    const existing = { id: "internal-1", organization_id: "org-1", project_id: "project-1", engagement_id: "engagement-1", kanban_board_id: "board-1", package_assignment_id: "assignment-1", service_id: "service-1", service_name: "Datas Comemorativas", barber_id: "barber-1", commission_cents: 1000, delivery_on: "2026-09-22", status: "OPEN" as const, commission_ledger_entry_id: null };
+    mocks.rpc.mockResolvedValue({ data: { ...existing, status: "COMPLETED" }, error: null });
+    render(<ProjectsManager {...internalServiceData} internalServices={[existing]} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Kanban/ }));
+    fireEvent.doubleClick(screen.getByText("Cliente").closest("article") as HTMLElement);
+    const eventDialog = screen.getByRole("dialog", { name: "Aguardando aceite" });
+    fireEvent.click(within(eventDialog).getByRole("button", { name: "Pagar serviço e gerar comissão" }));
+    const confirmation = screen.getByRole("dialog", { name: "Confirmar geração de comissão" });
+    expect(within(confirmation).getByText(/não realiza o pagamento agora/i)).toBeInTheDocument();
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Confirmar e concluir" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("complete_project_engagement_internal_service", expect.objectContaining({
+      p_organization_id: "org-1", p_internal_service_id: "internal-1", p_idempotency_key: expect.any(String),
+    })));
+  });
+
+  it("libera novo serviço para o mesmo cartão após conclusão no quadro anterior", () => {
+    const movedEngagement = { ...internalServiceData.engagements[0], kanban_board_id: "board-2" };
+    const completedPreviousBoard = { id: "internal-previous", organization_id: "org-1", project_id: "project-1", engagement_id: "engagement-1", kanban_board_id: "board-1", package_assignment_id: "assignment-1", service_id: "service-1", service_name: "Datas Comemorativas", barber_id: "barber-1", commission_cents: 1000, delivery_on: "2026-09-21", status: "COMPLETED" as const, commission_ledger_entry_id: "ledger-1" };
+    render(<ProjectsManager {...internalServiceData} engagements={[movedEngagement]} internalServices={[completedPreviousBoard]} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Kanban/ }));
+    fireEvent.doubleClick(screen.getByText("Cliente").closest("article") as HTMLElement);
+    const eventDialog = screen.getByRole("dialog", { name: "Em execução" });
+    expect(within(eventDialog).getByText("Serviço Interno")).toBeInTheDocument();
+    expect(within(eventDialog).getByRole("button", { name: "Adicionar Serviço Interno" })).toBeEnabled();
   });
 });
