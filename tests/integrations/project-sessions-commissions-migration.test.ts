@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync("supabase/migrations/20260921222752_project_sessions_and_commissions.sql", "utf8");
 const backfillMigration = readFileSync("supabase/migrations/20260922122126_backfill_project_engagement_sessions.sql", "utf8");
 const environmentAvailabilityMigration = readFileSync("supabase/migrations/20260922144849_project_session_environment_availability.sql", "utf8");
+const environmentAvailabilityFixMigration = readFileSync("supabase/migrations/20260922150000_fix_project_session_environment_availability.sql", "utf8");
 
 describe("project sessions and package commissions migration", () => {
   it("creates tenant-scoped sessions and the project booking RPC", () => {
@@ -35,5 +36,14 @@ describe("project sessions and package commissions migration", () => {
     expect(environmentAvailabilityMigration).toContain("a.environment_id = e.id");
     expect(environmentAvailabilityMigration).toContain("environment is not assigned to barber for requested period");
     expect(environmentAvailabilityMigration).toContain("environment is no longer available");
+  });
+
+  it("qualifies ids in the availability RPC to avoid RETURNS TABLE name collisions", () => {
+    expect(environmentAvailabilityFixMigration).toContain("from public.organizations o");
+    expect(environmentAvailabilityFixMigration).toContain("where o.id = p_organization_id");
+    expect(environmentAvailabilityFixMigration).toContain("from public.project_engagement_sessions s");
+    expect(environmentAvailabilityFixMigration).toContain("where s.id = p_session_id");
+    expect(environmentAvailabilityFixMigration).toContain("from public.project_engagements pe");
+    expect(environmentAvailabilityFixMigration).toContain("where pe.id = v_session.engagement_id");
   });
 });
