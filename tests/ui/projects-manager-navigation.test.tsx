@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -300,7 +300,7 @@ describe("projects navigation", () => {
     expect(title).toHaveValue("Experiência");
   });
 
-  it("uses project allocation as fixed cost and adds services with project commissions", () => {
+  it("uses project allocation as fixed cost and adds services with project commissions", async () => {
     const packageData = {
       ...data,
       costItems: [{ id: "cost-1", organization_id: "org-1", project_id: "project-1", kind: "INVESTMENT" as const, name: "Cenário", description: null, amount_cents: 2000, active: true, sort_order: 1, created_at: "2026-09-15T00:00:00.000Z" }],
@@ -318,6 +318,7 @@ describe("projects navigation", () => {
     render(<ProjectsManager {...packageData} projectId="project-1" />);
     fireEvent.click(screen.getByRole("button", { name: /Pacotes/ }));
     fireEvent.click(screen.getByRole("button", { name: /Adicionar pacote/ }));
+    fireEvent.change(screen.getByLabelText("Título do pacote 1"), { target: { value: "Pacote teste" } });
     fireEvent.change(screen.getByLabelText("Total de sessões"), { target: { value: "3" } });
     expect(screen.getByLabelText("Custo Fixo")).toHaveValue("6,00");
     expect(screen.getByLabelText("Custo Fixo")).toHaveAttribute("readonly");
@@ -333,9 +334,9 @@ describe("projects navigation", () => {
     fireEvent.change(screen.getByLabelText("Profissional do serviço 1"), { target: { value: "barber-1" } });
     fireEvent.change(screen.getByLabelText("Comissão do serviço 1"), { target: { value: "15,00" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar serviço" }));
-    expect(screen.getByText("Corte")).toBeInTheDocument();
-    expect(screen.getByText("Custos com comissão").parentElement).toHaveTextContent("R$ 15,00");
-    expect(screen.getByLabelText("Precificação Sugerida")).toHaveValue("R$\u00a042,00");
+    await waitFor(() => expect(screen.getByText("Corte")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Custos com comissão").parentElement).toHaveTextContent("R$ 15,00"));
+    await waitFor(() => expect(screen.getByLabelText("Precificação Sugerida")).toHaveValue("R$\u00a042,00"));
   });
 
   it("opens the investments sub-screen with fixed costs and investments", () => {

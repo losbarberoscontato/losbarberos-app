@@ -14,7 +14,7 @@ import { formatCpfCnpj } from "@/lib/cpf-cnpj";
 import styles from "./connected-manager.module.css";
 
 type Props = ProjectsPageData;
-type ManagerProps = Omit<Props, "projectBarbers" | "packageServiceAssignments" | "barberServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags" | "projectSessions" | "projectCommissions" | "environments" | "internalServices" | "internalCards"> & { projectBarbers?: Props["projectBarbers"]; packageServiceAssignments?: Props["packageServiceAssignments"]; barberServices?: Props["barberServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectSessions?: Props["projectSessions"]; projectCommissions?: Props["projectCommissions"]; environments?: Props["environments"]; internalServices?: Props["internalServices"]; internalCards?: Props["internalCards"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
+type ManagerProps = Omit<Props, "projectBarbers" | "packageServiceAssignments" | "barberServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags" | "projectSessions" | "projectCommissions" | "projectEngagementLinks" | "environments" | "internalServices" | "internalCards"> & { projectBarbers?: Props["projectBarbers"]; packageServiceAssignments?: Props["packageServiceAssignments"]; barberServices?: Props["barberServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectSessions?: Props["projectSessions"]; projectCommissions?: Props["projectCommissions"]; projectEngagementLinks?: Props["projectEngagementLinks"]; environments?: Props["environments"]; internalServices?: Props["internalServices"]; internalCards?: Props["internalCards"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
 type ProjectTab = "overview" | "investments" | "packages" | "engagements" | "kanban" | "finance";
 type ProjectFilter = "published" | "archived" | "all";
 type CostKind = Exclude<ProjectCostItemRecord["kind"], "VARIABLE">;
@@ -234,6 +234,9 @@ export function ProjectsManager(props: ManagerProps) {
   const [eventLink1, setEventLink1] = useState("");
   const [eventLink2, setEventLink2] = useState("");
   const [eventLink3, setEventLink3] = useState("");
+  const [eventLinkTitle1, setEventLinkTitle1] = useState("Link 1");
+  const [eventLinkTitle2, setEventLinkTitle2] = useState("Link 2");
+  const [eventLinkTitle3, setEventLinkTitle3] = useState("Link 3");
   const [eventDueOn, setEventDueOn] = useState("");
   const [eventDueDateOverrides, setEventDueDateOverrides] = useState<EventDueDateOverrides>({});
   const [eventComments, setEventComments] = useState<ProjectEventComment[]>([]);
@@ -700,16 +703,16 @@ export function ProjectsManager(props: ManagerProps) {
     setPackageDrafts((current) => [...current, emptyPackageDraft()]);
   }
 
-  async function savePackage(draft: PackageDraft) {
-    if (!selectedProject || packageSavingId) return;
+  async function savePackage(draft: PackageDraft): Promise<string | null> {
+    if (!selectedProject || packageSavingId) return null;
     const pricing = packagePricing(draft, projectAllocationCents);
     if (!draft.name.trim()) {
       setMessage("Informe o nome do pacote.");
-      return;
+      return null;
     }
     if (!pricing.denominatorValid) {
       setMessage("A soma de margem, taxa e imposto precisa ser menor que 100%.");
-      return;
+      return null;
     }
     setPackageSavingId(draft.id ?? "new");
     let savedPackageId = draft.id;
@@ -742,6 +745,7 @@ export function ProjectsManager(props: ManagerProps) {
       if (savedPackageId && !draft.id) setPackageDrafts((current) => current.map((item) => item === draft ? { ...item, id: savedPackageId } : item));
       router.refresh();
     }
+    return saved ? savedPackageId : null;
   }
 
   async function openReceiveInstallment(installment: Props["installments"][number]) {
@@ -793,7 +797,7 @@ export function ProjectsManager(props: ManagerProps) {
     if (typeof client.from !== "function") return;
     setEventCommentsLoading(true);
     try {
-      const result = await client.from("project_engagement_comments").select("id,organization_id,project_id,engagement_id,body,author_name,created_at,updated_at").eq("organization_id", props.organizationId).eq("engagement_id", engagementId).order("created_at", { ascending: true });
+      const result = await client.from("project_engagement_comments").select("id,organization_id,project_id,engagement_id,body,author_name,created_at,updated_at").eq("organization_id", props.organizationId).eq("engagement_id", engagementId).order("created_at", { ascending: false });
       await assertResult(result);
       setEventComments((result.data ?? []) as ProjectEventComment[]);
     } catch (error) {
@@ -810,6 +814,10 @@ export function ProjectsManager(props: ManagerProps) {
     setEventLink1(engagement.event_link_1 ?? "");
     setEventLink2(engagement.event_link_2 ?? "");
     setEventLink3(engagement.event_link_3 ?? "");
+    const sharedLinks = (props.projectEngagementLinks ?? []).filter((link) => link.engagement_id === engagement.id && link.created_by_role === "OWNER");
+    setEventLinkTitle1(sharedLinks[0]?.label ?? "Link 1");
+    setEventLinkTitle2(sharedLinks[1]?.label ?? "Link 2");
+    setEventLinkTitle3(sharedLinks[2]?.label ?? "Link 3");
     setEventDueOn(engagement.event_due_on ?? "");
     setCommentDraft("");
     setEditingCommentId(null);
@@ -860,6 +868,7 @@ export function ProjectsManager(props: ManagerProps) {
         p_link_3: eventLink3,
         p_due_on: eventDueOn || null,
       }));
+      await assertResult(await connectedClient().rpc("owner_sync_project_engagement_links", { p_organization_id: props.organizationId, p_project_id: eventProject.id, p_engagement_id: engagement.id, p_titles: [eventLinkTitle1, eventLinkTitle2, eventLinkTitle3], p_urls: [eventLink1, eventLink2, eventLink3] }));
     }, "Evento atualizado.");
     setSaving(false);
     if (saved) {
@@ -1000,10 +1009,10 @@ export function ProjectsManager(props: ManagerProps) {
       const board = props.kanbanBoards.find((item) => item.id === engagement?.kanban_board_id);
       const customer = engagement ? customerById.get(engagement.customer_id) : null;
       if (!engagement || !eventProject) return null;
-      const eventLinks: Array<{ label: string; value: string; setter: (value: string) => void }> = [
-        { label: "Link 1", value: eventLink1, setter: setEventLink1 },
-        { label: "Link 2", value: eventLink2, setter: setEventLink2 },
-        { label: "Link 3", value: eventLink3, setter: setEventLink3 },
+      const eventLinks: Array<{ label: string; title: string; value: string; setTitle: (value: string) => void; setter: (value: string) => void }> = [
+        { label: "Link 1", title: eventLinkTitle1, value: eventLink1, setTitle: setEventLinkTitle1, setter: setEventLink1 },
+        { label: "Link 2", title: eventLinkTitle2, value: eventLink2, setTitle: setEventLinkTitle2, setter: setEventLink2 },
+        { label: "Link 3", title: eventLinkTitle3, value: eventLink3, setTitle: setEventLinkTitle3, setter: setEventLink3 },
       ];
       return <Modal title={board?.name ?? "Evento"} wide onClose={closeEventEditor}>
           <div className={styles.eventModalLayout}>
@@ -1012,7 +1021,7 @@ export function ProjectsManager(props: ManagerProps) {
             {board && <ProjectInternalServiceCard organizationId={props.organizationId} projectId={eventProject.id} engagementId={engagement.id} board={board} barberName={props.barbers.find((item) => item.id === board.responsible_barber_id)?.display_name ?? "Responsável do quadro"} barbers={props.barbers} packageAssignments={(props.packageServiceAssignments ?? []).filter((item) => item.project_package_id === engagement.package_id && item.barber_id === board.responsible_barber_id)} services={props.services} existing={(props.internalServices ?? []).find((item) => item.engagement_id === engagement.id && item.kanban_board_id === board.id) ?? null} onSaved={() => router.refresh()} />}
             <Field label="Cliente" wide><input aria-label="Cliente do evento" value={customer?.full_name ?? "Cliente não informado"} readOnly /></Field>
             <Field label="Descrição" wide><textarea aria-label="Descrição do evento" value={eventDescription} onChange={(event) => setEventDescription(event.target.value)} placeholder="Adicione detalhes para orientar a execução…" rows={6} /></Field>
-            <section className={styles.eventLinks} aria-labelledby="event-links-title"><h3 id="event-links-title">Links</h3>{eventLinks.map(({ label, value, setter }) => <Field label={label} wide key={label}><div className={styles.eventLinkField}><input aria-label={label} type="url" value={value} onChange={(event) => setter(event.target.value)} placeholder="https://" />{value.trim() && <a href={externalLink(value)} target="_blank" rel="noreferrer">Abrir link</a>}</div></Field>)}</section>
+            <section className={styles.eventLinks} aria-labelledby="event-links-title"><h3 id="event-links-title">Links</h3>{eventLinks.map(({ label, title, value, setTitle, setter }) => <Field label={label} wide key={label}><div className={styles.eventLinkField}><input aria-label={`${label} - Título`} type="text" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Título" /><input aria-label={`${label} - URL`} type="url" value={value} onChange={(event) => setter(event.target.value)} placeholder="https://" />{value.trim() && <a href={externalLink(value)} target="_blank" rel="noreferrer">Abrir link</a>}</div></Field>)}{(props.projectEngagementLinks ?? []).filter((link) => link.engagement_id === eventEditorEngagementId && link.created_by_role === "BARBER").map((link) => <p key={link.id}><a href={link.url} target="_blank" rel="noreferrer">{link.label}</a> · adicionado pelo profissional</p>)}</section>
             <footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeEventEditor}>Cancelar</button><button className={styles.button} type="button" disabled={saving} onClick={() => void saveEventDetails()}>{saving ? "Salvando…" : "Salvar evento"}</button></footer>
           </div>
           <aside className={styles.eventComments} aria-label="Comentários"><div className={styles.eventCommentsHeader}><h3>Comentários</h3><span>{eventComments.length}</span></div><Field label={editingCommentId ? "Editar comentário" : "Adicionar comentário"} wide><textarea aria-label={editingCommentId ? "Editar comentário" : "Adicionar comentário"} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Escreva uma atualização para a equipe…" rows={4} /></Field><button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={savingComment || !commentDraft.trim()} onClick={() => void saveEventComment()}>{savingComment ? "Salvando…" : editingCommentId ? "Salvar comentário" : "Adicionar comentário"}</button>{eventCommentsLoading ? <p className={styles.muted}>Carregando comentários…</p> : eventComments.length === 0 ? <p className={styles.muted}>Nenhum comentário ainda.</p> : <div className={styles.eventCommentList}>{eventComments.map((comment) => <article className={styles.eventComment} key={comment.id}><p>{comment.body}</p><footer><span>{comment.author_name} · {dateTimeLabel(comment.created_at)}</span><button type="button" onClick={() => { setEditingCommentId(comment.id); setCommentDraft(comment.body); }}>Editar</button></footer></article>)}</div>}</aside>
@@ -1117,7 +1126,7 @@ function ProjectInvestments({ organizationId, projectId, goalContracts, items }:
 
 type PackageServiceInput = { serviceId: string; barberId: string; commission: string };
 
-function ProjectPackages({ packages, barbers, barberServices, services, fixedCostCents, savingId, onAdd, onChange, onSave }: { packages: PackageDraft[]; barbers: Props["barbers"]; barberServices: NonNullable<Props["barberServices"]>; services: Props["services"]; fixedCostCents: number; savingId: string | null; onAdd: () => void; onChange: (index: number, patch: Partial<PackageDraft>) => void; onSave: (draft: PackageDraft) => void }) {
+function ProjectPackages({ packages, barbers, barberServices, services, fixedCostCents, savingId, onAdd, onChange, onSave }: { packages: PackageDraft[]; barbers: Props["barbers"]; barberServices: NonNullable<Props["barberServices"]>; services: Props["services"]; fixedCostCents: number; savingId: string | null; onAdd: () => void; onChange: (index: number, patch: Partial<PackageDraft>) => void; onSave: (draft: PackageDraft) => Promise<string | null> }) {
   const [message, setMessage] = useState("");
   const [serviceInputs, setServiceInputs] = useState<Record<string, PackageServiceInput>>({});
   const [collapsedBreakdowns, setCollapsedBreakdowns] = useState<Record<string, boolean>>({});
@@ -1131,7 +1140,7 @@ function ProjectPackages({ packages, barbers, barberServices, services, fixedCos
     setServiceInputs((current) => ({ ...current, [key]: { ...current[key], ...patch } }));
   }
 
-  function saveServiceInput(index: number, key: string, draft: PackageDraft) {
+  async function saveServiceInput(index: number, key: string, draft: PackageDraft) {
     const input = serviceInputs[key];
     if (!input?.serviceId || !input.barberId || !input.commission.trim()) {
       setMessage("Selecione o serviço e o profissional e informe a comissão.");
@@ -1153,7 +1162,17 @@ function ProjectPackages({ packages, barbers, barberServices, services, fixedCos
       setMessage("Este profissional já foi vinculado a este serviço no pacote.");
       return;
     }
-    onChange(index, { serviceAssignments: [...draft.serviceAssignments, { service_id: input.serviceId, barber_id: input.barberId, commission_cents: commissionCents }] });
+    const serviceAssignment = { service_id: input.serviceId, barber_id: input.barberId, commission_cents: commissionCents };
+    const nextDraft = { ...draft, serviceAssignments: [...draft.serviceAssignments, serviceAssignment] };
+    if (!draft.id) {
+      onChange(index, { serviceAssignments: nextDraft.serviceAssignments });
+      setServiceInputs((current) => { const next = { ...current }; delete next[key]; return next; });
+      setMessage("");
+      return;
+    }
+    const savedPackageId = await onSave(nextDraft);
+    if (!savedPackageId) return;
+    onChange(index, { id: savedPackageId, serviceAssignments: nextDraft.serviceAssignments });
     setServiceInputs((current) => { const next = { ...current }; delete next[key]; return next; });
     setMessage("");
   }
@@ -1192,7 +1211,7 @@ function ProjectPackages({ packages, barbers, barberServices, services, fixedCos
                 <label className={`${styles.field} ${styles.packageAssignmentWideField}`}><span>Serviço</span><select aria-label={`Serviço do pacote ${index + 1}`} value={serviceInput.serviceId} onChange={(event) => updateServiceInput(key, { serviceId: event.target.value, barberId: "" })}><option value="">Selecione o serviço</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
                 <label className={`${styles.field} ${styles.packageAssignmentWideField}`}><span>Profissional</span><select aria-label={`Profissional do serviço ${index + 1}`} value={serviceInput.barberId} onChange={(event) => updateServiceInput(key, { barberId: event.target.value })} disabled={!serviceInput.serviceId}><option value="">Selecione o profissional</option>{eligibleBarbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select>{!serviceInput.serviceId && <small className={styles.packageAssignmentHint}>Escolha um serviço para listar os profissionais habilitados.</small>}{serviceInput.serviceId && eligibleBarbers.length === 0 && <small className={`${styles.muted} ${styles.packageAssignmentHint}`}>Nenhum profissional habilitado para este serviço.</small>}</label>
                 <label className={styles.field}><span>Comissão (R$)</span><input aria-label={`Comissão do serviço ${index + 1}`} inputMode="decimal" placeholder="0,00" value={serviceInput.commission} onChange={(event) => updateServiceInput(key, { commission: event.target.value })} /></label>
-                <button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label="Salvar serviço" title="Salvar serviço" onClick={() => saveServiceInput(index, key, draft)} disabled={!serviceInput.serviceId || !serviceInput.barberId || !serviceInput.commission.trim()}><Save size={15} /></button>
+                <button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label="Salvar serviço" title="Salvar serviço" onClick={() => void saveServiceInput(index, key, draft)} disabled={!serviceInput.serviceId || !serviceInput.barberId || !serviceInput.commission.trim() || Boolean(savingId)}><Save size={15} /></button>
                 <button className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} type="button" aria-label="Cancelar serviço" title="Cancelar serviço" onClick={() => setServiceInputs((current) => { const next = { ...current }; delete next[key]; return next; })}><X size={15} /></button>
               </div>}
               {!services.length && <p className={styles.muted}>Nenhum serviço ativo disponível.</p>}

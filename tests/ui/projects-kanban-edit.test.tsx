@@ -207,7 +207,7 @@ describe("kanban board editing", () => {
     const dialog = screen.getByRole("dialog", { name: "Aguardando aceite" });
     expect(within(dialog).getByDisplayValue("Cliente")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Descrição do evento"), { target: { value: "Preparar briefing" } });
-    fireEvent.change(within(dialog).getByLabelText("Link 1"), { target: { value: "https://example.com/briefing" } });
+    fireEvent.change(within(dialog).getByLabelText("Link 1 - URL"), { target: { value: "https://example.com/briefing" } });
     fireEvent.change(within(dialog).getByLabelText("Data prazo"), { target: { value: "2026-09-30" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Salvar evento" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("save_project_engagement_event", expect.objectContaining({
