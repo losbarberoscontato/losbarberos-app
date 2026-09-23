@@ -187,6 +187,9 @@ export async function loadBarberProject(slug: string | null | undefined, project
   ]);
   if (project.error || !project.data) return null;
   for (const item of [boards, engagements, links, comments, services]) if (item.error) throw new Error(item.error.message);
-  const engagementRows = rows(engagements.data as Array<Omit<BarberProjectEngagement, "customer"> & { customer: Array<{ full_name: string }> | null }>).map((item) => ({ ...item, customer: item.customer?.[0] ?? null }));
+  const engagementRows = rows(engagements.data as Array<Omit<BarberProjectEngagement, "customer"> & { customer: { full_name: string } | Array<{ full_name: string }> | null }>).map((item) => ({
+    ...item,
+    customer: Array.isArray(item.customer) ? item.customer[0] ?? null : item.customer,
+  }));
   return { context, project: project.data, boards: rows(boards.data as BarberProjectBoard[]), engagements: engagementRows, links: rows(links.data as BarberProjectLink[]), comments: rows(comments.data as Array<{ id: string; engagement_id: string; body: string; author_name: string; created_at: string }>), internalServices: rows(services.data as Array<{ id: string; engagement_id: string | null; service_name: string; barber_id: string; delivery_on: string | null; status: string }>) };
 }
