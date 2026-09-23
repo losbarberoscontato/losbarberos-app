@@ -183,7 +183,7 @@ export async function loadBarberProject(slug: string | null | undefined, project
     supabase.from("project_engagements").select("id,project_id,customer_id,kanban_board_id,status,event_description,event_due_on,customer:customers(full_name)").eq("organization_id", context.organization_id).eq("project_id", projectId).order("created_at"),
     supabase.from("project_engagement_links").select("id,engagement_id,label,url,created_by,created_at").eq("organization_id", context.organization_id).eq("project_id", projectId).order("created_at"),
     supabase.from("project_engagement_comments").select("id,engagement_id,body,author_name,created_at").eq("organization_id", context.organization_id).eq("project_id", projectId).order("created_at", { ascending: false }),
-    supabase.from("project_engagement_internal_services").select("id,engagement_id,service_name,barber_id,delivery_on,status").eq("organization_id", context.organization_id).eq("project_id", projectId).order("created_at"),
+    supabase.from("project_engagement_internal_services").select("id,engagement_id,internal_card_id,service_name,barber_id,commission_cents,delivery_on,status,review_requested_at,review_requested_by").eq("organization_id", context.organization_id).eq("project_id", projectId).order("created_at"),
   ]);
   if (project.error || !project.data) return null;
   for (const item of [boards, engagements, links, comments, services]) if (item.error) throw new Error(item.error.message);
@@ -191,5 +191,5 @@ export async function loadBarberProject(slug: string | null | undefined, project
     ...item,
     customer: Array.isArray(item.customer) ? item.customer[0] ?? null : item.customer,
   }));
-  return { context, project: project.data, boards: rows(boards.data as BarberProjectBoard[]), engagements: engagementRows, links: rows(links.data as BarberProjectLink[]), comments: rows(comments.data as Array<{ id: string; engagement_id: string; body: string; author_name: string; created_at: string }>), internalServices: rows(services.data as Array<{ id: string; engagement_id: string | null; service_name: string; barber_id: string; delivery_on: string | null; status: string }>) };
+  return { context, project: project.data, boards: rows(boards.data as BarberProjectBoard[]), engagements: engagementRows, links: rows(links.data as BarberProjectLink[]), comments: rows(comments.data as Array<{ id: string; engagement_id: string; body: string; author_name: string; created_at: string }>), internalServices: rows(services.data as Array<{ id: string; engagement_id: string | null; internal_card_id: string | null; service_name: string; barber_id: string; commission_cents: number; delivery_on: string | null; status: string; review_requested_at: string | null; review_requested_by: string | null }>) };
 }

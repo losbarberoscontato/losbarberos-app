@@ -156,7 +156,7 @@ export interface ProjectEngagementInternalServiceRecord {
   barber_id: string;
   commission_cents: number;
   delivery_on: string | null;
-  status: "OPEN" | "COMPLETED";
+  status: "OPEN" | "READY_FOR_REVIEW" | "COMPLETED";
   commission_ledger_entry_id: string | null;
 }
 

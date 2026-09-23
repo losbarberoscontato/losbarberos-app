@@ -1297,6 +1297,17 @@ function installmentIsOverdue(installment: Props["installments"][number] | undef
   return installment.due_on < todayKey;
 }
 
+function internalServiceTone(status: string, deliveryOn: string | null) {
+  if (status === "READY_FOR_REVIEW") return styles.internalServiceReady;
+  if (status === "COMPLETED") return styles.internalServiceCompleted;
+  if (!deliveryOn) return "";
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (deliveryOn < todayKey) return styles.internalServiceOverdue;
+  if (deliveryOn === todayKey) return styles.internalServiceDueToday;
+  return "";
+}
+
 function ProjectInternalServiceCard({ organizationId, projectId, engagementId, internalCardId, board, barberName, barbers, packageAssignments, packages = [], services, existing, onSaved }: {
   organizationId: string; projectId: string; engagementId?: string | null; internalCardId?: string | null; board: ProjectKanbanBoardRecord; barberName: string; barbers: Props["barbers"];
   packageAssignments: Props["packageServiceAssignments"]; packages?: Props["packages"]; services: Props["services"];
@@ -1327,7 +1338,12 @@ function ProjectInternalServiceCard({ organizationId, projectId, engagementId, i
     if (amountCents < 0) { setMessage("A comissão não pode ser negativa."); return; }
     setBusy(true); setMessage("");
     const result = await runMutation(setMessage, async () => {
-      const response = internalCardId
+      const response = record?.id
+        ? await connectedClient().rpc("manager_update_project_internal_service", {
+          p_organization_id: organizationId, p_project_id: projectId, p_internal_service_id: record.id,
+          p_commission_cents: amountCents, p_delivery_on: deliveryOn || null,
+        })
+        : internalCardId
         ? await connectedClient().rpc("upsert_project_kanban_internal_card_service", {
           p_organization_id: organizationId, p_project_id: projectId, p_internal_card_id: internalCardId,
           p_board_id: board.id, p_id: record?.id ?? null, p_service_assignment_id: assignmentId,
@@ -1379,7 +1395,7 @@ function ProjectInternalServiceCard({ organizationId, projectId, engagementId, i
     if (deleted) onSaved();
   }
 
-  return <section className={styles.internalServiceCard} aria-label="Serviço Interno">
+  return <section className={`${styles.internalServiceCard} ${internalServiceTone(record?.status ?? "OPEN", record?.delivery_on ?? deliveryOn)}`} aria-label="Serviço Interno">
     <header><div><h3>Serviço Interno</h3><p>Responsável do quadro: <strong>{barberName}</strong></p></div>{!record && !(draftAssignmentId && editing) && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => { setAssignmentId(""); setCommission("0,00"); setDeliveryOn(""); setServiceDialogOpen(true); }} disabled={options.length === 0}><Plus size={15} /> Adicionar Serviço Interno</button>}</header>
     {options.length === 0 && !record && <p className={styles.muted}>Não há serviços deste pacote vinculados ao responsável do quadro.</p>}
     {record && <div className={styles.internalServiceRow}>
@@ -1388,8 +1404,9 @@ function ProjectInternalServiceCard({ organizationId, projectId, engagementId, i
       <div className={styles.internalServiceActions}>
         {record.status !== "COMPLETED" && editing && <button className={styles.iconButton} type="button" aria-label="Salvar serviço interno" title="Salvar" disabled={busy} onClick={() => void saveInternalService()}><Save size={16} /></button>}
         {record.status !== "COMPLETED" && !editing && <button className={styles.iconButton} type="button" aria-label="Editar serviço interno" title="Editar" onClick={() => { setCommission(centsInput(record.commission_cents)); setDeliveryOn(record.delivery_on ?? ""); setAssignmentId(record.package_assignment_id); setEditing(true); }}><Pencil size={16} /></button>}
-        {record.status !== "COMPLETED" && !editing && <button className={`${styles.iconButton} ${styles.internalServicePay}`} type="button" aria-label="Pagar serviço e gerar comissão" title="Concluir serviço e gerar comissão a pagar" disabled={busy || !record.delivery_on} onClick={() => setConfirmOpen(true)}><CircleDollarSign size={17} /></button>}
+        {record.status !== "COMPLETED" && !editing && <button className={`${styles.iconButton} ${styles.internalServicePay}`} type="button" aria-label="Concluir e gerar comissão a pagar" title="Concluir e gerar comissão a pagar" disabled={busy || !record.delivery_on} onClick={() => setConfirmOpen(true)}><CircleDollarSign size={17} /></button>}
         {record.status === "OPEN" && !editing && <button className={styles.iconButton} type="button" aria-label="Excluir serviço interno" title="Excluir serviço" disabled={busy} onClick={() => setDeleteConfirmOpen(true)}><Trash2 size={16} /></button>}
+        {record.status === "READY_FOR_REVIEW" && <StatusChip active tone="success" label="Pronto para revisão" />}
         {record.status === "COMPLETED" && <StatusChip active tone="success" label="Concluído · comissão a pagar" />}
       </div>
     </div>}
