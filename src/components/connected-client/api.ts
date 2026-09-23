@@ -10,6 +10,7 @@ import type {
   ClientLinkResult,
   ClientOrganization,
   Customer,
+  CustomerDependent,
   CustomerAppointment,
   FinancialStatus,
   PrivacyRequest,
@@ -75,7 +76,7 @@ export async function getMyClientAccount(
 ): Promise<ClientAccount | null> {
   const { data, error } = await supabase
     .from("client_accounts")
-    .select("auth_user_id,full_name,phone_e164,phone_verified_at,birth_date,terms_policy_version,terms_accepted_at,created_at,updated_at")
+    .select("auth_user_id,full_name,phone_e164,phone_verified_at,birth_date,cpf_cnpj,terms_policy_version,terms_accepted_at,created_at,updated_at")
     .eq("auth_user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -88,6 +89,7 @@ export async function upsertMyClientAccount(
     fullName: string;
     phoneE164: string;
     birthDate: string | null;
+    cpfCnpj?: string | null;
     termsPolicyVersion: string;
   },
 ): Promise<string> {
@@ -96,6 +98,7 @@ export async function upsertMyClientAccount(
     p_phone_e164: input.phoneE164,
     p_birth_date: input.birthDate,
     p_terms_policy_version: input.termsPolicyVersion,
+    ...(input.cpfCnpj ? { p_cpf_cnpj: input.cpfCnpj } : {}),
   });
   return assertData(data as string | null, error, "Não foi possível salvar conta do cliente.");
 }
@@ -148,7 +151,7 @@ export async function getMyCustomer(
 ): Promise<Customer | null> {
   const { data, error } = await supabase
     .from("customers")
-    .select("id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,created_at")
+    .select("id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,cpf_cnpj,created_at")
     .eq("organization_id", organizationId)
     .eq("auth_user_id", userId)
     .eq("active", true)
@@ -156,6 +159,32 @@ export async function getMyCustomer(
     .maybeSingle();
   if (error) throw new Error(error.message);
   return (data as Customer | null) ?? null;
+}
+
+export async function listCustomerDependents(supabase: SupabaseClient, organizationId: string, customerId: string): Promise<CustomerDependent[]> {
+  const { data, error } = await supabase.from("customer_dependents").select("id,organization_id,customer_id,full_name,birth_date,relationship,active").eq("organization_id", organizationId).eq("customer_id", customerId).eq("active", true).order("full_name");
+  if (error) throw new Error(error.message);
+  return (data as CustomerDependent[] | null) ?? [];
+}
+
+export async function createCustomerDependent(supabase: SupabaseClient, input: { organizationId: string; customerId: string; fullName: string; birthDate: string; relationship: CustomerDependent["relationship"] }) {
+  const { data, error } = await supabase.rpc("create_customer_dependent", { p_organization_id: input.organizationId, p_customer_id: input.customerId, p_full_name: input.fullName, p_birth_date: input.birthDate, p_relationship: input.relationship });
+  return assertData(data as CustomerDependent | null, error, "Não foi possível adicionar dependente.");
+}
+
+export async function updateCustomerDependent(supabase: SupabaseClient, input: { organizationId: string; dependentId: string; fullName: string; birthDate: string; relationship: CustomerDependent["relationship"] }) {
+  const { data, error } = await supabase.rpc("update_customer_dependent", { p_organization_id: input.organizationId, p_dependent_id: input.dependentId, p_full_name: input.fullName, p_birth_date: input.birthDate, p_relationship: input.relationship });
+  return assertData(data as CustomerDependent | null, error, "Não foi possível editar dependente.");
+}
+
+export async function deleteCustomerDependent(supabase: SupabaseClient, organizationId: string, dependentId: string) {
+  const { data, error } = await supabase.rpc("delete_customer_dependent", { p_organization_id: organizationId, p_dependent_id: dependentId });
+  return assertData(data as boolean | null, error, "Não foi possível excluir dependente.");
+}
+
+export async function setAppointmentAttendee(supabase: SupabaseClient, appointmentId: string, dependentId: string | null) {
+  const { data, error } = await supabase.rpc("set_appointment_attendee", { p_appointment_id: appointmentId, p_attendee_dependent_id: dependentId });
+  return assertData(data as boolean | null, error, "Não foi possível definir pessoa atendida.");
 }
 
 export async function upsertMyCustomer(

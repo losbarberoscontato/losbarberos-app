@@ -46,7 +46,7 @@ export type BarberAppointment = {
   whatsapp_response_status?: string | null;
 };
 
-export type BarberCustomer = { id: string; full_name: string; phone_e164: string | null };
+export type BarberCustomer = { id: string; full_name: string; phone_e164: string | null; dependents?: Array<{ id: string; full_name: string }> };
 export type BarberService = { id: string; name: string; price_cents: number; duration_minutes: number };
 export type BarberProfessional = { id: string; display_name: string };
 export type BarberCashSession = {

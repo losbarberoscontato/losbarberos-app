@@ -1,9 +1,13 @@
 "use client";
 
-import { Check, Download, LoaderCircle, LogOut, MessageCircle, Save, Search, ShieldCheck, Trash2, UserRound, X } from "lucide-react";
+import { Check, ChevronRight, Download, LoaderCircle, LogOut, MessageCircle, Pencil, Save, Search, ShieldCheck, Trash2, UserRound, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getCustomerPrivacy,
+  listCustomerDependents,
+  createCustomerDependent,
+  updateCustomerDependent,
+  deleteCustomerDependent,
   recordWhatsappConsent,
   submitPrivacyRequest,
   toClientError,
@@ -12,10 +16,11 @@ import {
 import { useConnectedClient } from "@/components/connected-client/context";
 import { formatInstant, initials, locationLabel } from "@/components/connected-client/format";
 import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/state";
-import type { PrivacyRequest } from "@/components/connected-client/types";
+import type { CustomerDependent, PrivacyRequest } from "@/components/connected-client/types";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { formatBirthDateInput, normalizeBirthDateInput, parseBirthDateInput } from "@/lib/birth-date";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { cpfCnpjDigits, formatCpfCnpj, isCpfCnpjValid } from "@/lib/cpf-cnpj";
 
 export function ConnectedProfile() {
   return <ConnectedClientGate><ProfileContent /></ConnectedClientGate>;
@@ -38,6 +43,11 @@ function ProfileContent() {
   const [initializedIdentity, setInitializedIdentity] = useState("");
   const [confirmDeletion, setConfirmDeletion] = useState(false);
   const [searchSlug, setSearchSlug] = useState("");
+  const [cpfCnpj, setCpfCnpj] = useState("");
+  const [personalOpen, setPersonalOpen] = useState(true);
+  const [dependents, setDependents] = useState<CustomerDependent[]>([]);
+  const [dependentsOpen, setDependentsOpen] = useState(false);
+  const [dependentDraft, setDependentDraft] = useState<{ id?: string; fullName: string; birthDate: string; relationship: CustomerDependent["relationship"] }>({ fullName: "", birthDate: "", relationship: "CHILD" });
 
   useEffect(() => {
     if (!user) return;
@@ -46,9 +56,18 @@ function ProfileContent() {
       setFullName(account?.full_name ?? String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? ""));
       setPhone(account?.phone_e164 ?? "");
       setBirthDate(formatBirthDateInput(account?.birth_date));
+      setCpfCnpj(account?.cpf_cnpj ?? "");
       setInitializedIdentity(profileIdentity);
     });
   }, [account, initializedIdentity, profileIdentity, user]);
+
+  const loadDependents = useCallback(async () => {
+    if (!supabase || !context || !customer) return setDependents([]);
+    try { setDependents(await listCustomerDependents(supabase, context.organization.id, customer.id)); }
+    catch (cause: unknown) { setError(toClientError(cause, "Não foi possível carregar dependentes.")); }
+  }, [context, customer, supabase]);
+
+  useEffect(() => { queueMicrotask(() => { void loadDependents(); }); }, [loadDependents]);
 
   const loadPrivacy = useCallback(async () => {
     if (!supabase || !context || !customer) {
@@ -98,6 +117,7 @@ function ProfileContent() {
       setError("Informe a data de nascimento no formato DD/MM/AAAA.");
       return;
     }
+    if (!isCpfCnpjValid(cpfCnpj)) { setError("CPF/CNPJ deve ter 11 ou 14 dígitos."); return; }
     setBusy(true);
     setError("");
     try {
@@ -106,6 +126,7 @@ function ProfileContent() {
         phoneE164,
         birthDate: parsedBirthDate,
         termsPolicyVersion: account.terms_policy_version,
+        cpfCnpj: cpfCnpjDigits(cpfCnpj) || null,
       });
       await reloadCustomer();
       setNotice("Perfil atualizado.");
@@ -114,6 +135,30 @@ function ProfileContent() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function dependentAge(value: string) {
+    if (!value) return "—";
+    const birth = new Date(`${value}T12:00:00`); const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    if (today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate())) age -= 1;
+    return `${Math.max(0, age)} ${Math.max(0, age) === 1 ? "ano" : "anos"}`;
+  }
+  async function saveDependent() {
+    if (!supabase || !context || !customer || !dependentDraft.fullName.trim() || !dependentDraft.birthDate) return;
+    setBusy(true); setError("");
+    try {
+      const input = { organizationId: context.organization.id, customerId: customer.id, fullName: dependentDraft.fullName.trim(), birthDate: dependentDraft.birthDate, relationship: dependentDraft.relationship };
+      if (dependentDraft.id) await updateCustomerDependent(supabase, { ...input, dependentId: dependentDraft.id }); else await createCustomerDependent(supabase, input);
+      setDependentDraft({ fullName: "", birthDate: "", relationship: "CHILD" }); await loadDependents(); setNotice("Dependente salvo.");
+    } catch (cause: unknown) { setError(toClientError(cause, "Não foi possível salvar dependente.")); }
+    finally { setBusy(false); }
+  }
+  async function removeDependent(id: string) {
+    if (!supabase || !context) return; setBusy(true); setError("");
+    try { await deleteCustomerDependent(supabase, context.organization.id, id); await loadDependents(); setNotice("Dependente removido."); }
+    catch (cause: unknown) { setError(toClientError(cause, "Não foi possível excluir dependente.")); }
+    finally { setBusy(false); }
   }
 
   async function updateWhatsapp(next: boolean, marketing = false) {
@@ -175,9 +220,12 @@ function ProfileContent() {
         </aside>
         <div className={styles.profileMain}>
           <section className={styles.panel}>
-            <div className={styles.sectionTitle}><UserRound /><div><h2>Dados pessoais</h2><p>Aplicados em todas as barbearias vinculadas à sua conta.</p></div></div>
-            <div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>Telefone E.164<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Data de nascimento <small>opcional · DD/MM/AAAA</small><input type="text" value={birthDate} onChange={(event) => setBirthDate(normalizeBirthDateInput(event.target.value))} placeholder="DD/MM/AAAA" inputMode="numeric" autoComplete="bday" maxLength={10} /></label></div>
-            <button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void saveProfile()}><Save size={16} /> {busy ? "Salvando…" : "Salvar dados"}</button>
+            <button type="button" className={styles.sectionToggle} onClick={() => setPersonalOpen((value) => !value)} aria-expanded={personalOpen}><ChevronRight size={18} className={personalOpen ? styles.sectionToggleOpen : ""} /> <UserRound /><span><strong>Dados pessoais</strong><small>Aplicados em todas as barbearias vinculadas à sua conta.</small></span></button>
+            {personalOpen && <><div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>CPF/CNPJ<input value={cpfCnpj} onChange={(event) => setCpfCnpj(formatCpfCnpj(event.target.value))} placeholder="CPF ou CNPJ" inputMode="numeric" /></label><label>Telefone E.164<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Data de nascimento <small>opcional · DD/MM/AAAA</small><input type="text" value={birthDate} onChange={(event) => setBirthDate(normalizeBirthDateInput(event.target.value))} placeholder="DD/MM/AAAA" inputMode="numeric" autoComplete="bday" maxLength={10} /></label></div><button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void saveProfile()}><Save size={16} /> {busy ? "Salvando…" : "Salvar dados"}</button></>}
+          </section>
+          <section className={styles.panel}>
+            <button type="button" className={styles.sectionToggle} onClick={() => setDependentsOpen((value) => !value)} aria-expanded={dependentsOpen}><ChevronRight size={18} className={dependentsOpen ? styles.sectionToggleOpen : ""} /> <UserPlus /><span><strong>Dependentes</strong><small>Até 8 pessoas cadastradas para atendimento.</small></span></button>
+            {dependentsOpen && <><div className={styles.formGrid}><label>Nome<input value={dependentDraft.fullName} onChange={(event) => setDependentDraft((d) => ({ ...d, fullName: event.target.value }))} /></label><label>Data de nascimento<input aria-label="Data de nascimento do dependente" type="date" value={dependentDraft.birthDate} onChange={(event) => setDependentDraft((d) => ({ ...d, birthDate: event.target.value }))} /><small>Idade: {dependentAge(dependentDraft.birthDate)}</small></label><label>Parentesco<select value={dependentDraft.relationship} onChange={(event) => setDependentDraft((d) => ({ ...d, relationship: event.target.value as CustomerDependent["relationship"] }))}><option value="CHILD">Filho(a)</option><option value="SPOUSE">Cônjuge</option><option value="EMPLOYEE">Funcionário</option><option value="PARENT">Pai/Mãe</option><option value="OTHER">Outros</option></select></label><button type="button" className={styles.primaryButton} disabled={busy || dependents.length >= 8 && !dependentDraft.id} onClick={() => void saveDependent()}><Save size={16} /> {dependentDraft.id ? "Salvar" : "Adicionar dependente"}</button></div><div className={styles.organizationList}>{dependents.map((item) => <article className={styles.organizationCard} key={item.id}><div><strong>{item.full_name}</strong><small>{item.birth_date} · {dependentAge(item.birth_date)}</small><small>{({ CHILD: "Filho(a)", SPOUSE: "Cônjuge", EMPLOYEE: "Funcionário", PARENT: "Pai/Mãe", OTHER: "Outros" } as Record<string, string>)[item.relationship]}</small></div><button type="button" className={styles.secondaryButton} onClick={() => setDependentDraft({ id: item.id, fullName: item.full_name, birthDate: item.birth_date, relationship: item.relationship })}><Pencil size={15} /> Editar</button><button type="button" className={styles.dangerOutline} onClick={() => void removeDependent(item.id)}><Trash2 size={15} /> Excluir</button></article>)}</div></>}
           </section>
           <section className={styles.panel} aria-labelledby="linked-organizations-title">
             <div className={styles.sectionTitle}><Search /><div><h2 id="linked-organizations-title">Minhas barbearias</h2><p>Conecte-se às barbearias que você já usa no Los Barberos.</p></div></div>

@@ -152,6 +152,7 @@ export function BarberAgenda({
   );
   const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [attendeeDependentId, setAttendeeDependentId] = useState("");
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const customerById = useMemo(
     () => new Map(customers.map((item) => [item.id, item])),
@@ -241,6 +242,7 @@ export function BarberAgenda({
     setNewOpen(false);
     setCustomerQuery("");
     setSelectedCustomerId("");
+    setAttendeeDependentId("");
   }
   async function callRpc(
     name: string,
@@ -252,14 +254,14 @@ export function BarberAgenda({
       setMessage("Conexão com o sistema indisponível.");
       return false;
     }
-    const { error } = await client.rpc(name, args);
+    const { data, error } = await client.rpc(name, args);
     if (error) {
       setMessage(error.message);
       return false;
     }
     setMessage(success);
     router.refresh();
-    return true;
+    return data ?? true;
   }
   async function transition(
     appointment: BarberAppointment,
@@ -316,8 +318,7 @@ export function BarberAgenda({
       return;
     }
     const startsAt = `${String(data.get("date") ?? "")}T${String(data.get("time") ?? "")}`;
-    if (
-      await callRpc(
+    const appointmentId = await callRpc(
         "barber_create_manual_appointment",
         {
           p_organization_id: context.organization_id,
@@ -328,8 +329,9 @@ export function BarberAgenda({
           p_notes: String(data.get("notes") ?? "").trim() || null,
         },
         "Agendamento criado com saldo pendente para o balcão.",
-      )
-    ) {
+      );
+    if (appointmentId) {
+      if (attendeeDependentId) { const client = getSupabaseBrowserClient(); if (client) await client.rpc("set_appointment_attendee", { p_appointment_id: String(appointmentId), p_attendee_dependent_id: attendeeDependentId }); }
       setDate(String(data.get("date")));
       setView("day");
       closeCreate();
@@ -999,6 +1001,7 @@ export function BarberAgenda({
                   <Check size={15} /> {selectedCustomer.full_name} selecionado
                 </p>
               )}
+              {selectedCustomer && (selectedCustomer.dependents ?? []).length > 0 && <label>Pessoa atendida<select value={attendeeDependentId} onChange={(event) => setAttendeeDependentId(event.target.value)}><option value="">Cliente titular</option>{selectedCustomer.dependents?.map((dependent) => <option key={dependent.id} value={dependent.id}>{dependent.full_name}</option>)}</select></label>}
               <div className="form-grid">
                 <label>
                   Serviço

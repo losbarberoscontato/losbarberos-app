@@ -71,7 +71,18 @@ export type Customer = {
   phone_e164: string | null;
   email: string | null;
   birth_date: string | null;
+  cpf_cnpj: string | null;
   created_at?: string;
+};
+
+export type CustomerDependent = {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  full_name: string;
+  birth_date: string;
+  relationship: "CHILD" | "SPOUSE" | "EMPLOYEE" | "PARENT" | "OTHER";
+  active: boolean;
 };
 
 export type ClientAccount = {
@@ -80,6 +91,7 @@ export type ClientAccount = {
   phone_e164: string;
   phone_verified_at: string | null;
   birth_date: string | null;
+  cpf_cnpj: string | null;
   terms_policy_version: string;
   terms_accepted_at: string;
   created_at?: string;

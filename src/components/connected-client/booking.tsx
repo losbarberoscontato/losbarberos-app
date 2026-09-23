@@ -15,6 +15,8 @@ import {
   releaseBookingHold,
   toClientError,
   type BookingHold,
+  listCustomerDependents,
+  setAppointmentAttendee,
 } from "@/components/connected-client/api";
 import { useConnectedClient } from "@/components/connected-client/context";
 import { holdStorageKey } from "@/components/walkin-queue";
@@ -30,7 +32,7 @@ import {
   serviceIdsForChoice,
 } from "@/components/connected-client/format";
 import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/state";
-import type { AvailableDateOption, AvailableSlot } from "@/components/connected-client/types";
+import type { AvailableDateOption, AvailableSlot, CustomerDependent } from "@/components/connected-client/types";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { CATALOG_AUDIENCES, audienceLabel, filterByAudience, type CatalogAudience } from "@/lib/catalog-audiences";
@@ -113,10 +115,13 @@ function BookingContent() {
   const [barberId, setBarberId] = useState("");
   const [localDate, setLocalDate] = useState("");
   const [startsAt, setStartsAt] = useState("");
+  const [dependents, setDependents] = useState<CustomerDependent[]>([]);
+  const [attendeeDependentId, setAttendeeDependentId] = useState("");
   const [walkinQueueHoldId, setWalkinQueueHoldId] = useState<string | null>(null);
   const [bookingHold, setBookingHold] = useState<BookingHold | null>(null);
   const [holdSeconds, setHoldSeconds] = useState(0);
   const holdRequestKeyRef = useRef("");
+  useEffect(() => { if (supabase && context && customer) void listCustomerDependents(supabase, context.organization.id, customer.id).then(setDependents).catch(() => setDependents([])); }, [context, customer, supabase]);
   // A vaga escolhida na fila pública sobrevive à seleção do serviço após login.
   // O cliente ainda pode substituí-la explicitamente nos passos 2/3.
   const queuePresetRef = useRef<{ barberId: string; startsAt: string } | null>(null);
@@ -473,6 +478,7 @@ function BookingContent() {
         walkinQueueHoldId,
       });
       if (hold.status === "CONFIRMED") {
+        await setAppointmentAttendee(supabase, hold.appointment_id, attendeeDependentId || null);
         window.sessionStorage.removeItem(holdStorageKey);
         setWalkinQueueHoldId(null);
         window.sessionStorage.removeItem(draftKey(tenantSlug));
@@ -510,6 +516,7 @@ function BookingContent() {
     try {
       const confirmed = await confirmBookingHold(supabase, bookingHold.appointment_id);
       if (confirmed.status === "EXPIRED") throw new Error("appointment hold expired");
+      await setAppointmentAttendee(supabase, confirmed.appointment_id, attendeeDependentId || null);
       resetBookingHold();
       window.sessionStorage.removeItem(draftKey(tenantSlug));
       router.push(`/cliente/reservas?barbearia=${encodeURIComponent(tenantSlug)}&appointment_id=${confirmed.appointment_id}`);
@@ -844,6 +851,7 @@ function BookingContent() {
                   <section className={styles.panel}>
                     <div className={styles.sectionTitle}><UserRound aria-hidden="true" /><div><h2>Seus dados</h2><p>Nome e contato vêm do seu perfil global.</p></div></div>
                     <p className={styles.customerDetails}>{customer?.full_name ?? "Cliente"}<span>{customer?.phone_e164 ?? "Contato não informado"}</span></p>
+                    {dependents.length > 0 && <label className={styles.attendeePicker}>Quem será atendido?<select value={attendeeDependentId} onChange={(event) => setAttendeeDependentId(event.target.value)}><option value="">Cliente titular</option>{dependents.map((dependent) => <option key={dependent.id} value={dependent.id}>{dependent.full_name}</option>)}</select></label>}
                   </section>
                   <p className={styles.holdNotice} role="timer" aria-live="polite"><Clock3 size={18} aria-hidden="true" /> Horário protegido por <strong>{countdownLabel(holdSeconds)}</strong>. Conclua antes do contador terminar.</p>
                   <section className={styles.panel}>

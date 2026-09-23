@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronDown, Clock3, UserRound, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronRight, Clock3, Pencil, Save, Trash2, UserRound, UserPlus, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import type { loadCustomersData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
@@ -12,6 +12,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 import { normalizePhoneE164 } from "@/lib/phone";
 import { formatCents, formatRange, parsePostgresRange } from "./format";
+import { cpfCnpjDigits, formatCpfCnpj, isCpfCnpjValid } from "@/lib/cpf-cnpj";
 
 type LoadedProps = AwaitedReturn<typeof loadCustomersData>;
 type Props = Omit<
@@ -137,6 +138,8 @@ export function CustomersManager({
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentAccountId, setPaymentAccountId] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
+  const [dependentsOpen, setDependentsOpen] = useState(true);
+  const [dependentDraft, setDependentDraft] = useState<{ id?: string; fullName: string; birthDate: string; relationship: "CHILD" | "SPOUSE" | "EMPLOYEE" | "PARENT" | "OTHER" }>({ fullName: "", birthDate: "", relationship: "CHILD" });
   const [todayTimestamp] = useState(() => Date.now());
   const filtered = customers.filter(
     (customer) =>
@@ -264,7 +267,16 @@ export function CustomersManager({
     setEditing(customer);
     setFormOpen(true);
     setMessage("");
+    setDependentDraft({ fullName: "", birthDate: "", relationship: "CHILD" });
   }
+
+  function dependentAge(value: string) { const birth = new Date(`${value}T12:00:00`); const today = new Date(); let age = today.getFullYear() - birth.getFullYear(); if (today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate())) age -= 1; return `${Math.max(0, age)} ${Math.max(0, age) === 1 ? "ano" : "anos"}`; }
+  async function saveDependent(customer: CustomerRecord) {
+    if (!dependentDraft.fullName.trim() || !dependentDraft.birthDate) return;
+    const saved = await runMutation(setMessage, async () => { const input = { p_organization_id: organizationId, p_customer_id: customer.id, p_full_name: dependentDraft.fullName.trim(), p_birth_date: dependentDraft.birthDate, p_relationship: dependentDraft.relationship }; await assertResult(await connectedClient().rpc(dependentDraft.id ? "update_customer_dependent" : "create_customer_dependent", dependentDraft.id ? { ...input, p_dependent_id: dependentDraft.id } : input)); }, "Dependente salvo.");
+    if (saved) { setDependentDraft({ fullName: "", birthDate: "", relationship: "CHILD" }); router.refresh(); }
+  }
+  async function removeDependent(id: string) { const saved = await runMutation(setMessage, async () => { await assertResult(await connectedClient().rpc("delete_customer_dependent", { p_organization_id: organizationId, p_dependent_id: id })); }, "Dependente excluído."); if (saved) router.refresh(); }
 
   function closeForm() {
     setFormOpen(false);
@@ -281,9 +293,14 @@ export function CustomersManager({
       setMessage("Informe um telefone válido com DDD e, se necessário, DDI.");
       return;
     }
+    if (!isCpfCnpjValid(String(data.get("cpf_cnpj") ?? ""))) {
+      setMessage("CPF/CNPJ deve ter 11 ou 14 dígitos.");
+      return;
+    }
     const canonicalPayload = {
       organization_id: organizationId,
       full_name: String(data.get("full_name") ?? "").trim(),
+      cpf_cnpj: cpfCnpjDigits(String(data.get("cpf_cnpj") ?? "")) || null,
       phone_e164: normalizedPhone,
       email:
         String(data.get("email") ?? "")
@@ -742,6 +759,9 @@ export function CustomersManager({
                     disabled={Boolean(editing?.auth_user_id)}
                   />
                 </Field>
+                <Field label="CPF/CNPJ">
+                  <input name="cpf_cnpj" inputMode="numeric" placeholder="CPF ou CNPJ" defaultValue={editing?.cpf_cnpj ? formatCpfCnpj(editing.cpf_cnpj) : ""} disabled={Boolean(editing?.auth_user_id)} onChange={(event) => { event.currentTarget.value = formatCpfCnpj(event.currentTarget.value); }} />
+                </Field>
                 <Field label="Telefone">
                   <input
                     name="phone_e164"
@@ -775,6 +795,7 @@ export function CustomersManager({
                     defaultValue={editing?.notes ?? ""}
                   />
                 </Field>
+                {editing && <div className="form-wide customer-dependents"><button type="button" className="section-toggle" onClick={() => setDependentsOpen((value) => !value)} aria-expanded={dependentsOpen}><ChevronRight size={16} className={dependentsOpen ? "section-toggle-open" : ""} /> <UserPlus size={16} /> Dependentes ({editing.dependents?.length ?? 0}/8)</button>{dependentsOpen && <><div className="customer-dependent-form"><input aria-label="Nome do dependente" placeholder="Nome do dependente" value={dependentDraft.fullName} onChange={(event) => setDependentDraft((d) => ({ ...d, fullName: event.target.value }))} /><input aria-label="Data de nascimento do dependente" type="date" value={dependentDraft.birthDate} onChange={(event) => setDependentDraft((d) => ({ ...d, birthDate: event.target.value }))} /><span>Idade: {dependentDraft.birthDate ? dependentAge(dependentDraft.birthDate) : "—"}</span><select aria-label="Parentesco do dependente" value={dependentDraft.relationship} onChange={(event) => setDependentDraft((d) => ({ ...d, relationship: event.target.value as typeof d.relationship }))}><option value="CHILD">Filho(a)</option><option value="SPOUSE">Cônjuge</option><option value="EMPLOYEE">Funcionário</option><option value="PARENT">Pai/Mãe</option><option value="OTHER">Outros</option></select><button type="button" className="button button--dark" disabled={(editing.dependents?.length ?? 0) >= 8 && !dependentDraft.id} onClick={() => void saveDependent(editing)}><Save size={15} /> Salvar</button></div><div className="customer-dependent-table">{(editing.dependents ?? []).map((item) => <div key={item.id}><span><strong>{item.full_name}</strong><small>{item.birth_date} · {dependentAge(item.birth_date)}</small></span><small>{({ CHILD: "Filho(a)", SPOUSE: "Cônjuge", EMPLOYEE: "Funcionário", PARENT: "Pai/Mãe", OTHER: "Outros" } as Record<string, string>)[item.relationship]}</small><button type="button" className="icon-button" aria-label={`Editar ${item.full_name}`} onClick={() => setDependentDraft({ id: item.id, fullName: item.full_name, birthDate: item.birth_date, relationship: item.relationship })}><Pencil size={15} /></button><button type="button" className="icon-button" aria-label={`Excluir ${item.full_name}`} onClick={() => void removeDependent(item.id)}><Trash2 size={15} /></button></div>)}</div></>}</div>}
               </div>
               <div className="form-modal__footer">
                 <button

@@ -83,6 +83,7 @@ export async function loadCustomersData() {
   const { context, supabase, organizationId } = await managerClient();
   const [
     result,
+    dependents,
     appointments,
     appointmentItems,
     financial,
@@ -102,13 +103,20 @@ export async function loadCustomersData() {
     supabase
       .from("customers")
       .select(
-        "id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at",
+        "id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,cpf_cnpj,notes,active,inactivation_reason,inactivated_at,created_at",
       )
       .eq("organization_id", organizationId)
       .is("merged_into_customer_id", null)
       .order("active", { ascending: false })
       .order("full_name")
       .limit(MANAGER_ROW_LIMIT),
+    supabase
+      .from("customer_dependents")
+      .select("id,organization_id,customer_id,full_name,birth_date,relationship,active")
+      .eq("organization_id", organizationId)
+      .eq("active", true)
+      .order("full_name")
+      .limit(MANAGER_ROW_LIMIT * 8),
     supabase
       .from("appointments")
       .select(
@@ -223,12 +231,14 @@ export async function loadCustomersData() {
       latestConsentByCustomer.set(event.customer_id, event.action);
   }
   const customerRows = requireData(result, "Clientes") as CustomerRecord[];
+  const dependentRows = dependents.error ? [] : (requireData(dependents, "Dependentes") as NonNullable<CustomerRecord["dependents"]>);
   return {
     organizationId,
     billingStatus: context.billingStatus,
     subscriptionModuleEnabled: subscriptionModule.error ? false : Boolean(subscriptionModule.data?.enabled),
     customers: customerRows.map((customer) => ({
       ...customer,
+      dependents: dependentRows.filter((item) => item.customer_id === customer.id),
       whatsapp_transactional_opted_out:
         latestConsentByCustomer.get(customer.id) === "REVOKED",
     })) as CustomerRecord[],

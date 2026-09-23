@@ -108,6 +108,7 @@ export interface ProjectCustomerRecord {
   full_name: string;
   phone_e164: string | null;
   email: string | null;
+  dependents?: Array<{ id: string; full_name: string; birth_date: string; relationship: "CHILD" | "SPOUSE" | "EMPLOYEE" | "PARENT" | "OTHER" }>;
 }
 
 export interface ProjectBarberRecord {
@@ -238,7 +239,7 @@ export async function loadProjectsData() {
     supabase.from("project_steps").select("id,organization_id,project_id,name,description,position,kind,service_id,commission_rate_bps,active").eq("organization_id", organizationId).order("position"),
     supabase.from("project_engagements").select("id,organization_id,project_id,customer_id,package_id,kanban_board_id,status,contracted_cents,proposal_sent_at,accepted_at,event_description,event_link_1,event_link_2,event_link_3,kanban_received_at,kanban_received_by,kanban_received_by_name,event_due_on,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("project_installment_finance").select("id,organization_id,engagement_id,installment_number,due_on,amount_cents,status,paid_at,financial_entry_id,settled_cents,remaining_cents,last_paid_at,payment_method,financial_account_id,financial_account_name,received_by,received_by_name").eq("organization_id", organizationId).order("installment_number").order("due_on"),
-    supabase.from("customers").select("id,full_name,phone_e164,email").eq("organization_id", organizationId).is("merged_into_customer_id", null).eq("active", true).order("full_name"),
+    supabase.from("customers").select("id,full_name,phone_e164,email,customer_dependents(id,full_name,birth_date,relationship)").eq("organization_id", organizationId).is("merged_into_customer_id", null).eq("active", true).order("full_name"),
     supabase.from("services").select("id,name,price_cents,active,availability").eq("organization_id", organizationId).eq("active", true).order("name"),
     supabase.from("barbers").select("id,display_name").eq("organization_id", organizationId).eq("active", true).order("display_name"),
     supabase.from("barber_services").select("barber_id,service_id").eq("organization_id", organizationId).eq("active", true),

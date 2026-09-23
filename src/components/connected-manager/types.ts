@@ -92,12 +92,24 @@ export interface CustomerRecord {
   phone_e164: string | null;
   email: string | null;
   birth_date: string | null;
+  cpf_cnpj?: string | null;
   notes: string | null;
   active: boolean;
   inactivation_reason: string | null;
   inactivated_at: string | null;
   created_at: string;
   whatsapp_transactional_opted_out?: boolean;
+  dependents?: CustomerDependentRecord[];
+}
+
+export interface CustomerDependentRecord {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  full_name: string;
+  birth_date: string;
+  relationship: "CHILD" | "SPOUSE" | "EMPLOYEE" | "PARENT" | "OTHER";
+  active: boolean;
 }
 
 export interface BarberRecord {

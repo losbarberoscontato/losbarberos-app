@@ -75,7 +75,7 @@ export async function loadBarberAgenda(slug?: string | null) {
   const [appointments, appointmentItems, customers, services, professionals, financial, accounts] = await Promise.all([
     supabase.from("appointments").select("id,customer_id,barber_id,status,service_period,total_cents_snapshot,payment_mode,notes,source,created_at,whatsapp_response_status").eq("organization_id", context.organization_id).overlaps("service_period", `[${from.toISOString()},${to.toISOString()})`).order("service_period").limit(500),
     supabase.from("appointment_items").select("appointment_id,service_name_snapshot,position").eq("organization_id", context.organization_id).limit(1500),
-    supabase.from("customers").select("id,full_name,phone_e164").eq("organization_id", context.organization_id).eq("active", true).is("merged_into_customer_id", null).order("full_name").limit(500),
+    supabase.from("customers").select("id,full_name,phone_e164,customer_dependents(id,full_name)").eq("organization_id", context.organization_id).eq("active", true).is("merged_into_customer_id", null).order("full_name").limit(500),
     supabase.from("services").select("id,name,price_cents,duration_minutes").eq("organization_id", context.organization_id).eq("active", true).order("name"),
     supabase.from("barbers").select("id,display_name").eq("organization_id", context.organization_id).eq("active", true).order("display_name"),
     supabase.from("appointment_financial_summary").select("appointment_id,outstanding_cents").eq("organization_id", context.organization_id).limit(500),
