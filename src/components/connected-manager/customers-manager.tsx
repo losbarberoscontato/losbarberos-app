@@ -267,6 +267,7 @@ export function CustomersManager({
     setEditing(customer);
     setFormOpen(true);
     setMessage("");
+    setDependentsOpen(true);
     setDependentDraft({ fullName: "", birthDate: "", relationship: "CHILD" });
   }
 
@@ -281,6 +282,8 @@ export function CustomersManager({
   function closeForm() {
     setFormOpen(false);
     setEditing(null);
+    setDependentsOpen(true);
+    setDependentDraft({ fullName: "", birthDate: "", relationship: "CHILD" });
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {

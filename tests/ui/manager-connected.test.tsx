@@ -751,6 +751,29 @@ describe("connected manager UI", () => {
     expect(screen.getByDisplayValue("Cliente Real")).toBeInTheDocument();
   });
 
+  it("abre e fecha a sessão de dependentes na edição do cliente", () => {
+    render(<CustomersManager organizationId="org-1" billingStatus="ACTIVE" customers={[customer]} appointments={[]} appointmentItems={[]} financial={[]} barbers={[]} statusEvents={[]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    const toggle = screen.getByRole("button", { name: /Dependentes/u });
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Nome do dependente")).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Nome do dependente")).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Nome do dependente")).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Editar cliente" })).getByRole("button", { name: "Fechar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    expect(screen.getByRole("button", { name: /Dependentes/u })).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("informa quando cliente desativou WhatsApp automático", () => {
     const optedOutCustomer = { ...customer, whatsapp_transactional_opted_out: true };
     render(<CustomersManager organizationId="org-1" billingStatus="ACTIVE" customers={[optedOutCustomer]} appointments={[]} appointmentItems={[]} financial={[]} barbers={[]} statusEvents={[]} />);
