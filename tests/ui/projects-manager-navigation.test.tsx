@@ -1,4 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectsManager } from "@/components/connected-manager/projects-manager";
 
@@ -69,6 +71,13 @@ const contractWithSessionsData = {
 describe("projects navigation", () => {
   afterEach(() => { cleanup(); push.mockReset(); });
 
+  it("exposes project professional assignment controls", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/components/connected-manager/projects-manager.tsx"), "utf8");
+    expect(source).toContain("Profissionais vinculados");
+    expect(source).toContain("set_project_barbers");
+    expect(source).not.toContain("Pacote inicial");
+  });
+
   it("opens a project detail route from the full-width project list", () => {
     render(<ProjectsManager {...data} />);
     fireEvent.click(screen.getByRole("button", { name: "Abrir projeto Projeto Natal 2026" }));
@@ -138,7 +147,8 @@ describe("projects navigation", () => {
     expect(screen.getByRole("dialog", { name: "Editar projeto" })).toBeInTheDocument();
     expect(screen.getByLabelText("Nome do projeto")).toHaveValue("Projeto Natal 2026");
     expect(screen.getByLabelText("Descrição")).toHaveValue("Jornada de fim de ano");
-    expect(screen.getByLabelText("Pacote inicial")).toHaveValue("Experiência");
+    expect(screen.queryByLabelText("Pacote inicial")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Profissionais vinculados")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Salvar alterações" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Arquivar projeto" })).toBeInTheDocument();
   });

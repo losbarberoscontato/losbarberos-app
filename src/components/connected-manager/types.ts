@@ -131,6 +131,7 @@ export interface BarberRecord {
   app_access_enabled?: boolean;
   agenda_access_scope?: "OWN" | "FULL";
   cash_access_enabled?: boolean;
+  projects_access_enabled?: boolean;
   active: boolean;
 }
 

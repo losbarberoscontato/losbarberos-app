@@ -129,6 +129,8 @@ export interface ProjectPackageServiceAssignmentRecord {
   commission_cents: number;
 }
 
+export interface ProjectBarberLinkRecord { project_id: string; barber_id: string; }
+
 export interface ProjectEngagementInternalServiceRecord {
   id: string;
   organization_id: string;
@@ -233,7 +235,7 @@ export async function loadProjectsData() {
     .maybeSingle();
   if (entitlement.error) throw new Error(`Módulo Projetos: ${entitlement.error.message}`);
 
-  const [projects, packages, steps, engagementsRaw, installments, customers, services, barbers, barberServices, packageServiceAssignments, costItems, kanbanBoardsRaw, kanbanSectorsRaw, eventCommentsRaw, financialAccounts, chartAccounts, costCenters, tags, sessions, projectAppointments, projectCommissions, environments, internalServices, internalCards] = await Promise.all([
+  const [projects, packages, steps, engagementsRaw, installments, customers, services, barbers, barberServices, packageServiceAssignments, projectBarbers, costItems, kanbanBoardsRaw, kanbanSectorsRaw, eventCommentsRaw, financialAccounts, chartAccounts, costCenters, tags, sessions, projectAppointments, projectCommissions, environments, internalServices, internalCards] = await Promise.all([
     supabase.from("projects").select("id,organization_id,name,description,status,starts_on,sales_close_on,ends_on,goal_contracts,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("project_packages").select("id,organization_id,project_id,name,description,price_cents,sessions_count,duration_minutes,fixed_cost_per_hour_cents,extra_costs_cents,extra_costs_description,tax_rate_bps,card_rate_bps,profit_margin_bps,deposit_cents,suggested_price_cents,sort_order,active").eq("organization_id", organizationId).order("sort_order"),
     supabase.from("project_steps").select("id,organization_id,project_id,name,description,position,kind,service_id,commission_rate_bps,active").eq("organization_id", organizationId).order("position"),
@@ -244,6 +246,7 @@ export async function loadProjectsData() {
     supabase.from("barbers").select("id,display_name").eq("organization_id", organizationId).eq("active", true).order("display_name"),
     supabase.from("barber_services").select("barber_id,service_id").eq("organization_id", organizationId).eq("active", true),
     supabase.from("project_package_service_assignments").select("id,project_package_id,service_id,barber_id,commission_cents").eq("organization_id", organizationId),
+    supabase.from("project_barbers").select("project_id,barber_id").eq("organization_id", organizationId),
     supabase.from("project_cost_items").select("id,organization_id,project_id,kind,name,description,amount_cents,active,sort_order,created_at").eq("organization_id", organizationId).eq("active", true).in("kind", ["FIXED", "INVESTMENT"]).order("sort_order").order("created_at", { ascending: false }),
     supabase.from("project_kanban_boards").select("id,organization_id,project_id,name,system_key,position,responsible_barber_id,sector_id,active,created_at").eq("organization_id", organizationId).eq("active", true).order("position").order("created_at"),
     supabase.from("project_kanban_sectors").select("id,organization_id,name,position,responsible_barber_id,active,created_at").eq("organization_id", organizationId).eq("active", true).order("position").order("created_at"),
@@ -308,6 +311,7 @@ export async function loadProjectsData() {
     barbers: required(barbers, "Profissionais") as ProjectBarberRecord[],
     barberServices: required(barberServices, "Serviços habilitados dos profissionais") as ProjectBarberServiceRecord[],
     packageServiceAssignments: optionalPackageServiceAssignments(packageServiceAssignments),
+    projectBarbers: required(projectBarbers, "Profissionais vinculados aos projetos") as ProjectBarberLinkRecord[],
     costItems: required(costItems, "Custos dos projetos") as ProjectCostItemRecord[],
     kanbanBoards: required(kanbanBoards, "Quadros do Kanban") as ProjectKanbanBoardRecord[],
     kanbanSectors: required(kanbanSectors, "Setores do Kanban Geral") as ProjectKanbanSectorRecord[],

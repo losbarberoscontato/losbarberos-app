@@ -12,6 +12,10 @@ import type {
   BarberFinancialAccount,
   BarberProfessional,
   BarberService,
+  BarberProject,
+  BarberProjectBoard,
+  BarberProjectEngagement,
+  BarberProjectLink,
 } from "@/components/connected-barber/types";
 import { normalizeTenantSlug } from "@/components/connected-client/format";
 
@@ -158,4 +162,30 @@ export async function loadBarberCash(slug?: string | null) {
     customers: customerRows,
     outstandingByAppointment: new Map(rows(financial.data as { appointment_id: string; outstanding_cents: number }[]).map((item) => [item.appointment_id, item.outstanding_cents])),
   };
+}
+
+export async function loadBarberProjects(slug?: string | null) {
+  const context = await getBarberAppContext(slug);
+  const supabase = await getSupabaseServerClient();
+  if (!context || !context.projects_access_enabled || !supabase) return null;
+  const result = await supabase.rpc("get_my_barber_project_context", { p_organization_slug: context.organization_slug });
+  if (result.error) throw new Error(result.error.message);
+  return { context, projects: rows(result.data as BarberProject[]) };
+}
+
+export async function loadBarberProject(slug: string | null | undefined, projectId: string) {
+  const context = await getBarberAppContext(slug);
+  const supabase = await getSupabaseServerClient();
+  if (!context || !context.projects_access_enabled || !supabase) return null;
+  const [project, boards, engagements, links, comments, services] = await Promise.all([
+    supabase.from("projects").select("id,name,description,status,starts_on,ends_on").eq("id", projectId).eq("organization_id", context.organization_id).maybeSingle(),
+    supabase.from("project_kanban_boards").select("id,project_id,name,position,system_key").eq("organization_id", context.organization_id).eq("project_id", projectId).eq("active", true).order("position"),
+    supabase.from("project_engagements").select("id,project_id,customer_id,kanban_board_id,status,event_description,event_due_on,customers(full_name)").eq("organization_id", context.organization_id).eq("project_id", projectId).order("created_at"),
+    supabase.from("project_engagement_links").select("id,engagement_id,label,url,created_by,created_at").eq("organization_id", context.organization_id).eq("project_id", projectId).order("created_at"),
+    supabase.from("project_engagement_comments").select("id,engagement_id,body,author_name,created_at").eq("organization_id", context.organization_id).eq("project_id", projectId).order("created_at"),
+    supabase.from("project_engagement_internal_services").select("id,engagement_id,service_name,barber_id,delivery_on,status").eq("organization_id", context.organization_id).eq("project_id", projectId).order("created_at"),
+  ]);
+  if (project.error || !project.data) return null;
+  for (const item of [boards, engagements, links, comments, services]) if (item.error) throw new Error(item.error.message);
+  return { context, project: project.data, boards: rows(boards.data as BarberProjectBoard[]), engagements: rows(engagements.data as BarberProjectEngagement[]), links: rows(links.data as BarberProjectLink[]), comments: rows(comments.data as Array<{ id: string; engagement_id: string; body: string; author_name: string; created_at: string }>), internalServices: rows(services.data as Array<{ id: string; engagement_id: string | null; service_name: string; barber_id: string; delivery_on: string | null; status: string }>) };
 }

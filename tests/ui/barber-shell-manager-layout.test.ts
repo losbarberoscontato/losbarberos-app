@@ -11,6 +11,8 @@ describe("barber shell manager layout", () => {
     expect(source).toContain('className="manager-bottom-nav"');
     expect(source).toContain('{ href: "/barbeiro/agenda", label: "Agenda"');
     expect(source).toContain('context.cash_access_enabled');
+    expect(source).toContain('context.projects_access_enabled');
+    expect(source).toContain('href: "/barbeiro/projetos", label: "Projetos"');
     expect(source).toContain('href: "/barbeiro/perfil", label: "Meu perfil"');
     expect(source).not.toContain('href: "/barbeiro/financeiro"');
     expect(source).not.toContain('href: "/barbeiro/financeiro/comissoes"');

@@ -15,6 +15,8 @@ export type BarberAppContext = {
   barber_whatsapp_e164: string | null;
   agenda_access_scope: BarberAgendaScope;
   cash_access_enabled: boolean;
+  projects_access_enabled: boolean;
+  barber_auth_user_id: string;
 };
 
 export type BarberAccountProfile = {
@@ -75,3 +77,7 @@ export type BarberCashReceipt = {
 export type BarberFinancialAccount = { id: string; name: string; kind: "BANK" | "CASH" };
 export type BarberAccountBalance = BarberFinancialAccount & { balance_cents: number };
 export type BarberAppointmentItem = { appointment_id: string; service_name_snapshot: string; position: number };
+export type BarberProject = { project_id: string; organization_id: string; organization_name: string; organization_slug: string; name: string; description: string | null; status: string; starts_on: string | null; ends_on: string | null };
+export type BarberProjectBoard = { id: string; project_id: string; name: string; position: number; system_key: string | null };
+export type BarberProjectEngagement = { id: string; project_id: string; customer_id: string; kanban_board_id: string; status: string; event_description: string | null; event_due_on: string | null; customer?: { full_name: string } | null };
+export type BarberProjectLink = { id: string; engagement_id: string; label: string; url: string; created_by: string; created_at: string };

@@ -7,6 +7,7 @@ import {
   Banknote,
   Bell,
   CalendarDays,
+  BriefcaseBusiness,
   ChevronDown,
   LogOut,
   Menu,
@@ -48,6 +49,7 @@ export function BarberShell({ context, children }: { context: BarberAppContext; 
   const suffix = `?barbearia=${encodeURIComponent(context.organization_slug)}`;
   const navigation: BarberNavigationItem[] = [
     { href: "/barbeiro/agenda", label: "Agenda", icon: CalendarDays },
+    ...(context.projects_access_enabled ? [{ href: "/barbeiro/projetos", label: "Projetos", icon: BriefcaseBusiness }] : []),
     ...(context.cash_access_enabled ? [{ href: "/barbeiro/caixa", label: "Caixa", icon: Banknote }] : []),
   ];
   const profile = { href: "/barbeiro/perfil", label: "Meu perfil", icon: UserRound };

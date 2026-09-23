@@ -351,6 +351,7 @@ export async function loadTeamData() {
     barberAccountPermissions,
     environments,
     professionalFunctions,
+    projectsEntitlement,
   ] = await Promise.all([
     supabase
       .from("organizations")
@@ -416,6 +417,12 @@ export async function loadTeamData() {
       .select("id,organization_id,name,created_at")
       .eq("organization_id", organizationId)
       .order("name"),
+    supabase
+      .from("organization_module_entitlements")
+      .select("enabled")
+      .eq("organization_id", organizationId)
+      .eq("module_key", "projects")
+      .maybeSingle(),
   ]);
   return {
     organizationId,
@@ -450,6 +457,7 @@ export async function loadTeamData() {
       }[]),
     environments: requireData(environments, "Ambientes") as AgendaEnvironmentRecord[],
     professionalFunctions: requireData(professionalFunctions, "Funções profissionais") as ProfessionalFunctionRecord[],
+    projectsModuleEnabled: Boolean(projectsEntitlement.data?.enabled),
   };
 }
 

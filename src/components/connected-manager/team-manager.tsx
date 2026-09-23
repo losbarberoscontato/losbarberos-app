@@ -15,7 +15,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type TeamData = AwaitedReturn<typeof loadTeamData>;
-type Props = Omit<TeamData, "financialAccounts" | "barberAccountPermissions" | "managerUserId" | "environments"> & Partial<Pick<TeamData, "financialAccounts" | "barberAccountPermissions">> & { managerUserId?: string; environments?: TeamData["environments"] };
+type Props = Omit<TeamData, "financialAccounts" | "barberAccountPermissions" | "managerUserId" | "environments" | "projectsModuleEnabled"> & Partial<Pick<TeamData, "financialAccounts" | "barberAccountPermissions" | "projectsModuleEnabled">> & { managerUserId?: string; environments?: TeamData["environments"] };
 type ProfessionalFilter = "ACTIVE" | "INACTIVE";
 type OperationForm = "SCHEDULE" | "EXCEPTION" | null;
 type CommissionPaymentFrequency = "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
@@ -113,6 +113,7 @@ export function TeamManager(props: Props) {
       app_access_enabled: data.get("app_access_enabled") === "on",
       agenda_access_scope: String(data.get("agenda_access_scope") ?? "OWN"),
       cash_access_enabled: data.get("cash_access_enabled") === "on",
+      projects_access_enabled: props.projectsModuleEnabled && data.get("projects_access_enabled") === "on",
     };
     const saved = await runMutation(setMessage, async () => {
       if (!payload.location_id) throw new Error("Cadastre uma unidade ativa antes da equipe.");
@@ -331,6 +332,7 @@ export function TeamManager(props: Props) {
             <Field label="Agenda no App do Barbeiro"><select name="agenda_access_scope" defaultValue={barberForm === "new" ? "OWN" : barberForm.agenda_access_scope ?? "OWN"}><option value="OWN">Somente a própria agenda</option><option value="FULL">Agenda completa da barbearia</option></select></Field>
             <Field label="Acesso ao App"><label className={styles.check}><input name="app_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.app_access_enabled)} />Liberar login do Barbeiro</label></Field>
             <Field label="Acesso ao Caixa"><label className={styles.check}><input name="cash_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.cash_access_enabled)} />Permitir recebimentos no Caixa individual</label></Field>
+            <Field label="Acesso a Projetos"><label className={styles.check}><input name="projects_access_enabled" type="checkbox" disabled={!props.projectsModuleEnabled} defaultChecked={barberForm !== "new" && Boolean(barberForm.projects_access_enabled)} />Permitir acesso ao módulo Projetos</label>{!props.projectsModuleEnabled && <small>Ative o módulo Projetos em Configurações → Módulos.</small>}</Field>
             <Field label="Contas que pode receber"><select name="financial_account_ids" multiple defaultValue={barberForm === "new" ? [] : (props.barberAccountPermissions ?? []).filter((item) => item.barber_id === barberForm.id).map((item) => item.financial_account_id)}>{(props.financialAccounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} · {account.kind === "CASH" ? "Caixa" : "Banco"}</option>)}</select></Field>
             <Field label="Apresentação"><textarea name="bio" defaultValue={barberForm === "new" ? "" : barberForm.bio ?? ""} /></Field>
             <div className={styles.field}><span>Foto de perfil</span><div className={styles.profilePhotoField}><span className={styles.profilePhotoPreview}>{barberForm !== "new" && barberForm.avatar_url ? <Image src={barberForm.avatar_url} alt="" width={64} height={64} sizes="64px" /> : initials(barberForm === "new" ? "Profissional" : barberForm.display_name)}</span><span><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => photoInputRef.current?.click()}>Adicionar foto</button><input ref={photoInputRef} className={styles.fileInput} type="file" name="avatar" accept="image/png,image/jpeg,image/webp" /><small>Será centralizada e salva em 320 × 320 pixels.</small></span></div></div>

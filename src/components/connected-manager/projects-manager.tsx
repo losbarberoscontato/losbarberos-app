@@ -14,7 +14,7 @@ import { formatCpfCnpj } from "@/lib/cpf-cnpj";
 import styles from "./connected-manager.module.css";
 
 type Props = ProjectsPageData;
-type ManagerProps = Omit<Props, "packageServiceAssignments" | "barberServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags" | "projectSessions" | "projectCommissions" | "environments" | "internalServices" | "internalCards"> & { packageServiceAssignments?: Props["packageServiceAssignments"]; barberServices?: Props["barberServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectSessions?: Props["projectSessions"]; projectCommissions?: Props["projectCommissions"]; environments?: Props["environments"]; internalServices?: Props["internalServices"]; internalCards?: Props["internalCards"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
+type ManagerProps = Omit<Props, "projectBarbers" | "packageServiceAssignments" | "barberServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags" | "projectSessions" | "projectCommissions" | "environments" | "internalServices" | "internalCards"> & { projectBarbers?: Props["projectBarbers"]; packageServiceAssignments?: Props["packageServiceAssignments"]; barberServices?: Props["barberServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectSessions?: Props["projectSessions"]; projectCommissions?: Props["projectCommissions"]; environments?: Props["environments"]; internalServices?: Props["internalServices"]; internalCards?: Props["internalCards"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
 type ProjectTab = "overview" | "investments" | "packages" | "engagements" | "kanban" | "finance";
 type ProjectFilter = "published" | "archived" | "all";
 type CostKind = Exclude<ProjectCostItemRecord["kind"], "VARIABLE">;
@@ -201,10 +201,7 @@ export function ProjectsManager(props: ManagerProps) {
   const [projectSalesCloseOn, setProjectSalesCloseOn] = useState("");
   const [projectEndsOn, setProjectEndsOn] = useState("");
   const [projectGoal, setProjectGoal] = useState("10");
-  const [packageName, setPackageName] = useState("Experiência");
-  const [packageDescription, setPackageDescription] = useState("");
-  const [packagePrice, setPackagePrice] = useState("1.550,00");
-  const [packageSessions, setPackageSessions] = useState("3");
+  const [projectBarberIds, setProjectBarberIds] = useState<string[]>([]);
   const [engagementCustomerId, setEngagementCustomerId] = useState("");
   const [engagementCustomerQuery, setEngagementCustomerQuery] = useState("");
   const [createdEngagementCustomers, setCreatedEngagementCustomers] = useState<Props["customers"]>([]);
@@ -328,10 +325,7 @@ export function ProjectsManager(props: ManagerProps) {
     setProjectSalesCloseOn("");
     setProjectEndsOn("");
     setProjectGoal("10");
-    setPackageName("Experiência");
-    setPackageDescription("");
-    setPackagePrice("1.550,00");
-    setPackageSessions("3");
+    setProjectBarberIds([]);
   }
 
   function openNewProjectModal() {
@@ -341,17 +335,13 @@ export function ProjectsManager(props: ManagerProps) {
   }
 
   function openEditProjectModal(project: Props["projects"][number]) {
-    const initialPackage = props.packages.filter((item) => item.project_id === project.id && item.active).sort((a, b) => a.sort_order - b.sort_order)[0];
     setProjectName(project.name);
     setProjectDescription(project.description ?? "");
     setProjectStartsOn(project.starts_on ?? "");
     setProjectSalesCloseOn(project.sales_close_on ?? "");
     setProjectEndsOn(project.ends_on ?? "");
     setProjectGoal(project.goal_contracts ? String(project.goal_contracts) : "");
-    setPackageName(initialPackage?.name ?? "Experiência");
-    setPackageDescription(initialPackage?.description ?? "");
-    setPackagePrice(initialPackage ? centsInput(initialPackage.price_cents) : "0,00");
-    setPackageSessions(initialPackage ? String(initialPackage.sessions_count) : "1");
+    setProjectBarberIds((props.projectBarbers ?? []).filter((item) => item.project_id === project.id).map((item) => item.barber_id));
     setEditingProjectId(project.id);
     setNewProjectOpen(false);
   }
@@ -365,7 +355,7 @@ export function ProjectsManager(props: ManagerProps) {
     if (saving) return;
     setSaving(true);
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().rpc("create_project", {
+      const result = await connectedClient().rpc("create_project", {
         p_organization_id: props.organizationId,
         p_name: projectName,
         p_description: projectDescription,
@@ -373,7 +363,10 @@ export function ProjectsManager(props: ManagerProps) {
         p_sales_close_on: projectSalesCloseOn || null,
         p_ends_on: projectEndsOn || null,
         p_goal_contracts: parseOptionalInt(projectGoal),
-      }));
+      });
+      await assertResult(result);
+      const project = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (project?.id) await assertResult(await connectedClient().rpc("set_project_barbers", { p_organization_id: props.organizationId, p_project_id: project.id, p_barber_ids: projectBarberIds }));
     }, "Projeto criado e publicado. Adicione os pacotes na sub tela Pacotes.");
     setSaving(false);
     if (saved) {
@@ -387,7 +380,7 @@ export function ProjectsManager(props: ManagerProps) {
     if (saving || !editingProjectId) return;
     setSaving(true);
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().rpc("update_project_with_initial_package", {
+      await assertResult(await connectedClient().rpc("update_project", {
         p_organization_id: props.organizationId,
         p_project_id: editingProjectId,
         p_name: projectName,
@@ -396,11 +389,8 @@ export function ProjectsManager(props: ManagerProps) {
         p_sales_close_on: projectSalesCloseOn || null,
         p_ends_on: projectEndsOn || null,
         p_goal_contracts: parseOptionalInt(projectGoal),
-        p_package_name: packageName,
-        p_package_description: packageDescription,
-        p_package_price_cents: centsFromInput(packagePrice),
-        p_package_sessions_count: parseOptionalInt(packageSessions) ?? 1,
       }));
+      await assertResult(await connectedClient().rpc("set_project_barbers", { p_organization_id: props.organizationId, p_project_id: editingProjectId, p_barber_ids: projectBarberIds }));
     }, "Projeto atualizado.");
     setSaving(false);
     if (saved) {
@@ -960,7 +950,7 @@ export function ProjectsManager(props: ManagerProps) {
     {!isProjectDetail && props.projects.length > 0 && <GeneralProjectKanban key={JSON.stringify([kanbanSectors, props.kanbanBoards, props.projects, props.engagements])} organizationId={props.organizationId} sectors={kanbanSectors} boards={props.kanbanBoards} projects={props.projects} engagements={props.engagements} engagementsWithDueDateOverrides={eventDueDateOverrides} barbers={props.barbers} customerById={customerById} lastComments={engagementLastComments} onOpenEvent={openEventEditor} onDueDateChange={saveEventDueDate} />}
 
     {(newProjectOpen || editingProjectId) && <Modal title={editingProjectId ? "Editar projeto" : "Novo projeto"} onClose={closeProjectModal}>
-      <div className={styles.form}><Field label="Nome do projeto" wide><input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Ex.: Visagismo 2026" autoFocus /></Field><Field label="Descrição" wide><textarea value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} placeholder="O que a jornada entrega para o cliente?" /></Field><Field label="Início"><input type="date" value={projectStartsOn} onChange={(event) => setProjectStartsOn(event.target.value)} /></Field><Field label="Fim"><input type="date" value={projectEndsOn} onChange={(event) => setProjectEndsOn(event.target.value)} /></Field><Field label="Encerrar novas vendas em"><input type="date" value={projectSalesCloseOn} onChange={(event) => setProjectSalesCloseOn(event.target.value)} /></Field><Field label="Meta de contratações"><input type="number" min="1" value={projectGoal} onChange={(event) => setProjectGoal(event.target.value)} /></Field>{editingProjectId && <><Field label="Pacote inicial" wide><input value={packageName} onChange={(event) => setPackageName(event.target.value)} /></Field><Field label="Valor praticado"><input inputMode="decimal" value={packagePrice} onChange={(event) => setPackagePrice(event.target.value)} /></Field><Field label="Quantidade de sessões"><input type="number" min="1" value={packageSessions} onChange={(event) => setPackageSessions(event.target.value)} /></Field><Field label="Descrição do pacote" wide><input value={packageDescription} onChange={(event) => setPackageDescription(event.target.value)} placeholder="Inclui planejamento, execução e revisão" /></Field></>}</div><footer className={styles.modalActions}>{editingProjectId && editingProject && <button className={`${styles.button} ${editingProject.status === "ARCHIVED" ? "" : styles.buttonDanger}`} type="button" disabled={saving} onClick={() => void toggleProjectArchive()}>{editingProject.status === "ARCHIVED" ? "Publicar projeto" : "Arquivar projeto"}</button>}<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeProjectModal}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !projectName.trim()} onClick={() => void (editingProjectId ? updateProject() : createProject())}>{saving ? (editingProjectId ? "Salvando…" : "Criando…") : (editingProjectId ? "Salvar alterações" : "Criar e publicar")}</button></footer>
+      <div className={styles.form}><Field label="Nome do projeto" wide><input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Ex.: Visagismo 2026" autoFocus /></Field><Field label="Descrição" wide><textarea value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} placeholder="O que a jornada entrega para o cliente?" /></Field><Field label="Início"><input type="date" value={projectStartsOn} onChange={(event) => setProjectStartsOn(event.target.value)} /></Field><Field label="Fim"><input type="date" value={projectEndsOn} onChange={(event) => setProjectEndsOn(event.target.value)} /></Field><Field label="Encerrar novas vendas em"><input type="date" value={projectSalesCloseOn} onChange={(event) => setProjectSalesCloseOn(event.target.value)} /></Field><Field label="Meta de contratações"><input type="number" min="1" value={projectGoal} onChange={(event) => setProjectGoal(event.target.value)} /></Field><Field label="Profissionais vinculados" wide><select multiple value={projectBarberIds} onChange={(event) => setProjectBarberIds(Array.from(event.target.selectedOptions, (option) => option.value))} aria-label="Profissionais vinculados">{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><small className={styles.muted}>Selecione os profissionais que poderão abrir este projeto no App do Barbeiro.</small></Field></div><footer className={styles.modalActions}>{editingProjectId && editingProject && <button className={`${styles.button} ${editingProject.status === "ARCHIVED" ? "" : styles.buttonDanger}`} type="button" disabled={saving} onClick={() => void toggleProjectArchive()}>{editingProject.status === "ARCHIVED" ? "Publicar projeto" : "Arquivar projeto"}</button>}<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeProjectModal}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !projectName.trim()} onClick={() => void (editingProjectId ? updateProject() : createProject())}>{saving ? (editingProjectId ? "Salvando…" : "Criando…") : (editingProjectId ? "Salvar alterações" : "Criar e publicar")}</button></footer>
     </Modal>}
     {newEngagementOpen && selectedProject && <Modal title="Novo contrato" wide onClose={closeEngagementModal}>
       <div className={styles.form}>
