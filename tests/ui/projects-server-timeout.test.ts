@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 const source = readFileSync(resolve(process.cwd(), "src/components/connected-manager/projects-server.ts"), "utf8");
 
 describe("projects commission loading", () => {
-  it("scopes commission view reads to loaded projects", () => {
-    expect(source).toContain('.in("project_id", projectIds)');
+  it("uses the filtered project commission RPC instead of the global view", () => {
+    expect(source).toContain('rpc("get_project_commission_details"');
     expect(source).not.toContain('from("commission_service_details").select("*")');
   });
 });

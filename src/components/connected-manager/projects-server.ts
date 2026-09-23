@@ -284,13 +284,10 @@ export async function loadProjectsData() {
   const projectIds = projectRows.map((project) => project.id);
   const projectCommissions = projectIds.length === 0
     ? { data: [], error: null }
-    : await supabase
-      .from("commission_service_details")
-      .select("organization_id,appointment_id,appointment_item_id,customer_id,customer_name,barber_id,service_id,service_name,location_id,service_date,received_on,service_value_paid_cents,financial_account_names,commission_cents,paid_commission_cents,payable_commission_cents,project_session_id,project_engagement_id,project_id,is_project,source_type")
-      .eq("organization_id", organizationId)
-      .eq("is_project", true)
-      .in("project_id", projectIds)
-      .order("service_date", { ascending: false });
+    : await supabase.rpc("get_project_commission_details", {
+      p_organization_id: organizationId,
+      p_project_ids: projectIds,
+    });
   const eventComments = eventCommentsRaw.error && /project_engagement_comments|relation .* does not exist|could not find the (table|relation)|schema cache/i.test(eventCommentsRaw.error.message)
     ? { data: [], error: null }
     : eventCommentsRaw;
