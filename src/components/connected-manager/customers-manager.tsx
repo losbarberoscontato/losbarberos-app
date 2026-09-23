@@ -805,11 +805,13 @@ export function CustomersManager({
                   </button>
                   {dependentsOpen && <div className="customer-dependents__content">
                     <div className="customer-dependent-form">
-                      <label>Nome<input aria-label="Nome do dependente" placeholder="Nome completo" value={dependentDraft.fullName} onChange={(event) => setDependentDraft((d) => ({ ...d, fullName: event.target.value }))} /></label>
-                      <label>Data de nascimento<input aria-label="Data de nascimento do dependente" type="date" value={dependentDraft.birthDate} onChange={(event) => setDependentDraft((d) => ({ ...d, birthDate: event.target.value }))} /></label>
-                      <span className="customer-dependent-age"><small>Idade calculada</small><strong>{dependentDraft.birthDate ? `${dependentAge(dependentDraft.birthDate)} anos` : "—"}</strong></span>
-                      <label>Parentesco<select aria-label="Parentesco do dependente" value={dependentDraft.relationship} onChange={(event) => setDependentDraft((d) => ({ ...d, relationship: event.target.value as typeof d.relationship }))}><option value="CHILD">Filho(a)</option><option value="SPOUSE">Cônjuge</option><option value="EMPLOYEE">Funcionário</option><option value="PARENT">Pai/Mãe</option><option value="OTHER">Outros</option></select></label>
-                      <button type="button" className="button button--dark customer-dependent-save" disabled={(editing.dependents?.length ?? 0) >= 8 && !dependentDraft.id} onClick={() => void saveDependent(editing)}><Save size={15} /> {dependentDraft.id ? "Salvar alteração" : "Adicionar dependente"}</button>
+                      <label className="customer-dependent-name">Nome completo<input aria-label="Nome do dependente" placeholder="Digite o nome completo" value={dependentDraft.fullName} onChange={(event) => setDependentDraft((d) => ({ ...d, fullName: event.target.value }))} /></label>
+                      <div className="customer-dependent-details">
+                        <label>Data de nascimento<input aria-label="Data de nascimento do dependente" type="date" value={dependentDraft.birthDate} onChange={(event) => setDependentDraft((d) => ({ ...d, birthDate: event.target.value }))} /></label>
+                        <span className="customer-dependent-age"><small>Idade calculada</small><strong>{dependentDraft.birthDate ? `${dependentAge(dependentDraft.birthDate)} anos` : "—"}</strong></span>
+                        <label>Parentesco<select aria-label="Parentesco do dependente" value={dependentDraft.relationship} onChange={(event) => setDependentDraft((d) => ({ ...d, relationship: event.target.value as typeof d.relationship }))}><option value="CHILD">Filho(a)</option><option value="SPOUSE">Cônjuge</option><option value="EMPLOYEE">Funcionário</option><option value="PARENT">Pai/Mãe</option><option value="OTHER">Outros</option></select></label>
+                        <button type="button" className="button button--dark customer-dependent-save" disabled={(editing.dependents?.length ?? 0) >= 8 && !dependentDraft.id} onClick={() => void saveDependent(editing)}><Save size={15} /> {dependentDraft.id ? "Salvar alteração" : "Adicionar dependente"}</button>
+                      </div>
                     </div>
                     {(editing.dependents ?? []).length > 0 ? <div className="customer-dependent-table" role="table" aria-label="Dependentes cadastrados">
                       <div className="customer-dependent-table__head" role="row"><span>Nome</span><span>Nascimento</span><span>Idade</span><span>Parentesco</span><span className="sr-only">Ações</span></div>

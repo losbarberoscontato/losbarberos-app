@@ -759,6 +759,7 @@ describe("connected manager UI", () => {
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByLabelText("Nome do dependente")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Digite o nome completo")).toBeInTheDocument();
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -799,7 +800,7 @@ describe("connected manager UI", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
     expect(screen.getByText(/Dados controlados pelo cliente/u)).toBeInTheDocument();
-    expect(screen.getByLabelText("Nome completo")).toBeDisabled();
+    expect(within(screen.getByRole("dialog", { name: "Editar cliente" })).getByDisplayValue("Cliente Real")).toBeDisabled();
     expect(screen.getByLabelText("Telefone")).toBeDisabled();
     expect(screen.getByLabelText("E-mail")).toBeDisabled();
     expect(screen.getByLabelText("Nascimento (opcional)")).toBeDisabled();
