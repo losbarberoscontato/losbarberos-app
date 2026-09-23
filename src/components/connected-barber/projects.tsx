@@ -23,10 +23,11 @@ function internalServiceClass(service: DetailData["internalServices"][number]) {
   return "";
 }
 
-function InternalServicePanel({ service, context, projectId, busy, onCall }: {
+function InternalServicePanel({ service, context, projectId, busy, onCall, compact = false }: {
   service: DetailData["internalServices"][number]; context: DetailData["context"]; projectId: string;
-  busy: boolean; onCall: (name: string, args: Record<string, unknown>) => void;
+  busy: boolean; onCall: (name: string, args: Record<string, unknown>) => void; compact?: boolean;
 }) {
+  if (compact) return <div className={styles.internalServiceCompact}><CalendarCheck size={14} /> Serviço aberto</div>;
   const [deliveryOn, setDeliveryOn] = useState(service.delivery_on ?? "");
   const canSetDelivery = service.status === "OPEN" && !service.delivery_on;
   const canSubmit = service.status === "OPEN" && Boolean(service.delivery_on);
