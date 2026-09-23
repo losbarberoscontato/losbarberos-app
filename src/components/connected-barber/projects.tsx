@@ -61,6 +61,7 @@ export function BarberProjectKanban({ data }: { data: DetailData }) {
 
   async function call(name: string, args: Record<string, unknown>) {
     if (!supabase) return;
+    if (name === "barber_submit_project_internal_service_review" && !window.confirm("Confirmar conclusão para revisão? O gestor será avisado para revisar este serviço.")) return;
     setBusy(true);
     const { error } = await supabase.rpc(name, args);
     setBusy(false);
