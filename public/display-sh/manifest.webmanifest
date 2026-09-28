@@ -1,0 +1,19 @@
+{
+  "name": "Display SH",
+  "short_name": "Display SH",
+  "description": "Uma plataforma para diferentes negócios de serviços.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ec",
+  "theme_color": "#173f34",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/display-sh/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

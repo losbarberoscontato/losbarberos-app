@@ -5,6 +5,7 @@ const systemAuthDestinations = new Set([
   "/onboarding",
   "/regularizacao",
   "/admin",
+  "/display-admin",
 ]);
 
 export function resolveSystemAuthMode(

@@ -14,11 +14,30 @@ const publicWithoutSupabase = [
   "/termos",
 ];
 
+const publicProductRoutes = [
+  "/los-barberos",
+  "/los-barberos/entrar",
+  "/le-gras",
+  "/le-gras/entrar",
+  "/pro-stetic",
+  "/pro-stetic/entrar",
+  "/music-pro",
+  "/music-pro/entrar",
+];
+
 export function requiresSupabase(pathname: string): boolean {
-  return !publicWithoutSupabase.includes(pathname);
+  return !publicWithoutSupabase.includes(pathname) && !publicProductRoutes.includes(pathname);
 }
 
-export async function refreshSupabaseSession(request: NextRequest): Promise<NextResponse> {
+export async function refreshSupabaseSession(
+  request: NextRequest,
+  rewritePath?: string,
+): Promise<NextResponse> {
+  const nextResponse = () =>
+    rewritePath
+      ? NextResponse.rewrite(new URL(rewritePath, request.url), { request })
+      : NextResponse.next({ request });
+
   if (!hasSupabaseConfig) {
     if (requiresSupabase(request.nextUrl.pathname)) {
       const loginUrl = new URL("/entrar", request.url);
@@ -29,10 +48,10 @@ export async function refreshSupabaseSession(request: NextRequest): Promise<Next
       );
       return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.next({ request });
+    return nextResponse();
   }
 
-  let response = NextResponse.next({ request });
+  let response = nextResponse();
   const supabase = createServerClient(
     publicEnv.NEXT_PUBLIC_SUPABASE_URL!,
     publicEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
@@ -41,7 +60,7 @@ export async function refreshSupabaseSession(request: NextRequest): Promise<Next
         getAll: () => request.cookies.getAll(),
         setAll: (entries) => {
           entries.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          response = nextResponse();
           entries.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
         },
       },

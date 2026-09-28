@@ -1,166 +1,202 @@
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import {
+  ArrowDown,
   ArrowRight,
-  CalendarCheck2,
-  Clock3,
-  Scissors,
-  ShieldCheck,
-  Users,
-  WalletCards,
+  ArrowUpRight,
+  CalendarDays,
+  ChartNoAxesColumnIncreasing,
+  CreditCard,
+  Database,
+  FolderKanban,
+  Layers3,
+  MessageCircle,
+  Package,
+  Settings2,
+  UsersRound,
 } from "lucide-react";
-import { Brand } from "@/components/brand";
 
-const managerBenefits = [
+export const metadata: Metadata = {
+  title: { absolute: "Display SH — uma plataforma, vários negócios" },
+  description:
+    "Um ecossistema de sistemas de gestão feito para diferentes negócios de serviços.",
+  applicationName: "Display SH",
+  manifest: "/display-sh/manifest.webmanifest",
+  icons: { icon: "/display-sh/icon.svg", apple: "/display-sh/icon.svg" },
+  appleWebApp: { capable: true, title: "Display SH", statusBarStyle: "black-translucent" },
+};
+
+const products = [
   {
-    icon: CalendarCheck2,
-    title: "Agenda que respeita seu dia",
-    text: "Veja horários, encaixes e confirmações sem caçar conversas no WhatsApp.",
+    slug: "los-barberos",
+    name: "Los Barberos",
+    audience: "Barbearias",
+    state: "Disponível",
+    image: "/display-sh/los-barberos.png",
+    alt: "Logomarca Los Barberos — barbearias",
+    className: "ecosystem-product--barbers",
+    available: true,
   },
   {
-    icon: Users,
-    title: "Equipe na mesma página",
-    text: "Cada profissional, serviço e atendimento aparece onde a decisão acontece.",
+    slug: "pro-stetic",
+    name: "ProStetic",
+    audience: "Estética e beleza",
+    state: "Em breve",
+    image: "/display-sh/pro-stetic.png",
+    alt: "Logomarca ProStetic — estética e beleza",
+    className: "ecosystem-product--pro-stetic",
+    available: false,
   },
   {
-    icon: WalletCards,
-    title: "Caixa sem adivinhação",
-    text: "Acompanhe recebimentos e rotina financeira em vez de fechar o dia no escuro.",
+    slug: "le-gras",
+    name: "Le Gras",
+    audience: "Estúdios fotográficos",
+    state: "Próximo lançamento",
+    image: "/display-sh/le-gras.png",
+    alt: "Logomarca Le Gras — fotografia",
+    className: "ecosystem-product--le-gras",
+    available: true,
+  },
+  {
+    slug: "music-pro",
+    name: "MusicPro",
+    audience: "Escolas de música",
+    state: "Em breve",
+    image: "/display-sh/music-pro.png",
+    alt: "Logomarca MusicPro — escolas de música",
+    className: "ecosystem-product--music-pro",
+    available: false,
   },
 ];
 
-const setupSteps = [
-  ["Crie sua barbearia", "Informe o básico para abrir seu ambiente."],
-  ["Organize a operação", "Cadastre equipe, serviços e horários no seu ritmo."],
-  ["Comece o teste", "Use o painel por 14 dias sem cartão nesta fase."],
+const sharedServices = [
+  { icon: UsersRound, label: "Identidade e acesso" },
+  { icon: Database, label: "Dados por organização" },
+  { icon: CreditCard, label: "Pagamentos" },
+  { icon: Settings2, label: "Integrações" },
+  { icon: ChartNoAxesColumnIncreasing, label: "Relatórios gerenciais" },
 ];
 
-export default function HomePage() {
+const modules = [
+  { icon: CalendarDays, label: "Agenda" },
+  { icon: UsersRound, label: "Clientes" },
+  { icon: CreditCard, label: "Financeiro" },
+  { icon: FolderKanban, label: "Projetos", optional: true },
+  { icon: Package, label: "Estoque" },
+  { icon: MessageCircle, label: "Comunicação" },
+  { icon: ChartNoAxesColumnIncreasing, label: "Relatórios gerenciais" },
+];
+
+export default function DisplayHomePage() {
   return (
-    <div className="landing-page">
-      <header className="landing-nav">
-        <div className="landing-container landing-nav__inner">
-          <Brand />
-          <nav aria-label="Navegação principal">
-            <a href="#rotina">Rotina</a>
-            <a href="#como-funciona">Como funciona</a>
-            <a href="#teste">Teste grátis</a>
+    <div className="ecosystem-page">
+      <header className="ecosystem-header">
+        <div className="ecosystem-wrap ecosystem-header__inner">
+          <Link href="/" className="ecosystem-brand" aria-label="Display SH — início">
+            <Image src="/display-sh/wordmark.png" alt="Display SH — negócios mais fortes juntos" width={255} height={80} priority />
+          </Link>
+          <nav aria-label="Navegação principal" className="ecosystem-nav">
+            <a href="#produtos">Produtos</a>
+            <a href="#plataforma">Plataforma</a>
+            <a href="#modulos">Módulos</a>
           </nav>
-          <Link href="/entrar?modo=login" className="landing-login-link">Entrar</Link>
+          <a className="ecosystem-contact" href="mailto:contato@displaysh.com">
+            Fale com a gente <ArrowUpRight size={16} aria-hidden="true" />
+          </a>
         </div>
       </header>
 
       <main>
-        <section className="landing-hero">
-          <div className="landing-container landing-hero__grid">
-            <div className="landing-hero__copy">
-              <h1>Horário vazio custa caro.<br /><em>Gestão improvisada custa mais.</em></h1>
-              <p>Los Barberos reúne agenda, clientes, equipe e caixa para você saber o que acontece na barbearia sem depender de memória, conversa solta ou planilha.</p>
-              <div className="landing-hero__actions">
-                <Link href="/entrar?modo=cadastro" className="button button--accent button--lg">
-                  Criar minha barbearia <ArrowRight size={18} />
-                </Link>
-                <Link href="/entrar?modo=login" className="button landing-button--secondary button--lg">
-                  Entrar no painel
-                </Link>
-              </div>
-              <p className="landing-hero__assurance"><ShieldCheck size={16} /> 14 dias grátis · sem cartão nesta fase</p>
+        <section className="ecosystem-hero">
+          <div className="ecosystem-wrap ecosystem-hero__inner">
+            <div className="ecosystem-hero__copy">
+              <p className="ecosystem-overline">UM ECOSSISTEMA FEITO PARA SERVIÇOS</p>
+              <h1>Uma plataforma.<br /><em>Vários negócios.</em></h1>
+              <p className="ecosystem-hero__lead">Sistemas pensados para a realidade de cada negócio, com uma base compartilhada e módulos que acompanham a sua operação.</p>
+              <a href="#produtos" className="ecosystem-primary-link">Encontre seu sistema <ArrowDown size={17} aria-hidden="true" /></a>
             </div>
-
-            <figure className="hero-product" aria-label="Prévia ilustrativa do painel Los Barberos">
-              <div className="hero-dashboard">
-                <aside className="hero-dashboard__rail" aria-hidden="true">
-                  <span className="hero-dashboard__logo">LB</span>
-                  {['agenda', 'equipe', 'caixa'].map((item, index) => <span key={item} className={index === 0 ? 'active' : ''} />)}
-                </aside>
-                <div className="hero-dashboard__body">
-                  <div className="hero-dashboard__top">
-                    <span><b>Bom dia, gestor</b><small>Seu dia em um só lugar</small></span>
-                    <i>LB</i>
-                  </div>
-                  <div className="hero-dashboard__focus">
-                    <span>Agenda de hoje</span>
-                    <strong>Atendimentos, equipe e próximos horários</strong>
-                    <small>Organize o que importa antes da cadeira ficar vazia.</small>
-                  </div>
-                  <div className="hero-dashboard__agenda">
-                    <div className="hero-dashboard__section-title"><b>Próximos horários</b><small>Agenda</small></div>
-                    {[
-                      ['09:30', 'Corte clássico', 'Confirmado'],
-                      ['10:45', 'Barba premium', 'Em atendimento'],
-                      ['11:45', 'Corte + barba', 'Aguardando confirmação'],
-                    ].map(([time, service, status], index) => (
-                      <div className="hero-dashboard__row" key={time}>
-                        <time>{time}</time><i className={`tone-${index}`}><Scissors size={12} /></i><span><b>{service}</b><small>Visualização de exemplo</small></span><em className={`status-${index}`}>{status}</em>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <figcaption><span>Painel do gestor</span><span>Dados ilustrativos</span></figcaption>
-              <div className="hero-floating-card hero-floating-card--agenda"><CalendarCheck2 size={17} /><span>Agenda organizada</span></div>
-              <div className="hero-floating-card hero-floating-card--team"><Users size={17} /><span>Equipe visível</span></div>
-            </figure>
-          </div>
-        </section>
-
-        <section className="landing-routine" id="rotina">
-          <div className="landing-container landing-routine__grid">
-            <div>
-              <h2>Quando operação fica clara, atendimento volta a ser prioridade.</h2>
-              <p>Menos tempo ligando pontos. Mais tempo decidindo o próximo passo da sua barbearia.</p>
-              <ul className="landing-benefit-list">
-                {managerBenefits.map(({ icon: Icon, title, text }) => (
-                  <li key={title}><Icon size={20} /><span><strong>{title}</strong><small>{text}</small></span></li>
-                ))}
-              </ul>
-            </div>
-            <div className="routine-board" aria-label="Resumo ilustrativo da rotina do gestor">
-              <div className="routine-board__header"><span>Rotina de gestão</span><i><Clock3 size={16} /></i></div>
-              <div className="routine-board__line"><span className="routine-board__dot routine-board__dot--gold" /><div><strong>Abra o dia sabendo quem chega</strong><small>Agenda e confirmações no mesmo painel.</small></div></div>
-              <div className="routine-board__line"><span className="routine-board__dot" /><div><strong>Acompanhe atendimento sem interromper equipe</strong><small>Informação acessível quando precisar decidir.</small></div></div>
-              <div className="routine-board__line"><span className="routine-board__dot routine-board__dot--soft" /><div><strong>Feche com visão do caixa</strong><small>Recebimentos deixam de ficar espalhados.</small></div></div>
-              <small className="routine-board__note">Exemplo de organização do painel</small>
+            <div className="ecosystem-hero__seal" aria-label="Display SH, negócios mais fortes juntos">
+              <span>MAIS NEGÓCIOS</span><i /><span>PARA MAIS PESSOAS</span>
             </div>
           </div>
         </section>
 
-        <section className="landing-setup" id="como-funciona">
-          <div className="landing-container">
-            <div className="landing-setup__heading">
-              <h2>Comece sem transformar sua rotina em projeto.</h2>
-              <p>Você configura o essencial e vai aprofundando o uso conforme a operação pede.</p>
+        <section className="ecosystem-products" id="produtos" aria-labelledby="ecosystem-products-title">
+          <div className="ecosystem-wrap">
+            <div className="ecosystem-section-heading">
+              <h2 id="ecosystem-products-title">Um sistema para cada jeito de trabalhar.</h2>
+              <p>Escolha uma marca para conhecer a solução feita para o seu segmento.</p>
             </div>
-            <ol className="landing-setup__steps">
-              {setupSteps.map(([title, text], index) => (
-                <li key={title}><span>{String(index + 1).padStart(2, '0')}</span><div><strong>{title}</strong><p>{text}</p></div></li>
+            <div className="ecosystem-product-grid">
+              {products.map((product) => (
+                <Link
+                  href={`/${product.slug}`}
+                  key={product.slug}
+                  className={`ecosystem-product ${product.className}`}
+                  aria-label={`${product.name} — ${product.audience}. ${product.state}.`}
+                >
+                  <span className="ecosystem-product__image"><Image src={product.image} alt={product.alt} width={400} height={114} /></span>
+                  <span className="ecosystem-product__meta"><strong>{product.audience}</strong><span>{product.state}{product.available && <ArrowRight size={15} aria-hidden="true" />}</span></span>
+                </Link>
               ))}
+            </div>
+            <p className="ecosystem-products__note">Novas soluções entram no ecossistema de forma gradual.</p>
+          </div>
+        </section>
+
+        <section className="ecosystem-platform" id="plataforma" aria-labelledby="ecosystem-platform-title">
+          <div className="ecosystem-wrap">
+            <div className="ecosystem-platform__bar">
+              <Layers3 size={43} strokeWidth={1.4} aria-hidden="true" />
+              <div><h2 id="ecosystem-platform-title">DISPLAY SH</h2><span>PLATAFORMA COMPARTILHADA</span></div>
+              <p>Uma base sólida<br />para diferentes negócios</p>
+            </div>
+            <div className="ecosystem-services" aria-label="Serviços compartilhados">
+              <h3>Serviços compartilhados</h3>
+              {sharedServices.map(({ icon: Icon, label }) => <div className="ecosystem-service" key={label}><Icon size={28} strokeWidth={1.55} aria-hidden="true" /><span>{label}</span></div>)}
+            </div>
+            <div className="ecosystem-modules" id="modulos">
+              <div className="ecosystem-modules__label"><h3>Módulos</h3><span>sob medida</span></div>
+              <div className="ecosystem-modules__list">
+                {modules.map(({ icon: Icon, label, optional }) => (
+                  <div className={`ecosystem-module${optional ? " ecosystem-module--optional" : ""}`} key={label}>
+                    <Icon size={25} strokeWidth={1.65} aria-hidden="true" />
+                    <span>{label}</span>
+                    {optional && <small>opcional</small>}
+                  </div>
+                ))}
+              </div>
+              <p className="ecosystem-modules__caption">Cada organização escolhe os módulos que fazem sentido para sua rotina.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="ecosystem-roadmap" aria-labelledby="ecosystem-roadmap-title">
+          <div className="ecosystem-wrap ecosystem-roadmap__inner">
+            <div className="ecosystem-roadmap__intro"><p className="ecosystem-overline">CRESCIMENTO GRADUAL</p><h2 id="ecosystem-roadmap-title">Uma etapa de cada vez.</h2><p>Ampliamos o ecossistema conforme cada solução fica pronta para atender seu mercado.</p></div>
+            <ol className="ecosystem-roadmap__list">
+              <li className="is-live"><span>1</span><div><strong>Los Barberos</strong><small>Barbearias</small></div><b>Disponível</b></li>
+              <li><span>2</span><div><strong>ProStetic</strong><small>Estética e beleza</small></div><b>Em breve</b></li>
+              <li><span>3</span><div><strong>Le Gras</strong><small>Fotografia</small></div><b>Próximo</b></li>
             </ol>
           </div>
         </section>
 
-        <section className="landing-trial" id="teste">
-          <div className="landing-container landing-trial__inner">
-            <div><h2>Veja sua operação com menos ruído por 14 dias.</h2><p>Crie sua barbearia, explore o painel e decida com calma. Sem cartão agora.</p></div>
-            <Link href="/entrar?modo=cadastro" className="button button--accent button--lg">Começar 14 dias grátis <ArrowRight size={18} /></Link>
-          </div>
-        </section>
-
-        <section className="landing-final-cta">
-          <div className="landing-container">
-            <h2>Sua barbearia não precisa rodar no improviso.</h2>
-            <p>Crie seu ambiente e comece pelo que organiza o dia de hoje.</p>
-            <Link href="/entrar?modo=cadastro" className="button button--accent button--lg">Criar minha barbearia <ArrowRight size={18} /></Link>
+        <section className="ecosystem-future">
+          <div className="ecosystem-wrap ecosystem-future__inner">
+            <div><p className="ecosystem-overline">O ECOSSISTEMA CONTINUA</p><h2>Mais possibilidades, no tempo certo.</h2><p>Descoberta local, conexões B2C e B2B, cashback, emissão de nota fiscal e relatórios contábeis fazem parte dos próximos horizontes.</p></div>
+            <Link href="/los-barberos" className="ecosystem-future__link">Conhecer Los Barberos <ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
         </section>
       </main>
 
-      <footer className="landing-footer">
-        <div className="landing-container landing-footer__grid">
-          <div><Brand light /><p>Gestão para barbearias que querem enxergar a própria operação.</p></div>
-          <div><strong>Acesso</strong><Link href="/entrar?modo=login">Entrar no painel</Link><Link href="/entrar?modo=cadastro">Criar minha barbearia</Link></div>
-          <div><strong>Empresa</strong><a href="mailto:contato@losbarberos.com.br">Contato</a><Link href="/privacidade">Privacidade</Link><Link href="/termos">Termos de uso</Link><Link href="/exclusao-de-dados">Exclusão de dados</Link></div>
+      <footer className="ecosystem-footer">
+        <div className="ecosystem-wrap ecosystem-footer__inner">
+          <Image src="/display-sh/wordmark.png" alt="Display SH" width={205} height={64} />
+          <p>Negócios mais fortes juntos.</p>
+          <span>© 2026 Display SH · Tecnologia que impulsiona pessoas e negócios</span>
         </div>
-        <div className="landing-container landing-footer__bottom"><span>© 2026 Los Barberos</span><span>Feito no Brasil · BRL · PT-BR</span></div>
       </footer>
     </div>
   );
