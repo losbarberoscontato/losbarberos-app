@@ -25,7 +25,7 @@ export default async function LeGrasLoginRoute({ searchParams }: PageProps<"/le-
       </header>
       <section className="system-login-page__main" aria-label="Acesso ao Le Gras">
         <div className="system-login-panel">
-          <DemoLogin initialMode={initialMode} nextPath={nextPath} productKey="le-gras" productName="estúdio" />
+          <DemoLogin initialMode={initialMode} nextPath={nextPath} productKey="le-gras" />
         </div>
       </section>
       <footer className="system-login-page__footer">

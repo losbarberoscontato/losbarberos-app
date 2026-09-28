@@ -16,13 +16,11 @@ export function DemoLogin({
   initialMode = "signin",
   nextPath = "/gestor",
   productKey = "los-barberos",
-  productName = "barbearia",
 }: {
   initialNotice?: string;
   initialMode?: SystemAuthMode;
   nextPath?: string;
   productKey?: "los-barberos" | "le-gras";
-  productName?: string;
 }) {
   const router = useRouter();
   const destination = resolveSystemAuthDestination(nextPath);
@@ -51,7 +49,7 @@ export function DemoLogin({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/onboarding")}&produto=${productKey}`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/onboarding")}${productKey === "le-gras" ? "&produto=le-gras" : ""}`,
         },
       });
       setLoading(false);
@@ -86,7 +84,7 @@ export function DemoLogin({
       next: postAuthDestination,
       provider: "google",
     });
-    if (authMode === "signup") params.set("produto", productKey);
+    if (authMode === "signup" && productKey === "le-gras") params.set("produto", "le-gras");
     const redirectTo = `${window.location.origin}/auth/callback?${params.toString()}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -111,10 +109,12 @@ export function DemoLogin({
   return (
     <div className="login-card">
       <div className="login-card__heading">
-        <h1>{isSignup ? `Crie seu ${productName}` : `Entre no seu ${productName}`}</h1>
+        <h1>{isSignup
+          ? productKey === "le-gras" ? "Crie seu estúdio" : "Crie sua barbearia"
+          : productKey === "le-gras" ? "Entre no seu estúdio" : "Entre na sua barbearia"}</h1>
         <p>
           {isSignup
-            ? "Configure sua operação e conheça o sistema."
+            ? "Configure sua operação e comece seus 14 dias grátis."
             : "Acompanhe sua operação em tempo real."}
         </p>
       </div>
