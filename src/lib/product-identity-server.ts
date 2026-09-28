@@ -1,11 +1,15 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { isProductIdentityConfig, type ProductIdentityConfig } from "@/lib/product-identity";
+import { isProductIdentityConfig, LE_GRAS_IDENTITY_FALLBACK, type ProductIdentityConfig } from "@/lib/product-identity";
 
 export async function getPublishedProductIdentity(productKey: string): Promise<ProductIdentityConfig | null> {
   const supabase = await getSupabaseServerClient();
-  if (!supabase) return null;
+  if (!supabase) return productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : null;
   const { data, error } = await supabase.from("platform_product_identities").select("config").eq("product_key", productKey).maybeSingle();
-  return !error && isProductIdentityConfig(data?.config) ? data.config : null;
+  return !error && isProductIdentityConfig(data?.config)
+    ? data.config
+    : productKey === "le-gras"
+    ? LE_GRAS_IDENTITY_FALLBACK
+    : null;
 }
 
 export async function getPublishedProductIdentities(): Promise<Record<string, ProductIdentityConfig>> {

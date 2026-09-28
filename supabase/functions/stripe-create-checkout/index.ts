@@ -10,6 +10,7 @@ import {
   requireOrganizationOwner,
   requireUser,
   rpc,
+  serviceClient,
 } from "../_shared/supabase.ts";
 import { stripeClient } from "../_shared/stripe.ts";
 
@@ -51,8 +52,24 @@ Deno.serve((request) => {
     }
 
     await requireOrganizationOwner(organizationId, user.id);
+    const { data: assignment, error: assignmentError } = await serviceClient()
+      .from("organization_product_assignments")
+      .select("product_key")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (assignmentError || !assignment) {
+      throw new IntegrationError(409, "PRODUCT_ASSIGNMENT_REQUIRED");
+    }
+    const productKey = assignment.product_key as string;
+    const priceId = productKey === "le-gras"
+      ? requiredEnv("STRIPE_PRICE_ID_LE_GRAS")
+      : productKey === "los-barberos"
+      ? Deno.env.get("STRIPE_PRICE_ID_LOS_BARBEROS")?.trim() ||
+        requiredEnv("STRIPE_PRICE_ID")
+      : (() => {
+        throw new IntegrationError(409, "PRODUCT_CHECKOUT_NOT_CONFIGURED");
+      })();
     const idempotencyKey = requireIdempotencyKey(request);
-    const priceId = requiredEnv("STRIPE_PRICE_ID");
     const context = await rpc<CheckoutContext | null>(
       "reserve_stripe_checkout_attempt",
       {
@@ -110,7 +127,10 @@ Deno.serve((request) => {
           : {}),
         subscription_data: {
           ...(context?.trial_consumed_at ? {} : { trial_period_days: 14 }),
-          metadata: { organization_id: organizationId },
+          metadata: {
+            organization_id: organizationId,
+            product_key: productKey,
+          },
           ...(context?.trial_consumed_at ? {} : {
             trial_settings: {
               end_behavior: { missing_payment_method: "cancel" as const },
@@ -120,6 +140,7 @@ Deno.serve((request) => {
         metadata: {
           organization_id: organizationId,
           requested_by_user_id: user.id,
+          product_key: productKey,
         },
         success_url:
           `${baseUrl}${returnPath}${separator}checkout=success&session_id={CHECKOUT_SESSION_ID}`,

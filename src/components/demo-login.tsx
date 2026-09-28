@@ -15,10 +15,14 @@ export function DemoLogin({
   initialNotice = "",
   initialMode = "signin",
   nextPath = "/gestor",
+  productKey = "los-barberos",
+  productName = "barbearia",
 }: {
   initialNotice?: string;
   initialMode?: SystemAuthMode;
   nextPath?: string;
+  productKey?: "los-barberos" | "le-gras";
+  productName?: string;
 }) {
   const router = useRouter();
   const destination = resolveSystemAuthDestination(nextPath);
@@ -47,7 +51,7 @@ export function DemoLogin({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/onboarding")}`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/onboarding")}&produto=${productKey}`,
         },
       });
       setLoading(false);
@@ -82,6 +86,7 @@ export function DemoLogin({
       next: postAuthDestination,
       provider: "google",
     });
+    if (authMode === "signup") params.set("produto", productKey);
     const redirectTo = `${window.location.origin}/auth/callback?${params.toString()}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -106,10 +111,10 @@ export function DemoLogin({
   return (
     <div className="login-card">
       <div className="login-card__heading">
-        <h1>{isSignup ? "Crie sua barbearia" : "Entre na sua barbearia"}</h1>
+        <h1>{isSignup ? `Crie seu ${productName}` : `Entre no seu ${productName}`}</h1>
         <p>
           {isSignup
-            ? "Configure sua operação e comece seus 14 dias grátis."
+            ? "Configure sua operação e conheça o sistema."
             : "Acompanhe sua operação em tempo real."}
         </p>
       </div>
@@ -167,7 +172,7 @@ export function DemoLogin({
       </button>
 
       <p className="login-security">
-        <ShieldCheck size={16} /> Seus dados protegidos com criptografia e isolamento por barbearia.
+        <ShieldCheck size={16} /> Seus dados protegidos com criptografia e isolamento por organização.
       </p>
     </div>
   );

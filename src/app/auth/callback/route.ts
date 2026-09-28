@@ -13,6 +13,10 @@ export async function GET(request: NextRequest) {
   const requestedSlugs = url.searchParams.getAll("barbearia");
   const requestedSlug = requestedSlugs.length === 1 ? requestedSlugs[0] : null;
   const requestedProviders = url.searchParams.getAll("provider");
+  const requestedProducts = url.searchParams.getAll("produto");
+  const requestedProduct = requestedProducts.length === 1 && requestedProducts[0] === "le-gras"
+    ? "le-gras"
+    : "los-barberos";
   const isGoogleFlow = requestedProviders.length === 1 && requestedProviders[0] === "google";
   const isClientDestination = requestedNextValues.length === 1
     && (requestedNext === "/cliente" || requestedNext.startsWith("/cliente/"));
@@ -37,7 +41,8 @@ export async function GET(request: NextRequest) {
       params.set("modo", "login");
       params.set("next", destination);
     }
-    return NextResponse.redirect(new URL(`/entrar?${params.toString()}`, url.origin));
+    const loginPath = requestedProduct === "le-gras" ? "/le-gras/entrar" : "/los-barberos/entrar";
+    return NextResponse.redirect(new URL(`${loginPath}?${params.toString()}`, url.origin));
   }
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -47,7 +52,8 @@ export async function GET(request: NextRequest) {
       params.set("modo", "login");
       params.set("next", destination);
     }
-    return NextResponse.redirect(new URL(`/entrar?${params.toString()}`, url.origin));
+    const loginPath = requestedProduct === "le-gras" ? "/le-gras/entrar" : "/los-barberos/entrar";
+    return NextResponse.redirect(new URL(`${loginPath}?${params.toString()}`, url.origin));
   }
 
   if (isGoogleFlow && isClientDestination) {
@@ -57,5 +63,10 @@ export async function GET(request: NextRequest) {
     }), url.origin));
   }
 
+  if (requestedNext === "/onboarding" && requestedProducts.length <= 1) {
+    const onboarding = new URL("/onboarding", url.origin);
+    onboarding.searchParams.set("produto", requestedProduct);
+    return NextResponse.redirect(onboarding);
+  }
   return NextResponse.redirect(new URL(destination, url.origin));
 }
