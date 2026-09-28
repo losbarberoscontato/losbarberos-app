@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 const sections = [
   { icon: LayoutDashboard, label: "Visão geral", active: true },
   { icon: Blocks, label: "Produtos" },
-  { icon: Palette, label: "Identidade visual" },
+  { icon: Palette, label: "Identidade visual", href: "/display-admin/identidade-visual" },
   { icon: SlidersHorizontal, label: "Módulos" },
   { icon: UsersRound, label: "Assinantes" },
   { icon: CreditCard, label: "Planos e cobrança" },
@@ -41,20 +41,20 @@ export default async function DisplayAdminPage() {
   const context = hasSupabaseConfig ? await getAccessContext() : null;
   if (!hasSupabaseConfig) redirect("/entrar?erro=supabase_not_configured&next=%2Fdisplay-admin");
   if (!context) redirect("/entrar?modo=login&next=%2Fdisplay-admin");
-
   const isPlatformAdmin = await isPlatformAdminUser(context.userId);
   if (!isPlatformAdmin) {
-    if (context.role === "OWNER") redirect("/gestor");
-    if (context.role === "CLIENT") redirect("/cliente/agendar");
+    if (context?.role === "OWNER") redirect("/gestor");
+    if (context?.role === "CLIENT") redirect("/cliente/agendar");
     redirect("/onboarding");
   }
+
   return (
     <main className="display-admin">
       <aside className="display-admin__sidebar">
         <Link href="/" className="display-admin__brand" aria-label="Display SH — início"><span className="display-admin__symbol">D</span><span><strong>DISPLAY SH</strong><small>ECOSSISTEMA</small></span></Link>
         <p className="display-admin__nav-label">ADMINISTRAÇÃO</p>
         <nav aria-label="Administração Display SH">
-          {sections.map(({ icon: Icon, label, active }) => <span key={label} className={`display-admin__nav-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}><Icon size={18} strokeWidth={1.7} />{label}</span>)}
+          {sections.map(({ icon: Icon, label, active, href }) => href ? <Link key={label} href={href} className={`display-admin__nav-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}><Icon size={18} strokeWidth={1.7} />{label}</Link> : <span key={label} className={`display-admin__nav-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined}><Icon size={18} strokeWidth={1.7} />{label}</span>)}
         </nav>
         <div className="display-admin__sidebar-foot"><span><ShieldCheck size={16} /> ÁREA RESTRITA</span><Link href="/">Voltar ao site <ArrowUpRight size={14} /></Link></div>
       </aside>
@@ -84,7 +84,7 @@ export default async function DisplayAdminPage() {
             </section>
             <section className="display-admin__panel display-admin__quick">
               <header><div><h2>Ajustes do ecossistema</h2><p>Estrutura prevista para evolução.</p></div><Settings2 size={19} /></header>
-              <div><span><Palette size={18} /><b>Identidade dos produtos</b></span><small>Logos, cores, fontes e vocabulário</small><ArrowUpRight size={15} /></div>
+              <Link href="/display-admin/identidade-visual"><span><Palette size={18} /><b>Identidade dos produtos</b></span><small>Logos, cores, fontes e vocabulário</small><ArrowUpRight size={15} /></Link>
               <div><span><SlidersHorizontal size={18} /><b>Catálogo de módulos</b></span><small>Disponibilidade por produto</small><ArrowUpRight size={15} /></div>
               <div><span><CreditCard size={18} /><b>Planos e assinaturas</b></span><small>Valores e gestão de acesso</small><ArrowUpRight size={15} /></div>
             </section>

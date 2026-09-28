@@ -5,6 +5,7 @@ import { getAccessContext } from "@/lib/auth/context";
 import { hasSupabaseConfig } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { appointments as demoAppointments } from "@/data/demo";
+import { isProductIdentityConfig, type ProductIdentityConfig } from "@/lib/product-identity";
 
 export const metadata: Metadata = { title: "Painel do gestor" };
 
@@ -23,16 +24,22 @@ export default async function GestorLayout({ children }: { children: React.React
   let locationName = "Unidade principal";
   let userName = "Gestor";
   let projectsModuleEnabled = false;
+  let identity: ProductIdentityConfig | undefined;
   let agendaCount = demoAppointments.filter((appointment) => appointment.date === new Intl.DateTimeFormat("en-CA").format(new Date())).length;
   if (context?.organizationId) {
     const supabase = await getSupabaseServerClient();
     if (supabase) {
-      const [{ data: organization }, { data: location }, { data: profile }, { data: projectsModule }] = await Promise.all([
+      const [{ data: organization }, { data: location }, { data: profile }, { data: projectsModule }, { data: assignment }] = await Promise.all([
         supabase.from("organizations").select("name,timezone,logo_path").eq("id", context.organizationId).maybeSingle(),
         supabase.from("locations").select("name").eq("organization_id", context.organizationId).eq("active", true).maybeSingle(),
         supabase.from("profiles").select("display_name").eq("id", context.userId).maybeSingle(),
         supabase.from("organization_module_entitlements").select("enabled").eq("organization_id", context.organizationId).eq("module_key", "projects").maybeSingle(),
+        supabase.from("organization_product_assignments").select("product_key").eq("organization_id", context.organizationId).maybeSingle(),
       ]);
+      if (assignment?.product_key) {
+        const { data: publishedIdentity } = await supabase.from("platform_product_identities").select("config").eq("product_key", assignment.product_key).maybeSingle();
+        if (isProductIdentityConfig(publishedIdentity?.config)) identity = publishedIdentity.config;
+      }
       organizationName = organization?.name ?? organizationName;
       if (organization?.logo_path) {
         organizationLogoUrl = supabase.storage.from("organization-logos").getPublicUrl(organization.logo_path).data.publicUrl;
@@ -51,7 +58,7 @@ export default async function GestorLayout({ children }: { children: React.React
   }
 
   return (
-    <ManagerShell agendaCount={agendaCount} organizationId={context?.organizationId} demoMode={!hasSupabaseConfig} projectsModuleEnabled={hasSupabaseConfig ? projectsModuleEnabled : true} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} organizationLogoUrl={organizationLogoUrl} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"}>
+    <ManagerShell agendaCount={agendaCount} organizationId={context?.organizationId} demoMode={!hasSupabaseConfig} projectsModuleEnabled={hasSupabaseConfig ? projectsModuleEnabled : true} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} organizationLogoUrl={organizationLogoUrl} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"} identity={identity}>
       {children}
     </ManagerShell>
   );

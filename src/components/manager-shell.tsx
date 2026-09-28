@@ -23,6 +23,7 @@ import {
 import { Brand } from "@/components/brand";
 import { Avatar } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { ProductIdentityConfig } from "@/lib/product-identity";
 
 const navigation = [
   { href: "/gestor", label: "Visão geral", icon: LayoutDashboard, exact: true },
@@ -110,9 +111,9 @@ function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled }: {
   );
 }
 
-function OrganizationSwitcher({ organizationName, locationName, organizationLogoUrl, onClick, showNotice }: { organizationName: string; locationName: string; organizationLogoUrl?: string; onClick: () => void; showNotice: boolean }) {
+function OrganizationSwitcher({ organizationName, locationName, organizationLogoUrl, onClick, showNotice, organizationTerm = "barbearia" }: { organizationName: string; locationName: string; organizationLogoUrl?: string; onClick: () => void; showNotice: boolean; organizationTerm?: string }) {
   return <div className="organization-switcher-wrap">
-    <button className="organization-switcher" type="button" aria-label="Trocar barbearia" onClick={onClick}>
+    <button className="organization-switcher" type="button" aria-label={`Trocar ${organizationTerm}`} onClick={onClick}>
       <span
         className={`organization-switcher__mark${organizationLogoUrl ? " organization-switcher__mark--logo" : ""}`}
         aria-label={organizationLogoUrl ? `Logo de ${organizationName}` : undefined}
@@ -127,13 +128,13 @@ function OrganizationSwitcher({ organizationName, locationName, organizationLogo
       </span>
       <ChevronDown size={16} />
     </button>
-    {showNotice && <p className="organization-switcher__notice" role="status">Logo você poderá adicionar uma filial da sua barbearia</p>}
+    {showNotice && <p className="organization-switcher__notice" role="status">Em breve, você poderá alternar entre as unidades desta organização.</p>}
   </div>;
 }
 
 type ManagerNotification = { id: string; title: string; body: string; href: string; read_at: string | null; created_at: string };
 
-export function ManagerShell({ children, demoMode = false, billingBlocked = false, projectsModuleEnabled = false, organizationId, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0 }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; projectsModuleEnabled?: boolean; organizationId?: string | null; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number }) {
+export function ManagerShell({ children, demoMode = false, billingBlocked = false, projectsModuleEnabled = false, organizationId, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0, identity }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; projectsModuleEnabled?: boolean; organizationId?: string | null; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number; identity?: ProductIdentityConfig }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -191,6 +192,29 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
     }
   }
 
+  const identityStyle = identity ? ({
+    "--forest-950": identity.colors.primary,
+    "--forest-900": identity.colors.primary,
+    "--forest-800": identity.colors.secondary,
+    "--forest-700": identity.colors.secondary,
+    "--forest-600": identity.colors.secondary,
+    "--amber-500": identity.colors.accent,
+    "--amber-400": identity.colors.accent,
+    "--paper": identity.colors.background,
+    "--paper-2": identity.colors.background,
+    "--surface": identity.colors.surface,
+    "--white": identity.colors.surface,
+    "--ink": identity.colors.text,
+    "--ink-2": identity.colors.text,
+    "--muted": identity.colors.muted,
+    "--border": identity.colors.border,
+    "--border-soft": identity.colors.border,
+    "--success": identity.colors.success,
+    "--danger": identity.colors.danger,
+    "--font-sans": `${identity.fonts.interface}, sans-serif`,
+    "--font-display": `${identity.fonts.display}, Georgia, serif`,
+  } as React.CSSProperties) : undefined;
+
   const managerProfile = (
     <div className="manager-profile">
       <Link className="manager-profile__identity" href="/gestor/configuracoes">
@@ -217,12 +241,12 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
 
   return (
     <ManagerBillingContext.Provider value={billingBlocked}>
-    <div className={`manager-shell ${billingBlocked ? "is-billing-blocked" : ""}`}>
+    <div className={`manager-shell ${billingBlocked ? "is-billing-blocked" : ""}`} style={identityStyle}>
       <aside className="manager-sidebar">
         <div className="manager-sidebar__brand">
-          <Brand href="/gestor" light />
+          <Brand href="/gestor" light name={identity?.brand.name} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
         </div>
-        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} />
+          <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={identity?.vocabulary.organization ?? "barbearia"} />
         <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} />
         <div className="manager-sidebar__footer">
           {managerProfile}
@@ -239,12 +263,12 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
       )}
       <aside className={`manager-drawer ${menuOpen ? "is-open" : ""}`} aria-hidden={!menuOpen}>
         <div className="manager-drawer__head">
-          <Brand href="/gestor" light />
+          <Brand href="/gestor" light name={identity?.brand.name} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
           <button type="button" className="icon-button icon-button--dark" onClick={() => setMenuOpen(false)} aria-label="Fechar menu">
             <X size={20} />
           </button>
         </div>
-        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} />
+        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={identity?.vocabulary.organization ?? "barbearia"} />
         <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} onNavigate={() => setMenuOpen(false)} />
         <div className="manager-sidebar__footer">
           {managerProfile}
@@ -257,7 +281,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
             <Menu size={21} />
           </button>
           <div className="manager-topbar__mobile-brand">
-            <Brand href="/gestor" compact />
+            <Brand href="/gestor" compact name={identity?.brand.name} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
             <span><strong>{organizationName}</strong><small>{locationName}</small></span>
           </div>
           <button type="button" className="global-search">
