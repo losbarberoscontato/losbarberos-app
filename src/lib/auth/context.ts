@@ -4,7 +4,7 @@ import type { BillingStatus } from "@/lib/domain/types";
 export interface AccessContext {
   userId: string;
   organizationId: string | null;
-  role: "OWNER" | "CLIENT" | "PLATFORM_ADMIN";
+  role: "OWNER" | "CLIENT" | "PLATFORM_ADMIN" | "UNREGISTERED";
   billingStatus: BillingStatus | null;
 }
 
@@ -14,26 +14,25 @@ export async function getAccessContext(): Promise<AccessContext | null> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
 
-  const { data: platformAdmin } = await supabase
-    .from("platform_admins")
-    .select("user_id")
-    .eq("user_id", data.user.id)
-    .maybeSingle();
-  if (platformAdmin) {
-    return {
-      userId: data.user.id,
-      organizationId: null,
-      role: "PLATFORM_ADMIN",
-      billingStatus: null,
-    };
-  }
-
-  const { data: membership } = await supabase
-    .from("organization_memberships")
-    .select("organization_id")
-    .eq("user_id", data.user.id)
-    .eq("active", true)
-    .maybeSingle();
+  const [membershipResult, clientAccountResult, platformAdminResult] = await Promise.all([
+    supabase
+      .from("organization_memberships")
+      .select("organization_id")
+      .eq("user_id", data.user.id)
+      .eq("active", true)
+      .maybeSingle(),
+    supabase
+      .from("client_accounts")
+      .select("auth_user_id")
+      .eq("auth_user_id", data.user.id)
+      .maybeSingle(),
+    supabase
+      .from("platform_admins")
+      .select("user_id")
+      .eq("user_id", data.user.id)
+      .maybeSingle(),
+  ]);
+  const membership = membershipResult.data;
 
   if (membership) {
     const { data: subscription } = await supabase
@@ -49,10 +48,32 @@ export async function getAccessContext(): Promise<AccessContext | null> {
     };
   }
 
+  if (clientAccountResult.data) {
+    return {
+      userId: data.user.id,
+      organizationId: null,
+      role: "CLIENT",
+      billingStatus: null,
+    };
+  }
+
   return {
     userId: data.user.id,
     organizationId: null,
-    role: "CLIENT",
+    role: platformAdminResult.data ? "PLATFORM_ADMIN" : "UNREGISTERED",
     billingStatus: null,
   };
+}
+
+export async function isPlatformAdminUser(userId: string): Promise<boolean> {
+  const supabase = await getSupabaseServerClient();
+  if (!supabase) return false;
+
+  const { data, error } = await supabase
+    .from("platform_admins")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return !error && Boolean(data);
 }

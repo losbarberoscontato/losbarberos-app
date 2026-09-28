@@ -11,7 +11,7 @@ export default async function OnboardingPage() {
 
   if (hasSupabaseConfig && !context) redirect("/entrar?next=/onboarding");
   if (context?.role === "OWNER" && context.billingStatus !== "PROVISIONING") redirect("/gestor");
-  if (context?.role === "PLATFORM_ADMIN") redirect("/admin");
+  if (context?.role === "CLIENT") redirect("/cliente/agendar");
 
   return <OnboardingFlow demoMode={!hasSupabaseConfig} existingOrganizationId={context?.role === "OWNER" ? context.organizationId : null} />;
 }

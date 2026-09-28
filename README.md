@@ -25,10 +25,11 @@ npm run dev
 Abra `http://localhost:3000`. Rotas principais:
 
 - `/` — entrada do produto
-- `/login` — autenticação por e-mail ou Google
+- `/entrar` — autenticação por e-mail ou Google
 - `/gestor` — workspace do gestor
 - `/agendar` — PWA do cliente
-- `/admin` — controle mínimo da plataforma
+- `/display-admin` — painel oficial do administrador do ecossistema
+- `/admin` — redirecionamento legado para `/display-admin`
 - `/regularizacao` — recuperação de cobrança
 
 ## Validação

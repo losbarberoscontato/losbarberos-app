@@ -1,5 +1,13 @@
 # Handoff — Los Barberos
 
+## Painel oficial Display SH e regras de entrada — 28/09/2026
+
+- `/admin` foi desativado como painel independente e redireciona para `/entrar?modo=login&next=%2Fdisplay-admin`.
+- `/display-admin` é o painel oficial. Só usuários presentes em `public.platform_admins` podem acessá-lo; o mesmo usuário continua entrando no produto normalmente quando inicia o login por uma rota do produto.
+- A resolução de acesso prioriza associação ativa de gestor, depois conta de cliente, depois privilégio de plataforma. Em `/display-admin`, gestor é encaminhado a `/gestor`, cliente a `/cliente/agendar` e usuário sem cadastro a `/onboarding`.
+- Nenhuma migration ou Edge Function é necessária para essa alteração. A URL pública canônica local foi alinhada para `https://displaysh-app.vercel.app`; Auth `Site URL` no Supabase remoto ainda requer atualização/validação independente.
+- O login local de demonstração do painel foi mantido apenas no checkout e excluído do commit de produção.
+
 ## Pacotes de projeto — comissões por serviço — 21/09/2026
 
 - Na edição de pacotes do projeto, cada serviço pode ter um profissional habilitado e uma comissão em centavos; a UI salva as linhas junto com o pacote pela RPC `upsert_project_package`.

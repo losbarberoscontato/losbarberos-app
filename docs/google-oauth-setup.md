@@ -16,7 +16,7 @@ Este guia conecta o mesmo provedor Google ao acesso de gestor e cliente. O Googl
 ### Authorized JavaScript origins
 
 ```text
-https://losbarberos-app.vercel.app
+https://displaysh-app.vercel.app
 http://localhost:3000
 ```
 
@@ -48,21 +48,25 @@ Nunca envie o Client Secret por chat, commit, log ou variável `NEXT_PUBLIC_*`. 
 Em **Authentication > URL Configuration**, use:
 
 ```text
-Site URL: https://losbarberos-app.vercel.app
+Site URL: https://displaysh-app.vercel.app
 Redirect URLs:
-https://losbarberos-app.vercel.app/auth/callback**
+https://displaysh-app.vercel.app/auth/callback**
 http://localhost:3000/auth/callback**
 http://127.0.0.1:3000/auth/callback**
 ```
 
 O sufixo `**` é obrigatório porque o app acrescenta parâmetros como `next`, `provider` e `barbearia` ao callback. Sem ele, o Supabase rejeita o destino completo e usa o `Site URL` como fallback.
 
-Adicione `https://losbarberos.com.br/auth/callback**` apenas quando o domínio oficial estiver servindo o app.
+O `/display-admin` usa o mesmo provedor Google; a autorização administrativa é concedida exclusivamente por `public.platform_admins`. O `/admin` legado redireciona para `/display-admin`.
+
+Adicione `https://displaysh.com/auth/callback**` apenas quando o domínio oficial estiver servindo o app.
 
 ## 3. Comportamento esperado
 
 - Gestor novo: Google > `/auth/callback` > `/onboarding`.
 - Gestor existente: Google > `/auth/callback`; os guards de membership encaminham ao gestor correto.
+- Administrador da plataforma entrando pelo login de um produto: segue para a área de gestor/cliente daquele produto. Para abrir o painel do ecossistema, deve entrar pelo `/display-admin`.
+- Usuário sem privilégio que tentar acessar `/display-admin`: gestor existente segue para `/gestor`, cliente existente para `/cliente/agendar`, e usuário sem cadastro para `/onboarding`.
 - Cliente existente com `client_accounts`: Google > destino original do cliente.
 - Cliente novo: Google > completar cadastro > WhatsApp, nascimento e termos obrigatórios > destino original.
 - A preferência transacional de WhatsApp começa ativa ao vincular o cliente ao tenant, somente quando não existe decisão anterior. Opt-out anterior nunca é sobrescrito.

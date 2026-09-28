@@ -12,8 +12,8 @@ export default async function GestorLayout({ children }: { children: React.React
   const context = hasSupabaseConfig ? await getAccessContext() : null;
 
   if (hasSupabaseConfig && !context) redirect("/entrar?next=/gestor");
-  if (context?.role === "PLATFORM_ADMIN") redirect("/admin");
   if (context?.role === "CLIENT") redirect("/cliente/agendar");
+  if (context?.role === "PLATFORM_ADMIN" || context?.role === "UNREGISTERED") redirect("/onboarding");
   if (context?.billingStatus === "PROVISIONING") redirect("/onboarding");
   // Pages keep canceled tenants out of the operation. Configurações remains
   // reachable so CANCELED_RETENTION can export data; CLOSED sees it disabled.

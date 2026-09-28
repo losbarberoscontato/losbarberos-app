@@ -18,7 +18,7 @@ import {
   SlidersHorizontal,
   UsersRound,
 } from "lucide-react";
-import { getAccessContext } from "@/lib/auth/context";
+import { getAccessContext, isPlatformAdminUser } from "@/lib/auth/context";
 import { hasSupabaseConfig } from "@/lib/env";
 
 export const metadata: Metadata = {
@@ -41,8 +41,13 @@ export default async function DisplayAdminPage() {
   const context = hasSupabaseConfig ? await getAccessContext() : null;
   if (!hasSupabaseConfig) redirect("/entrar?erro=supabase_not_configured&next=%2Fdisplay-admin");
   if (!context) redirect("/entrar?modo=login&next=%2Fdisplay-admin");
-  if (context.role !== "PLATFORM_ADMIN") redirect(context.role === "OWNER" ? "/gestor" : "/cliente/agendar");
 
+  const isPlatformAdmin = await isPlatformAdminUser(context.userId);
+  if (!isPlatformAdmin) {
+    if (context.role === "OWNER") redirect("/gestor");
+    if (context.role === "CLIENT") redirect("/cliente/agendar");
+    redirect("/onboarding");
+  }
   return (
     <main className="display-admin">
       <aside className="display-admin__sidebar">

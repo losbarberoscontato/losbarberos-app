@@ -2,11 +2,7 @@ import type { NextRequest } from "next/server";
 import { refreshSupabaseSession } from "@/lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
-  const hostname = request.headers.get("host")?.split(":")[0].toLowerCase();
-  const isLosBarberosHome =
-    hostname === "losbarberos-app.vercel.app" && request.nextUrl.pathname === "/";
-
-  return refreshSupabaseSession(request, isLosBarberosHome ? "/los-barberos" : undefined);
+  return refreshSupabaseSession(request);
 }
 
 export const config = {

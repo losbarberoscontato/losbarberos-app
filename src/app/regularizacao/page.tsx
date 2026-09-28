@@ -12,7 +12,7 @@ export default async function BillingRegularizationPage() {
 
   if (hasSupabaseConfig && !context) redirect("/entrar?next=/regularizacao");
   if (context?.role === "CLIENT") redirect("/cliente/agendar");
-  if (context?.role === "PLATFORM_ADMIN") redirect("/admin");
+  if (context?.role === "PLATFORM_ADMIN" || context?.role === "UNREGISTERED") redirect("/onboarding");
 
   let graceEndsAt: string | null = null;
   let retentionEndsAt: string | null = null;

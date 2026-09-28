@@ -32,12 +32,22 @@ export async function GET(request: NextRequest) {
 
   if (!code || !supabase) {
     const reason = !code ? "oauth_code_missing" : "supabase_not_configured";
-    return NextResponse.redirect(new URL(`/entrar?erro=${reason}`, url.origin));
+    const params = new URLSearchParams({ erro: reason });
+    if (requestedNextValues.length === 1) {
+      params.set("modo", "login");
+      params.set("next", destination);
+    }
+    return NextResponse.redirect(new URL(`/entrar?${params.toString()}`, url.origin));
   }
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    return NextResponse.redirect(new URL("/entrar?erro=oauth_exchange_failed", url.origin));
+    const params = new URLSearchParams({ erro: "oauth_exchange_failed" });
+    if (requestedNextValues.length === 1) {
+      params.set("modo", "login");
+      params.set("next", destination);
+    }
+    return NextResponse.redirect(new URL(`/entrar?${params.toString()}`, url.origin));
   }
 
   if (isGoogleFlow && isClientDestination) {

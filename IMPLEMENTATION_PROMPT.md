@@ -1,5 +1,14 @@
 # Prompt inicial — próxima conversa Los Barberos
 
+## Atualização de rotas administrativas — 28/09/2026
+
+- Painel ecossistema oficial: `/display-admin`, protegido por `public.platform_admins`.
+- `/admin` é legado e redireciona ao login de `/display-admin`.
+- Login iniciado em rota de produto direciona por associação ativa de gestor ou conta de cliente, mesmo para conta que também seja administradora da plataforma.
+- No acesso solicitado a `/display-admin`, administradores entram no painel; gestores existentes vão para `/gestor`, clientes para `/cliente/agendar`, novos usuários para `/onboarding`.
+- O domínio temporário canônico usado pela aplicação é `https://displaysh-app.vercel.app`. A URL padrão do Supabase Auth deve acompanhar esse host; callbacks locais e de produção permanecem permitidos.
+- Essa mudança não exige migration nem Edge Function.
+
 Estamos continuando o projeto Los Barberos em `D:\Display SH\Los Barberos`.
 
 Assuma o volante técnico para investigar e implementar os próximos relatos funcionais ou visuais. Preserve dados existentes, tenant scope e histórico financeiro. Código, migrations, testes, documentação e estado remoto verificado são fonte de verdade; não use somente o histórico do chat.

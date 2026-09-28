@@ -1,4 +1,4 @@
-export const DEFAULT_PUBLIC_SITE_ORIGIN = "https://losbarberos-app.vercel.app";
+export const DEFAULT_PUBLIC_SITE_ORIGIN = "https://displaysh-app.vercel.app";
 
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
