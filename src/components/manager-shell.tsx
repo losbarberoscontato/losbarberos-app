@@ -24,6 +24,7 @@ import { Brand } from "@/components/brand";
 import { Avatar } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { ProductIdentityConfig } from "@/lib/product-identity";
+import { productIdentityStyle } from "@/lib/product-identity";
 
 const navigation = [
   { href: "/gestor", label: "Visão geral", icon: LayoutDashboard, exact: true },
@@ -192,28 +193,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
     }
   }
 
-  const identityStyle = identity ? ({
-    "--forest-950": identity.colors.primary,
-    "--forest-900": identity.colors.primary,
-    "--forest-800": identity.colors.secondary,
-    "--forest-700": identity.colors.secondary,
-    "--forest-600": identity.colors.secondary,
-    "--amber-500": identity.colors.accent,
-    "--amber-400": identity.colors.accent,
-    "--paper": identity.colors.background,
-    "--paper-2": identity.colors.background,
-    "--surface": identity.colors.surface,
-    "--white": identity.colors.surface,
-    "--ink": identity.colors.text,
-    "--ink-2": identity.colors.text,
-    "--muted": identity.colors.muted,
-    "--border": identity.colors.border,
-    "--border-soft": identity.colors.border,
-    "--success": identity.colors.success,
-    "--danger": identity.colors.danger,
-    "--font-sans": `${identity.fonts.interface}, sans-serif`,
-    "--font-display": `${identity.fonts.display}, Georgia, serif`,
-  } as React.CSSProperties) : undefined;
+  const identityStyle = productIdentityStyle(identity);
 
   const managerProfile = (
     <div className="manager-profile">

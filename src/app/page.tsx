@@ -16,6 +16,7 @@ import {
   Settings2,
   UsersRound,
 } from "lucide-react";
+import { getPublishedProductIdentities } from "@/lib/product-identity-server";
 
 export const metadata: Metadata = {
   title: { absolute: "Display SH — uma plataforma, vários negócios" },
@@ -88,7 +89,12 @@ const modules = [
   { icon: ChartNoAxesColumnIncreasing, label: "Relatórios gerenciais" },
 ];
 
-export default function DisplayHomePage() {
+export default async function DisplayHomePage() {
+  const identities = await getPublishedProductIdentities();
+  const productCards = products.map((product) => {
+    const identity = identities[product.slug];
+    return identity ? { ...product, name: identity.brand.name, image: identity.brand.logoUrl || product.image, alt: `Logomarca ${identity.brand.name}` } : product;
+  });
   return (
     <div className="ecosystem-page">
       <header className="ecosystem-header">
@@ -129,7 +135,7 @@ export default function DisplayHomePage() {
               <p>Escolha uma marca para conhecer a solução feita para o seu segmento.</p>
             </div>
             <div className="ecosystem-product-grid">
-              {products.map((product) => (
+              {productCards.map((product) => (
                 <Link
                   href={`/${product.slug}`}
                   key={product.slug}

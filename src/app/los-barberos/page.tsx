@@ -10,6 +10,8 @@ import {
   WalletCards,
 } from "lucide-react";
 import { Brand } from "@/components/brand";
+import { getPublishedProductIdentity } from "@/lib/product-identity-server";
+import { productIdentityStyle } from "@/lib/product-identity";
 
 export const metadata: Metadata = {
   title: { absolute: "Los Barberos — gestão para barbearias" },
@@ -43,12 +45,14 @@ const setupSteps = [
   ["Comece o teste", "Use o painel por 14 dias sem cartão nesta fase."],
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const identity = await getPublishedProductIdentity("los-barberos");
+  const identityStyle = productIdentityStyle(identity);
   return (
-    <div className="landing-page">
+    <div className="landing-page" style={identityStyle}>
       <header className="landing-nav">
         <div className="landing-container landing-nav__inner">
-          <Brand href="/los-barberos" />
+          <Brand href="/los-barberos" name={identity?.brand.name} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
           <nav aria-label="Navegação principal">
             <a href="#rotina">Rotina</a>
             <a href="#como-funciona">Como funciona</a>

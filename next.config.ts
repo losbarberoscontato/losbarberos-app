@@ -8,7 +8,7 @@ const remoteImagePatterns = [
     hostname: "lh3.googleusercontent.com",
     pathname: "/**",
   },
-  ...(supabaseImageHostname ? ["barber-avatars", "organization-logos"].map((bucket) => ({
+  ...(supabaseImageHostname ? ["barber-avatars", "organization-logos", "product-brand-assets"].map((bucket) => ({
     protocol: "https" as const,
     hostname: supabaseImageHostname,
     pathname: `/storage/v1/object/public/${bucket}/**`,
