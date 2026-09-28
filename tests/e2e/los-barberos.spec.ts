@@ -2,17 +2,17 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Los Barberos · experiências principais", () => {
   test("landing apresenta o produto e abre o cadastro do sistema", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/los-barberos");
 
     await expect(page.getByRole("heading", { name: /Horário vazio custa caro/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Criar minha barbearia/i }).first()).toBeVisible();
     await page.getByRole("link", { name: /Criar minha barbearia/i }).first().click();
 
-    await expect(page).toHaveURL(/\/entrar\?modo=cadastro$/);
+    await expect(page).toHaveURL(/\/los-barberos\/entrar\?modo=cadastro$/);
     await expect(page.getByRole("heading", { name: /Crie sua barbearia/i })).toBeVisible();
     await expect(page.getByRole("tab")).toHaveCount(0);
 
-    await page.goto("/entrar?modo=login");
+    await page.goto("/los-barberos/entrar?modo=login");
     await expect(page.getByRole("heading", { name: /Entre na sua barbearia/i })).toBeVisible();
   });
 
@@ -23,7 +23,7 @@ test.describe("Los Barberos · experiências principais", () => {
 });
 
 test.describe("Los Barberos · responsividade", () => {
-  for (const route of ["/", "/entrar", "/privacidade", "/termos", "/exclusao-de-dados", "/offline"]) {
+  for (const route of ["/", "/los-barberos", "/los-barberos/entrar", "/entrar", "/privacidade", "/termos", "/exclusao-de-dados", "/offline"]) {
     test(`${route} não cria overflow horizontal no viewport`, async ({ page }) => {
       await page.goto(route);
       await page.waitForLoadState("domcontentloaded");
