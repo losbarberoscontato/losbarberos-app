@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Eye, ImagePlus, LoaderCircle, Palette, Save, Type, Upload, BookText } from "lucide-react";
+import { Check, Eye, ImagePlus, LoaderCircle, Palette, Save, Type, BookText } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import styles from "./product-identity-editor.module.css";
 
@@ -46,7 +46,10 @@ export function ProductIdentityEditor() {
     finally { setBusy(false); }
   }, []);
 
-  useEffect(() => { void load(product); }, [product, load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(product), 0);
+    return () => window.clearTimeout(timer);
+  }, [product, load]);
 
   function update(group: "brand" | "colors" | "fonts" | "vocabulary", key: string, value: string) {
     setConfig((current) => current ? ({ ...current, [group]: { ...current[group], [key]: value } }) : current);
