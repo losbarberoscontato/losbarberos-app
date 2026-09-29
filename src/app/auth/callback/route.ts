@@ -4,6 +4,7 @@ import { clientAuthDestination, clientOAuthCompletionDestination } from "@/lib/c
 import { barberAuthDestination } from "@/lib/barber-auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSystemAuthDestination } from "@/lib/system-auth";
+import { parseProductKey, setProductContextCookie } from "@/lib/product-context";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -14,9 +15,8 @@ export async function GET(request: NextRequest) {
   const requestedSlug = requestedSlugs.length === 1 ? requestedSlugs[0] : null;
   const requestedProviders = url.searchParams.getAll("provider");
   const requestedProducts = url.searchParams.getAll("produto");
-  const requestedProduct = requestedProducts.length === 1 && requestedProducts[0] === "le-gras"
-    ? "le-gras"
-    : "los-barberos";
+  const requestedProduct = requestedProducts.length === 1 ? parseProductKey(requestedProducts[0]) : null;
+  const selectedProduct = requestedProduct ?? "los-barberos";
   const isGoogleFlow = requestedProviders.length === 1 && requestedProviders[0] === "google";
   const isClientDestination = requestedNextValues.length === 1
     && (requestedNext === "/cliente" || requestedNext.startsWith("/cliente/"));
@@ -57,16 +57,22 @@ export async function GET(request: NextRequest) {
   }
 
   if (isGoogleFlow && isClientDestination) {
-    return NextResponse.redirect(new URL(clientOAuthCompletionDestination({
+    const response = NextResponse.redirect(new URL(clientOAuthCompletionDestination({
       next: requestedNext,
       slug: requestedSlug,
     }), url.origin));
+    setProductContextCookie(response, selectedProduct);
+    return response;
   }
 
   if (requestedNext === "/onboarding" && requestedProducts.length <= 1) {
     const onboarding = new URL("/onboarding", url.origin);
-    onboarding.searchParams.set("produto", requestedProduct);
-    return NextResponse.redirect(onboarding);
+    onboarding.searchParams.set("produto", selectedProduct);
+    const response = NextResponse.redirect(onboarding);
+    setProductContextCookie(response, selectedProduct);
+    return response;
   }
-  return NextResponse.redirect(new URL(destination, url.origin));
+  const response = NextResponse.redirect(new URL(destination, url.origin));
+  setProductContextCookie(response, selectedProduct);
+  return response;
 }

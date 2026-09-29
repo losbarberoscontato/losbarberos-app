@@ -1,5 +1,6 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { BillingStatus } from "@/lib/domain/types";
+import { getSelectedProductKey, type ProductKey } from "@/lib/product-context";
 
 export interface AccessContext {
   userId: string;
@@ -8,24 +9,33 @@ export interface AccessContext {
   billingStatus: BillingStatus | null;
 }
 
-export async function getAccessContext(): Promise<AccessContext | null> {
+export async function getAccessContext(productKey?: ProductKey): Promise<AccessContext | null> {
   const supabase = await getSupabaseServerClient();
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
 
+  const selectedProduct = productKey ?? await getSelectedProductKey();
+  const { data: assignmentRows } = await supabase
+    .from("organization_product_assignments")
+    .select("organization_id")
+    .eq("product_key", selectedProduct);
+  const organizationIds = (assignmentRows ?? []).map((row) => row.organization_id);
+
   const [membershipResult, clientAccountResult, platformAdminResult] = await Promise.all([
-    supabase
+    organizationIds.length ? supabase
       .from("organization_memberships")
       .select("organization_id")
       .eq("user_id", data.user.id)
       .eq("active", true)
-      .maybeSingle(),
-    supabase
+      .eq("role", "OWNER")
+      .in("organization_id", organizationIds)
+      .maybeSingle() : Promise.resolve({ data: null, error: null }),
+    selectedProduct === "los-barberos" ? supabase
       .from("client_accounts")
       .select("auth_user_id")
       .eq("auth_user_id", data.user.id)
-      .maybeSingle(),
+      .maybeSingle() : Promise.resolve({ data: null, error: null }),
     supabase
       .from("platform_admins")
       .select("user_id")

@@ -24,6 +24,7 @@ export function resolveSystemAuthDestination(
 export function systemLoginHref(
   mode: SystemAuthMode,
   nextPath = "/gestor",
+  productKey?: "los-barberos" | "le-gras",
 ): string {
   const params = new URLSearchParams({
     modo: mode === "signup" ? "cadastro" : "login",
@@ -34,5 +35,6 @@ export function systemLoginHref(
     params.set("next", destination);
   }
 
-  return `/entrar?${params.toString()}`;
+  const route = productKey === "le-gras" ? "/le-gras/entrar" : productKey === "los-barberos" ? "/los-barberos/entrar" : "/entrar";
+  return `${route}?${params.toString()}`;
 }

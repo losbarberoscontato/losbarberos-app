@@ -62,9 +62,19 @@ export function DemoLogin({
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setAuthNotice("E-mail ou senha inválidos. Confirme o e-mail da conta e tente novamente.");
+      return;
+    }
+    const contextResponse = await fetch("/api/auth/product-context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productKey }),
+    });
+    setLoading(false);
+    if (!contextResponse.ok) {
+      setAuthNotice("Não foi possível selecionar o sistema. Tente entrar novamente.");
       return;
     }
     router.push(destination);
@@ -84,7 +94,7 @@ export function DemoLogin({
       next: postAuthDestination,
       provider: "google",
     });
-    if (authMode === "signup" && productKey === "le-gras") params.set("produto", "le-gras");
+    params.set("produto", productKey);
     const redirectTo = `${window.location.origin}/auth/callback?${params.toString()}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -101,7 +111,7 @@ export function DemoLogin({
     const nextMode = authMode === "signin" ? "signup" : "signin";
     setAuthMode(nextMode);
     setAuthNotice("");
-    router.replace(systemLoginHref(nextMode, destination), { scroll: false });
+    router.replace(systemLoginHref(nextMode, destination, productKey), { scroll: false });
   }
 
   const isSignup = authMode === "signup";

@@ -28,6 +28,7 @@ export default async function LosBarberosLoginRoute({ searchParams }: PageProps<
             initialNotice={params.erro === "supabase_not_configured" ? "Sistema indisponível: configuração do Supabase ausente." : ""}
             initialMode={initialMode}
             nextPath={nextPath}
+            productKey="los-barberos"
           />
         </div>
       </section>
