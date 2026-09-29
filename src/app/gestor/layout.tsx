@@ -6,9 +6,20 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { appointments as demoAppointments } from "@/data/demo";
 import { isProductIdentityConfig, type ProductIdentityConfig } from "@/lib/product-identity";
-import { parseProductKey, type ProductKey } from "@/lib/product-context";
+import { getSelectedProductKey, parseProductKey, type ProductKey } from "@/lib/product-context";
 
-export const metadata: Metadata = { title: "Painel do gestor" };
+export async function generateMetadata(): Promise<Metadata> {
+  const productKey = await getSelectedProductKey();
+  return {
+    title: "Painel do gestor",
+    icons: {
+      icon: productKey === "le-gras"
+        ? [{ url: "/le-gras/icon.svg", type: "image/svg+xml" }]
+        : "/icon.svg",
+      apple: "/icon-192.png",
+    },
+  };
+}
 
 export default async function GestorLayout({ children }: { children: React.ReactNode }) {
   const context = hasSupabaseConfig ? await getAccessContext() : null;
