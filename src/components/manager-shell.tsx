@@ -24,7 +24,7 @@ import { Brand } from "@/components/brand";
 import { Avatar } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { ProductIdentityConfig } from "@/lib/product-identity";
-import { productIdentityStyle } from "@/lib/product-identity";
+import { LE_GRAS_IDENTITY_FALLBACK, productIdentityStyle } from "@/lib/product-identity";
 import { systemLoginHref } from "@/lib/system-auth";
 import type { ProductKey } from "@/lib/product-context";
 
@@ -195,7 +195,8 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
     }
   }
 
-  const identityStyle = productIdentityStyle(identity);
+  const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : undefined);
+  const identityStyle = productIdentityStyle(effectiveIdentity);
 
   const managerProfile = (
     <div className="manager-profile">
@@ -223,7 +224,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
 
   return (
     <ManagerBillingContext.Provider value={billingBlocked}>
-    <div className={`manager-shell ${billingBlocked ? "is-billing-blocked" : ""}`} style={identityStyle}>
+    <div className={`manager-shell${productKey === "le-gras" ? " manager-shell--le-gras" : ""} ${billingBlocked ? "is-billing-blocked" : ""}`} style={identityStyle}>
       <aside className="manager-sidebar">
         <div className="manager-sidebar__brand">
           <Brand href="/gestor" light name={identity?.brand.name} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />

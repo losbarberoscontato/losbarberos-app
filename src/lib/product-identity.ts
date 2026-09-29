@@ -68,6 +68,11 @@ export function productIdentityStyle(identity?: ProductIdentityConfig | null): C
     "--border-soft": colors.border,
     "--success": colors.success,
     "--danger": colors.danger,
+    "--manager-action-bg": colors.primary,
+    "--manager-action-bg-hover": colors.secondary,
+    "--manager-action-soft-bg": `color-mix(in srgb, ${colors.secondary} 10%, ${colors.surface})`,
+    "--manager-action-soft-hover": `color-mix(in srgb, ${colors.secondary} 17%, ${colors.surface})`,
+    "--manager-action-soft-text": colors.secondary,
     "--font-sans": `${identity.fonts.interface}, sans-serif`,
     "--font-display": `${identity.fonts.display}, Georgia, serif`,
   } as CSSProperties;

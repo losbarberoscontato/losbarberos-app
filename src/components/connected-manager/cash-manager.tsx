@@ -290,7 +290,7 @@ export function CashManager(props: CashManagerProps) {
   }
 
   const title = props.section === "overview" ? "Financeiro" : props.section === "cash" ? "Controle de caixa" : financeSections.find((item) => item.id === props.section)?.label ?? "Financeiro";
-  const description = props.demoMode ? "Modo demonstração: dados locais, sem escrita no Supabase." : props.section === "cash" ? "Entradas e saídas efetivamente movimentadas." : props.section === "payables" || props.section === "receivables" ? undefined : "Lançamentos auditáveis; valores liquidados não são apagados.";
+  const description = props.demoMode ? "Modo demonstração: dados locais, sem escrita no Supabase." : props.section === "cash" || props.section === "payables" || props.section === "receivables" ? undefined : "Lançamentos auditáveis; valores liquidados não são apagados.";
 
   return <div className={styles.stack}>
     <PageHeader title={title} description={description} actions={props.section === "cash" ? <button className={styles.button} type="button" onClick={() => setEntryEditor("new")}><Plus size={16} /> Novo lançamento</button> : undefined} />

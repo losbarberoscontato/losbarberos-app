@@ -1,8 +1,8 @@
 .stack { display: grid; gap: 1.25rem; }
 .notice { padding: .75rem .9rem; border: 1px solid #ead9b8; border-radius: 12px; background: #fff7e7; color: #87571e; font-size: .82rem; line-height: 1.45; }
-.backLink { display: inline-flex; align-items: center; gap: .42rem; width: fit-content; margin-top: -.45rem; color: #315f51; font-size: .82rem; font-weight: 800; text-decoration: none; }
-.backLink:hover { color: #173e33; text-decoration: underline; text-underline-offset: .2em; }
-.backLink:focus-visible { outline: 3px solid rgb(47 107 93 / 24%); outline-offset: 4px; border-radius: 4px; }
+.backLink { display: inline-flex; align-items: center; gap: .42rem; width: fit-content; margin-top: -.45rem; color: var(--forest-700, #315f51); font-size: .82rem; font-weight: 800; text-decoration: none; }
+.backLink:hover { color: var(--forest-900, #173e33); text-decoration: underline; text-underline-offset: .2em; }
+.backLink:focus-visible { outline: 3px solid color-mix(in srgb, var(--forest-700, #315f51) 24%, transparent); outline-offset: 4px; border-radius: 4px; }
 .reportsLayout { gap: 1.5rem; }
 .reportsLayout > .tabs { padding: .35rem; border: 1px solid #e4e9e2; border-radius: 15px; background: #f7f8f5; }
 .reportsFilters { margin: 0; padding: 1rem; border: 1px solid rgba(36, 42, 38, .11); border-radius: 16px; background: #fff; box-shadow: 0 8px 22px rgba(41, 48, 42, .045); }
@@ -37,9 +37,9 @@
 .closureLaunchRow span:first-child { display: grid; gap: .2rem; }
 .closureLaunchRow small { color: #778078; font-size: .72rem; }
 .agendaHeader { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; }
-.agendaHelpLink { flex: 0 0 auto; padding: .25rem 0; border: 0; background: transparent; color: #315f51; font: inherit; font-size: .82rem; font-weight: 800; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .22em; cursor: pointer; }
-.agendaHelpLink:hover { color: #173e33; }
-.agendaHelpLink:focus-visible { outline: 3px solid rgb(47 107 93 / 24%); outline-offset: 4px; border-radius: 4px; }
+.agendaHelpLink { flex: 0 0 auto; padding: .25rem 0; border: 0; background: transparent; color: var(--forest-700, #315f51); font: inherit; font-size: .82rem; font-weight: 800; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .22em; cursor: pointer; }
+.agendaHelpLink:hover { color: var(--forest-900, #173e33); }
+.agendaHelpLink:focus-visible { outline: 3px solid color-mix(in srgb, var(--forest-700, #315f51) 24%, transparent); outline-offset: 4px; border-radius: 4px; }
 .agendaHelpModal { width: min(100%, 660px); }
 .agendaHelpIntro { max-width: 66ch; margin: 0; color: #56635c; font-size: .88rem; line-height: 1.55; }
 .agendaHelpSteps { display: grid; gap: .7rem; margin: .1rem 0 0; padding: 0; list-style: none; counter-reset: agenda-help; }
@@ -84,11 +84,11 @@
 .hidden { display: none; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
 .toolbarGroup { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
-.button { border: 0; border-radius: 999px; padding: .72rem 1rem; display: inline-flex; align-items: center; justify-content: center; gap: .45rem; font: inherit; font-size: .87rem; font-weight: 700; cursor: pointer; background: #252b26; color: #fff; text-decoration: none; }
-.button:hover { background: #111512; }
+.button { border: 0; border-radius: 999px; padding: .72rem 1rem; display: inline-flex; align-items: center; justify-content: center; gap: .45rem; font: inherit; font-size: .87rem; font-weight: 700; cursor: pointer; background: var(--manager-action-bg, #252b26); color: #fff; text-decoration: none; }
+.button:hover { background: var(--manager-action-bg-hover, #111512); }
 .button:disabled { cursor: not-allowed; opacity: .48; }
-.buttonSoft { background: #eef1ec; color: #2f3831; }
-.buttonSoft:hover { background: #e1e6df; }
+.buttonSoft { background: var(--manager-action-soft-bg, #eef1ec); color: var(--manager-action-soft-text, #2f3831); }
+.buttonSoft:hover { background: var(--manager-action-soft-hover, #e1e6df); }
 .iconButton { width: 42px; height: 42px; padding: 0; border-radius: 50%; }
 .buttonDanger { background: #fff0ed; color: #a13f31; }
 .buttonDanger:hover { background: #ffe1dc; }
@@ -279,9 +279,9 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .appointmentTime { font-weight: 800; color: #293029; font-size: .95rem; }
 .appointmentValue { text-align: right; font-weight: 800; font-size: .95rem; }
 .tabs { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .2rem; }
-.tab { border: 0; border-radius: 999px; background: #eff2ed; color: #586159; padding: .55rem .8rem; font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
-.tabActive { background: #2b322c; color: #fff; }
-.catalogTabs { display: flex; gap: .5rem; width: fit-content; max-width: 100%; padding: .35rem; overflow-x: auto; border: 1px solid #e0e6dd; border-radius: 999px; background: #fff; }
+.tab { border: 0; border-radius: 999px; background: var(--manager-action-soft-bg, #eff2ed); color: var(--manager-action-soft-text, #586159); padding: .55rem .8rem; font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.tabActive { background: var(--manager-action-bg, #2b322c); color: #fff; }
+.catalogTabs { display: flex; gap: .5rem; width: fit-content; max-width: 100%; padding: .35rem; overflow-x: auto; border: 1px solid color-mix(in srgb, var(--manager-action-soft-text, #586159) 18%, white); border-radius: 999px; background: var(--surface, #fff); }
 .catalogTabs .tab, .catalogTabs .tabActive { padding: .62rem 1rem; }
 .commercialToggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
 .commercialToggle { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .8rem; border: 1px solid #dfe6dc; border-radius: 13px; background: #fff; cursor: pointer; }

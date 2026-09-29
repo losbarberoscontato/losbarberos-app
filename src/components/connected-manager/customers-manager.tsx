@@ -615,7 +615,6 @@ export function CustomersManager({
     <div className={styles.stack}>
       <PageHeader
         title="Clientes"
-        description="Cadastros reais isolados por RLS na sua organização."
       />
       <Panel
         title="Base de clientes"
