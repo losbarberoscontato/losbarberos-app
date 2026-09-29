@@ -1,44 +1,59 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Camera, FolderKanban, UsersRound, WalletCards } from "lucide-react";
+import styles from "./page.module.css";
 import { getPublishedProductIdentity } from "@/lib/product-identity-server";
 import { productIdentityStyle } from "@/lib/product-identity";
 
 export const metadata: Metadata = {
-  title: { absolute: "Le Gras — gestão para estúdios fotográficos | Display SH" },
-  description: "Le Gras é a próxima solução Display SH para estúdios fotográficos.",
+  title: { absolute: "Le Gras — gestão para estúdios fotográficos" },
+  description: "Organize clientes, agenda e projetos do seu estúdio fotográfico com o Le Gras.",
 };
 
 export default async function LeGrasPage() {
   const identity = await getPublishedProductIdentity("le-gras");
   const identityStyle = productIdentityStyle(identity);
+
   return (
     <main className="le-gras-page" style={identityStyle}>
-      <header className="le-gras-header">
-        <Link href="/" aria-label="Voltar ao ecossistema Display SH"><Image src="/display-sh/wordmark.png" alt="Display SH" width={205} height={64} priority /></Link>
-        <Link href="/le-gras/entrar?modo=login" className="le-gras-back">Entrar</Link>
+      <header className={styles.header}>
+        <Link href="/le-gras" className={styles.brand} aria-label="Le Gras — página inicial">
+          <Image
+            src="/display-sh/le-gras-transparent.png"
+            alt="Le Gras Fotografia"
+            width={2170}
+            height={725}
+            priority
+          />
+        </Link>
+        <Link href="/le-gras/entrar?modo=login" className={styles.loginLink}>Entrar</Link>
       </header>
-      <section className="le-gras-hero">
-        <div className="le-gras-copy">
-          <Image src={identity?.brand.logoUrl || "/display-sh/le-gras.png"} alt={`${identity?.brand.name ?? "Le Gras"} — fotografia`} width={399} height={114} priority style={{ width: "100%", maxWidth: "399px", height: "auto" }} />
-          <p className="ecosystem-overline">UMA NOVA SOLUÇÃO DISPLAY SH</p>
+
+      <section className={styles.hero}>
+        <div className={styles.copy}>
           <h1>Histórias que ficam.<br /><em>Uma rotina mais leve.</em></h1>
           <p>Le Gras reúne clientes, agenda, projetos e gestão para organizar a rotina de estúdios fotográficos em um só espaço.</p>
-          <div className="landing-hero__actions">
-            <Link href="/le-gras/entrar?modo=cadastro" className="button button--accent button--lg">Criar meu estúdio <ArrowRight size={18} /></Link>
-            <Link href="/le-gras/entrar?modo=login" className="button landing-button--secondary button--lg">Entrar</Link>
-          </div>
-          <span className="le-gras-status"><Camera size={16} /> Acesso antecipado</span>
+          <Link href="/le-gras/entrar?modo=cadastro" className={`button button--accent button--lg ${styles.primaryAction}`}>
+            Criar meu estúdio
+          </Link>
         </div>
-        <div className="le-gras-orbit" aria-label="Áreas planejadas para o Le Gras">
-          <div className="le-gras-orbit__center"><Camera size={34} strokeWidth={1.35} /><span>LE GRAS</span></div>
-          <div className="le-gras-orbit__node le-gras-orbit__node--clients"><UsersRound size={19} /><span>Clientes</span></div>
-          <div className="le-gras-orbit__node le-gras-orbit__node--projects"><FolderKanban size={19} /><span>Projetos</span></div>
-          <div className="le-gras-orbit__node le-gras-orbit__node--finance"><WalletCards size={19} /><span>Gestão</span></div>
+
+        <div className={styles.visual}>
+          <Image
+            src="/display-sh/le-gras-agenda-hero.png"
+            alt="Equipamentos fotográficos ao redor de um notebook com a agenda do Le Gras aberta"
+            width={1536}
+            height={1024}
+            priority
+            sizes="(max-width: 760px) 100vw, (max-width: 1200px) 52vw, 680px"
+          />
         </div>
       </section>
-      <footer className="le-gras-footer"><span>© 2026 Display SH</span><a href="mailto:contato@displaysh.com">Fale com a gente <ArrowUpRight size={14} /></a></footer>
+
+      <footer className="le-gras-footer">
+        <span>© 2026 Le Gras</span>
+        <a href="mailto:contato@displaysh.com">Fale com a gente</a>
+      </footer>
     </main>
   );
 }
