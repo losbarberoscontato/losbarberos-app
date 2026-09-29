@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
+import type { ProductKey } from "./product-routes";
 
-export type ProductKey = "los-barberos" | "le-gras";
+export type { ProductKey } from "./product-routes";
 export const PRODUCT_CONTEXT_COOKIE = "display_product";
 
 export function parseProductKey(value: unknown): ProductKey | null {

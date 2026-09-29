@@ -9,6 +9,7 @@ import { ActionMessage, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { humanizeError } from "./format";
 import styles from "./connected-manager.module.css";
+import type { ProductKey } from "@/lib/product-context";
 
 export type WhatsAppConnection = {
   id: string;
@@ -96,6 +97,7 @@ type Props = {
   organizationName: string;
   status: WhatsAppSettingsStatus;
   schemaReady?: boolean;
+  productKey?: ProductKey;
 };
 
 const providerLabels = {
@@ -159,7 +161,8 @@ function diagnostic(connection: WhatsAppConnection | undefined) {
   };
 }
 
-export function WhatsAppSettings({ organizationId, organizationName, status, schemaReady = true }: Props) {
+export function WhatsAppSettings({ organizationId, organizationName, status, schemaReady = true, productKey = "los-barberos" }: Props) {
+  const isLeGras = productKey === "le-gras";
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [busyProvider, setBusyProvider] = useState<"META_CLOUD" | "QR_WEB" | null>(null);
@@ -332,9 +335,9 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     <ActionMessage message={message} />
     {!schemaReady && <p className={styles.message}>A estrutura conectada desta integração ainda aguarda a migration remota. A tela está pronta, mas salvar e conectar ficará disponível após a aplicação autorizada.</p>}
 
-    <section className={styles.whatsappHero} aria-labelledby="whatsapp-title">
+    <section className={`${styles.whatsappHero} ${isLeGras ? styles.whatsappHeroLeGras : ""}`} aria-labelledby="whatsapp-title">
       <div>
-        <span className={styles.whatsappEyebrow}>INTEGRAÇÃO POR BARBEARIA</span>
+        <span className={styles.whatsappEyebrow}>{isLeGras ? "INTEGRAÇÃO WHATSAPP" : "INTEGRAÇÃO POR BARBEARIA"}</span>
         <h1 id="whatsapp-title">WhatsApp da sua operação</h1>
         <p>Conecte seu Whatsapp Business, envie confirmações e lembretes de forma automática com consentimento do cliente.</p>
       </div>
@@ -411,13 +414,17 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     <Panel title="Mensagens automáticas" description="Escolha quais avisos transacionais serão enviados automaticamente pelo WhatsApp.">
       <form onSubmit={saveAutomation} className={styles.stack}>
         <div className={styles.automationList}>
-          {automaticMessages.map((automation) => <div className={styles.automationRow} key={automation.key}>
-            <div><strong>{automation.title}</strong><small>{automation.description}</small></div>
+          {automaticMessages.map((automation) => {
+            const title = isLeGras ? automation.title.replaceAll("barbeiro", "fotógrafo") : automation.title;
+            const description = isLeGras ? automation.description.replaceAll("barbeiro", "fotógrafo") : automation.description;
+            return <div className={styles.automationRow} key={automation.key}>
+            <div><strong>{title}</strong><small>{description}</small></div>
             <label className={styles.automationSwitch}>
-              <span className="sr-only">{automation.title}</span>
+              <span className="sr-only">{title}</span>
               <input type="checkbox" checked={automationRules[automation.key]} disabled={!schemaReady} onChange={(event) => setAutomationRules((current) => ({ ...current, [automation.key]: event.target.checked }))} />
             </label>
-          </div>)}
+          </div>;
+          })}
         </div>
         <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady}>Salvar automações</button></div>
       </form>

@@ -13,10 +13,12 @@ import { ActionMessage, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { normalizePhoneE164 } from "@/lib/phone";
 import { barberLoginHref } from "@/lib/barber-auth";
+import { productBillingPath, type ProductKey } from "@/lib/product-routes";
 import styles from "./connected-manager.module.css";
 
 type SettingsData = AwaitedReturn<typeof loadSettingsData>;
 type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professionalFunctions" | "professionalFunctionsAvailable"> & {
+  productKey?: ProductKey;
   environments?: SettingsData["environments"];
   environmentIssues?: SettingsData["environmentIssues"];
   professionalFunctions?: SettingsData["professionalFunctions"];
@@ -24,6 +26,8 @@ type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professi
 };
 
 export function SettingsManager(props: Props) {
+  const isLeGras = props.productKey === "le-gras";
+  const billingPath = productBillingPath(props.productKey ?? "los-barberos");
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [connecting, setConnecting] = useState(false);
@@ -233,7 +237,7 @@ export function SettingsManager(props: Props) {
       <ActionMessage message={message} />
       <Panel title="Dados da organização" description={props.billingStatus === "CANCELED_RETENTION" ? "Exportação disponível durante a janela de retenção." : "A janela terminou e os dados não obrigatórios foram anonimizados."}>
         <div className={styles.integration}><div className={styles.integrationInfo}><strong>Exportação JSON da organização</strong><p>Gerada pelo backend sob autorização; nunca inclui segredos dos provedores.</p></div><button className={styles.button} disabled={props.billingStatus !== "CANCELED_RETENTION" || exporting} type="button" onClick={exportRetentionData}>{exporting ? "Gerando…" : props.billingStatus === "CLOSED" ? "Janela encerrada" : "Baixar dados"}</button></div>
-        <Link className={`${styles.button} ${styles.buttonSoft}`} href="/regularizacao">Abrir cobrança e plano</Link>
+        <Link className={`${styles.button} ${styles.buttonSoft}`} href={billingPath}>Abrir cobrança e plano</Link>
       </Panel>
     </div>;
   }
@@ -243,21 +247,21 @@ export function SettingsManager(props: Props) {
     <ActionMessage message={message} />
     <div className={styles.grid}>
       {props.organization.queue_public_id &&
-        <Panel title="Links úteis" description="Acesse, compartilhe e imprima os links públicos da sua barbearia." className={styles.span7}>
+        <Panel title="Links úteis" description={isLeGras ? "Links públicos do seu estúdio." : "Acesse, compartilhe e imprima os links públicos da sua barbearia."} className={styles.span7}>
           <div className="useful-links">
-            <article className="useful-link-row">
+            {!isLeGras && props.organization.queue_public_id && <article className="useful-link-row">
               <div><strong>Link do gerenciador de fila</strong><p>Você pode imprimir o QRcode do gerenciador de fila para seus clientes escanearem.</p></div>
               <button type="button" className="useful-link-value" onClick={() => void copyLink(queueUrl)} title="Copiar link da fila">{queueUrl}</button>
               <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(queueUrl)}>Copiar link</button><button type="button" className="button button--soft" onClick={() => window.print()}>Imprimir QR code</button></div>
-            </article>
+            </article>}
             <article className="useful-link-row">
-              <div><strong>Link de agendamento</strong><p>Envie este link para clientes novos e antigos, eles poderão fazer cadastro/login e acessar a Agenda da sua barbearia.</p></div>
-              <button type="button" className="useful-link-value" onClick={() => void copyLink(bookingUrl)} title="Copiar link de agendamento">{bookingUrl}</button>
+              <div><strong>{isLeGras ? "App do cliente" : "Link de agendamento"}</strong><p>{isLeGras ? "Envie este link para seus clientes acessarem seu app." : "Envie este link para clientes novos e antigos, eles poderão fazer cadastro/login e acessar a Agenda da sua barbearia."}</p></div>
+              <button type="button" className="useful-link-value" onClick={() => void copyLink(bookingUrl)} title={isLeGras ? "Copiar link do app do cliente" : "Copiar link de agendamento"}>{bookingUrl}</button>
               <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(bookingUrl)}>Copiar link</button></div>
             </article>
             <article className="useful-link-row">
-              <div><strong>Acesso ao App do Barbeiro</strong><p>Envie este link para o profissional acessar a agenda e o caixa da barbearia.</p></div>
-              <button type="button" className="useful-link-value" onClick={() => void copyLink(barberAccessUrl)} title="Copiar link do App do Barbeiro">{barberAccessUrl}</button>
+              <div><strong>{isLeGras ? "App da equipe" : "Acesso ao App do Barbeiro"}</strong><p>{isLeGras ? "Envie este link para o profissional da sua equipe poder acessar o app da equipe." : "Envie este link para o profissional acessar a agenda e o caixa da barbearia."}</p></div>
+              <button type="button" className="useful-link-value" onClick={() => void copyLink(barberAccessUrl)} title={isLeGras ? "Copiar link do app da equipe" : "Copiar link do App do Barbeiro"}>{barberAccessUrl}</button>
               <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(barberAccessUrl)}>Copiar link</button><Link className="button button--soft" href={barberAccessPath}>Abrir app</Link></div>
             </article>
           </div>
@@ -278,7 +282,7 @@ export function SettingsManager(props: Props) {
           </article>
         </div>
       </Panel>
-      <Panel title="Dados da Barbearia" className={styles.span7}>
+      <Panel title={isLeGras ? "Dados do seu Estúdio" : "Dados da Barbearia"} className={styles.span7}>
         <form className={styles.form} onSubmit={saveOrganization}>
           <Field label="Nome"><input name="name" required minLength={2} defaultValue={props.organization.name} /></Field>
           <Field label="Nome de usuário"><input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" defaultValue={props.organization.slug} /></Field>
@@ -288,7 +292,7 @@ export function SettingsManager(props: Props) {
           <button className={`${styles.button} ${styles.formWide}`} type="submit">Salvar regras</button>
         </form>
       </Panel>
-      <Panel title="Unidade" description="Uma unidade ativa no MVP" className={styles.span5}>
+      <Panel title="Unidade" className={styles.span5}>
         <form className={styles.form} onSubmit={saveLocation}>
           <Field label="Nome" wide><input name="name" required minLength={2} defaultValue={location?.name ?? "Unidade principal"} /></Field>
           <Field label="Rua"><input name="street" defaultValue={address.street ?? ""} /></Field><Field label="Número"><input name="number" defaultValue={address.number ?? ""} /></Field>
@@ -308,7 +312,7 @@ export function SettingsManager(props: Props) {
     </section>}
     <Panel title="Integrações" description="Apenas IDs e estados públicos são exibidos; tokens ficam no Vault.">
       <div className={styles.list}>
-        <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Gerenciar minha assinatura</strong><StatusChip active={["TRIALING", "ACTIVE", "GRACE"].includes(props.subscription?.status ?? "")} label={props.subscription?.status ?? "NÃO INICIADO"} /></span><p>Assinatura, trial, carência e cobrança geridos pelo Stripe.</p></div><span className={styles.toolbarGroup}><Link className={`${styles.button} ${styles.buttonSoft}`} href="/regularizacao">Abrir cobrança</Link><Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/configuracoes/modulos">Módulos</Link></span></article>
+        <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Gerenciar minha assinatura</strong><StatusChip active={["TRIALING", "ACTIVE", "GRACE"].includes(props.subscription?.status ?? "")} label={props.subscription?.status ?? "NÃO INICIADO"} /></span><p>Assinatura, trial, carência e cobrança geridos pelo Stripe.</p></div><span className={styles.toolbarGroup}><Link className={`${styles.button} ${styles.buttonSoft}`} href={billingPath}>Abrir cobrança</Link><Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/configuracoes/modulos">Módulos</Link></span></article>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Mercado Pago</strong><StatusChip active={mpConnected} label={props.merchant?.status ?? "NÃO CONECTADO"} /></span><p>{props.merchant?.external_account_id ? `Conta ${props.merchant.external_account_id}` : "OAuth por tenant; credenciais nunca chegam ao navegador."}</p></div><button className={styles.button} type="button" onClick={connectMercadoPago} disabled={connecting}>{connecting ? "Abrindo…" : mpConnected ? "Reconectar" : "Conectar conta"}</button></article>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>WhatsApp</strong><StatusChip active={whatsappConnected} label={whatsappConnected ? "CONECTADO" : "PENDENTE"} /></span><p>{whatsappConnected ? "Integração ativa para confirmações, lembretes e ações seguras." : "Configure Meta Cloud API ou QR Web na página exclusiva da integração."}</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/configuracoes/whatsapp">Abrir integração</Link></article>
       </div>

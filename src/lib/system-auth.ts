@@ -4,6 +4,7 @@ const systemAuthDestinations = new Set([
   "/gestor",
   "/onboarding",
   "/regularizacao",
+  "/le-gras/regularizacao",
   "/display-admin",
 ]);
 

@@ -6,14 +6,21 @@ import { AlertTriangle, ArrowRight, Check, CheckCircle2, ChevronDown, CreditCard
 import { Brand } from "@/components/brand";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { BillingStatus } from "@/lib/domain/types";
+import { productBillingPath, type ProductKey } from "@/lib/product-routes";
+import { LE_GRAS_IDENTITY_FALLBACK, productIdentityStyle } from "@/lib/product-identity";
 
-export function BillingRegularization({ organizationId, billingStatus, graceEndsAt, retentionEndsAt }: { organizationId: string | null; billingStatus: BillingStatus | null; graceEndsAt?: string | null; retentionEndsAt?: string | null }) {
+export function BillingRegularization({ organizationId, billingStatus, graceEndsAt, retentionEndsAt, productKey = "los-barberos" }: { organizationId: string | null; billingStatus: BillingStatus | null; graceEndsAt?: string | null; retentionEndsAt?: string | null; productKey?: ProductKey }) {
   const [demoPortalOpen, setDemoPortalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const active = billingStatus === "ACTIVE" || billingStatus === "TRIALING";
   const grace = billingStatus === "GRACE";
   const retention = billingStatus === "CANCELED_RETENTION";
+  const isLeGras = productKey === "le-gras";
+  const productName = isLeGras ? LE_GRAS_IDENTITY_FALLBACK.brand.name : "Los Barberos";
+  const organizationTerm = isLeGras ? "estúdio" : "barbearia";
+  const billingPath = productBillingPath(productKey);
+  const identityStyle = isLeGras ? productIdentityStyle(LE_GRAS_IDENTITY_FALLBACK) : undefined;
   const formatDeadline = (value?: string | null) => value
     ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "long" }).format(new Date(value))
     : "prazo informado pelo Stripe";
@@ -28,7 +35,7 @@ export function BillingRegularization({ organizationId, billingStatus, graceEnds
     setLoading(true);
     setError("");
     const { data, error: invokeError } = await supabase.functions.invoke("stripe-create-portal", {
-      body: { organizationId, returnPath: "/regularizacao" },
+      body: { organizationId, returnPath: billingPath },
       headers: { "Idempotency-Key": crypto.randomUUID() },
     });
     setLoading(false);
@@ -43,10 +50,10 @@ export function BillingRegularization({ organizationId, billingStatus, graceEnds
   }
 
   return (
-    <div className="billing-page">
-      <header className="billing-topbar"><Brand href="/gestor" /><div><span>Plano da sua organização</span><i>LB</i></div></header>
+    <div className={`billing-page${isLeGras ? " billing-page--le-gras" : ""}`} style={identityStyle}>
+      <header className="billing-topbar"><Brand href="/gestor" name={isLeGras ? LE_GRAS_IDENTITY_FALLBACK.brand.name : undefined} tagline={isLeGras ? "fotografia que conta histórias" : undefined} mark={isLeGras ? LE_GRAS_IDENTITY_FALLBACK.brand.mark : undefined} /><div><span>Plano da sua organização</span><i>{isLeGras ? "LG" : "LB"}</i></div></header>
       <main className="billing-main">
-        <div className="billing-heading"><span className="eyebrow">Plano e cobrança</span><h1>{active ? "Assinatura em dia." : retention ? "Assinatura cancelada." : grace ? "Sua conta está em carência." : "Vamos colocar sua barbearia em dia."}</h1><p>{active ? "O Stripe confirmou o estado da assinatura por webhook." : retention ? `A operação foi encerrada. Exporte os dados até ${formatDeadline(retentionEndsAt)}.` : grace ? `O acesso continua completo até ${formatDeadline(graceEndsAt)} enquanto você regulariza o pagamento.` : "Novas reservas e reagendamentos estão pausados. Compromissos existentes continuam seguros."}</p></div>
+        <div className="billing-heading"><span className="eyebrow">Plano e cobrança</span><h1>{active ? "Assinatura em dia." : retention ? "Assinatura cancelada." : grace ? "Sua conta está em carência." : `Vamos colocar seu ${organizationTerm} em dia.`}</h1><p>{active ? "O Stripe confirmou o estado da assinatura por webhook." : retention ? `A operação foi encerrada. Exporte os dados até ${formatDeadline(retentionEndsAt)}.` : grace ? `O acesso continua completo até ${formatDeadline(graceEndsAt)} enquanto você regulariza o pagamento.` : "Novas reservas e reagendamentos estão pausados. Compromissos existentes continuam seguros."}</p></div>
         {active ? (
           <section className="billing-success-card"><span><Check size={31} /></span><h2>Assinatura ativa</h2><p>Recebemos a confirmação do Stripe e liberamos todas as funções.</p><div><span><small>Plano</small><strong>Plano vigente no Stripe</strong></span><span><small>Próxima cobrança</small><strong>Consulte no Customer Portal</strong></span><span><small>Valor</small><strong>Confirmado pelo Stripe Price</strong></span></div><Link href="/gestor" className="button button--dark">Voltar ao painel <ArrowRight size={17} /></Link></section>
         ) : (
@@ -57,19 +64,19 @@ export function BillingRegularization({ organizationId, billingStatus, graceEnds
                 <button type="button" className="button button--dark button--block" onClick={openPortal} disabled={loading}><CreditCard size={17} /> {loading ? "Abrindo portal seguro..." : "Abrir Customer Portal"} <ExternalLink size={15} /></button>
                 {retention && <Link href="/gestor/configuracoes" className="button button--soft button--block">Exportar dados da organização <FileText size={16} /></Link>}
                 {error && <p className="billing-portal-error" role="alert">{error}</p>}
-                {demoPortalOpen && <div className="billing-portal-demo"><div><LockKeyhole size={17} /><span><strong>Redirecionamento seguro · demonstração</strong><small>Com Supabase e Stripe configurados, este botão cria uma sessão do Customer Portal e redireciona para stripe.com. Nenhum dado de cartão passa pelo Los Barberos.</small></span></div><button type="button" className="button button--soft button--block" onClick={() => setDemoPortalOpen(false)}>Entendi</button></div>}
+                {demoPortalOpen && <div className="billing-portal-demo"><div><LockKeyhole size={17} /><span><strong>Redirecionamento seguro · demonstração</strong><small>Com Supabase e Stripe configurados, este botão cria uma sessão do Customer Portal e redireciona para stripe.com. Nenhum dado de cartão passa pelo {productName}.</small></span></div><button type="button" className="button button--soft button--block" onClick={() => setDemoPortalOpen(false)}>Entendi</button></div>}
               </section>
               <section className="billing-keep-running"><h2>O que continua funcionando</h2><div><span><CheckCircle2 size={18} /><strong>Agenda existente</strong><small>Visualize e conclua atendimentos marcados.</small></span><span><CheckCircle2 size={18} /><strong>Reembolsos</strong><small>Cancele e devolva valores quando necessário.</small></span><span><CheckCircle2 size={18} /><strong>Lembretes</strong><small>Mensagens já programadas seguem normalmente.</small></span></div></section>
             </div>
             <aside className="billing-aside">
-              <section className="panel current-plan"><span className="current-plan__tag">Plano atual</span><h2>Plano vigente no Stripe</h2><div className="current-plan__dynamic"><strong>Valor e ciclo</strong><small>definidos no Stripe Price</small></div><ul><li><Check size={15} /> Uma unidade no MVP</li><li><Check size={15} /> Agenda e clientes</li><li><Check size={15} /> Pagamentos e WhatsApp</li><li><Check size={15} /> Comissões e relatórios</li></ul><button type="button" onClick={openPortal}>Ver detalhes no portal <ChevronDown size={14} /></button></section>
-              <section className="panel billing-security"><ShieldCheck size={22} /><h3>Pagamento seguro</h3><p>Dados do cartão são processados pelo Stripe. Los Barberos não armazena o número completo.</p></section>
-              <section className="billing-support"><span>Precisa de ajuda?</span><p>Nossa equipe responde em horário comercial.</p><a href="mailto:suporte@losbarberos.com.br">Falar com suporte <ArrowRight size={15} /></a></section>
+              <section className="panel current-plan"><span className="current-plan__tag">Plano atual</span><h2>Plano vigente no Stripe</h2><div className="current-plan__dynamic"><strong>Valor e ciclo</strong><small>definidos no Stripe Price</small></div><ul><li><Check size={15} /> Uma unidade ativa</li><li><Check size={15} /> Agenda e clientes</li><li><Check size={15} /> Pagamentos e WhatsApp</li><li><Check size={15} /> Comissões e relatórios</li></ul><button type="button" onClick={openPortal}>Ver detalhes no portal <ChevronDown size={14} /></button></section>
+              <section className="panel billing-security"><ShieldCheck size={22} /><h3>Pagamento seguro</h3><p>Dados do cartão são processados pelo Stripe. {productName} não armazena o número completo.</p></section>
+              <section className="billing-support"><span>Precisa de ajuda?</span><p>Nossa equipe responde em horário comercial.</p><a href={isLeGras ? "mailto:contato@displaysh.com" : "mailto:suporte@losbarberos.com.br"}>Falar com suporte <ArrowRight size={15} /></a></section>
             </aside>
           </div>
         )}
       </main>
-      <footer className="billing-footer"><span><ShieldCheck size={14} /> Conexão segura</span><span>Los Barberos · Suporte · Privacidade</span></footer>
+      <footer className="billing-footer"><span><ShieldCheck size={14} /> Conexão segura</span><span>{productName} · Suporte · Privacidade</span></footer>
     </div>
   );
 }

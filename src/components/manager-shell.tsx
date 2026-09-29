@@ -27,6 +27,7 @@ import type { ProductIdentityConfig } from "@/lib/product-identity";
 import { LE_GRAS_IDENTITY_FALLBACK, productIdentityStyle } from "@/lib/product-identity";
 import { systemLoginHref } from "@/lib/system-auth";
 import type { ProductKey } from "@/lib/product-context";
+import { productBillingPath } from "@/lib/product-routes";
 
 const navigation = [
   { href: "/gestor", label: "Visão geral", icon: LayoutDashboard, exact: true },
@@ -56,7 +57,7 @@ export function useManagerBillingBlocked() {
   return useContext(ManagerBillingContext);
 }
 
-function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled }: { onNavigate?: () => void; agendaCount: number; projectsModuleEnabled: boolean }) {
+function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled, productKey }: { onNavigate?: () => void; agendaCount: number; projectsModuleEnabled: boolean; productKey: ProductKey }) {
   const pathname = usePathname() ?? "";
   const visibleNavigation = navigation.filter((item) => item.module !== "projects" || projectsModuleEnabled);
 
@@ -106,7 +107,7 @@ function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled }: {
         <Settings2 size={19} strokeWidth={1.8} />
         <span>Configurações</span>
       </Link>
-      <Link href="/regularizacao" onClick={onNavigate}>
+      <Link href={productBillingPath(productKey)} onClick={onNavigate}>
         <CircleHelp size={19} strokeWidth={1.8} />
         <span>Ajuda e plano</span>
       </Link>
@@ -230,7 +231,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           <Brand href="/gestor" light name={identity?.brand.name} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
         </div>
           <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={identity?.vocabulary.organization ?? "barbearia"} />
-        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} />
+        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} productKey={productKey} />
         <div className="manager-sidebar__footer">
           {managerProfile}
         </div>
@@ -252,7 +253,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           </button>
         </div>
         <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={identity?.vocabulary.organization ?? "barbearia"} />
-        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} onNavigate={() => setMenuOpen(false)} />
+        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} productKey={productKey} onNavigate={() => setMenuOpen(false)} />
         <div className="manager-sidebar__footer">
           {managerProfile}
         </div>
@@ -285,7 +286,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           </div>
         </header>
         {demoMode && <div className="demo-mode-banner"><Sparkles size={14} /><span><strong>Modo demonstração</strong> · dados locais para explorar a interface</span></div>}
-        {billingBlocked && <div className="billing-restriction-banner"><CircleHelp size={14} /><span><strong>Acesso restrito por cobrança.</strong> Compromissos existentes seguem disponíveis; novas reservas e reagendamentos são bloqueados pelo servidor.</span><Link href="/regularizacao">Regularizar plano</Link></div>}
+        {billingBlocked && <div className="billing-restriction-banner"><CircleHelp size={14} /><span><strong>Acesso restrito por cobrança.</strong> Compromissos existentes seguem disponíveis; novas reservas e reagendamentos são bloqueados pelo servidor.</span><Link href={productBillingPath(productKey)}>Regularizar plano</Link></div>}
         <main className="manager-main">{children}</main>
       </div>
 
