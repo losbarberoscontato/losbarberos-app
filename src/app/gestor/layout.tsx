@@ -6,6 +6,7 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { appointments as demoAppointments } from "@/data/demo";
 import { isProductIdentityConfig, type ProductIdentityConfig } from "@/lib/product-identity";
+import { parseProductKey, type ProductKey } from "@/lib/product-context";
 
 export const metadata: Metadata = { title: "Painel do gestor" };
 
@@ -25,6 +26,7 @@ export default async function GestorLayout({ children }: { children: React.React
   let userName = "Gestor";
   let projectsModuleEnabled = false;
   let identity: ProductIdentityConfig | undefined;
+  let productKey: ProductKey = "los-barberos";
   let agendaCount = demoAppointments.filter((appointment) => appointment.date === new Intl.DateTimeFormat("en-CA").format(new Date())).length;
   if (context?.organizationId) {
     const supabase = await getSupabaseServerClient();
@@ -37,6 +39,7 @@ export default async function GestorLayout({ children }: { children: React.React
         supabase.from("organization_product_assignments").select("product_key").eq("organization_id", context.organizationId).maybeSingle(),
       ]);
       if (assignment?.product_key) {
+        productKey = parseProductKey(assignment.product_key) ?? "los-barberos";
         const { data: publishedIdentity } = await supabase.from("platform_product_identities").select("config").eq("product_key", assignment.product_key).maybeSingle();
         if (isProductIdentityConfig(publishedIdentity?.config)) identity = publishedIdentity.config;
       }
@@ -58,7 +61,7 @@ export default async function GestorLayout({ children }: { children: React.React
   }
 
   return (
-    <ManagerShell agendaCount={agendaCount} organizationId={context?.organizationId} demoMode={!hasSupabaseConfig} projectsModuleEnabled={hasSupabaseConfig ? projectsModuleEnabled : true} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} organizationLogoUrl={organizationLogoUrl} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"} identity={identity}>
+    <ManagerShell agendaCount={agendaCount} organizationId={context?.organizationId} demoMode={!hasSupabaseConfig} projectsModuleEnabled={hasSupabaseConfig ? projectsModuleEnabled : true} billingBlocked={context?.billingStatus === "BLOCKED"} organizationName={hasSupabaseConfig ? organizationName : "Los Barberos"} organizationLogoUrl={organizationLogoUrl} locationName={hasSupabaseConfig ? locationName : "Vila Madalena"} userName={hasSupabaseConfig ? userName : "Guilherme Castro"} identity={identity} productKey={productKey}>
       {children}
     </ManagerShell>
   );

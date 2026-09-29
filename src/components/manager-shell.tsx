@@ -25,6 +25,8 @@ import { Avatar } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { ProductIdentityConfig } from "@/lib/product-identity";
 import { productIdentityStyle } from "@/lib/product-identity";
+import { systemLoginHref } from "@/lib/system-auth";
+import type { ProductKey } from "@/lib/product-context";
 
 const navigation = [
   { href: "/gestor", label: "Visão geral", icon: LayoutDashboard, exact: true },
@@ -135,7 +137,7 @@ function OrganizationSwitcher({ organizationName, locationName, organizationLogo
 
 type ManagerNotification = { id: string; title: string; body: string; href: string; read_at: string | null; created_at: string };
 
-export function ManagerShell({ children, demoMode = false, billingBlocked = false, projectsModuleEnabled = false, organizationId, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0, identity }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; projectsModuleEnabled?: boolean; organizationId?: string | null; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number; identity?: ProductIdentityConfig }) {
+export function ManagerShell({ children, demoMode = false, billingBlocked = false, projectsModuleEnabled = false, organizationId, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0, identity, productKey = "los-barberos" }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; projectsModuleEnabled?: boolean; organizationId?: string | null; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number; identity?: ProductIdentityConfig; productKey?: ProductKey }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -186,7 +188,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
         const { error } = await supabase.auth.signOut({ scope: "local" });
         if (error) throw error;
       }
-      router.replace("/entrar");
+      router.replace(systemLoginHref("signin", "/gestor", productKey));
     } catch {
       setSignOutError("Não foi possível sair. Tente novamente.");
       setSigningOut(false);
