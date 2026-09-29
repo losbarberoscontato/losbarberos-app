@@ -1,0 +1,53 @@
+.header:global(.system-login-page__header) {
+  position: relative;
+  justify-content: center;
+  min-height: 88px;
+}
+
+.logoLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: 100%;
+}
+
+.logo {
+  display: block;
+  width: 270px;
+  max-width: 75vw;
+  height: auto;
+}
+
+.logoThemed {
+  filter: brightness(0) saturate(100%) invert(83%) sepia(40%) saturate(600%) hue-rotate(355deg) brightness(100%) contrast(92%);
+}
+
+.backLink:global(.system-login-page__back) {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 580px) {
+  .header:global(.system-login-page__header) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 3px;
+    min-height: 0;
+  }
+
+  .logo {
+    width: min(250px, 78vw);
+    max-width: 100%;
+  }
+
+  .backLink:global(.system-login-page__back) {
+    position: static;
+    justify-self: end;
+    transform: none;
+  }
+}
