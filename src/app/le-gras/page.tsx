@@ -31,7 +31,7 @@ export default async function LeGrasPage() {
 
       <section className={styles.hero}>
         <div className={styles.copy}>
-          <h1>Histórias que ficam.<br /><em>Uma rotina mais leve.</em></h1>
+          <h1><span className={styles.purpleTitle}>Histórias que ficam.</span><br /><em>Uma rotina mais leve.</em></h1>
           <p>Le Gras reúne clientes, agenda, projetos e gestão para organizar a rotina de estúdios fotográficos em um só espaço.</p>
           <Link href="/le-gras/entrar?modo=cadastro" className={`button button--accent button--lg ${styles.primaryAction}`}>
             Criar meu estúdio

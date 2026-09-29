@@ -23,14 +23,14 @@
 .loginLink {
   grid-column: 3;
   justify-self: end;
-  color: #38574b;
+  color: #59366f;
   font-size: 14px;
   font-weight: 700;
   text-decoration: none;
 }
 
 .loginLink:hover {
-  color: #8d6531;
+  color: #29143d;
 }
 
 .hero {
@@ -51,6 +51,10 @@
   font: 650 clamp(48px, 6.1vw, 82px)/0.98 var(--font-display, Georgia, serif);
   letter-spacing: -0.04em;
   text-wrap: balance;
+}
+
+.purpleTitle {
+  color: #59366f;
 }
 
 .copy h1 em {
