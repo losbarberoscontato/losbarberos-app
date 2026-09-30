@@ -10,7 +10,7 @@ type ProductComingSoonProps = {
 
 const brandAssets = {
   ProStetic: "/display-sh/pro-stetic.png",
-  MusicPro: "/display-sh/music-pro.png",
+  MusicPro: "/music-pro/logo-neon.png",
 } as const;
 
 export function ProductComingSoon({ brand, audience, context = "home" }: ProductComingSoonProps) {

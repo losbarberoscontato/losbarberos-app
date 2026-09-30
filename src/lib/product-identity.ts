@@ -42,19 +42,25 @@ export const MUSIC_PRO_IDENTITY_FALLBACK: ProductIdentityConfig = {
     name: "MusicPro",
     tagline: "Gestão para escolas de música",
     mark: "MP",
-    logoUrl: "/display-sh/music-pro.png",
+    logoUrl: "/music-pro/logo-neon.png",
   },
   colors: {
-    primary: "#12352e",
-    secondary: "#2f6b5d",
-    accent: "#d49a55",
-    background: "#f7f3eb",
-    surface: "#fffefa",
-    text: "#16211e",
-    muted: "#697570",
-    border: "#e4ded2",
-    success: "#31705d",
-    danger: "#a84545",
+    primary: "#06233b",
+    secondary: "#075a96",
+    accent: "#00a6ff",
+    background: "#f1f8fd",
+    surface: "#ffffff",
+    text: "#0b1f33",
+    muted: "#536b80",
+    border: "#d3e3ef",
+    success: "#277b5a",
+    danger: "#b43b45",
+    primarySoft: "#dceeff",
+    accentSoft: "#d9f2ff",
+    accentDeep: "#075a96",
+    accentHover: "#008bd5",
+    accentTint: "#e9f7ff",
+    focusRing: "#35bdfc",
   },
   fonts: { interface: "Inter", display: "Baskerville" },
   vocabulary: {
@@ -83,7 +89,7 @@ export function productIdentityStyle(identity?: ProductIdentityConfig | null): C
   if (!identity) return undefined;
   const colors = identity.colors;
   if (!COLOR_TOKENS.every((key) => /^#[\da-f]{6}$/i.test(colors[key] ?? ""))) return undefined;
-  return {
+  const style: Record<string, string> = {
     "--forest-950": colors.primary,
     "--forest-900": colors.primary,
     "--forest-800": colors.secondary,
@@ -109,5 +115,21 @@ export function productIdentityStyle(identity?: ProductIdentityConfig | null): C
     "--manager-action-soft-text": colors.secondary,
     "--font-sans": `${identity.fonts.interface}, sans-serif`,
     "--font-display": `${identity.fonts.display}, Georgia, serif`,
-  } as CSSProperties;
+  };
+
+  const optionalColorTokens: Record<string, string[]> = {
+    primarySoft: ["--sage-100"],
+    accentSoft: ["--sage-50", "--amber-50", "--blue-soft"],
+    accentDeep: ["--amber-700", "--blue"],
+    accentHover: ["--amber-600", "--amber-500"],
+    accentTint: ["--amber-100"],
+    focusRing: ["--focus-ring"],
+  };
+  for (const [key, variables] of Object.entries(optionalColorTokens)) {
+    const value = colors[key];
+    if (/^#[\da-f]{6}$/i.test(value ?? "")) {
+      for (const variable of variables) style[variable] = value;
+    }
+  }
+  return style as CSSProperties;
 }

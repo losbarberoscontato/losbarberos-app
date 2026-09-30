@@ -19,7 +19,7 @@ export default async function MusicProPage() {
     <main className={styles.page} style={productIdentityStyle(identity)}>
       <header className={styles.header}>
         <Link href="/music-pro" className={styles.logo} aria-label="MusicPro — página inicial">
-          <Image src={identity?.brand.logoUrl || "/display-sh/music-pro.png"} alt="MusicPro — Escolas de Música" width={277} height={83} priority />
+          <Image src={identity?.brand.logoUrl || "/music-pro/logo-neon.png"} alt="MusicPro — Escolas de Música" width={277} height={83} priority />
         </Link>
         <Link href="/music-pro/entrar?modo=login" className={styles.login}>Entrar</Link>
       </header>

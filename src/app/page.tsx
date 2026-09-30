@@ -64,7 +64,7 @@ const products = [
     name: "MusicPro",
     audience: "Escolas de música",
     state: "Em breve",
-    image: "/display-sh/music-pro.png",
+    image: "/music-pro/logo-neon.png",
     alt: "Logomarca MusicPro — escolas de música",
     className: "ecosystem-product--music-pro",
     available: false,

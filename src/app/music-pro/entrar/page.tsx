@@ -18,7 +18,7 @@ export default async function MusicProLoginPage({ searchParams }: PageProps<"/mu
   const identity = await getPublishedProductIdentity("music-pro");
   const initialMode = resolveSystemAuthMode(params.modo);
   const nextPath = resolveSystemAuthDestination(params.next);
-  const logo = identity?.brand.logoUrl || "/display-sh/music-pro.png";
+  const logo = identity?.brand.logoUrl || "/music-pro/logo-neon.png";
 
   return (
     <main className="system-login-page" style={productIdentityStyle(identity)}>

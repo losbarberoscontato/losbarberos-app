@@ -13,7 +13,7 @@ const PRODUCTS: { key: ProductKey; name: string; segment: string; mark: string }
   { key: "pro-stetic", name: "ProStetic", segment: "Estética e beleza", mark: "PS" },
   { key: "music-pro", name: "MusicPro", segment: "Escolas de música", mark: "MP" },
 ];
-const COLOR_LABELS: Record<string, string> = { primary: "Cor principal", secondary: "Cor secundária", accent: "Destaque", background: "Fundo", surface: "Superfície", text: "Texto", muted: "Texto auxiliar", border: "Bordas", success: "Sucesso", danger: "Erro" };
+const COLOR_LABELS: Record<string, string> = { primary: "Cor principal", secondary: "Cor secundária", accent: "Destaque", background: "Fundo", surface: "Superfície", text: "Texto", muted: "Texto auxiliar", border: "Bordas", success: "Sucesso", danger: "Erro", primarySoft: "Fundo suave da marca", accentSoft: "Destaque suave", accentDeep: "Destaque escuro", accentHover: "Destaque ao passar o cursor", accentTint: "Realce claro", focusRing: "Anel de foco" };
 const VOCAB_LABELS: Record<string, string> = { organization: "Organização (singular)", organizationPlural: "Organização (plural)", professional: "Profissional (singular)", professionalPlural: "Profissional (plural)", customer: "Cliente (singular)", customerPlural: "Cliente (plural)", service: "Serviço (singular)", servicePlural: "Serviço (plural)", teamApp: "Nome do app da equipe", organizationPicker: "Seletor da organização" };
 const TABS = [{ key: "vocabulary", label: "Vocabulário", icon: BookText }, { key: "colors", label: "Cores", icon: Palette }, { key: "logos", label: "Logomarcas", icon: ImagePlus }, { key: "copy", label: "Frases e fontes", icon: Type }] as const;
 

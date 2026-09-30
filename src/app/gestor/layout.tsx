@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
 import { ManagerShell } from "@/components/manager-shell";
 import { getAccessContext } from "@/lib/auth/context";
@@ -12,8 +12,11 @@ import { productLoginPath } from "@/lib/product-routes";
 
 export async function generateMetadata(): Promise<Metadata> {
   const productKey = await getSelectedProductKey();
+  const productName = productKey === "music-pro" ? "MusicPro" : productKey === "le-gras" ? "Le Gras" : "Los Barberos";
   return {
     title: "Painel do gestor",
+    applicationName: productName,
+    appleWebApp: { capable: true, title: productName, statusBarStyle: "black-translucent" },
     icons: {
       icon: productKey === "le-gras"
         ? [{ url: "/le-gras/icon.svg", type: "image/svg+xml" }]
@@ -23,6 +26,11 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: "/icon-192.png",
     },
   };
+}
+
+export async function generateViewport(): Promise<Viewport> {
+  const productKey = await getSelectedProductKey();
+  return { themeColor: productKey === "music-pro" ? "#06233b" : productKey === "le-gras" ? "#29143d" : "#12352e" };
 }
 
 export default async function GestorLayout({ children }: { children: React.ReactNode }) {

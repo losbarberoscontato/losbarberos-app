@@ -8,7 +8,7 @@
 .copy { max-width: 600px; }
 .eyebrow { display: inline-block; color: var(--amber-700, #9b642c); font-size: 11px; font-weight: 850; letter-spacing: .16em; }
 .copy h1 { margin-top: 22px; font: 700 clamp(52px, 6.3vw, 88px)/.99 var(--font-display, Georgia, serif); letter-spacing: -.045em; text-wrap: balance; }
-.copy h1 em { color: var(--forest-700, #2f6b5d); font-weight: 500; }
+.copy h1 em { color: var(--amber-600, #008bd5); font-weight: 500; }
 .copy p { max-width: 510px; margin-top: 23px; color: var(--muted, #697570); font-size: 17px; line-height: 1.75; }
 .cta { width: fit-content; min-height: 54px; display: inline-flex; align-items: center; gap: 12px; margin-top: 30px; padding: 0 22px; border-radius: 11px; background: var(--forest-950, #12352e); color: var(--surface, #fffefa); font-weight: 800; text-decoration: none; box-shadow: 0 10px 25px color-mix(in srgb, var(--forest-950, #12352e) 17%, transparent); }
 .cta:hover { background: var(--forest-800, #17453a); transform: translateY(-1px); }

@@ -641,6 +641,22 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .financeReportTable tbody tr:hover { background: #fafcf9; }
 .financeReportLink { padding: 0; border: 0; background: transparent; color: #2f6045; font: inherit; text-align: left; cursor: pointer; }
 .financeReportLink:hover { text-decoration: underline; }
+
+:global(.manager-shell--music-pro) .backLink,
+:global(.manager-shell--music-pro) .agendaHelpLink,
+:global(.manager-shell--music-pro) .subscriptionLink,
+:global(.manager-shell--music-pro) .eventLinkField a,
+:global(.manager-shell--music-pro) .financeReportLink {
+  color: var(--forest-700, #075a96);
+}
+:global(.manager-shell--music-pro) .backLink:hover,
+:global(.manager-shell--music-pro) .agendaHelpLink:hover,
+:global(.manager-shell--music-pro) .subscriptionLink:hover {
+  color: var(--forest-950, #06233b);
+}
+:global(.manager-shell--music-pro) .tagFilterOption input {
+  accent-color: var(--amber-500, #00a6ff);
+}
 .financeReportModalBody { display: grid; gap: .8rem; padding: 0 1.25rem 1.25rem; }
 .modalLayer { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 1rem; background: rgba(22, 32, 25, .46); }
 .modalBackdrop { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
