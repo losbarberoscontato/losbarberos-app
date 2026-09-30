@@ -62,7 +62,7 @@ function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled, pro
   const visibleNavigation = navigation.filter((item) => item.module !== "projects" || projectsModuleEnabled).map((item) => ({
     ...item,
     label: productKey === "music-pro"
-      ? item.href === "/gestor/clientes" ? "Alunos" : item.href === "/gestor/equipe" ? "Professores" : item.href === "/gestor/catalogo" ? "Aulas" : item.label
+      ? item.href === "/gestor/clientes" ? "Alunos" : item.href === "/gestor/equipe" ? "Professores" : item.href === "/gestor/catalogo" ? "Cursos" : item.label
       : item.label,
   }));
 
