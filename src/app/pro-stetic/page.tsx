@@ -19,7 +19,7 @@ export default async function ProSteticPage() {
     <main className={styles.page} style={productIdentityStyle(identity)}>
       <header className={styles.header}>
         <Link href="/pro-stetic" className={styles.logo} aria-label="ProStetic — página inicial">
-          <Image src={identity?.brand.logoUrl || "/display-sh/pro-stetic.png"} alt="ProStetic — Estética e Beleza" width={266} height={66} priority />
+          <Image src={identity?.brand.logoUrl || "/display-sh/pro-stetic-transparent.png"} alt="ProStetic — Estética e Beleza" width={266} height={66} priority />
         </Link>
         <Link href="/pro-stetic/entrar?modo=login" className={styles.login}>Entrar</Link>
       </header>

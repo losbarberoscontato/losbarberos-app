@@ -82,7 +82,7 @@ export const PRO_STETIC_IDENTITY_FALLBACK: ProductIdentityConfig = {
     name: "ProStetic",
     tagline: "Gestão para estética e beleza",
     mark: "PS",
-    logoUrl: "/display-sh/pro-stetic.png",
+    logoUrl: "/display-sh/pro-stetic-transparent.png",
   },
   colors: {
     primary: "#4d245f",

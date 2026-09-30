@@ -44,7 +44,7 @@ const products = [
     name: "ProStetic",
     audience: "Estética e beleza",
     state: "Disponível",
-    image: "/display-sh/pro-stetic.png",
+    image: "/display-sh/pro-stetic-transparent.png",
     alt: "Logomarca ProStetic — estética e beleza",
     className: "ecosystem-product--pro-stetic",
     available: true,

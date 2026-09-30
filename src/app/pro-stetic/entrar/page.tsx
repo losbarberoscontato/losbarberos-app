@@ -18,7 +18,7 @@ export default async function ProSteticLoginPage({ searchParams }: PageProps<"/p
   const identity = await getPublishedProductIdentity("pro-stetic");
   const initialMode = resolveSystemAuthMode(params.modo);
   const nextPath = resolveSystemAuthDestination(params.next);
-  const logo = identity?.brand.logoUrl || "/display-sh/pro-stetic.png";
+  const logo = identity?.brand.logoUrl || "/display-sh/pro-stetic-transparent.png";
 
   return (
     <main className="system-login-page" style={productIdentityStyle(identity)}>
