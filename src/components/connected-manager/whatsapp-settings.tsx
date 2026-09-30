@@ -332,12 +332,12 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     };
   }, [qrConnection?.status, visibleQrCode, refreshStatus]);
 
-  return <div className={`${styles.stack} settings-page`}>
+  return <div className={`${styles.stack} settings-page ${isMusicPro ? styles.musicProWhatsApp : ""}`}>
     <PageHeader title="WhatsApp" description={`Conecte o WhatsApp da ${organizationName} e automatize avisos transacionais.`} />
     <ActionMessage message={message} />
     {!schemaReady && <p className={styles.message}>A estrutura conectada desta integração ainda aguarda a migration remota. A tela está pronta, mas salvar e conectar ficará disponível após a aplicação autorizada.</p>}
 
-    <section className={`${styles.whatsappHero} ${isLeGras ? styles.whatsappHeroLeGras : isProStetic ? styles.whatsappHeroProStetic : ""}`} aria-labelledby="whatsapp-title">
+    <section className={`${styles.whatsappHero} ${isLeGras ? styles.whatsappHeroLeGras : isProStetic ? styles.whatsappHeroProStetic : isMusicPro ? styles.whatsappHeroMusicPro : ""}`} aria-labelledby="whatsapp-title">
       <div>
         <span className={styles.whatsappEyebrow}>{isLeGras || isMusicPro || isProStetic ? "INTEGRAÇÃO WHATSAPP" : "INTEGRAÇÃO POR BARBEARIA"}</span>
         <h1 id="whatsapp-title">{isMusicPro ? "WhatsApp da sua escola" : isProStetic ? "WhatsApp do seu estúdio" : "WhatsApp da sua operação"}</h1>
