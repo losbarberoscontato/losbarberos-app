@@ -65,6 +65,8 @@ Deno.serve((request) => {
       ? requiredEnv("STRIPE_PRICE_ID_LE_GRAS")
       : productKey === "music-pro"
       ? requiredEnv("STRIPE_PRICE_ID_MUSIC_PRO")
+      : productKey === "pro-stetic"
+      ? requiredEnv("STRIPE_PRICE_ID_PRO_STETIC")
       : productKey === "los-barberos"
       ? Deno.env.get("STRIPE_PRICE_ID_LOS_BARBEROS")?.trim() ||
         requiredEnv("STRIPE_PRICE_ID")

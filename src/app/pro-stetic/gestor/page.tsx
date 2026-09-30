@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { ProductComingSoon } from "@/components/product-coming-soon";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: { absolute: "Painel ProStetic — em breve | Display SH" } };
-
-export default function ProSteticManagerPage() {
-  return <ProductComingSoon brand="ProStetic" audience="estética e beleza" context="manager" />;
+export default function ProSteticManagerEntry() {
+  redirect("/pro-stetic/entrar?modo=login&next=%2Fgestor");
 }

@@ -11,9 +11,9 @@ import { systemLoginHref } from "@/lib/system-auth";
 export async function generateMetadata({ searchParams }: PageProps<"/onboarding">): Promise<Metadata> {
   const params = await searchParams;
   const productKey = parseProductKey(params.produto) ?? await getSelectedProductKey();
-  const productName = productKey === "le-gras" ? "Le Gras" : productKey === "music-pro" ? "MusicPro" : "Los Barberos";
-  const icon = productKey === "le-gras" ? "/le-gras/icon.svg" : productKey === "music-pro" ? "/music-pro/icon.svg" : "/icon.svg";
-  return { title: `Criar ${productKey === "le-gras" ? "estúdio" : productKey === "music-pro" ? "escola" : "barbearia"} | ${productName}`, icons: { icon, apple: "/icon-192.png" } };
+  const productName = productKey === "le-gras" ? "Le Gras" : productKey === "music-pro" ? "MusicPro" : productKey === "pro-stetic" ? "ProStetic" : "Los Barberos";
+  const icon = productKey === "le-gras" ? "/le-gras/icon.svg" : productKey === "music-pro" ? "/music-pro/icon.svg" : productKey === "pro-stetic" ? "/pro-stetic/icon.svg" : "/icon.svg";
+  return { title: `Criar ${productKey === "le-gras" || productKey === "pro-stetic" ? "estúdio" : productKey === "music-pro" ? "escola" : "barbearia"} | ${productName}`, icons: { icon, apple: "/icon-192.png" } };
 }
 
 export default async function OnboardingPage({ searchParams }: PageProps<"/onboarding">) {
@@ -27,5 +27,5 @@ export default async function OnboardingPage({ searchParams }: PageProps<"/onboa
   if (context?.role === "CLIENT") redirect("/cliente/agendar");
 
   const identity = await getPublishedProductIdentity(productKey);
-  return <OnboardingFlow demoMode={!hasSupabaseConfig} existingOrganizationId={context?.role === "OWNER" ? context.organizationId : null} productKey={productKey} productName={identity?.vocabulary.organization ?? (productKey === "le-gras" ? "estúdio" : productKey === "music-pro" ? "escola" : "barbearia")} identity={identity} identityStyle={productIdentityStyle(identity)} />;
+  return <OnboardingFlow demoMode={!hasSupabaseConfig} existingOrganizationId={context?.role === "OWNER" ? context.organizationId : null} productKey={productKey} productName={identity?.vocabulary.organization ?? (productKey === "le-gras" || productKey === "pro-stetic" ? "estúdio" : productKey === "music-pro" ? "escola" : "barbearia")} identity={identity} identityStyle={productIdentityStyle(identity)} />;
 }

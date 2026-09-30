@@ -79,7 +79,7 @@ export default async function DisplayAdminPage() {
             <section className="display-admin__panel display-admin__catalog">
               <header><div><h2>Produtos do ecossistema</h2><p>Identidade, segmento e estado de cada sistema.</p></div><button type="button" aria-label="Mais opções">•••</button></header>
               <div className="display-admin__table-wrap"><table><thead><tr><th>PRODUTO</th><th>SEGMENTO</th><th>STATUS</th><th>MÓDULOS</th></tr></thead><tbody>
-                {[["Los Barberos", "Barbearias", "Disponível", "—", "lb"], ["ProStetic", "Estética e beleza", "Preparação", "—", "ps"], ["Le Gras", "Fotografia", "Planejado", "—", "lg"], ["MusicPro", "Escolas de música", "Planejado", "—", "mp"]].map(([name, audience, status, count, monogram]) => <tr key={name}><td><span className={`display-admin__product-mark mark-${monogram}`}>{monogram.toUpperCase()}</span><strong>{name}</strong></td><td>{audience}</td><td><span className={`display-admin__status status-${monogram}`}>{status}</span></td><td>{count}</td></tr>)}
+                {[["Los Barberos", "Barbearias", "Disponível", "—", "lb"], ["ProStetic", "Estética e beleza", "Disponível", "—", "ps"], ["Le Gras", "Fotografia", "Planejado", "—", "lg"], ["MusicPro", "Escolas de música", "Planejado", "—", "mp"]].map(([name, audience, status, count, monogram]) => <tr key={name}><td><span className={`display-admin__product-mark mark-${monogram}`}>{monogram.toUpperCase()}</span><strong>{name}</strong></td><td>{audience}</td><td><span className={`display-admin__status status-${monogram}`}>{status}</span></td><td>{count}</td></tr>)}
               </tbody></table></div>
             </section>
             <section className="display-admin__panel display-admin__quick">

@@ -24,7 +24,7 @@ import { Brand } from "@/components/brand";
 import { Avatar } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { ProductIdentityConfig } from "@/lib/product-identity";
-import { LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, productIdentityStyle } from "@/lib/product-identity";
+import { LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, PRO_STETIC_IDENTITY_FALLBACK, productIdentityStyle } from "@/lib/product-identity";
 import { systemLoginHref } from "@/lib/system-auth";
 import type { ProductKey } from "@/lib/product-context";
 import { productBillingPath } from "@/lib/product-routes";
@@ -201,7 +201,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
     }
   }
 
-  const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : productKey === "music-pro" ? MUSIC_PRO_IDENTITY_FALLBACK : undefined);
+  const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : productKey === "music-pro" ? MUSIC_PRO_IDENTITY_FALLBACK : productKey === "pro-stetic" ? PRO_STETIC_IDENTITY_FALLBACK : undefined);
   const identityStyle = productIdentityStyle(effectiveIdentity);
 
   const managerProfile = (
@@ -230,7 +230,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
 
   return (
     <ManagerBillingContext.Provider value={billingBlocked}>
-    <div className={`manager-shell${productKey === "le-gras" ? " manager-shell--le-gras" : productKey === "music-pro" ? " manager-shell--music-pro" : ""} ${billingBlocked ? "is-billing-blocked" : ""}`} style={identityStyle}>
+    <div className={`manager-shell${productKey === "le-gras" ? " manager-shell--le-gras" : productKey === "music-pro" ? " manager-shell--music-pro" : productKey === "pro-stetic" ? " manager-shell--pro-stetic" : ""} ${billingBlocked ? "is-billing-blocked" : ""}`} style={identityStyle}>
       <aside className="manager-sidebar">
         <div className="manager-sidebar__brand">
           <Brand href="/gestor" light name={effectiveIdentity?.brand.name} tagline={effectiveIdentity?.brand.tagline} mark={effectiveIdentity?.brand.mark} logoUrl={effectiveIdentity?.brand.logoUrl} />
@@ -275,7 +275,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           </div>
           <button type="button" className="global-search">
             <Search size={18} />
-            <span>{productKey === "music-pro" ? "Buscar aluno, aula..." : "Buscar cliente, agendamento..."}</span>
+            <span>{productKey === "music-pro" ? "Buscar aluno, aula..." : productKey === "pro-stetic" ? "Buscar cliente, serviço..." : "Buscar cliente, agendamento..."}</span>
             <kbd>Ctrl K</kbd>
           </button>
           <div className="manager-topbar__actions">

@@ -7,7 +7,7 @@ import { Brand } from "@/components/brand";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { BillingStatus } from "@/lib/domain/types";
 import { productBillingPath, type ProductKey } from "@/lib/product-routes";
-import { LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, productIdentityStyle, type ProductIdentityConfig } from "@/lib/product-identity";
+import { LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, PRO_STETIC_IDENTITY_FALLBACK, productIdentityStyle, type ProductIdentityConfig } from "@/lib/product-identity";
 
 export function BillingRegularization({ organizationId, billingStatus, graceEndsAt, retentionEndsAt, productKey = "los-barberos", identity }: { organizationId: string | null; billingStatus: BillingStatus | null; graceEndsAt?: string | null; retentionEndsAt?: string | null; productKey?: ProductKey; identity?: ProductIdentityConfig | null }) {
   const [demoPortalOpen, setDemoPortalOpen] = useState(false);
@@ -16,7 +16,7 @@ export function BillingRegularization({ organizationId, billingStatus, graceEnds
   const active = billingStatus === "ACTIVE" || billingStatus === "TRIALING";
   const grace = billingStatus === "GRACE";
   const retention = billingStatus === "CANCELED_RETENTION";
-  const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : productKey === "music-pro" ? MUSIC_PRO_IDENTITY_FALLBACK : null);
+  const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : productKey === "music-pro" ? MUSIC_PRO_IDENTITY_FALLBACK : productKey === "pro-stetic" ? PRO_STETIC_IDENTITY_FALLBACK : null);
   const isBrandedProduct = productKey !== "los-barberos";
   const productName = effectiveIdentity?.brand.name ?? "Los Barberos";
   const organizationTerm = effectiveIdentity?.vocabulary.organization ?? "barbearia";
@@ -51,7 +51,7 @@ export function BillingRegularization({ organizationId, billingStatus, graceEnds
   }
 
   return (
-    <div className={`billing-page${productKey === "le-gras" ? " billing-page--le-gras" : productKey === "music-pro" ? " billing-page--music-pro" : ""}`} style={identityStyle}>
+    <div className={`billing-page${productKey === "le-gras" ? " billing-page--le-gras" : productKey === "music-pro" ? " billing-page--music-pro" : productKey === "pro-stetic" ? " billing-page--pro-stetic" : ""}`} style={identityStyle}>
       <header className="billing-topbar"><Brand href="/gestor" name={effectiveIdentity?.brand.name} tagline={effectiveIdentity?.brand.tagline} mark={effectiveIdentity?.brand.mark} logoUrl={effectiveIdentity?.brand.logoUrl} /><div><span>Plano da sua {organizationTerm}</span><i>{effectiveIdentity?.brand.mark ?? "LB"}</i></div></header>
       <main className="billing-main">
         <div className="billing-heading"><span className="eyebrow">Plano e cobrança</span><h1>{active ? "Assinatura em dia." : retention ? "Assinatura cancelada." : grace ? "Sua conta está em carência." : `Vamos colocar seu ${organizationTerm} em dia.`}</h1><p>{active ? "O Stripe confirmou o estado da assinatura por webhook." : retention ? `A operação foi encerrada. Exporte os dados até ${formatDeadline(retentionEndsAt)}.` : grace ? `O acesso continua completo até ${formatDeadline(graceEndsAt)} enquanto você regulariza o pagamento.` : "Novas reservas e reagendamentos estão pausados. Compromissos existentes continuam seguros."}</p></div>

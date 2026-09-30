@@ -43,11 +43,11 @@ const products = [
     slug: "pro-stetic",
     name: "ProStetic",
     audience: "Estética e beleza",
-    state: "Em breve",
+    state: "Disponível",
     image: "/display-sh/pro-stetic.png",
     alt: "Logomarca ProStetic — estética e beleza",
     className: "ecosystem-product--pro-stetic",
-    available: false,
+    available: true,
   },
   {
     slug: "le-gras",
@@ -183,7 +183,7 @@ export default async function DisplayHomePage() {
             <div className="ecosystem-roadmap__intro"><p className="ecosystem-overline">CRESCIMENTO GRADUAL</p><h2 id="ecosystem-roadmap-title">Uma etapa de cada vez.</h2><p>Ampliamos o ecossistema conforme cada solução fica pronta para atender seu mercado.</p></div>
             <ol className="ecosystem-roadmap__list">
               <li className="is-live"><span>1</span><div><strong>Los Barberos</strong><small>Barbearias</small></div><b>Disponível</b></li>
-              <li><span>2</span><div><strong>ProStetic</strong><small>Estética e beleza</small></div><b>Em breve</b></li>
+              <li className="is-live"><span>2</span><div><strong>ProStetic</strong><small>Estética e beleza</small></div><b>Disponível</b></li>
               <li><span>3</span><div><strong>Le Gras</strong><small>Fotografia</small></div><b>Próximo</b></li>
             </ol>
           </div>

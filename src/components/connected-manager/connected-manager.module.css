@@ -308,6 +308,7 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .integrationInfo p { margin: 0; color: #757d76; font-size: .82rem; }
 .whatsappHero { display: flex; justify-content: space-between; gap: 1.5rem; align-items: flex-start; padding: 1.45rem; border-radius: 22px; background: linear-gradient(135deg, #123f35, #0c2e28); color: #f7fbf5; box-shadow: 0 18px 38px rgb(14 48 40 / 16%); }
 .whatsappHeroLeGras { background: linear-gradient(135deg, var(--forest-950, #29143d), var(--forest-800, #59366f)); }
+.whatsappHeroProStetic { background: linear-gradient(135deg, var(--forest-950, #4d245f), var(--forest-800, #805793)); }
 .whatsappHero h1 { margin: .45rem 0 .35rem; color: inherit; font-family: var(--font-display, serif); font-size: clamp(1.55rem, 3vw, 2.2rem); }
 .whatsappHero p { max-width: 620px; margin: 0; color: #c7ded4; font-size: .9rem; }
 .whatsappEyebrow { color: #e6b45f; font-size: .7rem; font-weight: 900; letter-spacing: .12em; }

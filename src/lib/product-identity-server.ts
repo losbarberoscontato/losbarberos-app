@@ -1,9 +1,10 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { isProductIdentityConfig, LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, type ProductIdentityConfig } from "@/lib/product-identity";
+import { isProductIdentityConfig, LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, PRO_STETIC_IDENTITY_FALLBACK, type ProductIdentityConfig } from "@/lib/product-identity";
 
 function fallbackIdentity(productKey: string): ProductIdentityConfig | null {
   if (productKey === "le-gras") return LE_GRAS_IDENTITY_FALLBACK;
   if (productKey === "music-pro") return MUSIC_PRO_IDENTITY_FALLBACK;
+  if (productKey === "pro-stetic") return PRO_STETIC_IDENTITY_FALLBACK;
   return null;
 }
 

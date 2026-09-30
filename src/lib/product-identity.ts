@@ -77,6 +77,40 @@ export const MUSIC_PRO_IDENTITY_FALLBACK: ProductIdentityConfig = {
   },
 };
 
+export const PRO_STETIC_IDENTITY_FALLBACK: ProductIdentityConfig = {
+  brand: {
+    name: "ProStetic",
+    tagline: "Gestão para estética e beleza",
+    mark: "PS",
+    logoUrl: "/display-sh/pro-stetic.png",
+  },
+  colors: {
+    primary: "#4d245f",
+    secondary: "#805793",
+    accent: "#c19a58",
+    background: "#f8f2fa",
+    surface: "#fffaff",
+    text: "#281d2d",
+    muted: "#766b7c",
+    border: "#e8ddea",
+    success: "#31705d",
+    danger: "#a84545",
+  },
+  fonts: { interface: "Inter", display: "Baskerville" },
+  vocabulary: {
+    organization: "estúdio",
+    organizationPlural: "estúdios",
+    professional: "especialista",
+    professionalPlural: "especialistas",
+    teamApp: "App da Equipe",
+    organizationPicker: "Meus estúdios",
+    customer: "cliente",
+    customerPlural: "clientes",
+    service: "serviço",
+    servicePlural: "serviços",
+  },
+};
+
 export function isProductIdentityConfig(value: unknown): value is ProductIdentityConfig {
   if (!value || typeof value !== "object") return false;
   const config = value as Partial<ProductIdentityConfig>;

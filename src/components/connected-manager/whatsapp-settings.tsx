@@ -164,6 +164,7 @@ function diagnostic(connection: WhatsAppConnection | undefined) {
 export function WhatsAppSettings({ organizationId, organizationName, status, schemaReady = true, productKey = "los-barberos" }: Props) {
   const isLeGras = productKey === "le-gras";
   const isMusicPro = productKey === "music-pro";
+  const isProStetic = productKey === "pro-stetic";
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [busyProvider, setBusyProvider] = useState<"META_CLOUD" | "QR_WEB" | null>(null);
@@ -336,11 +337,11 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     <ActionMessage message={message} />
     {!schemaReady && <p className={styles.message}>A estrutura conectada desta integração ainda aguarda a migration remota. A tela está pronta, mas salvar e conectar ficará disponível após a aplicação autorizada.</p>}
 
-    <section className={`${styles.whatsappHero} ${isLeGras ? styles.whatsappHeroLeGras : ""}`} aria-labelledby="whatsapp-title">
+    <section className={`${styles.whatsappHero} ${isLeGras ? styles.whatsappHeroLeGras : isProStetic ? styles.whatsappHeroProStetic : ""}`} aria-labelledby="whatsapp-title">
       <div>
-        <span className={styles.whatsappEyebrow}>{isLeGras || isMusicPro ? "INTEGRAÇÃO WHATSAPP" : "INTEGRAÇÃO POR BARBEARIA"}</span>
-        <h1 id="whatsapp-title">{isMusicPro ? "WhatsApp da sua escola" : "WhatsApp da sua operação"}</h1>
-        <p>{isMusicPro ? "Conecte seu WhatsApp Business e envie confirmações e lembretes de aulas com consentimento dos alunos." : "Conecte seu Whatsapp Business, envie confirmações e lembretes de forma automática com consentimento do cliente."}</p>
+        <span className={styles.whatsappEyebrow}>{isLeGras || isMusicPro || isProStetic ? "INTEGRAÇÃO WHATSAPP" : "INTEGRAÇÃO POR BARBEARIA"}</span>
+        <h1 id="whatsapp-title">{isMusicPro ? "WhatsApp da sua escola" : isProStetic ? "WhatsApp do seu estúdio" : "WhatsApp da sua operação"}</h1>
+        <p>{isMusicPro ? "Conecte seu WhatsApp Business e envie confirmações e lembretes de aulas com consentimento dos alunos." : isProStetic ? "Conecte seu WhatsApp Business e envie confirmações e lembretes de serviços com consentimento dos clientes." : "Conecte seu Whatsapp Business, envie confirmações e lembretes de forma automática com consentimento do cliente."}</p>
       </div>
       <StatusChip active={activeConnectionHealthy} label={checkingStatus ? "VERIFICANDO…" : activeConnectionHealthy ? "CONECTADO" : "AÇÃO NECESSÁRIA"} />
     </section>
@@ -416,8 +417,8 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       <form onSubmit={saveAutomation} className={styles.stack}>
         <div className={styles.automationList}>
           {automaticMessages.map((automation) => {
-            const title = isLeGras ? automation.title.replaceAll("barbeiro", "fotógrafo") : isMusicPro ? automation.title.replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("barbeiro", "professor") : automation.title;
-            const description = isLeGras ? automation.description.replaceAll("barbeiro", "fotógrafo") : isMusicPro ? automation.description.replaceAll("agendamentos", "aulas").replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("barbeiro", "professor").replaceAll("atendimento", "aula") : automation.description;
+            const title = isLeGras ? automation.title.replaceAll("barbeiro", "fotógrafo") : isMusicPro ? automation.title.replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("barbeiro", "professor") : isProStetic ? automation.title.replaceAll("barbeiro", "especialista") : automation.title;
+            const description = isLeGras ? automation.description.replaceAll("barbeiro", "fotógrafo") : isMusicPro ? automation.description.replaceAll("agendamentos", "aulas").replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("barbeiro", "professor").replaceAll("atendimento", "aula") : isProStetic ? automation.description.replaceAll("barbeiro", "especialista").replaceAll("atendimento", "serviço").replaceAll("agendamento", "serviço") : automation.description;
             return <div className={styles.automationRow} key={automation.key}>
             <div><strong>{title}</strong><small>{description}</small></div>
             <label className={styles.automationSwitch}>
