@@ -4,17 +4,17 @@ import { BillingRegularization } from "@/components/billing-regularization";
 import { getAccessContext } from "@/lib/auth/context";
 import { hasSupabaseConfig } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getSelectedProductKey } from "@/lib/product-context";
+import { getPublishedProductIdentity } from "@/lib/product-identity-server";
+import { systemLoginHref } from "@/lib/system-auth";
 
-export const metadata: Metadata = { title: "Regularizar pagamento" };
+export const metadata: Metadata = {
+  title: { absolute: "Ajuda e plano | MusicPro" },
+  icons: { icon: [{ url: "/music-pro/icon.svg", type: "image/svg+xml" }] },
+};
 
-export default async function BillingRegularizationPage() {
-  const selectedProduct = await getSelectedProductKey();
-  if (selectedProduct === "le-gras") redirect("/le-gras/regularizacao");
-  if (selectedProduct === "music-pro") redirect("/music-pro/regularizacao");
-  const context = hasSupabaseConfig ? await getAccessContext() : null;
-
-  if (hasSupabaseConfig && !context) redirect("/entrar?next=/regularizacao");
+export default async function MusicProBillingPage() {
+  const context = hasSupabaseConfig ? await getAccessContext("music-pro") : null;
+  if (hasSupabaseConfig && !context) redirect(systemLoginHref("signin", "/music-pro/regularizacao", "music-pro"));
   if (context?.role === "CLIENT") redirect("/cliente/agendar");
   if (context?.role === "PLATFORM_ADMIN" || context?.role === "UNREGISTERED") redirect("/onboarding");
 
@@ -29,5 +29,12 @@ export default async function BillingRegularizationPage() {
     retentionEndsAt = subscription?.retention_ends_at ?? null;
   }
 
-  return <BillingRegularization organizationId={context?.organizationId ?? null} billingStatus={context?.billingStatus ?? null} graceEndsAt={graceEndsAt} retentionEndsAt={retentionEndsAt} />;
+  return <BillingRegularization
+    organizationId={context?.organizationId ?? null}
+    billingStatus={context?.billingStatus ?? null}
+    graceEndsAt={graceEndsAt}
+    retentionEndsAt={retentionEndsAt}
+    productKey="music-pro"
+    identity={await getPublishedProductIdentity("music-pro")}
+  />;
 }

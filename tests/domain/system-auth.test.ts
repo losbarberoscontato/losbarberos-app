@@ -14,16 +14,18 @@ describe("system auth navigation", () => {
   });
 
   it("allows only protected system destinations", () => {
-    expect(resolveSystemAuthDestination("/admin")).toBe("/admin");
+    expect(resolveSystemAuthDestination("/display-admin")).toBe("/display-admin");
+    expect(resolveSystemAuthDestination("/admin")).toBe("/gestor");
     expect(resolveSystemAuthDestination("/regularizacao")).toBe("/regularizacao");
     expect(resolveSystemAuthDestination("https://evil.example")).toBe("/gestor");
-    expect(resolveSystemAuthDestination(["/admin", "/gestor"])).toBe("/gestor");
+    expect(resolveSystemAuthDestination(["/display-admin", "/gestor"])).toBe("/gestor");
   });
 
   it("builds stable login and signup URLs", () => {
-    expect(systemLoginHref("signin", "/gestor")).toBe("/entrar?modo=login");
-    expect(systemLoginHref("signup", "/admin")).toBe(
-      "/entrar?modo=cadastro&next=%2Fadmin",
+    expect(systemLoginHref("signin", "/gestor")).toBe("/los-barberos/entrar?modo=login");
+    expect(systemLoginHref("signup", "/display-admin")).toBe(
+      "/los-barberos/entrar?modo=cadastro&next=%2Fdisplay-admin",
     );
+    expect(systemLoginHref("signin", "/gestor", "music-pro")).toBe("/music-pro/entrar?modo=login");
   });
 });

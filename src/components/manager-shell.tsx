@@ -24,7 +24,7 @@ import { Brand } from "@/components/brand";
 import { Avatar } from "@/components/ui";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { ProductIdentityConfig } from "@/lib/product-identity";
-import { LE_GRAS_IDENTITY_FALLBACK, productIdentityStyle } from "@/lib/product-identity";
+import { LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, productIdentityStyle } from "@/lib/product-identity";
 import { systemLoginHref } from "@/lib/system-auth";
 import type { ProductKey } from "@/lib/product-context";
 import { productBillingPath } from "@/lib/product-routes";
@@ -59,7 +59,12 @@ export function useManagerBillingBlocked() {
 
 function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled, productKey }: { onNavigate?: () => void; agendaCount: number; projectsModuleEnabled: boolean; productKey: ProductKey }) {
   const pathname = usePathname() ?? "";
-  const visibleNavigation = navigation.filter((item) => item.module !== "projects" || projectsModuleEnabled);
+  const visibleNavigation = navigation.filter((item) => item.module !== "projects" || projectsModuleEnabled).map((item) => ({
+    ...item,
+    label: productKey === "music-pro"
+      ? item.href === "/gestor/clientes" ? "Alunos" : item.href === "/gestor/equipe" ? "Professores" : item.href === "/gestor/catalogo" ? "Aulas" : item.label
+      : item.label,
+  }));
 
   return (
     <nav className="manager-nav" aria-label="Navegação do gestor">
@@ -115,7 +120,7 @@ function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled, pro
   );
 }
 
-function OrganizationSwitcher({ organizationName, locationName, organizationLogoUrl, onClick, showNotice, organizationTerm = "barbearia" }: { organizationName: string; locationName: string; organizationLogoUrl?: string; onClick: () => void; showNotice: boolean; organizationTerm?: string }) {
+function OrganizationSwitcher({ organizationName, locationName, organizationLogoUrl, onClick, showNotice, organizationTerm = "barbearia", brandMark = "LB" }: { organizationName: string; locationName: string; organizationLogoUrl?: string; onClick: () => void; showNotice: boolean; organizationTerm?: string; brandMark?: string }) {
   return <div className="organization-switcher-wrap">
     <button className="organization-switcher" type="button" aria-label={`Trocar ${organizationTerm}`} onClick={onClick}>
       <span
@@ -124,7 +129,7 @@ function OrganizationSwitcher({ organizationName, locationName, organizationLogo
         role={organizationLogoUrl ? "img" : undefined}
         style={organizationLogoUrl ? { backgroundImage: `url("${organizationLogoUrl}")` } : undefined}
       >
-        {!organizationLogoUrl && "LB"}
+        {!organizationLogoUrl && brandMark}
       </span>
       <span>
         <strong>{organizationName}</strong>
@@ -196,7 +201,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
     }
   }
 
-  const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : undefined);
+  const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : productKey === "music-pro" ? MUSIC_PRO_IDENTITY_FALLBACK : undefined);
   const identityStyle = productIdentityStyle(effectiveIdentity);
 
   const managerProfile = (
@@ -225,12 +230,12 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
 
   return (
     <ManagerBillingContext.Provider value={billingBlocked}>
-    <div className={`manager-shell${productKey === "le-gras" ? " manager-shell--le-gras" : ""} ${billingBlocked ? "is-billing-blocked" : ""}`} style={identityStyle}>
+    <div className={`manager-shell${productKey === "le-gras" ? " manager-shell--le-gras" : productKey === "music-pro" ? " manager-shell--music-pro" : ""} ${billingBlocked ? "is-billing-blocked" : ""}`} style={identityStyle}>
       <aside className="manager-sidebar">
         <div className="manager-sidebar__brand">
-          <Brand href="/gestor" light name={identity?.brand.name} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
+          <Brand href="/gestor" light name={effectiveIdentity?.brand.name} tagline={effectiveIdentity?.brand.tagline} mark={effectiveIdentity?.brand.mark} logoUrl={effectiveIdentity?.brand.logoUrl} />
         </div>
-          <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={identity?.vocabulary.organization ?? "barbearia"} />
+          <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={effectiveIdentity?.vocabulary.organization ?? "barbearia"} brandMark={effectiveIdentity?.brand.mark} />
         <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} productKey={productKey} />
         <div className="manager-sidebar__footer">
           {managerProfile}
@@ -247,12 +252,12 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
       )}
       <aside className={`manager-drawer ${menuOpen ? "is-open" : ""}`} aria-hidden={!menuOpen}>
         <div className="manager-drawer__head">
-          <Brand href="/gestor" light name={identity?.brand.name} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
+          <Brand href="/gestor" light name={effectiveIdentity?.brand.name} tagline={effectiveIdentity?.brand.tagline} mark={effectiveIdentity?.brand.mark} logoUrl={effectiveIdentity?.brand.logoUrl} />
           <button type="button" className="icon-button icon-button--dark" onClick={() => setMenuOpen(false)} aria-label="Fechar menu">
             <X size={20} />
           </button>
         </div>
-        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={identity?.vocabulary.organization ?? "barbearia"} />
+        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={effectiveIdentity?.vocabulary.organization ?? "barbearia"} brandMark={effectiveIdentity?.brand.mark} />
         <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} productKey={productKey} onNavigate={() => setMenuOpen(false)} />
         <div className="manager-sidebar__footer">
           {managerProfile}
@@ -265,12 +270,12 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
             <Menu size={21} />
           </button>
           <div className="manager-topbar__mobile-brand">
-            <Brand href="/gestor" compact name={identity?.brand.name} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
+            <Brand href="/gestor" compact name={effectiveIdentity?.brand.name} tagline={effectiveIdentity?.brand.tagline} mark={effectiveIdentity?.brand.mark} logoUrl={effectiveIdentity?.brand.logoUrl} />
             <span><strong>{organizationName}</strong><small>{locationName}</small></span>
           </div>
           <button type="button" className="global-search">
             <Search size={18} />
-            <span>Buscar cliente, agendamento...</span>
+            <span>{productKey === "music-pro" ? "Buscar aluno, aula..." : "Buscar cliente, agendamento..."}</span>
             <kbd>Ctrl K</kbd>
           </button>
           <div className="manager-topbar__actions">
@@ -292,7 +297,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
 
       <nav className="manager-bottom-nav" aria-label="Navegação rápida">
         {navigation.slice(0, 4).map((item) => (
-          <ManagerBottomLink key={item.href} item={item} />
+          <ManagerBottomLink key={item.href} item={item} productKey={productKey} />
         ))}
         <button type="button" onClick={() => setMenuOpen(true)} aria-label="Mais opções">
           <Menu size={20} />
@@ -304,7 +309,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
   );
 }
 
-function ManagerBottomLink({ item }: { item: (typeof navigation)[number] }) {
+function ManagerBottomLink({ item, productKey }: { item: (typeof navigation)[number]; productKey: ProductKey }) {
   const pathname = usePathname() ?? "";
   const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
   const Icon = item.icon;
@@ -312,7 +317,7 @@ function ManagerBottomLink({ item }: { item: (typeof navigation)[number] }) {
   return (
     <Link href={item.href} className={active ? "is-active" : ""} aria-current={active ? "page" : undefined}>
       <Icon size={20} />
-      <span>{item.label.split(" ")[0]}</span>
+      <span>{productKey === "music-pro" && item.href === "/gestor/clientes" ? "Alunos" : productKey === "music-pro" && item.href === "/gestor/equipe" ? "Professores" : item.label.split(" ")[0]}</span>
     </Link>
   );
 }

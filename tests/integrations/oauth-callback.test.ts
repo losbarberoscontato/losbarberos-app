@@ -138,7 +138,7 @@ describe("OAuth callback return path", () => {
     exchangeCodeForSession.mockResolvedValueOnce({ error: null });
     const response = await GET(
       new Request(
-        "https://app.example/auth/callback?code=code&next=%2Fcliente%2Fagendar&next=%2Fadmin&barbearia=barbearia-real",
+        "https://app.example/auth/callback?code=code&next=%2Fcliente%2Fagendar&next=%2Fdisplay-admin&barbearia=barbearia-real",
       ) as NextRequest,
     );
 
@@ -148,7 +148,7 @@ describe("OAuth callback return path", () => {
   it("keeps manager and admin callback destinations constrained", async () => {
     exchangeCodeForSession.mockResolvedValueOnce({ error: null });
     const admin = await GET(
-      new Request("https://app.example/auth/callback?code=code&next=%2Fadmin") as NextRequest,
+      new Request("https://app.example/auth/callback?code=code&next=%2Fdisplay-admin") as NextRequest,
     );
 
     exchangeCodeForSession.mockResolvedValueOnce({ error: null });
@@ -156,7 +156,7 @@ describe("OAuth callback return path", () => {
       new Request("https://app.example/auth/callback?code=code&next=https%3A%2F%2Fevil.example") as NextRequest,
     );
 
-    expect(admin.headers.get("location")).toBe("https://app.example/admin");
+    expect(admin.headers.get("location")).toBe("https://app.example/display-admin");
     expect(unsafe.headers.get("location")).toBe("https://app.example/gestor");
   });
 });

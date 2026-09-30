@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   signInWithPassword: vi.fn(),
   signInWithOAuth: vi.fn(),
+  fetch: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/browser", () => ({
@@ -23,6 +24,8 @@ describe("entrada do sistema", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("fetch", mocks.fetch);
+    mocks.fetch.mockResolvedValue({ ok: true });
     mocks.signInWithOAuth.mockResolvedValue({ data: { provider: "google" }, error: null });
     mocks.signInWithPassword.mockResolvedValue({ data: { user: { id: "user-id" } }, error: null });
     mocks.getSupabaseBrowserClient.mockReturnValue({
@@ -32,6 +35,8 @@ describe("entrada do sistema", () => {
       },
     });
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   it("entra como gestor sem expor seleção de perfis", async () => {
     render(<DemoLogin initialMode="signin" nextPath="/gestor" />);
@@ -44,7 +49,7 @@ describe("entrada do sistema", () => {
     await waitFor(() => expect(mocks.signInWithOAuth).toHaveBeenCalledWith({
       provider: "google",
       options: {
-        redirectTo: "http://localhost:3000/auth/callback?next=%2Fgestor&provider=google",
+        redirectTo: "http://localhost:3000/auth/callback?next=%2Fgestor&provider=google&produto=los-barberos",
       },
     }));
   });
@@ -59,28 +64,28 @@ describe("entrada do sistema", () => {
     await waitFor(() => expect(mocks.signInWithOAuth).toHaveBeenCalledWith({
       provider: "google",
       options: {
-        redirectTo: "http://localhost:3000/auth/callback?next=%2Fonboarding&provider=google",
+        redirectTo: "http://localhost:3000/auth/callback?next=%2Fonboarding&provider=google&produto=los-barberos",
       },
     }));
   });
 
   it("preserva destino protegido e deixa o guard decidir o perfil real", async () => {
-    render(<DemoLogin initialMode="signin" nextPath="/admin" />);
+    render(<DemoLogin initialMode="signin" nextPath="/display-admin" />);
 
     fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "admin@example.com" } });
     fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "senha-segura" } });
     fireEvent.submit(screen.getByRole("form"));
 
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/admin"));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/display-admin"));
   });
 
   it("troca modo sem perder destino protegido", () => {
-    render(<DemoLogin initialMode="signin" nextPath="/admin" />);
+    render(<DemoLogin initialMode="signin" nextPath="/display-admin" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Ainda não tenho conta. Criar conta" }));
 
     expect(mocks.replace).toHaveBeenCalledWith(
-      "/entrar?modo=cadastro&next=%2Fadmin",
+      "/los-barberos/entrar?modo=cadastro&next=%2Fdisplay-admin",
       { scroll: false },
     );
   });

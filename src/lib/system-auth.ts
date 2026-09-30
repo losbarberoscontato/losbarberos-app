@@ -1,3 +1,5 @@
+import { productLoginPath, type ProductKey } from "@/lib/product-routes";
+
 export type SystemAuthMode = "signin" | "signup";
 
 const systemAuthDestinations = new Set([
@@ -5,6 +7,7 @@ const systemAuthDestinations = new Set([
   "/onboarding",
   "/regularizacao",
   "/le-gras/regularizacao",
+  "/music-pro/regularizacao",
   "/display-admin",
 ]);
 
@@ -25,7 +28,7 @@ export function resolveSystemAuthDestination(
 export function systemLoginHref(
   mode: SystemAuthMode,
   nextPath = "/gestor",
-  productKey?: "los-barberos" | "le-gras",
+  productKey?: ProductKey,
 ): string {
   const params = new URLSearchParams({
     modo: mode === "signup" ? "cadastro" : "login",
@@ -36,6 +39,6 @@ export function systemLoginHref(
     params.set("next", destination);
   }
 
-  const route = productKey === "le-gras" ? "/le-gras/entrar" : productKey === "los-barberos" ? "/los-barberos/entrar" : "/entrar";
+  const route = productLoginPath(productKey ?? "los-barberos");
   return `${route}?${params.toString()}`;
 }

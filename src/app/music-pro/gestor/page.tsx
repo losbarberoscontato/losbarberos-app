@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { ProductComingSoon } from "@/components/product-coming-soon";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: { absolute: "Painel MusicPro — em breve | Display SH" } };
-
-export default function MusicProManagerPage() {
-  return <ProductComingSoon brand="MusicPro" audience="escolas de música" context="manager" />;
+export default function MusicProManagerEntry() {
+  redirect("/music-pro/entrar?modo=login&next=%2Fgestor");
 }

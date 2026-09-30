@@ -1,0 +1,5 @@
+.header:global(.system-login-page__header) { position: relative; justify-content: center; min-height: 88px; }
+.logoLink { display: flex; align-items: center; justify-content: center; width: max-content; max-width: 100%; }
+.logo { display: block; width: 250px; max-width: 72vw; height: auto; }
+.backLink:global(.system-login-page__back) { position: absolute; top: 50%; right: 0; transform: translateY(-50%); white-space: nowrap; }
+@media (max-width: 580px) { .header:global(.system-login-page__header) { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 3px; min-height: 0; }.logo { width: min(220px, 72vw); }.backLink:global(.system-login-page__back) { position: static; justify-self: end; transform: none; } }

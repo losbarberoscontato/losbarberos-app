@@ -7,6 +7,7 @@ import { Brand } from "@/components/brand";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { ProductIdentityConfig } from "@/lib/product-identity";
 import type { CSSProperties } from "react";
+import type { ProductKey } from "@/lib/product-routes";
 
 type OnboardingResult = {
   organization_id?: unknown;
@@ -24,7 +25,7 @@ function toSlug(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function OnboardingFlow({ demoMode, existingOrganizationId = null, productKey = "los-barberos", productName = "barbearia", identity, identityStyle }: { demoMode: boolean; existingOrganizationId?: string | null; productKey?: "los-barberos" | "le-gras"; productName?: string; identity?: ProductIdentityConfig | null; identityStyle?: CSSProperties }) {
+export function OnboardingFlow({ demoMode, existingOrganizationId = null, productKey = "los-barberos", productName = "barbearia", identity, identityStyle }: { demoMode: boolean; existingOrganizationId?: string | null; productKey?: ProductKey; productName?: string; identity?: ProductIdentityConfig | null; identityStyle?: CSSProperties }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -108,7 +109,7 @@ export function OnboardingFlow({ demoMode, existingOrganizationId = null, produc
   if (existingOrganizationId) {
     return (
       <main className="onboarding-demo-success onboarding-recovery">
-        <Brand name={identity?.brand.name ?? "Los Barberos"} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
+          <Brand name={identity?.brand.name ?? "Los Barberos"} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
         <span className="onboarding-demo-success__icon"><CreditCard size={28} /></span>
         <span className="eyebrow">Configuração pendente</span>
         <h1>Seu {productName} já foi criado.</h1>
@@ -126,9 +127,9 @@ export function OnboardingFlow({ demoMode, existingOrganizationId = null, produc
         <Brand name={identity?.brand.name ?? "Los Barberos"} tagline={identity?.brand.tagline} mark={identity?.brand.mark} logoUrl={identity?.brand.logoUrl} />
         <span className="onboarding-demo-success__icon"><Check size={30} /></span>
         <span className="eyebrow">Checkpoint local concluído</span>
-        <h1>Sua barbearia demo está pronta.</h1>
+        <h1>Sua {productName} demo está pronta.</h1>
         <p>No ambiente real, agora abriríamos o Stripe Checkout. Acesso só fica ativo quando o webhook confirmar a assinatura.</p>
-        <article><div><span>LB</span><div><strong>{name || "Minha Barbearia"}</strong><small>{locationName} · São Paulo</small></div></div><span><small>Endereço</small><strong>losbarberos.com.br/{slug || "minha-barbearia"}</strong></span><span><small>Fuso horário</small><strong>{timezone}</strong></span><span><small>Assinatura</small><strong>Demonstração · sem cobrança</strong></span></article>
+        <article><div><span>{identity?.brand.mark ?? "LB"}</span><div><strong>{name || `Minha ${productName}`}</strong><small>{locationName} · São Paulo</small></div></div><span><small>Endereço</small><strong>displaysh-app.vercel.app/{slug || "minha-escola"}</strong></span><span><small>Fuso horário</small><strong>{timezone}</strong></span><span><small>Assinatura</small><strong>Demonstração · sem cobrança</strong></span></article>
         <Link href="/gestor" className="button button--dark">Explorar painel demo <ArrowRight size={17} /></Link>
       </main>
     );
@@ -145,14 +146,14 @@ export function OnboardingFlow({ demoMode, existingOrganizationId = null, produc
         <div className="onboarding-form-head"><div><span>Etapa 1 de 3</span><i><b /></i></div>{demoMode && <small><Sparkles size={13} /> Modo demonstração</small>}</div>
         <form className="onboarding-form" onSubmit={submit}>
           <div><span className="eyebrow">Sua identidade</span><h2>Qual é o nome do seu {productName}?</h2><p>Esses dados aparecem para seus clientes no agendamento.</p></div>
-          <label>Nome do {productName}<span className="input-shell"><Scissors size={18} /><input value={name} onChange={(event) => changeName(event.target.value)} placeholder={productKey === "le-gras" ? "Ex.: Estúdio Horizonte" : "Ex.: Barbearia Central"} required minLength={2} maxLength={80} /></span></label>
-          <label>Endereço online<span className="slug-input"><i>displaysh-app.vercel.app/</i><input value={slug} onChange={(event) => { setSlugEdited(true); setSlug(toSlug(event.target.value)); }} placeholder={productKey === "le-gras" ? "estudio-horizonte" : "barbearia-central"} required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" /><Check size={16} /></span><small>Use letras minúsculas, números e hífens.</small></label>
+          <label>Nome do {productName}<span className="input-shell"><Scissors size={18} /><input value={name} onChange={(event) => changeName(event.target.value)} placeholder={productKey === "le-gras" ? "Ex.: Estúdio Horizonte" : productKey === "music-pro" ? "Ex.: Escola Harmonia" : "Ex.: Barbearia Central"} required minLength={2} maxLength={80} /></span></label>
+          <label>Endereço online<span className="slug-input"><i>displaysh-app.vercel.app/</i><input value={slug} onChange={(event) => { setSlugEdited(true); setSlug(toSlug(event.target.value)); }} placeholder={productKey === "le-gras" ? "estudio-horizonte" : productKey === "music-pro" ? "escola-harmonia" : "barbearia-central"} required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" /><Check size={16} /></span><small>Use letras minúsculas, números e hífens.</small></label>
           <div className="onboarding-form__divider"><span>Unidade inicial</span></div>
           <div className="onboarding-form__grid"><label>Nome da unidade<span className="input-shell"><Building2 size={18} /><input value={locationName} onChange={(event) => setLocationName(event.target.value)} required minLength={2} maxLength={80} /></span></label><label>Fuso horário<span className="select-input"><Globe2 size={17} /><select value={timezone} onChange={(event) => setTimezone(event.target.value)}><option value="America/Sao_Paulo">São Paulo · GMT-3</option><option value="America/Manaus">Manaus · GMT-4</option><option value="America/Belem">Belém · GMT-3</option><option value="America/Recife">Recife · GMT-3</option></select><ChevronDown size={15} /></span></label></div>
           <div className="onboarding-location-note"><MapPin size={17} /><span><strong>Endereço físico vem depois.</strong><small>Na configuração, você informa rua, número e como chegar.</small></span></div>
           {error && <div className="onboarding-error" role="alert"><CreditCard size={17} /><span>{error}</span>{organizationId && <button type="button" onClick={retryCheckout}>Tentar checkout novamente</button>}</div>}
           <button type="submit" className="button button--dark button--block onboarding-submit" disabled={loading}>{loading ? <><LoaderCircle size={17} className="is-spinning" /> Preparando checkout...</> : <>{demoMode ? `Criar ${productName} demo` : "Continuar para o Stripe"} <ExternalLink size={16} /></>}</button>
-          <p className="onboarding-stripe-note"><ShieldCheck size={14} /> Display SH não coleta dados de cartão. O próximo passo acontece no Stripe.</p>
+          <p className="onboarding-stripe-note"><ShieldCheck size={14} /> Display SH não coleta dados de cartão. {productKey === "music-pro" ? "Após 14 dias grátis, cobrança recorrente de R$ 57,00 por mês. " : ""}O próximo passo acontece no Stripe.</p>
         </form>
       </section>
     </main>

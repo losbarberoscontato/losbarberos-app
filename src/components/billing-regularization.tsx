@@ -7,20 +7,21 @@ import { Brand } from "@/components/brand";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { BillingStatus } from "@/lib/domain/types";
 import { productBillingPath, type ProductKey } from "@/lib/product-routes";
-import { LE_GRAS_IDENTITY_FALLBACK, productIdentityStyle } from "@/lib/product-identity";
+import { LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, productIdentityStyle, type ProductIdentityConfig } from "@/lib/product-identity";
 
-export function BillingRegularization({ organizationId, billingStatus, graceEndsAt, retentionEndsAt, productKey = "los-barberos" }: { organizationId: string | null; billingStatus: BillingStatus | null; graceEndsAt?: string | null; retentionEndsAt?: string | null; productKey?: ProductKey }) {
+export function BillingRegularization({ organizationId, billingStatus, graceEndsAt, retentionEndsAt, productKey = "los-barberos", identity }: { organizationId: string | null; billingStatus: BillingStatus | null; graceEndsAt?: string | null; retentionEndsAt?: string | null; productKey?: ProductKey; identity?: ProductIdentityConfig | null }) {
   const [demoPortalOpen, setDemoPortalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const active = billingStatus === "ACTIVE" || billingStatus === "TRIALING";
   const grace = billingStatus === "GRACE";
   const retention = billingStatus === "CANCELED_RETENTION";
-  const isLeGras = productKey === "le-gras";
-  const productName = isLeGras ? LE_GRAS_IDENTITY_FALLBACK.brand.name : "Los Barberos";
-  const organizationTerm = isLeGras ? "estúdio" : "barbearia";
+  const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : productKey === "music-pro" ? MUSIC_PRO_IDENTITY_FALLBACK : null);
+  const isBrandedProduct = productKey !== "los-barberos";
+  const productName = effectiveIdentity?.brand.name ?? "Los Barberos";
+  const organizationTerm = effectiveIdentity?.vocabulary.organization ?? "barbearia";
   const billingPath = productBillingPath(productKey);
-  const identityStyle = isLeGras ? productIdentityStyle(LE_GRAS_IDENTITY_FALLBACK) : undefined;
+  const identityStyle = productIdentityStyle(effectiveIdentity);
   const formatDeadline = (value?: string | null) => value
     ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "long" }).format(new Date(value))
     : "prazo informado pelo Stripe";
@@ -50,8 +51,8 @@ export function BillingRegularization({ organizationId, billingStatus, graceEnds
   }
 
   return (
-    <div className={`billing-page${isLeGras ? " billing-page--le-gras" : ""}`} style={identityStyle}>
-      <header className="billing-topbar"><Brand href="/gestor" name={isLeGras ? LE_GRAS_IDENTITY_FALLBACK.brand.name : undefined} tagline={isLeGras ? "fotografia que conta histórias" : undefined} mark={isLeGras ? LE_GRAS_IDENTITY_FALLBACK.brand.mark : undefined} /><div><span>Plano da sua organização</span><i>{isLeGras ? "LG" : "LB"}</i></div></header>
+    <div className={`billing-page${productKey === "le-gras" ? " billing-page--le-gras" : productKey === "music-pro" ? " billing-page--music-pro" : ""}`} style={identityStyle}>
+      <header className="billing-topbar"><Brand href="/gestor" name={effectiveIdentity?.brand.name} tagline={effectiveIdentity?.brand.tagline} mark={effectiveIdentity?.brand.mark} logoUrl={effectiveIdentity?.brand.logoUrl} /><div><span>Plano da sua {organizationTerm}</span><i>{effectiveIdentity?.brand.mark ?? "LB"}</i></div></header>
       <main className="billing-main">
         <div className="billing-heading"><span className="eyebrow">Plano e cobrança</span><h1>{active ? "Assinatura em dia." : retention ? "Assinatura cancelada." : grace ? "Sua conta está em carência." : `Vamos colocar seu ${organizationTerm} em dia.`}</h1><p>{active ? "O Stripe confirmou o estado da assinatura por webhook." : retention ? `A operação foi encerrada. Exporte os dados até ${formatDeadline(retentionEndsAt)}.` : grace ? `O acesso continua completo até ${formatDeadline(graceEndsAt)} enquanto você regulariza o pagamento.` : "Novas reservas e reagendamentos estão pausados. Compromissos existentes continuam seguros."}</p></div>
         {active ? (
@@ -71,7 +72,7 @@ export function BillingRegularization({ organizationId, billingStatus, graceEnds
             <aside className="billing-aside">
               <section className="panel current-plan"><span className="current-plan__tag">Plano atual</span><h2>Plano vigente no Stripe</h2><div className="current-plan__dynamic"><strong>Valor e ciclo</strong><small>definidos no Stripe Price</small></div><ul><li><Check size={15} /> Uma unidade ativa</li><li><Check size={15} /> Agenda e clientes</li><li><Check size={15} /> Pagamentos e WhatsApp</li><li><Check size={15} /> Comissões e relatórios</li></ul><button type="button" onClick={openPortal}>Ver detalhes no portal <ChevronDown size={14} /></button></section>
               <section className="panel billing-security"><ShieldCheck size={22} /><h3>Pagamento seguro</h3><p>Dados do cartão são processados pelo Stripe. {productName} não armazena o número completo.</p></section>
-              <section className="billing-support"><span>Precisa de ajuda?</span><p>Nossa equipe responde em horário comercial.</p><a href={isLeGras ? "mailto:contato@displaysh.com" : "mailto:suporte@losbarberos.com.br"}>Falar com suporte <ArrowRight size={15} /></a></section>
+              <section className="billing-support"><span>Precisa de ajuda?</span><p>Nossa equipe responde em horário comercial.</p><a href={isBrandedProduct ? "mailto:contato@displaysh.com" : "mailto:suporte@losbarberos.com.br"}>Falar com suporte <ArrowRight size={15} /></a></section>
             </aside>
           </div>
         )}

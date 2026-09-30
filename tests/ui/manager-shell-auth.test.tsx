@@ -37,7 +37,7 @@ describe("manager logout", () => {
 
     await waitFor(() => {
       expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
-      expect(mocks.replace).toHaveBeenCalledWith("/entrar");
+      expect(mocks.replace).toHaveBeenCalledWith("/los-barberos/entrar?modo=login");
     });
   });
 
@@ -46,7 +46,7 @@ describe("manager logout", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sair da conta" }));
 
-    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/entrar"));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/los-barberos/entrar?modo=login"));
     expect(mocks.getSupabaseBrowserClient).not.toHaveBeenCalled();
     expect(mocks.signOut).not.toHaveBeenCalled();
   });
@@ -67,7 +67,7 @@ describe("manager logout", () => {
 
     expect(screen.getAllByRole("img", { name: "Logo de BarberShop" })[0]).toHaveStyle({ backgroundImage: 'url("https://example.com/barbershop-logo.png")' });
     fireEvent.click(screen.getAllByRole("button", { name: "Trocar barbearia" })[0]);
-    expect(screen.getAllByRole("status")[0]).toHaveTextContent("Logo você poderá adicionar uma filial da sua barbearia");
+    expect(screen.getAllByRole("status")[0]).toHaveTextContent("Em breve, você poderá alternar entre as unidades desta organização.");
     fireEvent.click(screen.getAllByRole("button", { name: "Trocar barbearia" })[0]);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });

@@ -37,6 +37,40 @@ export const LE_GRAS_IDENTITY_FALLBACK: ProductIdentityConfig = {
   },
 };
 
+export const MUSIC_PRO_IDENTITY_FALLBACK: ProductIdentityConfig = {
+  brand: {
+    name: "MusicPro",
+    tagline: "Gestão para escolas de música",
+    mark: "MP",
+    logoUrl: "/display-sh/music-pro.png",
+  },
+  colors: {
+    primary: "#12352e",
+    secondary: "#2f6b5d",
+    accent: "#d49a55",
+    background: "#f7f3eb",
+    surface: "#fffefa",
+    text: "#16211e",
+    muted: "#697570",
+    border: "#e4ded2",
+    success: "#31705d",
+    danger: "#a84545",
+  },
+  fonts: { interface: "Inter", display: "Baskerville" },
+  vocabulary: {
+    organization: "escola",
+    organizationPlural: "escolas",
+    professional: "professor",
+    professionalPlural: "professores",
+    teamApp: "App do Professor",
+    organizationPicker: "Minhas escolas",
+    customer: "aluno",
+    customerPlural: "alunos",
+    service: "aula",
+    servicePlural: "aulas",
+  },
+};
+
 export function isProductIdentityConfig(value: unknown): value is ProductIdentityConfig {
   if (!value || typeof value !== "object") return false;
   const config = value as Partial<ProductIdentityConfig>;

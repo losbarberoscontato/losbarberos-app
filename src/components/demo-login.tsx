@@ -10,6 +10,7 @@ import {
   systemLoginHref,
   type SystemAuthMode,
 } from "@/lib/system-auth";
+import type { ProductKey } from "@/lib/product-routes";
 
 export function DemoLogin({
   initialNotice = "",
@@ -20,7 +21,7 @@ export function DemoLogin({
   initialNotice?: string;
   initialMode?: SystemAuthMode;
   nextPath?: string;
-  productKey?: "los-barberos" | "le-gras";
+  productKey?: ProductKey;
 }) {
   const router = useRouter();
   const destination = resolveSystemAuthDestination(nextPath);
@@ -49,7 +50,7 @@ export function DemoLogin({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/onboarding")}${productKey === "le-gras" ? "&produto=le-gras" : ""}`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/onboarding")}&produto=${productKey}`,
         },
       });
       setLoading(false);
@@ -120,8 +121,8 @@ export function DemoLogin({
     <div className="login-card">
       <div className="login-card__heading">
         <h1>{isSignup
-          ? productKey === "le-gras" ? "Crie seu estúdio" : "Crie sua barbearia"
-          : productKey === "le-gras" ? "Entre no seu estúdio" : "Entre na sua barbearia"}</h1>
+          ? productKey === "le-gras" ? "Crie seu estúdio" : productKey === "music-pro" ? "Crie sua escola" : "Crie sua barbearia"
+          : productKey === "le-gras" ? "Entre no seu estúdio" : productKey === "music-pro" ? "Entre na sua escola" : "Entre na sua barbearia"}</h1>
         <p>
           {isSignup
             ? "Configure sua operação e comece seus 14 dias grátis."
@@ -182,7 +183,7 @@ export function DemoLogin({
       </button>
 
       <p className="login-security">
-        <ShieldCheck size={16} /> Seus dados protegidos com criptografia e isolamento por organização.
+        <ShieldCheck size={16} /> Seus dados protegidos com criptografia e isolamento por {productKey === "music-pro" ? "escola" : "organização"}.
       </p>
     </div>
   );

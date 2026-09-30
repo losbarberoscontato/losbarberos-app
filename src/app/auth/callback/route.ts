@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       params.set("modo", "login");
       params.set("next", destination);
     }
-    const loginPath = requestedProduct === "le-gras" ? "/le-gras/entrar" : "/los-barberos/entrar";
+    const loginPath = requestedProduct === "le-gras" ? "/le-gras/entrar" : requestedProduct === "music-pro" ? "/music-pro/entrar" : "/los-barberos/entrar";
     return NextResponse.redirect(new URL(`${loginPath}?${params.toString()}`, url.origin));
   }
 
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       params.set("modo", "login");
       params.set("next", destination);
     }
-    const loginPath = requestedProduct === "le-gras" ? "/le-gras/entrar" : "/los-barberos/entrar";
+    const loginPath = requestedProduct === "le-gras" ? "/le-gras/entrar" : requestedProduct === "music-pro" ? "/music-pro/entrar" : "/los-barberos/entrar";
     return NextResponse.redirect(new URL(`${loginPath}?${params.toString()}`, url.origin));
   }
 

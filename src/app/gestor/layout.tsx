@@ -7,6 +7,8 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { appointments as demoAppointments } from "@/data/demo";
 import { isProductIdentityConfig, type ProductIdentityConfig } from "@/lib/product-identity";
 import { getSelectedProductKey, parseProductKey, type ProductKey } from "@/lib/product-context";
+import { getPublishedProductIdentity } from "@/lib/product-identity-server";
+import { productLoginPath } from "@/lib/product-routes";
 
 export async function generateMetadata(): Promise<Metadata> {
   const productKey = await getSelectedProductKey();
@@ -15,6 +17,8 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: {
       icon: productKey === "le-gras"
         ? [{ url: "/le-gras/icon.svg", type: "image/svg+xml" }]
+        : productKey === "music-pro"
+        ? [{ url: "/music-pro/icon.svg", type: "image/svg+xml" }]
         : "/icon.svg",
       apple: "/icon-192.png",
     },
@@ -22,9 +26,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function GestorLayout({ children }: { children: React.ReactNode }) {
-  const context = hasSupabaseConfig ? await getAccessContext() : null;
+  let productKey: ProductKey = await getSelectedProductKey();
+  const context = hasSupabaseConfig ? await getAccessContext(productKey) : null;
 
-  if (hasSupabaseConfig && !context) redirect("/entrar?next=/gestor");
+  if (hasSupabaseConfig && !context) redirect(`${productLoginPath(productKey)}?modo=login&next=%2Fgestor`);
   if (context?.role === "CLIENT") redirect("/cliente/agendar");
   if (context?.role === "PLATFORM_ADMIN" || context?.role === "UNREGISTERED") redirect("/onboarding");
   if (context?.billingStatus === "PROVISIONING") redirect("/onboarding");
@@ -36,8 +41,7 @@ export default async function GestorLayout({ children }: { children: React.React
   let locationName = "Unidade principal";
   let userName = "Gestor";
   let projectsModuleEnabled = false;
-  let identity: ProductIdentityConfig | undefined;
-  let productKey: ProductKey = "los-barberos";
+  let identity: ProductIdentityConfig | undefined = await getPublishedProductIdentity(productKey) ?? undefined;
   let agendaCount = demoAppointments.filter((appointment) => appointment.date === new Intl.DateTimeFormat("en-CA").format(new Date())).length;
   if (context?.organizationId) {
     const supabase = await getSupabaseServerClient();
@@ -50,7 +54,7 @@ export default async function GestorLayout({ children }: { children: React.React
         supabase.from("organization_product_assignments").select("product_key").eq("organization_id", context.organizationId).maybeSingle(),
       ]);
       if (assignment?.product_key) {
-        productKey = parseProductKey(assignment.product_key) ?? "los-barberos";
+        productKey = parseProductKey(assignment.product_key) ?? productKey;
         const { data: publishedIdentity } = await supabase.from("platform_product_identities").select("config").eq("product_key", assignment.product_key).maybeSingle();
         if (isProductIdentityConfig(publishedIdentity?.config)) identity = publishedIdentity.config;
       }
