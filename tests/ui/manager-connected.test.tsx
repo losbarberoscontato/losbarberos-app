@@ -524,6 +524,37 @@ describe("connected manager UI", () => {
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeEnabled();
   });
 
+  it("renders agenda when date blocks are loaded", () => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    render(<AgendaManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      organization={organization}
+      customers={[customer]}
+      barbers={[barber]}
+      services={[service]}
+      packages={[]}
+      barberServices={[]}
+      financial={[]}
+      appointments={[]}
+      dateBlocks={[{
+        id: "recess-today",
+        organization_id: "org-1",
+        block_type: "RECESS",
+        name: "Recesso de teste",
+        description: null,
+        holiday_scope: null,
+        recurrence: null,
+        start_date: today,
+        end_date: today,
+        start_time: null,
+        end_time: null,
+      }]}
+    />);
+
+    expect(screen.getByText(/Recesso “Recesso de teste” bloqueia esta data/)).toBeInTheDocument();
+  });
+
   it("shows the payment account and translates the payment status in appointment details", () => {
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
     const start = new Date(`${today}T14:00:00-03:00`);

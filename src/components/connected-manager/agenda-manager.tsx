@@ -121,10 +121,10 @@ export function AgendaManager(props: Props) {
   const router = useRouter();
   const timezone = props.organization.timezone;
   const todayKey = dateKeyInTimezone(new Date(), timezone);
-  const dateBlock = props.dateBlocks?.find((item) => dateBlockCoversDate(item, date));
   const [message, setMessage] = useState("");
   const [view, setView] = useState<View>("day");
   const [date, setDate] = useState(todayKey);
+  const dateBlock = props.dateBlocks?.find((item) => dateBlockCoversDate(item, date));
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [barberFilter, setBarberFilter] = useState("ALL");
   const [status, setStatus] = useState<AgendaStatusFilter>("ALL");
