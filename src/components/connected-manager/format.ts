@@ -98,6 +98,9 @@ export function humanizeError(error: unknown) {
   const dictionary: Array<[RegExp, string]> = [
     [/start time is not aligned to slot interval/i, "Escolha um horário alinhado ao intervalo de slots da agenda."],
     [/requested slot is no longer available|exclusion constraint/i, "Esse horário acabou de ser ocupado."],
+    [/organization_date_block_conflict/i, "Há agendamento ativo neste período. Reagende ou cancele antes de bloquear."],
+    [/date block overlaps an existing date block/i, "Este período já tem outro bloqueio cadastrado."],
+    [/requested date is blocked/i, "A agenda está bloqueada nesse período. Escolha outra data ou horário."],
     [/open internal service pending completion|complete the internal service before moving this card(?: to another board)?/i, "Não é possível mover o card: há serviço interno pendente de conclusão. Conclua ou exclua o serviço antes de transferir."],
     [/environment is not assigned to barber for requested period/i, "A cadeira/sala escolhida não está vinculada ao profissional nesse horário."],
     [/barber is unavailable for requested period|no active environment available for requested period/i, "O profissional não está disponível nesse período."],

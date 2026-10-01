@@ -50,11 +50,12 @@ import {
 import { ActionMessage, StatusChip } from "./shared";
 import { AppointmentReceiptDialog } from "./cash-manager";
 import { buildAppointmentReceiptDraft, type AppointmentReceiptDraft } from "./appointment-receipt";
+import { dateBlockCoversDate, type OrganizationDateBlock } from "./date-block-calendar";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type AgendaData = AwaitedReturn<typeof loadAgendaData>;
-type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions" | "environments"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"]; environments?: AgendaData["environments"] };
+type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions" | "environments" | "dateBlocks"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"]; environments?: AgendaData["environments"]; dateBlocks?: OrganizationDateBlock[] };
 type View = "day" | "week" | "month";
 
 const hours = Array.from({ length: 14 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
@@ -120,6 +121,7 @@ export function AgendaManager(props: Props) {
   const router = useRouter();
   const timezone = props.organization.timezone;
   const todayKey = dateKeyInTimezone(new Date(), timezone);
+  const dateBlock = props.dateBlocks?.find((item) => dateBlockCoversDate(item, date));
   const [message, setMessage] = useState("");
   const [view, setView] = useState<View>("day");
   const [date, setDate] = useState(todayKey);
@@ -493,6 +495,10 @@ export function AgendaManager(props: Props) {
         <button type="button" className="button button--dark" onClick={() => setNewOpen(true)} disabled={blocked}><CalendarPlus2 size={17} /> Novo agendamento</button>
       </div>
     </div>
+
+    {dateBlock && <ActionMessage tone="warning" message={dateBlock.block_type === "EVENT"
+      ? `Evento “${dateBlock.name}” bloqueia ${dateBlock.start_time?.slice(0, 5)}–${dateBlock.end_time?.slice(0, 5)}. Reservas sobrepostas não serão aceitas.`
+      : `${dateBlock.block_type === "HOLIDAY" ? "Feriado" : "Recesso"} “${dateBlock.name}” bloqueia esta data.`} />}
 
     <div className="agenda-legend" aria-label="Legenda da agenda">
       <strong className="agenda-legend__title">Legenda</strong>

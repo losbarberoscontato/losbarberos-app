@@ -348,6 +348,26 @@ describe("connected manager UI", () => {
     expect(within(dialog).getByDisplayValue("Sala 1")).toBeInTheDocument();
   });
 
+  it("abre calendário anual de Bloqueio de Datas nas Regras de negócio", () => {
+    render(<SettingsManager
+      organizationId="org-1"
+      billingStatus="ACTIVE"
+      accountEmail="gestor@example.com"
+      organization={organization}
+      locations={[]}
+      merchant={null}
+      subscription={null}
+      whatsapp={null}
+      productKey="le-gras"
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar datas bloqueadas" }));
+    const dialog = screen.getByRole("dialog", { name: "Bloqueio de Datas" });
+    expect(within(dialog).getAllByRole("heading")).toHaveLength(12);
+    expect(within(dialog).getByRole("button", { name: "Ano anterior" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Próximo ano" })).toBeInTheDocument();
+  }, 20_000);
+
   it("cadastra funções com explicação de cargo exercido pelo profissional", async () => {
     render(<SettingsManager
       organizationId="org-1"

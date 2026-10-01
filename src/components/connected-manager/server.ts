@@ -47,6 +47,7 @@ import type {
   WorkIntervalRecord,
 } from "./types";
 import type { WhatsAppSettingsStatus } from "./whatsapp-settings";
+import type { OrganizationDateBlock } from "./date-block-calendar";
 import {
   appointmentServiceDateKey,
   DEFAULT_FINANCIAL_TIMEZONE,
@@ -488,6 +489,7 @@ export async function loadAgendaData() {
     subscriptionCycles,
     subscriptions,
     environments,
+    dateBlocks,
   ] = await Promise.all([
     supabase
       .from("organizations")
@@ -610,6 +612,11 @@ export async function loadAgendaData() {
       .eq("active", true)
       .order("sort_order")
       .order("name"),
+    supabase
+      .from("organization_date_blocks")
+      .select("id,organization_id,block_type,name,description,holiday_scope,recurrence,start_date,end_date,start_time,end_time")
+      .eq("organization_id", organizationId)
+      .order("start_date"),
   ]);
   return {
     organizationId,
@@ -629,6 +636,7 @@ export async function loadAgendaData() {
     subscriptionCycles: subscriptionCycles.error ? [] : (requireData(subscriptionCycles, "Ciclos de assinatura") as Array<Record<string, unknown>>),
     subscriptions: subscriptions.error ? [] : (requireData(subscriptions, "Assinaturas") as Array<Record<string, unknown>>),
     environments: requireData(environments, "Ambientes") as AgendaEnvironmentRecord[],
+    dateBlocks: requireData(dateBlocks, "Bloqueios de datas") as OrganizationDateBlock[],
     financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],
     appointmentActivity: requireData(
       appointmentActivity,
@@ -1687,6 +1695,7 @@ export async function loadSettingsData() {
     environments,
     environmentIssues,
     professionalFunctions,
+    dateBlocks,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase
@@ -1732,6 +1741,11 @@ export async function loadSettingsData() {
       .select("id,organization_id,name,created_at")
       .eq("organization_id", organizationId)
       .order("name"),
+    supabase
+      .from("organization_date_blocks")
+      .select("id,organization_id,block_type,name,description,holiday_scope,recurrence,start_date,end_date,start_time,end_time")
+      .eq("organization_id", organizationId)
+      .order("start_date"),
   ]);
   const professionalFunctionsMigrationPending = Boolean(
     professionalFunctions.error && (
@@ -1767,6 +1781,7 @@ export async function loadSettingsData() {
       ? []
       : requireData(professionalFunctions, "Funções profissionais") as ProfessionalFunctionRecord[],
     professionalFunctionsAvailable: !professionalFunctionsMigrationPending,
+    dateBlocks: requireData(dateBlocks, "Bloqueios de datas") as OrganizationDateBlock[],
   };
 }
 

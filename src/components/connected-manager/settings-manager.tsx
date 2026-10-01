@@ -14,15 +14,17 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { normalizePhoneE164 } from "@/lib/phone";
 import { barberLoginHref } from "@/lib/barber-auth";
 import { productBillingPath, type ProductKey } from "@/lib/product-routes";
+import { DateBlocksEditor } from "./date-blocks-editor";
 import styles from "./connected-manager.module.css";
 
 type SettingsData = AwaitedReturn<typeof loadSettingsData>;
-type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professionalFunctions" | "professionalFunctionsAvailable"> & {
+type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professionalFunctions" | "professionalFunctionsAvailable" | "dateBlocks"> & {
   productKey?: ProductKey;
   environments?: SettingsData["environments"];
   environmentIssues?: SettingsData["environmentIssues"];
   professionalFunctions?: SettingsData["professionalFunctions"];
   professionalFunctionsAvailable?: boolean;
+  dateBlocks?: SettingsData["dateBlocks"];
 };
 
 export function SettingsManager(props: Props) {
@@ -44,7 +46,7 @@ export function SettingsManager(props: Props) {
   const barberAccessUrl = `${publicOrigin}${barberAccessPath}`;
   const [exporting, setExporting] = useState(false);
   const [rulesHelpOpen, setRulesHelpOpen] = useState(false);
-  const [rulesEditor, setRulesEditor] = useState<"deadline" | "environments" | "functions" | null>(null);
+  const [rulesEditor, setRulesEditor] = useState<"deadline" | "environments" | "functions" | "date-blocks" | null>(null);
   const [environmentName, setEnvironmentName] = useState("");
   const [professionalFunctionName, setProfessionalFunctionName] = useState("");
   const [professionalFunctionMessage, setProfessionalFunctionMessage] = useState("");
@@ -282,6 +284,10 @@ export function SettingsManager(props: Props) {
             <div className={styles.integrationInfo}><strong>Cadastro de Funções</strong><p>{professionalFunctionsAvailable ? `${professionalFunctions.length} ${professionalFunctions.length === 1 ? "função cadastrada" : "funções cadastradas"} · Cargos exercidos pelos profissionais` : "Cadastro indisponível até a atualização do banco."}</p></div>
             <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar cadastro de funções" onClick={() => { setProfessionalFunctionMessage(""); setRulesEditor("functions"); }}><Pencil size={15} /> Editar</button>
           </article>
+          <article className={styles.integration}>
+            <div className={styles.integrationInfo}><strong>Bloqueio de Datas</strong><p>{(props.dateBlocks ?? []).length ? `${(props.dateBlocks ?? []).length} bloqueios cadastrados · Feriados, recessos e eventos` : "Cadastre feriados, recessos e eventos para fechar a agenda."}</p></div>
+            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar datas bloqueadas" onClick={() => setRulesEditor("date-blocks")}><Pencil size={15} /> Editar datas</button>
+          </article>
         </div>
       </Panel>
       <Panel title={isLeGras || isProStetic ? "Dados do seu Estúdio" : isMusicPro ? "Dados da sua Escola" : "Dados da Barbearia"} className={styles.span7}>
@@ -372,6 +378,7 @@ export function SettingsManager(props: Props) {
       </div>
       <div className="form-modal__footer"><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setRulesEditor(null)}>Concluir</button></div>
     </section></div>}
+    {rulesEditor === "date-blocks" && <DateBlocksEditor organizationId={props.organizationId} timezone={props.organization.timezone} blocks={props.dateBlocks ?? []} onClose={() => setRulesEditor(null)} />}
     {rulesHelpOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar ajuda" onClick={() => setRulesHelpOpen(false)} /><section className="form-modal" role="dialog" aria-modal="true" aria-label="Ajuda do prazo limite"><div className="form-modal__head"><span><small>Regras de negócio</small><strong>Prazo Limite</strong></span><button type="button" className="icon-button" onClick={() => setRulesHelpOpen(false)} aria-label="Fechar"><X size={19} /></button></div><div className="form-modal__body"><p>Define quantos minutos antes do horário o cancelamento permanece dentro do prazo. O valor vale para novos agendamentos, assinaturas e pagamentos online. Com 0, não há limite: a sessão volta para Em aberto.</p></div><div className="form-modal__footer"><button type="button" className="button button--dark" onClick={() => setRulesHelpOpen(false)}>Entendi</button></div></section></div>}
   </div>;
 }
