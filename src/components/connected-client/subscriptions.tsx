@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useConnectedClient } from "./context";
+import { barberSupportsServices, localToday } from "./format";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import styles from "./connected-client.module.css";
 
@@ -20,6 +21,7 @@ type Row = {
     price_cents: number;
     billing_period: string;
     sessions_per_cycle: number;
+    scheduling_mode: "FREE" | "FIXED";
   } | null;
 };
 type Cycle = {
@@ -65,11 +67,22 @@ type AvailablePlan = {
   description: string | null;
   version: {
     id: string;
+    version: number;
     price_cents: number;
     billing_period: string;
     duration_months: number;
     sessions_per_cycle: number;
+    scheduling_mode: "FREE" | "FIXED";
   } | null;
+  service_ids: string[];
+};
+
+type FixedScheduleDraft = {
+  plan: AvailablePlan;
+  cadenceWeeks: string;
+  startDate: string;
+  localTime: string;
+  barberId: string;
 };
 
 const paymentMethodLabel: Record<string, string> = {
@@ -78,7 +91,7 @@ const paymentMethodLabel: Record<string, string> = {
   BOLETO: "Boleto",
   CASH: "Dinheiro",
   UPFRONT: "À vista",
-  ONLINE: "Online",
+  ONLINE: "Link de pagamento",
 };
 
 export function ConnectedSubscriptions() {
@@ -87,6 +100,7 @@ export function ConnectedSubscriptions() {
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [plans, setPlans] = useState<AvailablePlan[]>([]);
   const [contractBody, setContractBody] = useState<string | null>(null);
+  const [fixedScheduleDraft, setFixedScheduleDraft] = useState<FixedScheduleDraft | null>(null);
   const [message, setMessage] = useState("Carregando assinaturas…");
   useEffect(() => {
     const client = getSupabaseBrowserClient();
@@ -100,7 +114,7 @@ export function ConnectedSubscriptions() {
       client
         .from("customer_subscriptions")
         .select(
-          "id,plan_id,status,start_date,end_date,first_due_date,payment_method,contract_body_snapshot,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(price_cents,billing_period,sessions_per_cycle)",
+          "id,plan_id,status,start_date,end_date,first_due_date,payment_method,contract_body_snapshot,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(price_cents,billing_period,sessions_per_cycle,scheduling_mode)",
         )
         .eq("organization_id", context.organization.id)
         .eq("customer_id", customer.id)
@@ -108,7 +122,7 @@ export function ConnectedSubscriptions() {
       client
         .from("subscription_plans")
         .select(
-          "id,name,description,version:subscription_plan_versions(id,price_cents,billing_period,duration_months,sessions_per_cycle)",
+          "id,name,description,version:subscription_plan_versions(id,version,price_cents,billing_period,duration_months,sessions_per_cycle,scheduling_mode)",
         )
         .eq("organization_id", context.organization.id)
         .eq("active", true),
@@ -120,16 +134,29 @@ export function ConnectedSubscriptions() {
       }
       const subscriptions = (data ?? []) as unknown as Row[];
       setRows(subscriptions);
-      setPlans(
-        ((plansResult.data ?? []) as unknown as AvailablePlan[]).map(
-          (plan) => ({
-            ...plan,
-            version: Array.isArray(plan.version)
-              ? (plan.version[0] ?? null)
-              : plan.version,
-          }),
-        ),
-      );
+      const normalizedPlans = ((plansResult.data ?? []) as unknown as AvailablePlan[]).map((plan) => {
+        const versions = Array.isArray(plan.version) ? plan.version : plan.version ? [plan.version] : [];
+        return {
+          ...plan,
+          version: versions.sort((left, right) => right.version - left.version)[0] ?? null,
+        };
+      });
+      const planVersionIds = normalizedPlans.map((plan) => plan.version?.id).filter((id): id is string => Boolean(id));
+      if (planVersionIds.length) {
+        const { data: serviceRows } = await client
+          .from("subscription_plan_services")
+          .select("plan_version_id,service_id")
+          .eq("organization_id", context.organization.id)
+          .in("plan_version_id", planVersionIds);
+        setPlans(normalizedPlans.map((plan) => ({
+          ...plan,
+          service_ids: (serviceRows ?? [])
+            .filter((row) => row.plan_version_id === plan.version?.id)
+            .map((row) => row.service_id),
+        })));
+      } else {
+        setPlans(normalizedPlans.map((plan) => ({ ...plan, service_ids: [] })));
+      }
       const contract = await client
         .from("subscription_contract_versions")
         .select("body")
@@ -180,6 +207,21 @@ export function ConnectedSubscriptions() {
     });
   }, [context, customer, user]);
   async function requestPlan(plan: AvailablePlan) {
+    if (plan.version?.scheduling_mode === "FIXED") {
+      const eligibleBarbers = context?.barbers.filter((barber) => barberSupportsServices(plan.service_ids, barber.service_ids)) ?? [];
+      if (!context || eligibleBarbers.length === 0) {
+        setMessage("Nenhum profissional está habilitado para todos os serviços deste plano.");
+        return;
+      }
+      setFixedScheduleDraft({
+        plan,
+        cadenceWeeks: "1",
+        startDate: localToday(context.organization.timezone),
+        localTime: "09:00",
+        barberId: eligibleBarbers[0].id,
+      });
+      return;
+    }
     if (
       !context ||
       !customer ||
@@ -208,6 +250,34 @@ export function ConnectedSubscriptions() {
         ? friendlyError
         : "Solicitação enviada. Aguarde aprovação da barbearia.",
     );
+  }
+  async function requestFixedPlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!context || !customer || !fixedScheduleDraft) return;
+    const draft = fixedScheduleDraft;
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    const { error } = await client.rpc("request_customer_fixed_subscription", {
+      p_organization_id: context.organization.id,
+      p_customer_id: customer.id,
+      p_plan_id: draft.plan.id,
+      p_cadence_weeks: Number(draft.cadenceWeeks),
+      p_start_date: draft.startDate,
+      p_local_time: draft.localTime,
+      p_barber_id: draft.barberId,
+      p_acceptance_source: "CLIENT",
+      p_accept_contract: true,
+    });
+    const message = error?.message.match(/fixed_schedule_conflict|barber|availability/i)
+      ? "Não há disponibilidade para esta série. Escolha outra data, hora ou profissional."
+      : error?.code === "23505" || error?.message.match(/already has|unique constraint/i)
+        ? "Você já possui uma assinatura ativa nesta barbearia."
+        : error?.message;
+    setMessage(message ?? "Solicitação enviada. Aguarde aprovação da barbearia.");
+    if (!error) {
+      setFixedScheduleDraft(null);
+      window.location.reload();
+    }
   }
   async function cancelSubscription(subscriptionId: string) {
     if (
@@ -388,7 +458,8 @@ export function ConnectedSubscriptions() {
                       style: "currency",
                       currency: "BRL",
                     }).format(plan.version.price_cents / 100)
-                  : "—"}
+                : "—"}
+                {plan.version?.scheduling_mode === "FIXED" ? " · Agendamento fixo" : " · Agendamento livre"}
               </small>
               <button className={styles.subscriptionAction} type="button" onClick={() => void requestPlan(plan)}>
                 Solicitar plano
@@ -397,6 +468,21 @@ export function ConnectedSubscriptions() {
           ))}
         </div>
       )}
+      {fixedScheduleDraft && context && (() => {
+        const eligibleBarbers = context.barbers.filter((barber) => barberSupportsServices(fixedScheduleDraft.plan.service_ids, barber.service_ids));
+        return <div className={styles.modalLayer} role="presentation">
+          <button className={styles.backdrop} type="button" aria-label="Fechar escolha de agenda fixa" onClick={() => setFixedScheduleDraft(null)} />
+          <form className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="fixed-subscription-title" onSubmit={(event) => void requestFixedPlan(event)}>
+            <h2 id="fixed-subscription-title">Agendamento fixo</h2>
+            <p>Escolha a recorrência, a primeira data, o horário e o profissional. Após a aprovação e o primeiro pagamento, as sessões do plano serão agendadas automaticamente. Datas bloqueadas deslocam esta e as sessões seguintes.</p>
+            <label>Frequência<select required value={fixedScheduleDraft.cadenceWeeks} onChange={(event) => setFixedScheduleDraft((draft) => draft ? { ...draft, cadenceWeeks: event.target.value } : draft)}><option value="1">Semanal</option><option value="2">Quinzenal (a cada 2 semanas)</option></select></label>
+            <label>Data inicial<input required type="date" min={localToday(context.organization.timezone)} value={fixedScheduleDraft.startDate} onChange={(event) => setFixedScheduleDraft((draft) => draft ? { ...draft, startDate: event.target.value } : draft)} /></label>
+            <label>Horário<input required type="time" step={900} value={fixedScheduleDraft.localTime} onChange={(event) => setFixedScheduleDraft((draft) => draft ? { ...draft, localTime: event.target.value } : draft)} /></label>
+            <label>Profissional<select required value={fixedScheduleDraft.barberId} onChange={(event) => setFixedScheduleDraft((draft) => draft ? { ...draft, barberId: event.target.value } : draft)}><option value="">Selecione</option>{eligibleBarbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.name}</option>)}</select></label>
+            <footer><button type="button" className={styles.subscriptionSecondary} onClick={() => setFixedScheduleDraft(null)}>Cancelar</button><button type="submit" className={styles.subscriptionAction}>Solicitar plano</button></footer>
+          </form>
+        </div>;
+      })()}
     </section>
   );
 }

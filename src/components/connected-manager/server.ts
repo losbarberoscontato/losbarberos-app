@@ -164,7 +164,7 @@ export async function loadCustomersData() {
     supabase
       .from("customer_subscriptions")
       .select(
-        "id,customer_id,status,start_date,end_date,payment_method,first_due_date,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(id,price_cents,billing_period,sessions_per_cycle)",
+        "id,customer_id,status,start_date,end_date,payment_method,first_due_date,fixed_schedule_cadence_weeks,fixed_schedule_start_date,fixed_schedule_local_time,fixed_schedule_barber_id,fixed_schedule_created_at,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(id,price_cents,billing_period,sessions_per_cycle,scheduling_mode)",
       )
       .eq("organization_id", organizationId)
       .in("status", ["REQUESTED", "PENDING_PAYMENT", "ACTIVE"])
@@ -188,7 +188,7 @@ export async function loadCustomersData() {
     supabase
       .from("subscription_plans")
       .select(
-        "id,name,description,version:subscription_plan_versions(id,price_cents,billing_period,duration_months,sessions_per_cycle)",
+        "id,name,description,version:subscription_plan_versions(id,version,price_cents,billing_period,duration_months,sessions_per_cycle,scheduling_mode)",
       )
       .eq("organization_id", organizationId)
       .eq("active", true)
@@ -1619,7 +1619,7 @@ export async function loadSubscriptionPlansData() {
     supabase
       .from("subscription_plan_versions")
       .select(
-        "id,plan_id,version,price_cents,billing_period,duration_months,sessions_per_cycle,payment_method,cancellation_policy,session_cancellation_policy,contract_version",
+        "id,plan_id,version,price_cents,billing_period,duration_months,sessions_per_cycle,payment_method,scheduling_mode,cancellation_policy,session_cancellation_policy,contract_version",
       )
       .eq("organization_id", organizationId)
       .order("version", { ascending: false }),
@@ -1657,6 +1657,7 @@ export async function loadSubscriptionPlansData() {
     duration_months: number;
     sessions_per_cycle: number;
     payment_method: string;
+    scheduling_mode: "FREE" | "FIXED";
     cancellation_policy: string;
     session_cancellation_policy: string;
     contract_version: string;

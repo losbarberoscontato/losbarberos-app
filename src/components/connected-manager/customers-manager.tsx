@@ -52,6 +52,8 @@ const inactivationReasons = [
 ] as const;
 
 type ApprovalDraft = { subscriptionId: string; startDate: string; dueDate: string };
+type FixedEnrollmentDraft = { customerId: string; planId: string; cadenceWeeks: string; startDate: string; localTime: string; barberId: string; serviceIds: string[] };
+type FixedScheduleEditDraft = { subscriptionId: string; cadenceWeeks: string; startDate: string; localTime: string; barberId: string; serviceIds: string[] };
 type SubscriptionBookingTarget = {
   subscriptionId: string;
   sessionId: string;
@@ -128,6 +130,8 @@ export function CustomersManager({
   const [inactivationReason, setInactivationReason] = useState("");
   const [customInactivationReason, setCustomInactivationReason] = useState("");
   const [approvalDraft, setApprovalDraft] = useState<ApprovalDraft | null>(null);
+  const [fixedEnrollmentDraft, setFixedEnrollmentDraft] = useState<FixedEnrollmentDraft | null>(null);
+  const [fixedScheduleEditDraft, setFixedScheduleEditDraft] = useState<FixedScheduleEditDraft | null>(null);
   const [subscriptionControlId, setSubscriptionControlId] = useState<string | null>(null);
   const [subscriptionBooking, setSubscriptionBooking] = useState<SubscriptionBookingTarget | null>(null);
   const [subscriptionBookingDate, setSubscriptionBookingDate] = useState("");
@@ -461,6 +465,58 @@ export function CustomersManager({
       "Adesão presencial criada. Aprove a primeira cobrança para ativar.",
     );
     if (saved) router.refresh();
+  }
+
+  async function saveFixedPresentialEnrollment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!fixedEnrollmentDraft) return;
+    const draft = fixedEnrollmentDraft;
+    const saved = await runMutation(
+      setMessage,
+      async () => {
+        await assertResult(await connectedClient().rpc("request_customer_fixed_subscription", {
+          p_organization_id: organizationId,
+          p_customer_id: draft.customerId,
+          p_plan_id: draft.planId,
+          p_cadence_weeks: Number(draft.cadenceWeeks),
+          p_start_date: draft.startDate,
+          p_local_time: draft.localTime,
+          p_barber_id: draft.barberId,
+          p_acceptance_source: "PRESENTIAL",
+          p_accept_contract: true,
+        }));
+      },
+      "Adesão fixa criada. Aprove a primeira cobrança para agendar as sessões.",
+    );
+    if (saved) {
+      setFixedEnrollmentDraft(null);
+      setPresentialCustomerId(null);
+      router.refresh();
+    }
+  }
+
+  async function saveFixedScheduleEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!fixedScheduleEditDraft) return;
+    const draft = fixedScheduleEditDraft;
+    const saved = await runMutation(
+      setMessage,
+      async () => {
+        await assertResult(await connectedClient().rpc("update_customer_fixed_subscription_schedule", {
+          p_organization_id: organizationId,
+          p_subscription_id: draft.subscriptionId,
+          p_cadence_weeks: Number(draft.cadenceWeeks),
+          p_start_date: draft.startDate,
+          p_local_time: draft.localTime,
+          p_barber_id: draft.barberId,
+        }));
+      },
+      "Agendamento fixo atualizado.",
+    );
+    if (saved) {
+      setFixedScheduleEditDraft(null);
+      router.refresh();
+    }
   }
 
   async function approveSubscription() {
@@ -1175,7 +1231,7 @@ export function CustomersManager({
                                 BOLETO: "Boleto",
                                 CASH: "Dinheiro",
                                 UPFRONT: "À vista",
-                                ONLINE: "Online",
+                                ONLINE: "Link de pagamento",
                               };
                               return (
                                 <article
@@ -1329,7 +1385,7 @@ export function CustomersManager({
           const sessions = subscriptionSessions.filter((session) => String(session.subscription_id) === subscriptionControlId);
           const openCycles = cycles.filter((cycle) => cycle.status === "OPEN" || cycle.status === "OVERDUE");
           const upfront = String(subscription.payment_method) === "UPFRONT";
-          const paymentLabels: Record<string, string> = { CARD: "Cartão", PIX: "PIX", BOLETO: "Boleto", CASH: "Dinheiro", UPFRONT: "À vista", ONLINE: "Online" };
+          const paymentLabels: Record<string, string> = { CARD: "Cartão", PIX: "PIX", BOLETO: "Boleto", CASH: "Dinheiro", UPFRONT: "À vista", ONLINE: "Link de pagamento" };
           const firstOpenCycle = openCycles[0];
           return <div className="modal-layer" role="presentation">
             <button className="modal-layer__backdrop" type="button" aria-label="Fechar controle da assinatura" onClick={() => setSubscriptionControlId(null)} />
@@ -1337,6 +1393,30 @@ export function CustomersManager({
               <header className={styles.modalHeader}><div><small>Controle da assinatura</small><h2 id="subscription-control-title">{plan?.name ?? "Plano"}</h2><p>{formatCents(version?.price_cents ?? 0)} · Venc. {String(subscription.first_due_date ?? "—")} · {paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)}</p></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setSubscriptionControlId(null)}><X size={19} /></button></header>
               <div className={styles.subscriptionControlBody}>
                 <div className={styles.subscriptionControlLegend}><span><i className={styles.subscriptionDotAvailable} />Em aberto</span><span><i className={styles.subscriptionDotScheduled} />Agendada</span><span><i className={styles.subscriptionDotCompleted} />Concluída</span><span><i className={styles.subscriptionDotCanceled} />Cancelada</span></div>
+                {String((subscription.plan_version as { scheduling_mode?: string } | null)?.scheduling_mode) === "FIXED" && <section className={styles.subscriptionFixedSchedule}>
+                  <strong>Agendamento fixo</strong>
+                  <span>{Number(subscription.fixed_schedule_cadence_weeks) === 2 ? "Quinzenal" : "Semanal"} · {String(subscription.fixed_schedule_start_date ?? "Data não informada")} às {String(subscription.fixed_schedule_local_time ?? "Horário não informado").slice(0, 5)} · {barbers.find((barber) => barber.id === String(subscription.fixed_schedule_barber_id))?.display_name ?? "Profissional não informado"}</span>
+                  {!subscription.fixed_schedule_created_at && (subscription.status === "REQUESTED" || subscription.status === "PENDING_PAYMENT") && <button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} onClick={() => {
+                    const planVersionId = String((subscription.plan_version as { id?: string } | null)?.id ?? "");
+                    const serviceIds = subscriptionPlanServices.filter((item) => String(item.plan_version_id) === planVersionId).map((item) => String(item.service_id));
+                    const eligible = eligibleSubscriptionBarbers(serviceIds);
+                    setFixedScheduleEditDraft({
+                      subscriptionId: String(subscription.id),
+                      cadenceWeeks: String(subscription.fixed_schedule_cadence_weeks ?? 1),
+                      startDate: String(subscription.fixed_schedule_start_date ?? ""),
+                      localTime: String(subscription.fixed_schedule_local_time ?? "09:00").slice(0, 5),
+                      barberId: eligible.some((item) => item.id === String(subscription.fixed_schedule_barber_id)) ? String(subscription.fixed_schedule_barber_id) : eligible[0]?.id ?? "",
+                      serviceIds,
+                    });
+                  }}>Editar série fixa</button>}
+                  {fixedScheduleEditDraft?.subscriptionId === String(subscription.id) && <form className={styles.formCompactSchedule} onSubmit={(event) => void saveFixedScheduleEdit(event)}>
+                    <label>Frequência<select value={fixedScheduleEditDraft.cadenceWeeks} onChange={(event) => setFixedScheduleEditDraft((draft) => draft ? { ...draft, cadenceWeeks: event.target.value } : draft)}><option value="1">Semanal</option><option value="2">Quinzenal (a cada 2 semanas)</option></select></label>
+                    <label>Data inicial<input type="date" value={fixedScheduleEditDraft.startDate} onChange={(event) => setFixedScheduleEditDraft((draft) => draft ? { ...draft, startDate: event.target.value } : draft)} required /></label>
+                    <label>Horário<input type="time" step={15 * 60} value={fixedScheduleEditDraft.localTime} onChange={(event) => setFixedScheduleEditDraft((draft) => draft ? { ...draft, localTime: event.target.value } : draft)} required /></label>
+                    <label>Profissional<select value={fixedScheduleEditDraft.barberId} onChange={(event) => setFixedScheduleEditDraft((draft) => draft ? { ...draft, barberId: event.target.value } : draft)} required><option value="">Selecione</option>{eligibleSubscriptionBarbers(fixedScheduleEditDraft.serviceIds).map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></label>
+                    <div className={styles.formWide}><button className={styles.button} type="submit">Salvar série</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setFixedScheduleEditDraft(null)}>Cancelar</button></div>
+                  </form>}
+                </section>}
                 {cycles.map((cycle) => {
                   const cycleSessions = sessions.filter((session) => String(session.cycle_id) === String(cycle.id));
                   const canReceive = cycle.status === "OPEN" || cycle.status === "OVERDUE";
@@ -1370,10 +1450,43 @@ export function CustomersManager({
           </div>;
         })()}
         {presentialCustomerId && (
-          <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar nova adesão" onClick={() => setPresentialCustomerId(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="presential-subscription-title"><header className={styles.modalHeader}><div><small>Adesão manual</small><h2 id="presential-subscription-title">Nova adesão</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setPresentialCustomerId(null)}><X size={19} /></button></header><p>Selecione o plano que será criado para este cliente.</p><div className={styles.toolbarGroup}>{subscriptionPlans.map((plan) => <button key={String(plan.id)} type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => { setPresentialCustomerId(null); void enrollPresential(presentialCustomerId, String(plan.id)); }}>{String(plan.name)}</button>)}</div></section></div>
+          <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar nova adesão" onClick={() => setPresentialCustomerId(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="presential-subscription-title"><header className={styles.modalHeader}><div><small>Adesão manual</small><h2 id="presential-subscription-title">Nova adesão</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setPresentialCustomerId(null)}><X size={19} /></button></header><p>Selecione o plano que será criado para este cliente.</p><div className={styles.toolbarGroup}>{subscriptionPlans.map((plan) => {
+            const planVersion = Array.isArray(plan.version)
+              ? [...plan.version].sort((left, right) => Number((right as { version?: number }).version ?? 0) - Number((left as { version?: number }).version ?? 0))[0]
+              : plan.version;
+            const planVersionId = String((planVersion as { id?: string } | null)?.id ?? "");
+            const fixed = String((planVersion as { scheduling_mode?: string } | null)?.scheduling_mode) === "FIXED";
+            return <button key={String(plan.id)} type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => {
+              if (fixed) {
+                const serviceIds = subscriptionPlanServices.filter((item) => String(item.plan_version_id) === planVersionId).map((item) => String(item.service_id));
+                const eligible = eligibleSubscriptionBarbers(serviceIds);
+                if (!eligible.length || !planVersionId) {
+                  setMessage("Nenhum profissional está habilitado para todos os serviços deste plano.");
+                  return;
+                }
+                setFixedEnrollmentDraft({ customerId: presentialCustomerId, planId: String(plan.id), cadenceWeeks: "1", startDate: "", localTime: "09:00", barberId: eligible[0].id, serviceIds });
+                return;
+              }
+              setPresentialCustomerId(null);
+              void enrollPresential(presentialCustomerId, String(plan.id));
+            }}>{String(plan.name)}{fixed ? " · Fixo" : ""}</button>;
+          })}</div></section></div>
+        )}
+        {fixedEnrollmentDraft && (
+          <div className="modal-layer" role="presentation"><button className={styles.modalBackdrop} type="button" aria-label="Fechar escolha de agenda fixa" onClick={() => setFixedEnrollmentDraft(null)} /><form className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="fixed-enrollment-title" onSubmit={(event) => void saveFixedPresentialEnrollment(event)}>
+            <header className={styles.modalHeader}><div><small>Adesão presencial</small><h2 id="fixed-enrollment-title">Agendamento fixo</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setFixedEnrollmentDraft(null)}><X size={19} /></button></header>
+            <p>Escolha a frequência, primeira data, horário e profissional. Após a aprovação e o primeiro pagamento, o sistema agenda todas as sessões do plano. Datas bloqueadas deslocam esta e as sessões seguintes.</p>
+            <div className={styles.formCompactSchedule}>
+              <label>Frequência<select value={fixedEnrollmentDraft.cadenceWeeks} onChange={(event) => setFixedEnrollmentDraft((draft) => draft ? { ...draft, cadenceWeeks: event.target.value } : draft)}><option value="1">Semanal</option><option value="2">Quinzenal (a cada 2 semanas)</option></select></label>
+              <label>Data inicial<input type="date" value={fixedEnrollmentDraft.startDate} onChange={(event) => setFixedEnrollmentDraft((draft) => draft ? { ...draft, startDate: event.target.value } : draft)} required /></label>
+              <label>Horário<input type="time" step={15 * 60} value={fixedEnrollmentDraft.localTime} onChange={(event) => setFixedEnrollmentDraft((draft) => draft ? { ...draft, localTime: event.target.value } : draft)} required /></label>
+              <label>Profissional<select value={fixedEnrollmentDraft.barberId} onChange={(event) => setFixedEnrollmentDraft((draft) => draft ? { ...draft, barberId: event.target.value } : draft)} required><option value="">Selecione</option>{eligibleSubscriptionBarbers(fixedEnrollmentDraft.serviceIds).map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select></label>
+            </div>
+            <div className={styles.toolbarGroup}><button className={styles.button} type="submit">Criar adesão</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setFixedEnrollmentDraft(null)}>Cancelar</button></div>
+          </form></div>
         )}
         {paymentTarget && (
-          <div className="modal-layer" role="presentation"><button className={styles.modalBackdrop} type="button" aria-label="Fechar recebimento" onClick={() => setPaymentTarget(null)} /><section className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="subscription-payment-title"><header className={styles.modalHeader}><div><small>Recebimento de assinatura</small><h2 id="subscription-payment-title">Receber parcela</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setPaymentTarget(null)}><X size={19} /></button></header><div className={styles.form}><Field label="Valor (R$)"><input value={(paymentTarget.amountCents / 100).toFixed(2).replace(".", ",")} readOnly /></Field><Field label="Vencimento"><input value={paymentTarget.dueOn} readOnly /></Field><Field label="Forma de pagamento"><input value={({ CARD: "Cartão", PIX: "PIX", BOLETO: "Boleto", CASH: "Dinheiro", UPFRONT: "À vista", ONLINE: "Online" } as Record<string, string>)[paymentTarget.method] ?? paymentTarget.method} readOnly /></Field><Field label="Data de pagamento"><input type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></Field><Field label="Conta financeira"><select value={paymentAccountId} onChange={(event) => setPaymentAccountId(event.target.value)} required><option value="">Selecione</option>{financialAccounts.map((account) => <option key={String(account.id)} value={String(account.id)}>{String(account.name)}</option>)}</select></Field><Field label="Referência" wide><input value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="Comprovante, NSU ou protocolo" /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button} type="button" disabled={!paymentAccountId} onClick={async () => { const target = paymentTarget; await recordFirstPayment(target.subscriptionId, target.cycleId, target.amountCents, target.method, paymentAccountId, paymentDate, paymentReference); setPaymentTarget(null); }}>Confirmar recebimento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setPaymentTarget(null)}>Cancelar</button></div></div></section></div>
+          <div className="modal-layer" role="presentation"><button className={styles.modalBackdrop} type="button" aria-label="Fechar recebimento" onClick={() => setPaymentTarget(null)} /><section className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="subscription-payment-title"><header className={styles.modalHeader}><div><small>Recebimento de assinatura</small><h2 id="subscription-payment-title">Receber parcela</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setPaymentTarget(null)}><X size={19} /></button></header><div className={styles.form}><Field label="Valor (R$)"><input value={(paymentTarget.amountCents / 100).toFixed(2).replace(".", ",")} readOnly /></Field><Field label="Vencimento"><input value={paymentTarget.dueOn} readOnly /></Field><Field label="Forma de pagamento"><input value={({ CARD: "Cartão", PIX: "PIX", BOLETO: "Boleto", CASH: "Dinheiro", UPFRONT: "À vista", ONLINE: "Link de pagamento" } as Record<string, string>)[paymentTarget.method] ?? paymentTarget.method} readOnly /></Field><Field label="Data de pagamento"><input type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></Field><Field label="Conta financeira"><select value={paymentAccountId} onChange={(event) => setPaymentAccountId(event.target.value)} required><option value="">Selecione</option>{financialAccounts.map((account) => <option key={String(account.id)} value={String(account.id)}>{String(account.name)}</option>)}</select></Field><Field label="Referência" wide><input value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="Link externo, comprovante ou protocolo" /></Field><div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button} type="button" disabled={!paymentAccountId} onClick={async () => { const target = paymentTarget; await recordFirstPayment(target.subscriptionId, target.cycleId, target.amountCents, target.method, paymentAccountId, paymentDate, paymentReference); setPaymentTarget(null); }}>Confirmar recebimento</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setPaymentTarget(null)}>Cancelar</button></div></div></section></div>
         )}
       </Panel>
     </div>
