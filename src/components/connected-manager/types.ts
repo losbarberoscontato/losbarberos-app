@@ -368,7 +368,7 @@ export interface FinancialReportingFactRecord {
   cost_center_id: string | null;
   financial_account_id: string | null;
   dre_group: "GROSS_REVENUE" | "REVENUE_DEDUCTIONS" | "SERVICE_COST" | "OPERATING_EXPENSE" | "FINANCIAL_RESULT" | "OTHER_RESULT" | "INCOME_TAX" | null;
-  cash_flow_activity: "OPERATING" | "INVESTING" | "FINANCING" | null;
+  cash_flow_activity: "OPERATING" | "INVESTING" | "FINANCING" | "REVENUE_OPERATIONAL" | "REVENUE_NON_OPERATIONAL" | "REVENUE_DEDUCTIONS" | "OPERATIONAL_COSTS" | "ADMINISTRATIVE_EXPENSES" | "PERSONNEL_EXPENSES" | "COMMERCIAL_EXPENSES" | "FINANCIAL_EXPENSES" | "TAX_EXPENSES" | "NON_OPERATIONAL_EXPENSES" | null;
   signed_cents: number;
   status: string;
   tag_names?: string[];
@@ -447,7 +447,7 @@ export interface ChartAccountRecord {
   name: string;
   kind: "REVENUE" | "EXPENSE";
   dre_group?: "GROSS_REVENUE" | "REVENUE_DEDUCTIONS" | "SERVICE_COST" | "OPERATING_EXPENSE" | "FINANCIAL_RESULT" | "OTHER_RESULT" | "INCOME_TAX" | null;
-  cash_flow_activity?: "OPERATING" | "INVESTING" | "FINANCING" | null;
+  cash_flow_activity?: "OPERATING" | "INVESTING" | "FINANCING" | "REVENUE_OPERATIONAL" | "REVENUE_NON_OPERATIONAL" | "REVENUE_DEDUCTIONS" | "OPERATIONAL_COSTS" | "ADMINISTRATIVE_EXPENSES" | "PERSONNEL_EXPENSES" | "COMMERCIAL_EXPENSES" | "FINANCIAL_EXPENSES" | "TAX_EXPENSES" | "NON_OPERATIONAL_EXPENSES" | null;
   active: boolean;
 }
 

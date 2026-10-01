@@ -62,7 +62,7 @@ function GeneralFinancialReportsManager(props: Props & { initialReport?: Financi
     (!selectedTagNames.length || selectedTagNames.every((selectedTag) => row.tag_names?.some((tag) => tag.toLocaleLowerCase("pt-BR") === selectedTag.toLocaleLowerCase("pt-BR")))),
   ), [props.facts, start, end, chartId, centerId, locationId, selectedTagNames]);
 
-  const cashFlow = useMemo(() => group(filtered.filter((row) => row.basis === "CASH"), (row) => row.cash_flow_activity ?? "Não classificado"), [filtered]);
+  const cashFlow = useMemo(() => group(filtered.filter((row) => row.basis === "CASH"), (row) => cashFlowGroupLabel(row.cash_flow_activity)), [filtered]);
 
   function exportCsv() {
     const header = ["base", "origem", "data", "competencia", "vencimento", "cliente", "profissional", "servico", "valor_centavos", "status"];
@@ -143,6 +143,17 @@ function ClosureReport({ closures, barbers }: { closures: BarberCashClosureRepor
 }
 
 function group(rows: Props["facts"], key: (row: Props["facts"][number]) => string) { const map = new Map<string, number>(); rows.forEach((row) => map.set(key(row), (map.get(key(row)) ?? 0) + row.signed_cents)); return [...map.entries()].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])); }
+function cashFlowGroupLabel(value: Props["facts"][number]["cash_flow_activity"]) {
+  const labels: Record<NonNullable<Props["facts"][number]["cash_flow_activity"]>, string> = {
+    OPERATING: "Operacional", INVESTING: "Investimento", FINANCING: "Financiamento",
+    REVENUE_OPERATIONAL: "(+) RECEITA OPERACIONAL", REVENUE_NON_OPERATIONAL: "(+) RECEITAS NÃO OPERACIONAIS",
+    REVENUE_DEDUCTIONS: "(-) DEDUÇÕES DA RECEITA", OPERATIONAL_COSTS: "(-) CUSTOS OPERACIONAIS",
+    ADMINISTRATIVE_EXPENSES: "(-) DESPESAS ADMINISTRATIVAS", PERSONNEL_EXPENSES: "(-) DESPESAS COM PESSOAL",
+    COMMERCIAL_EXPENSES: "(-) DESPESAS COMERCIAIS", FINANCIAL_EXPENSES: "(-) DESPESAS FINANCEIRAS",
+    TAX_EXPENSES: "(-) DESPESAS TRIBUTÁRIAS", NON_OPERATIONAL_EXPENSES: "(-) DESPESAS NÃO OPERACIONAIS",
+  };
+  return value ? labels[value] : "Não classificado";
+}
 function Statement({ title, groups, total, note }: { title: string; groups: Array<[string, number]>; total: number; note?: string }) { return <Panel title={title} description={note}>{groups.length ? <div className={styles.list}>{groups.map(([label, value]) => <article key={label} className={styles.row}><strong>{label}</strong><strong>{formatCents(value)}</strong></article>)}<article className={styles.row}><strong>Total</strong><strong>{formatCents(total)}</strong></article></div> : <EmptyState title="Sem dados">Ajuste filtros ou período.</EmptyState>}</Panel>; }
 type CommissionProps = Props & { initialReport?: FinancialReportType };
 

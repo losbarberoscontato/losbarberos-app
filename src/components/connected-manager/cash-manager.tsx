@@ -692,7 +692,7 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, dem
       await assertResult(await connectedClient().rpc(rpc, params));
       if (catalog === "chart" && editingChart) await assertResult(await connectedClient().rpc("set_chart_account_reporting_classification", {
         p_chart_account_id: editingChart.id,
-        p_dre_group: safeText(data.get("dre_group")) || null,
+        p_dre_group: editingChart.dre_group ?? null,
         p_cash_flow_activity: safeText(data.get("cash_flow_activity")) || null,
       }));
     }, "Cadastro financeiro salvo.");
@@ -728,7 +728,7 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, dem
       <Field label="Nome"><input name="name" required autoFocus defaultValue={editingChart?.name ?? ""} /></Field>
       <Field label="Natureza"><select name="kind" value={chartKind} onChange={(event) => setChartKind(event.target.value as ChartAccountRecord["kind"])}><option value="REVENUE">Receita</option><option value="EXPENSE">Despesa</option></select></Field>
       <Field label="Conta superior"><select name="parent_id" defaultValue={editingChart?.parent_id ?? ""}><option value="">Nenhuma</option>{chartParentOptions.map((item) => <option key={item.id} value={item.id}>{`${"  ".repeat(item.depth)}${chartAccountLabel(item)}`}</option>)}</select></Field>
-      {editingChart && <><Field label="Grupo DRE"><select name="dre_group" defaultValue={editingChart.dre_group ?? ""}><option value="">Não classificado</option><option value="GROSS_REVENUE">Receita bruta</option><option value="REVENUE_DEDUCTIONS">Deduções da receita</option><option value="SERVICE_COST">Custo do serviço</option><option value="OPERATING_EXPENSE">Despesa operacional</option><option value="FINANCIAL_RESULT">Resultado financeiro</option><option value="OTHER_RESULT">Outros resultados</option><option value="INCOME_TAX">Imposto sobre resultado</option></select></Field><Field label="Atividade DFC"><select name="cash_flow_activity" defaultValue={editingChart.cash_flow_activity ?? ""}><option value="">Não classificado</option><option value="OPERATING">Operacional</option><option value="INVESTING">Investimento</option><option value="FINANCING">Financiamento</option></select></Field></>}
+      {editingChart && <Field label="Grupo DFC"><select name="cash_flow_activity" defaultValue={editingChart.cash_flow_activity ?? ""}><option value="">Não classificado</option><optgroup label="RECEITA"><option value="REVENUE_OPERATIONAL">(+) RECEITA OPERACIONAL</option><option value="REVENUE_NON_OPERATIONAL">(+) RECEITAS NÃO OPERACIONAIS</option></optgroup><optgroup label="DESPESA"><option value="REVENUE_DEDUCTIONS">(-) DEDUÇÕES DA RECEITA</option><option value="OPERATIONAL_COSTS">(-) CUSTOS OPERACIONAIS</option><option value="ADMINISTRATIVE_EXPENSES">(-) DESPESAS ADMINISTRATIVAS</option><option value="PERSONNEL_EXPENSES">(-) DESPESAS COM PESSOAL</option><option value="COMMERCIAL_EXPENSES">(-) DESPESAS COMERCIAIS</option><option value="FINANCIAL_EXPENSES">(-) DESPESAS FINANCEIRAS</option><option value="TAX_EXPENSES">(-) DESPESAS TRIBUTÁRIAS</option><option value="NON_OPERATIONAL_EXPENSES">(-) DESPESAS NÃO OPERACIONAIS</option></optgroup></select></Field>}
       <div className={`${styles.toolbarGroup} ${styles.formWide}`}><button className={styles.button}><ReceiptText size={15} /> {editingChart ? "Salvar" : "Adicionar conta"}</button><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={cancelChartEdit}>Cancelar</button></div>
     </form></Dialog>}
     {costDialogOpen && <Dialog title={editingCost ? "Editar centro de custo" : "Novo Centro de Custo"} onClose={cancelCostEdit}><form className={styles.form} key={`cost-${editingCost?.id ?? "new"}`} onSubmit={submitCatalog}>
@@ -740,9 +740,12 @@ function CatalogsSection({ organizationId, chartAccounts, costCenters, tags, dem
 }
 
 function ChartAccountColumns({ accounts, onEdit, onToggle }: { accounts: ChartAccountRecord[]; onEdit: (item: ChartAccountRecord) => void; onToggle: (item: ChartAccountRecord) => void }) {
+  const hiddenRevenueIds = new Set(buildChartAccountTree(accounts.filter((item) => item.kind === "REVENUE"))
+    .filter((item) => !item.active && item.depth === 2).map((item) => item.id));
+  const visibleAccounts = accounts.filter((item) => !hiddenRevenueIds.has(item.id));
   return <div className={styles.chartColumns}>
-    <ChartAccountColumn title="Receitas" buttonLabel="receitas" accounts={buildChartAccountTree(accounts.filter((item) => item.kind === "REVENUE"))} onEdit={onEdit} onToggle={onToggle} />
-    <ChartAccountColumn title="Despesas" buttonLabel="despesas" accounts={buildChartAccountTree(accounts.filter((item) => item.kind === "EXPENSE"))} onEdit={onEdit} onToggle={onToggle} />
+    <ChartAccountColumn title="Receitas" buttonLabel="receitas" accounts={buildChartAccountTree(visibleAccounts.filter((item) => item.kind === "REVENUE"))} onEdit={onEdit} onToggle={onToggle} />
+    <ChartAccountColumn title="Despesas" buttonLabel="despesas" accounts={buildChartAccountTree(visibleAccounts.filter((item) => item.kind === "EXPENSE"))} onEdit={onEdit} onToggle={onToggle} />
   </div>;
 }
 
