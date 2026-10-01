@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
+  CalendarX2,
   CalendarPlus2,
   Check,
   ChevronDown,
@@ -505,9 +506,15 @@ export function AgendaManager(props: Props) {
       </div>
     </div>
 
-    {dateBlock && <ActionMessage tone="warning" message={dateBlock.block_type === "EVENT"
-      ? `Evento “${dateBlock.name}” bloqueia ${dateBlock.start_time?.slice(0, 5)}–${dateBlock.end_time?.slice(0, 5)}. Reservas sobrepostas não serão aceitas.`
-      : `${dateBlock.block_type === "HOLIDAY" ? "Feriado" : "Recesso"} “${dateBlock.name}” bloqueia esta data.`} />}
+    {dateBlock && <div className={styles.dateBlockNotice} role="status" aria-live="polite">
+      <span className={styles.dateBlockNoticeIcon}><CalendarX2 size={21} aria-hidden="true" /></span>
+      <span className={styles.dateBlockNoticeContent}>
+        <strong>Agenda bloqueada nesta data</strong>
+        <span>{dateBlock.block_type === "EVENT"
+          ? `Evento “${dateBlock.name}” · ${dateBlock.start_time?.slice(0, 5)}–${dateBlock.end_time?.slice(0, 5)}. Reservas sobrepostas não serão aceitas.`
+          : `${dateBlock.block_type === "HOLIDAY" ? "Feriado" : "Recesso"} “${dateBlock.name}” bloqueia esta data.`}</span>
+      </span>
+    </div>}
 
     <div className="agenda-legend" aria-label="Legenda da agenda">
       <strong className="agenda-legend__title">Legenda</strong>

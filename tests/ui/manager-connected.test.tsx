@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgendaManager } from "@/components/connected-manager/agenda-manager";
 import { CustomersManager } from "@/components/connected-manager/customers-manager";
@@ -543,35 +543,43 @@ describe("connected manager UI", () => {
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeEnabled();
   });
 
-  it("renders agenda when date blocks are loaded", () => {
+  it("keeps date-block notice visible while blocked date is selected", async () => {
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-    render(<AgendaManager
-      organizationId="org-1"
-      billingStatus="ACTIVE"
-      organization={organization}
-      customers={[customer]}
-      barbers={[barber]}
-      services={[service]}
-      packages={[]}
-      barberServices={[]}
-      financial={[]}
-      appointments={[]}
-      dateBlocks={[{
-        id: "recess-today",
-        organization_id: "org-1",
-        block_type: "RECESS",
-        name: "Recesso de teste",
-        description: null,
-        holiday_scope: null,
-        recurrence: null,
-        start_date: today,
-        end_date: today,
-        start_time: null,
-        end_time: null,
-      }]}
-    />);
+    vi.useFakeTimers();
+    try {
+      render(<AgendaManager
+        organizationId="org-1"
+        billingStatus="ACTIVE"
+        organization={organization}
+        customers={[customer]}
+        barbers={[barber]}
+        services={[service]}
+        packages={[]}
+        barberServices={[]}
+        financial={[]}
+        appointments={[]}
+        dateBlocks={[{
+          id: "recess-today",
+          organization_id: "org-1",
+          block_type: "RECESS",
+          name: "Recesso de teste",
+          description: null,
+          holiday_scope: null,
+          recurrence: null,
+          start_date: today,
+          end_date: today,
+          start_time: null,
+          end_time: null,
+        }]}
+      />);
 
-    expect(screen.getByText(/Recesso “Recesso de teste” bloqueia esta data/)).toBeInTheDocument();
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(screen.getByRole("status")).toHaveTextContent("Agenda bloqueada nesta data");
+      expect(screen.getByRole("status")).toHaveTextContent(/Recesso “Recesso de teste” bloqueia esta data/);
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+    }
   });
 
   it("shows the payment account and translates the payment status in appointment details", () => {
