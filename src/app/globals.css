@@ -1149,9 +1149,17 @@
   .agenda-date-button > span { display: flex; flex-direction: column; min-width: 145px; text-align: left; }
   .agenda-date-button strong { color: var(--ink); font-size: 14px; font-weight: 750; }
   .agenda-date-button small { color: var(--success); font-size: 12px; font-weight: 650; }
-  .agenda-date-picker { position: absolute; z-index: 20; top: calc(100% + 8px); left: 42px; display: grid; gap: 6px; min-width: 190px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 12px 28px rgb(25 35 28 / 16%); }
-  .agenda-date-picker label { color: var(--ink-2); font-size: 13px; font-weight: 650; }
-  .agenda-date-picker input { min-height: 38px; padding: 0 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 14px; }
+  .agenda-date-picker { position: absolute; z-index: 20; top: calc(100% + 8px); left: 42px; display: grid; gap: 8px; width: 264px; max-width: calc(100vw - 24px); padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 12px 28px rgb(25 35 28 / 16%); }
+  .agenda-date-picker__header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .agenda-date-picker__header .icon-button { width: 32px; height: 32px; min-width: 32px; }
+  .agenda-date-picker__header strong { color: var(--ink); font-size: 14px; font-weight: 750; text-transform: capitalize; }
+  .agenda-date-picker__weekdays, .agenda-date-picker__days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+  .agenda-date-picker__weekdays span { color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; }
+  .agenda-date-picker__days button { display: grid; place-items: center; min-width: 0; aspect-ratio: 1; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: 12px; }
+  .agenda-date-picker__days button:hover { background: var(--paper-2); }
+  .agenda-date-picker__days button.is-muted { color: var(--muted); opacity: .6; }
+  .agenda-date-picker__days button.is-today { outline: 1px solid var(--success); outline-offset: -1px; }
+  .agenda-date-picker__days button.is-selected { background: var(--success); color: white; font-weight: 750; }
   .agenda-day__empty { position: absolute; z-index: 2; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 14px 18px; border: 1px dashed var(--border); border-radius: 10px; background: var(--surface); color: var(--ink-2); font-size: 14px; font-weight: 600; }
   .customer-search-results { display: grid; gap: 6px; margin-top: -6px; }
   .customer-search-result, .customer-search-create { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); text-align: left; }

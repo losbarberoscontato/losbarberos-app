@@ -126,6 +126,7 @@ export function AgendaManager(props: Props) {
   const [date, setDate] = useState(todayKey);
   const dateBlock = props.dateBlocks?.find((item) => dateBlockCoversDate(item, date));
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [datePickerMonth, setDatePickerMonth] = useState(todayKey);
   const [barberFilter, setBarberFilter] = useState("ALL");
   const [status, setStatus] = useState<AgendaStatusFilter>("ALL");
   const [selected, setSelected] = useState<AppointmentRecord | null>(null);
@@ -479,10 +480,18 @@ export function AgendaManager(props: Props) {
     <div className={`agenda-toolbar ${styles.connectedToolbar}`}>
       <div className="agenda-toolbar__date">
         <button type="button" className="icon-button" aria-label="Período anterior" onClick={() => navigate(-1)}><ChevronLeft size={18} /></button>
-        <button type="button" className="agenda-date-button" aria-label="Selecionar data" onClick={() => setDatePickerOpen((open) => !open)}><CalendarDays size={17} /><span><strong>{formatDate(date)}</strong><small>{date === todayKey ? "Hoje" : "Selecionar dia"}</small></span><ChevronDown size={15} /></button>
+        <button type="button" className="agenda-date-button" aria-label="Selecionar data" aria-expanded={datePickerOpen} aria-controls="connected-agenda-date-picker" onClick={() => { setDatePickerMonth(`${date.slice(0, 7)}-01`); setDatePickerOpen(true); }}><CalendarDays size={17} /><span><strong>{formatDate(date)}</strong><small>{date === todayKey ? "Hoje" : "Selecionar dia"}</small></span><ChevronDown size={15} /></button>
         <button type="button" className="icon-button" aria-label="Próximo período" onClick={() => navigate(1)}><ChevronRight size={18} /></button>
         <button type="button" className="button button--soft button--sm" onClick={() => setDate(todayKey)}>Hoje</button>
-        {datePickerOpen && <div className="agenda-date-picker"><label htmlFor="connected-agenda-date">Selecionar data</label><input id="connected-agenda-date" aria-label="Selecionar data da agenda" type="date" value={date} onChange={(event) => { setDate(event.target.value); setDatePickerOpen(false); }} /></div>}
+        {datePickerOpen && <div className="agenda-date-picker" id="connected-agenda-date-picker" role="dialog" aria-label="Selecionar data da agenda">
+          <div className="agenda-date-picker__header">
+            <button type="button" className="icon-button" aria-label="Mês anterior" onClick={() => setDatePickerMonth((current) => shiftMonth(current, -1))}><ChevronLeft size={16} /></button>
+            <strong aria-live="polite">{formatDate(datePickerMonth, { month: "long", year: "numeric" })}</strong>
+            <button type="button" className="icon-button" aria-label="Próximo mês" onClick={() => setDatePickerMonth((current) => shiftMonth(current, 1))}><ChevronRight size={16} /></button>
+          </div>
+          <div className="agenda-date-picker__weekdays" aria-hidden="true">{["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((weekday) => <span key={weekday}>{weekday}</span>)}</div>
+          <div className="agenda-date-picker__days">{monthCells(datePickerMonth).map((cell) => <button key={cell.dateKey} type="button" className={`${cell.outside ? "is-muted" : ""} ${cell.dateKey === date ? "is-selected" : ""} ${cell.dateKey === todayKey ? "is-today" : ""}`} aria-label={formatDate(cell.dateKey, { weekday: "long", day: "numeric", month: "long", year: "numeric" })} aria-pressed={cell.dateKey === date} onClick={() => { setDate(cell.dateKey); setDatePickerOpen(false); }}>{cell.day}</button>)}</div>
+        </div>}
       </div>
       <div className={`agenda-toolbar__controls ${styles.connectedControls}`}>
         <label className="select-shell"><Filter size={16} /><select aria-label="Filtrar por profissional" value={barberFilter} onChange={(event) => setBarberFilter(event.target.value)}><option value="ALL">Todos</option>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={14} /></label>

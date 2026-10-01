@@ -83,6 +83,25 @@ function renderTeam(options: { professionalFunctions?: Array<{ id: string; organ
   />);
 }
 
+function selectAgendaDate(dateKey: string) {
+  fireEvent.click(screen.getByRole("button", { name: "Selecionar data" }));
+  const [year, month] = dateKey.split("-").map(Number);
+  const [currentYear, currentMonth] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).formatToParts(new Date()).reduce((parts, item) => {
+    if (item.type === "year") parts[0] = Number(item.value);
+    if (item.type === "month") parts[1] = Number(item.value);
+    return parts;
+  }, [0, 0]);
+  const calendar = screen.getByRole("dialog", { name: "Selecionar data da agenda" });
+  const direction = year * 12 + month >= currentYear * 12 + currentMonth ? 1 : -1;
+  const distance = Math.min(Math.abs((year - currentYear) * 12 + month - currentMonth), 24);
+  for (let attempt = 0; attempt < distance; attempt += 1) {
+    fireEvent.click(within(calendar).getByRole("button", { name: direction > 0 ? "Próximo mês" : "Mês anterior" }));
+  }
+  const dayLabel = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${dateKey}T12:00:00.000Z`));
+  fireEvent.click(within(calendar).getByRole("button", { name: dayLabel }));
+  expect(screen.queryByRole("dialog", { name: "Selecionar data da agenda" })).not.toBeInTheDocument();
+}
+
 describe("connected manager UI", () => {
   beforeEach(() => { cleanup(); refresh.mockReset(); push.mockReset(); mutationMocks.update.mockClear(); mutationMocks.insert.mockClear(); mutationMocks.rpc.mockClear(); });
 
@@ -696,13 +715,29 @@ describe("connected manager UI", () => {
       appointmentItems={[{ id: "item-1", organization_id: "org-1", appointment_id: "appointment-calendar", service_name_snapshot: "Corte Real", position: 0 }]}
     />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Selecionar data" }));
-    fireEvent.change(screen.getByLabelText("Selecionar data da agenda"), { target: { value: "2026-08-07" } });
+    selectAgendaDate("2026-08-07");
     expect(screen.getByText("Corte Real")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Semana" }));
     expect(screen.getByText("Corte Real")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mês" }));
     expect(screen.getByText("1 reserva")).toBeInTheDocument();
+  });
+
+  it("abre calendário no primeiro clique e mantém data enquanto navega meses", () => {
+    render(<AgendaManager organizationId="org-1" billingStatus="ACTIVE" organization={organization} customers={[customer]} barbers={[barber]} services={[service]} packages={[]} barberServices={[]} financial={[]} appointments={[]} />);
+
+    const dateButton = screen.getByRole("button", { name: "Selecionar data" });
+    const selectedDate = dateButton.textContent;
+    fireEvent.click(dateButton);
+
+    const calendar = screen.getByRole("dialog", { name: "Selecionar data da agenda" });
+    expect(calendar).toBeInTheDocument();
+    expect(dateButton).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(within(calendar).getByRole("button", { name: "Próximo mês" }));
+
+    expect(screen.getByRole("dialog", { name: "Selecionar data da agenda" })).toBeInTheDocument();
+    expect(dateButton).toHaveAttribute("aria-expanded", "true");
+    expect(dateButton).toHaveTextContent(selectedDate ?? "");
   });
 
   it("exibe o nome do plano e o status de assinatura na agenda", () => {
@@ -725,8 +760,7 @@ describe("connected manager UI", () => {
       subscriptions={[{ id: "subscription-1", customer_id: customer.id, payment_method: "CARD", status: "ACTIVE", plan: { name: "Barba em dia" }, plan_version: { sessions_per_cycle: 2 } }]}
     />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Selecionar data" }));
-    fireEvent.change(screen.getByLabelText("Selecionar data da agenda"), { target: { value: "2026-08-07" } });
+    selectAgendaDate("2026-08-07");
     expect(screen.getByText("Barba em dia")).toBeInTheDocument();
     expect(screen.getByText("Plano de assinatura")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: `Abrir ${customer.full_name}` }));
