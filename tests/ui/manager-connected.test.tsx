@@ -155,7 +155,7 @@ describe("connected manager UI", () => {
     expect(screen.queryByRole("button", { name: "Forma de Pagamento" })).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Fechar" }).at(-1)!);
     fireEvent.click(screen.getByRole("button", { name: "Serviços" }));
-    expect(screen.getByRole("dialog", { name: "Serviços de Barbeiro Real" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Serviços e comissões de Barbeiro Real" })).toBeInTheDocument();
     expect(screen.getByText("Cliente")).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo de comissão de Corte Real")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Forma de pagamento"), { target: { value: "BIWEEKLY" } });
@@ -235,7 +235,7 @@ describe("connected manager UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Serviços" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Corte Real" }));
     fireEvent.change(screen.getByLabelText("Valor da comissão de Corte Real"), { target: { value: "25" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salvar serviços" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar configurações" }));
 
     await waitFor(() => expect(mutationMocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
       barber_id: "barber-1",
@@ -247,16 +247,16 @@ describe("connected manager UI", () => {
       p_service_id: "service-1",
       p_percentage_bps: 2500,
     }));
-    expect(screen.queryByRole("dialog", { name: "Serviços de Barbeiro Real" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Serviços e comissões de Barbeiro Real" })).not.toBeInTheDocument();
   });
 
   it("fecha o modal mesmo quando a comissão ainda não foi informada", async () => {
     renderTeam();
     fireEvent.click(screen.getByRole("button", { name: "Serviços" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Corte Real" }));
-    fireEvent.click(screen.getByRole("button", { name: "Salvar serviços" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar configurações" }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Serviços de Barbeiro Real" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Serviços e comissões de Barbeiro Real" })).not.toBeInTheDocument());
     expect(mutationMocks.upsert).toHaveBeenCalled();
   });
 
