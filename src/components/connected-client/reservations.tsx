@@ -93,8 +93,14 @@ function ReservationsContent() {
     return [...new Set(rescheduleTarget.items.map((item) => item.service_id))];
   }, [context, rescheduleChoice, rescheduleTarget]);
   const compatibleBarbers = useMemo(
-    () => context?.barbers.filter((barber) => barberSupportsServices(requiredServiceIds, barber.service_ids)) ?? [],
-    [context, requiredServiceIds],
+    () => context?.barbers.filter((barber) => {
+      if (!barberSupportsServices(requiredServiceIds, barber.service_ids)) return false;
+      const packageId = rescheduleChoice?.kind === "PACKAGE"
+        ? rescheduleChoice.id
+        : rescheduleTarget?.items.find((item) => item.package_id)?.package_id;
+      return !packageId || barber.package_ids === undefined || barber.package_ids.includes(packageId);
+    }) ?? [],
+    [context, requiredServiceIds, rescheduleChoice, rescheduleTarget],
   );
 
   useEffect(() => {

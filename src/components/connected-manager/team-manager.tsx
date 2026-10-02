@@ -21,6 +21,7 @@ type OperationForm = "SCHEDULE" | "EXCEPTION" | null;
 type CommissionPaymentFrequency = "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
 type CommissionMode = "PERCENT" | "FIXED";
 type ServiceDraft = { enabled: boolean; mode: CommissionMode; value: string };
+type CommissionTab = "SERVICES" | "PACKAGES" | "SUBSCRIPTION_PLANS";
 
 function centsInput(cents: number) {
   // Inputs do tipo number aceitam ponto como separador decimal, mesmo na
@@ -66,7 +67,10 @@ export function TeamManager(props: Props) {
   const [activeOperationForm, setActiveOperationForm] = useState<OperationForm>(null);
   const [operationOpen, setOperationOpen] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
+  const [commissionTab, setCommissionTab] = useState<CommissionTab>("SERVICES");
   const [serviceDrafts, setServiceDrafts] = useState<Record<string, ServiceDraft>>({});
+  const [packageDrafts, setPackageDrafts] = useState<Record<string, ServiceDraft>>({});
+  const [subscriptionPlanDrafts, setSubscriptionPlanDrafts] = useState<Record<string, ServiceDraft>>({});
   const [defaultCommissionDraft, setDefaultCommissionDraft] = useState<ServiceDraft>({ enabled: true, mode: "PERCENT", value: "" });
   const [commissionPaymentFrequency, setCommissionPaymentFrequency] = useState<CommissionPaymentFrequency>("PER_SERVICE");
   const [scheduleWeekday, setScheduleWeekday] = useState("0");
@@ -190,13 +194,36 @@ export function TeamManager(props: Props) {
         value: rule?.mode === "FIXED" ? centsInput(rule.fixed_cents ?? 0) : rule?.mode === "PERCENT" ? ((rule.percentage_bps ?? 0) / 100).toString() : "",
       };
     }
-    const defaultRule = props.commissionRules.find((item) => item.active && item.barber_id === barberId && item.service_id === null);
+    const defaultRule = props.commissionRules.find((item) => item.active && item.barber_id === barberId && item.service_id === null && item.package_id == null && item.subscription_plan_id == null);
     setDefaultCommissionDraft({
       enabled: Boolean(defaultRule),
       mode: defaultRule?.mode ?? "PERCENT",
       value: defaultRule?.mode === "FIXED" ? centsInput(defaultRule.fixed_cents ?? 0) : defaultRule?.mode === "PERCENT" ? ((defaultRule.percentage_bps ?? 0) / 100).toString() : "",
     });
     setServiceDrafts(nextDrafts);
+    const nextPackageDrafts: Record<string, ServiceDraft> = {};
+    for (const item of props.packages) {
+      const assignment = props.barberPackages.find((row) => row.barber_id === barberId && row.package_id === item.id);
+      const rule = props.commissionRules.find((row) => row.active && row.barber_id === barberId && row.package_id === item.id);
+      nextPackageDrafts[item.id] = {
+        enabled: Boolean(assignment?.active),
+        mode: rule?.mode ?? "PERCENT",
+        value: rule?.mode === "FIXED" ? centsInput(rule.fixed_cents ?? 0) : rule?.mode === "PERCENT" ? ((rule.percentage_bps ?? 0) / 100).toString() : "",
+      };
+    }
+    setPackageDrafts(nextPackageDrafts);
+    const nextPlanDrafts: Record<string, ServiceDraft> = {};
+    for (const item of props.subscriptionPlans) {
+      const assignment = props.barberSubscriptionPlans.find((row) => row.barber_id === barberId && row.plan_id === item.id);
+      const rule = props.commissionRules.find((row) => row.active && row.barber_id === barberId && row.subscription_plan_id === item.id);
+      nextPlanDrafts[item.id] = {
+        enabled: Boolean(assignment?.active),
+        mode: rule?.mode ?? "PERCENT",
+        value: rule?.mode === "FIXED" ? centsInput(rule.fixed_cents ?? 0) : rule?.mode === "PERCENT" ? ((rule.percentage_bps ?? 0) / 100).toString() : "",
+      };
+    }
+    setSubscriptionPlanDrafts(nextPlanDrafts);
+    setCommissionTab("SERVICES");
     setServicesOpen(true);
     setOperationOpen(false);
     setActiveOperationForm(null);
@@ -206,12 +233,64 @@ export function TeamManager(props: Props) {
     setServiceDrafts((current) => ({ ...current, [serviceId]: { ...(current[serviceId] ?? { enabled: false, mode: "PERCENT", value: "" }), ...patch } }));
   }
 
+  function updatePackageDraft(id: string, patch: Partial<ServiceDraft>) {
+    setPackageDrafts((current) => ({ ...current, [id]: { ...(current[id] ?? { enabled: false, mode: "PERCENT", value: "" }), ...patch } }));
+  }
+
+  function updatePlanDraft(id: string, patch: Partial<ServiceDraft>) {
+    setSubscriptionPlanDrafts((current) => ({ ...current, [id]: { ...(current[id] ?? { enabled: false, mode: "PERCENT", value: "" }), ...patch } }));
+  }
+
+  function renderCatalogCommissionRows(
+    items: Array<{ id: string; name: string }>,
+    drafts: Record<string, ServiceDraft>,
+    update: (id: string, patch: Partial<ServiceDraft>) => void,
+    enabledLabel: string,
+    emptyLabel: string,
+  ) {
+    return <section className={styles.serviceCommissionPanel}>
+      <h3>{enabledLabel}</h3>
+      <p className={styles.muted}>Defina quais itens este profissional atende e sua comissão.</p>
+      {items.length === 0 ? <p className={styles.serviceCommissionEmpty}>{emptyLabel}</p> : <>
+        <div className={styles.serviceCommissionHeader}><span>{enabledLabel}</span><span>Modelo</span><span>Valor</span></div>
+        <div className={styles.serviceCommissionGroups}>{items.map((item) => {
+          const draft = drafts[item.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" };
+          return <div className={styles.serviceCommissionRow} key={item.id}>
+            <label className={styles.check}><input type="checkbox" checked={draft.enabled} onChange={(event) => update(item.id, { enabled: event.target.checked })} />{item.name}</label>
+            <select aria-label={`Modelo de comissão de ${item.name}`} value={draft.mode} onChange={(event) => update(item.id, { mode: event.target.value as CommissionMode })} disabled={!draft.enabled}>
+              <option value="PERCENT">Percentual (%)</option><option value="FIXED">Fixo (R$)</option>
+            </select>
+            <input aria-label={`Valor da comissão de ${item.name}`} type="number" min="0" step="0.01" value={draft.value} onChange={(event) => update(item.id, { value: event.target.value })} disabled={!draft.enabled} />
+          </div>;
+        })}</div>
+      </>}
+    </section>;
+  }
+
   async function saveServiceSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const saved = await runMutation(setMessage, async () => {
       if (!scheduleBarber) throw new Error("Selecione um profissional.");
       const client = connectedClient();
+      const packageConfigs = props.packages.map((item) => {
+        const draft = packageDrafts[item.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" };
+        const value = draft.value.trim() ? (draft.mode === "FIXED" ? centsFromInput(draft.value) : Number(draft.value.replace(",", "."))) : null;
+        if (value !== null && (!Number.isFinite(value) || value < 0 || (draft.mode === "PERCENT" && value > 100))) throw new Error(`Informe uma comissão válida para o pacote ${item.name}.`);
+        return { id: item.id, enabled: draft.enabled, mode: draft.mode, value_present: value !== null, percentage_bps: draft.mode === "PERCENT" && value !== null ? Math.round(value * 100) : null, fixed_cents: draft.mode === "FIXED" && value !== null ? value : null };
+      });
+      const planConfigs = props.subscriptionPlans.map((item) => {
+        const draft = subscriptionPlanDrafts[item.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" };
+        const value = draft.value.trim() ? (draft.mode === "FIXED" ? centsFromInput(draft.value) : Number(draft.value.replace(",", "."))) : null;
+        if (value !== null && (!Number.isFinite(value) || value < 0 || (draft.mode === "PERCENT" && value > 100))) throw new Error(`Informe uma comissão válida para o plano ${item.name}.`);
+        return { id: item.id, enabled: draft.enabled, mode: draft.mode, value_present: value !== null, percentage_bps: draft.mode === "PERCENT" && value !== null ? Math.round(value * 100) : null, fixed_cents: draft.mode === "FIXED" && value !== null ? value : null };
+      });
+      await assertResult(await client.rpc("save_barber_catalog_commissions", {
+        p_organization_id: props.organizationId,
+        p_barber_id: scheduleBarber,
+        p_packages: packageConfigs,
+        p_subscription_plans: planConfigs,
+      }));
       for (const service of props.services) {
         const draft = serviceDrafts[service.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" };
         await assertResult(await client.from("barber_services").upsert({ organization_id: props.organizationId, barber_id: scheduleBarber, service_id: service.id, active: draft.enabled }, { onConflict: "barber_id,service_id" }));
@@ -236,7 +315,7 @@ export function TeamManager(props: Props) {
       if (defaultCommissionDraft.enabled && defaultCommissionDraft.value.trim()) {
         const numericValue = defaultCommissionDraft.mode === "FIXED" ? centsFromInput(defaultCommissionDraft.value) : Number(defaultCommissionDraft.value.replace(",", "."));
         if (!Number.isFinite(numericValue) || numericValue < 0) throw new Error("Informe um valor válido para a comissão padrão.");
-        const currentDefaultRule = props.commissionRules.find((rule) => rule.active && rule.barber_id === scheduleBarber && rule.service_id === null);
+        const currentDefaultRule = props.commissionRules.find((rule) => rule.active && rule.barber_id === scheduleBarber && rule.service_id === null && rule.package_id == null && rule.subscription_plan_id == null);
         await assertResult(await client.rpc("replace_commission_rule", {
           p_organization_id: props.organizationId,
           p_barber_id: scheduleBarber,
@@ -382,17 +461,32 @@ export function TeamManager(props: Props) {
 
     {servicesOpen && selectedBarber && <div className="modal-layer" role="presentation">
       <button className="modal-layer__backdrop" type="button" aria-label="Fechar serviços" onClick={() => setServicesOpen(false)} />
-      <form className={`form-modal ${styles.teamOperationModal}`} role="dialog" aria-modal="true" aria-label={`Serviços de ${selectedBarber.display_name}`} onSubmit={saveServiceSettings}>
+      <form className={`form-modal ${styles.teamOperationModal}`} role="dialog" aria-modal="true" aria-label={`Serviços e comissões de ${selectedBarber.display_name}`} onSubmit={saveServiceSettings}>
         <div className="form-modal__head"><span><small>Configuração do profissional</small><strong>Serviços</strong></span><button type="button" className="icon-button" onClick={() => setServicesOpen(false)} aria-label="Fechar"><X size={19} /></button></div>
         <div className="form-modal__body">
           {message && <ActionMessage message={message} tone={message === "Salvando…" || message.includes("atualizados") ? "info" : "error"} />}
           <p className={styles.operationDescription}>{selectedBarber.display_name}</p>
+          <div className={`${styles.tabs} ${styles.commissionTabs}`} role="tablist" aria-label="Configurações de comissão">
+            <button className={`${styles.tab} ${commissionTab === "SERVICES" ? styles.tabActive : ""}`} role="tab" aria-selected={commissionTab === "SERVICES"} type="button" onClick={() => setCommissionTab("SERVICES")}>Serviços</button>
+            <button className={`${styles.tab} ${commissionTab === "PACKAGES" ? styles.tabActive : ""}`} role="tab" aria-selected={commissionTab === "PACKAGES"} type="button" onClick={() => setCommissionTab("PACKAGES")}>Pacotes</button>
+            <button className={`${styles.tab} ${commissionTab === "SUBSCRIPTION_PLANS" ? styles.tabActive : ""}`} role="tab" aria-selected={commissionTab === "SUBSCRIPTION_PLANS"} type="button" onClick={() => setCommissionTab("SUBSCRIPTION_PLANS")}>Planos de assinatura</button>
+          </div>
+          {commissionTab === "SERVICES" && <>
           <section className={styles.serviceCommissionPanel}><h3>Serviços habilitados e comissão</h3><p className={styles.muted}>Selecione os serviços, defina o modelo e informe o valor da comissão.</p>
             <div className={styles.serviceCommissionGroups}>{serviceGroups.map((group) => <section className={styles.serviceCommissionGroup} key={group.key}><h4>{group.label}</h4>{group.services.length === 0 ? <p className={styles.serviceCommissionEmpty}>Nenhum serviço cadastrado neste setor.</p> : <><div className={styles.serviceCommissionHeader}><span>Serviço habilitado</span><span>Modelo</span><span>Valor</span></div>{group.services.map((service) => { const draft = serviceDrafts[service.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" }; return <div className={styles.serviceCommissionRow} key={service.id}><label className={styles.check}><input type="checkbox" checked={draft.enabled} onChange={(event) => updateServiceDraft(service.id, { enabled: event.target.checked })} />{service.name}</label><select aria-label={`Modelo de comissão de ${service.name}`} value={draft.mode} onChange={(event) => updateServiceDraft(service.id, { mode: event.target.value as CommissionMode })} disabled={!draft.enabled}><option value="PERCENT">Percentual (%)</option><option value="FIXED">Fixo (R$)</option></select><input aria-label={`Valor da comissão de ${service.name}`} type="number" min="0" step="0.01" value={draft.value} onChange={(event) => updateServiceDraft(service.id, { value: event.target.value })} disabled={!draft.enabled} /></div>; })}</>}</section>)}</div>
           </section>
           <section className={styles.serviceDefaultCommission}><h3>Comissão padrão do profissional</h3><label className={styles.check}><input type="checkbox" checked={defaultCommissionDraft.enabled} onChange={(event) => setDefaultCommissionDraft((current) => ({ ...current, enabled: event.target.checked }))} />Usar comissão padrão</label><div className={styles.form}><Field label="Modelo"><select value={defaultCommissionDraft.mode} onChange={(event) => setDefaultCommissionDraft((current) => ({ ...current, mode: event.target.value as CommissionMode }))} disabled={!defaultCommissionDraft.enabled}><option value="PERCENT">Percentual (%)</option><option value="FIXED">Fixo (R$)</option></select></Field><Field label="Valor"><input type="number" min="0" step="0.01" value={defaultCommissionDraft.value} onChange={(event) => setDefaultCommissionDraft((current) => ({ ...current, value: event.target.value }))} disabled={!defaultCommissionDraft.enabled} /></Field></div></section>
           <section className={styles.servicePaymentPanel}><h3>Forma de pagamento da comissão</h3><div className={styles.form}><Field label="Forma de pagamento"><select name="commission_payment_frequency" value={commissionPaymentFrequency} onChange={(event) => setCommissionPaymentFrequency(event.target.value as CommissionPaymentFrequency)}><option value="PER_SERVICE">Por serviço</option><option value="WEEKLY">Por semana</option><option value="BIWEEKLY">Quinzenal</option><option value="MONTHLY">Mensal</option></select></Field>{commissionPaymentFrequency === "WEEKLY" && <Field label="Dia do pagamento"><select name="commission_payment_weekday" defaultValue={selectedBarber.commission_payment_weekday ?? 1}><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="7">Domingo</option></select></Field>}{commissionPaymentFrequency === "BIWEEKLY" && <><Field label="1º pagamento"><input name="commission_payment_first_day" type="number" min="1" max="31" required defaultValue={selectedBarber.commission_payment_first_day ?? ""} /></Field><Field label="2º pagamento"><input name="commission_payment_second_day" type="number" min="1" max="31" required defaultValue={selectedBarber.commission_payment_second_day ?? ""} /></Field></>}{commissionPaymentFrequency === "MONTHLY" && <Field label="Dia do pagamento"><input name="commission_payment_first_day" type="number" min="1" max="31" required defaultValue={selectedBarber.commission_payment_first_day ?? ""} /></Field>}</div></section>
-          <div className="form-modal__footer"><button className="button button--ghost" type="button" onClick={() => setServicesOpen(false)}>Cancelar</button><button className="button button--dark" type="submit">Salvar serviços</button></div>
+          </>}
+          {commissionTab === "PACKAGES" && <>
+            {renderCatalogCommissionRows(props.packages, packageDrafts, updatePackageDraft, "Pacote atendido", "Nenhum pacote cadastrado.")}
+            <p className={styles.muted}>A comissão do pacote só fica disponível após o recebimento integral do pacote pelo cliente.</p>
+          </>}
+          {commissionTab === "SUBSCRIPTION_PLANS" && <>
+            {renderCatalogCommissionRows(props.subscriptionPlans, subscriptionPlanDrafts, updatePlanDraft, "Plano atendido", "Nenhum plano de assinatura cadastrado.")}
+            <p className={styles.muted}>A comissão é calculada por sessão atendida sobre o valor pago no ciclo e liberada após o recebimento da fatura.</p>
+          </>}
+          <div className="form-modal__footer"><button className="button button--ghost" type="button" onClick={() => setServicesOpen(false)}>Cancelar</button><button className="button button--dark" type="submit">Salvar configurações</button></div>
         </div>
       </form>
     </div>}

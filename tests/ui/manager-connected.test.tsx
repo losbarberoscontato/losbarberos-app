@@ -80,6 +80,10 @@ function renderTeam(options: { professionalFunctions?: Array<{ id: string; organ
     workIntervals={[]}
     exceptions={[]}
     commissionRules={options.commissionRules ?? []}
+    packages={[]}
+    barberPackages={[]}
+    subscriptionPlans={[]}
+    barberSubscriptionPlans={[]}
   />);
 }
 

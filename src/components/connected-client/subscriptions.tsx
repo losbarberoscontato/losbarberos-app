@@ -208,7 +208,8 @@ export function ConnectedSubscriptions() {
   }, [context, customer, user]);
   async function requestPlan(plan: AvailablePlan) {
     if (plan.version?.scheduling_mode === "FIXED") {
-      const eligibleBarbers = context?.barbers.filter((barber) => barberSupportsServices(plan.service_ids, barber.service_ids)) ?? [];
+      const eligibleBarbers = context?.barbers.filter((barber) => barberSupportsServices(plan.service_ids, barber.service_ids)
+        && (barber.subscription_plan_ids === undefined || barber.subscription_plan_ids.includes(plan.id))) ?? [];
       if (!context || eligibleBarbers.length === 0) {
         setMessage("Nenhum profissional está habilitado para todos os serviços deste plano.");
         return;
@@ -469,7 +470,8 @@ export function ConnectedSubscriptions() {
         </div>
       )}
       {fixedScheduleDraft && context && (() => {
-        const eligibleBarbers = context.barbers.filter((barber) => barberSupportsServices(fixedScheduleDraft.plan.service_ids, barber.service_ids));
+        const eligibleBarbers = context.barbers.filter((barber) => barberSupportsServices(fixedScheduleDraft.plan.service_ids, barber.service_ids)
+          && (barber.subscription_plan_ids === undefined || barber.subscription_plan_ids.includes(fixedScheduleDraft.plan.id)));
         return <div className={styles.modalLayer} role="presentation">
           <button className={styles.backdrop} type="button" aria-label="Fechar escolha de agenda fixa" onClick={() => setFixedScheduleDraft(null)} />
           <form className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="fixed-subscription-title" onSubmit={(event) => void requestFixedPlan(event)}>

@@ -53,6 +53,8 @@ export type PublicBarber = {
   bio: string | null;
   avatar_url: string | null;
   service_ids?: string[];
+  package_ids?: string[];
+  subscription_plan_ids?: string[];
 };
 
 export type PublicBookingContext = {

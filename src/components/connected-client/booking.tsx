@@ -110,6 +110,7 @@ function BookingContent() {
   const [step, setStep] = useState(1);
   const [choiceId, setChoiceId] = useState("");
   const [subscriptionSessionId, setSubscriptionSessionId] = useState<string | null>(null);
+  const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
   const [subscriptionSelections, setSubscriptionSelections] = useState<Array<{ type: "SERVICE"; service_id: string; quantity: number }>>([]);
   const [barberMode, setBarberMode] = useState<BarberMode>("");
   const [barberId, setBarberId] = useState("");
@@ -210,12 +211,13 @@ function BookingContent() {
     let active = true;
     void Promise.resolve(supabase.from("customer_subscription_sessions").select("id,subscription_id,status").eq("id", sessionId).eq("organization_id", context.organization.id).single()).then(async ({ data: session, error }) => {
       if (error || !session || session.status !== "AVAILABLE") throw new Error("Sessão de assinatura indisponível.");
-      const { data: subscription, error: subscriptionError } = await supabase.from("customer_subscriptions").select("id,customer_id,plan_version_id,status").eq("id", session.subscription_id).eq("organization_id", context.organization.id).single();
+      const { data: subscription, error: subscriptionError } = await supabase.from("customer_subscriptions").select("id,customer_id,plan_id,plan_version_id,status").eq("id", session.subscription_id).eq("organization_id", context.organization.id).single();
       if (subscriptionError || !subscription || subscription.customer_id !== customer.id || subscription.status !== "ACTIVE") throw new Error("Assinatura não está ativa.");
       const { data: links, error: linksError } = await supabase.from("subscription_plan_services").select("service_id").eq("organization_id", context.organization.id).eq("plan_version_id", subscription.plan_version_id).order("position");
       if (linksError || !links?.length) throw new Error("Serviços da assinatura não encontrados.");
       if (!active) return;
       setSubscriptionSessionId(sessionId);
+      setSubscriptionPlanId(subscription.plan_id);
       setSubscriptionSelections(links.map((link) => ({ type: "SERVICE" as const, service_id: link.service_id, quantity: 1 })));
       const firstService = context.services.find((service) => service.id === links[0].service_id);
       setSelectedAudience(firstService?.audiences?.[0] ?? CATALOG_AUDIENCES[0]);
@@ -225,14 +227,16 @@ function BookingContent() {
     return () => { active = false; };
   }, [context, customer, supabase]);
   const compatibleBarbers = useMemo(() => {
-    if (!context || !choice) return context?.barbers ?? [];
+    if (!context || (!choice && !isSubscriptionBooking)) return context?.barbers ?? [];
     const requiredServices = isSubscriptionBooking
       ? subscriptionSelections.map((selection) => selection.service_id)
-      : serviceIdsForChoice(context, choice);
+      : choice ? serviceIdsForChoice(context, choice) : [];
     return context.barbers.filter((item) =>
       barberSupportsServices(requiredServices, item.service_ids)
+      && (!choice || choice.kind !== "PACKAGE" || item.package_ids === undefined || item.package_ids.includes(choice.id))
+      && (!isSubscriptionBooking || !subscriptionPlanId || item.subscription_plan_ids === undefined || item.subscription_plan_ids.includes(subscriptionPlanId))
     );
-  }, [choice, context, isSubscriptionBooking, subscriptionSelections]);
+  }, [choice, context, isSubscriptionBooking, subscriptionPlanId, subscriptionSelections]);
   const barber = compatibleBarbers.find((item) => item.id === barberId) ?? null;
 
   useEffect(() => {

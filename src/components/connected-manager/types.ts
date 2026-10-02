@@ -207,6 +207,8 @@ export interface CommissionRuleRecord {
   organization_id: string;
   barber_id: string | null;
   service_id: string | null;
+  package_id?: string | null;
+  subscription_plan_id?: string | null;
   mode: "PERCENT" | "FIXED";
   percentage_bps: number | null;
   fixed_cents: number | null;
@@ -417,8 +419,22 @@ export interface FinancialCommissionDetailRecord {
   project_engagement_id?: string | null;
   project_id?: string | null;
   is_project?: boolean;
-  source_type?: "APPOINTMENT" | "PROJECT_INTERNAL";
+  source_type?: "APPOINTMENT" | "PROJECT_INTERNAL" | "SUBSCRIPTION_SESSION";
   internal_service_id?: string | null;
+}
+
+export interface BarberPackageRecord {
+  organization_id: string;
+  barber_id: string;
+  package_id: string;
+  active: boolean;
+}
+
+export interface BarberSubscriptionPlanRecord {
+  organization_id: string;
+  barber_id: string;
+  plan_id: string;
+  active: boolean;
 }
 
 export interface FinancialAccountBalanceRecord {

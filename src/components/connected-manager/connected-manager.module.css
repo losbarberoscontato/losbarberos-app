@@ -223,6 +223,8 @@
 .professionalName .chip { flex: 0 0 auto; font-size: .65rem; padding: .25rem .45rem; }
 .professionalWhatsapp { color: #3d493e; font-size: .82rem; font-weight: 700; overflow-wrap: anywhere; }
 .teamOperationModal { width: min(100%, 1040px); }
+.commissionTabs { margin: .25rem 0 .8rem; }
+.commissionTabs .tab { flex: 1 0 auto; }
 .serviceCommissionPanel, .servicePaymentPanel, .serviceDefaultCommission { display: grid; gap: .65rem; padding: .9rem; border: 1px solid #e1e7e0; border-radius: 14px; background: #f8faf7; }
 .serviceCommissionPanel h3, .servicePaymentPanel h3, .serviceDefaultCommission h3 { margin: 0; font-size: .95rem; }
 .serviceCommissionGroups { display: grid; gap: .7rem; }

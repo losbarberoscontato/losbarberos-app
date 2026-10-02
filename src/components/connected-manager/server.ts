@@ -353,6 +353,10 @@ export async function loadTeamData() {
     environments,
     professionalFunctions,
     projectsEntitlement,
+    packages,
+    barberPackages,
+    subscriptionPlans,
+    barberSubscriptionPlans,
   ] = await Promise.all([
     supabase
       .from("organizations")
@@ -424,6 +428,27 @@ export async function loadTeamData() {
       .eq("organization_id", organizationId)
       .eq("module_key", "projects")
       .maybeSingle(),
+    supabase
+      .from("packages")
+      .select("id,organization_id,name,active,sort_order")
+      .eq("organization_id", organizationId)
+      .eq("active", true)
+      .order("sort_order")
+      .order("name"),
+    supabase
+      .from("barber_packages")
+      .select("organization_id,barber_id,package_id,active")
+      .eq("organization_id", organizationId),
+    supabase
+      .from("subscription_plans")
+      .select("id,organization_id,name,active")
+      .eq("organization_id", organizationId)
+      .eq("active", true)
+      .order("name"),
+    supabase
+      .from("barber_subscription_plans")
+      .select("organization_id,barber_id,plan_id,active")
+      .eq("organization_id", organizationId),
   ]);
   return {
     organizationId,
@@ -459,6 +484,14 @@ export async function loadTeamData() {
     environments: requireData(environments, "Ambientes") as AgendaEnvironmentRecord[],
     professionalFunctions: requireData(professionalFunctions, "Funções profissionais") as ProfessionalFunctionRecord[],
     projectsModuleEnabled: Boolean(projectsEntitlement.data?.enabled),
+    packages: requireData(packages, "Pacotes") as Array<{
+      id: string; organization_id: string; name: string; active: boolean; sort_order: number;
+    }>,
+    barberPackages: requireData(barberPackages, "Pacotes por profissional") as import("./types").BarberPackageRecord[],
+    subscriptionPlans: requireData(subscriptionPlans, "Planos de assinatura") as Array<{
+      id: string; organization_id: string; name: string; active: boolean;
+    }>,
+    barberSubscriptionPlans: requireData(barberSubscriptionPlans, "Planos por profissional") as import("./types").BarberSubscriptionPlanRecord[],
   };
 }
 
