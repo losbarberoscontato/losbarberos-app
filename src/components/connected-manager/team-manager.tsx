@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent, useRef } from "react";
+import { useEffect, useMemo, useState, type FormEvent, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
@@ -74,6 +74,11 @@ export function TeamManager(props: Props) {
   const [scheduleEndsAt, setScheduleEndsAt] = useState("18:00");
   const [exceptionKind, setExceptionKind] = useState("UNAVAILABLE");
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!selectedPhotoPreview) return;
+    return () => URL.revokeObjectURL(selectedPhotoPreview);
+  }, [selectedPhotoPreview]);
   const activeLocation = props.locations.find((location) => location.active);
   const barberById = useMemo(() => new Map(props.barbers.map((barber) => [barber.id, barber])), [props.barbers]);
   const selectedBarber = props.barbers.find((barber) => barber.id === scheduleBarber);
@@ -81,7 +86,13 @@ export function TeamManager(props: Props) {
 
   function openBarberForm(form: BarberRecord | "new") {
     setMessage("");
+    setSelectedPhotoPreview(null);
     setBarberForm(form);
+  }
+
+  function closeBarberForm() {
+    setSelectedPhotoPreview(null);
+    setBarberForm(null);
   }
 
   async function saveBarber(event: FormEvent<HTMLFormElement>) {
@@ -143,7 +154,7 @@ export function TeamManager(props: Props) {
         await assertResult(await client.from("barbers").update({ avatar_url: avatarUrl }).eq("id", barberId).eq("organization_id", props.organizationId));
       }
     }, editing ? "Profissional atualizado." : "Profissional cadastrado.");
-    if (saved) { setBarberForm(null); router.refresh(); }
+    if (saved) { closeBarberForm(); router.refresh(); }
   }
 
   async function toggleBarber(barber: BarberRecord) {
@@ -320,24 +331,24 @@ export function TeamManager(props: Props) {
     <ActionMessage message={message} />
     <Panel title="Profissionais" titleAdornment={<select aria-label="Filtro de profissionais" className={styles.professionalFilter} value={professionalFilter} onChange={(event) => setProfessionalFilter(event.target.value as ProfessionalFilter)}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select>} description={`${props.barbers.filter((item) => item.active).length} ativos`} action={<button className={styles.button} type="button" onClick={() => openBarberForm("new")}>Novo profissional</button>}>
       {barberForm && <div className="modal-layer" role="presentation">
-        <button className="modal-layer__backdrop" type="button" aria-label="Fechar" onClick={() => setBarberForm(null)} />
+        <button className="modal-layer__backdrop" type="button" aria-label="Fechar" onClick={closeBarberForm} />
         <form className="form-modal" role="dialog" aria-modal="true" aria-label={barberForm === "new" ? "Novo profissional" : "Editar profissional"} onSubmit={saveBarber} key={barberForm === "new" ? "new" : barberForm.id}>
-          <div className="form-modal__head"><span><small>{barberForm === "new" ? "Novo profissional" : "Editar profissional"}</small><strong>{barberForm === "new" ? "Cadastre um profissional" : "Atualize os dados"}</strong></span><button type="button" className="icon-button" onClick={() => setBarberForm(null)} aria-label="Fechar"><X size={19} /></button></div>
+          <div className="form-modal__head"><span><small>{barberForm === "new" ? "Novo profissional" : "Editar profissional"}</small><strong>{barberForm === "new" ? "Cadastre um profissional" : "Atualize os dados"}</strong></span><button type="button" className="icon-button" onClick={closeBarberForm} aria-label="Fechar"><X size={19} /></button></div>
           <div className="form-modal__body">
             {message && <ActionMessage message={message} tone={message.includes("atualizado") || message.includes("Salvando") ? "info" : "error"} />}
             <div className="form-grid"><Field label="Nome completo"><input name="display_name" required minLength={2} defaultValue={barberForm === "new" ? "" : barberForm.display_name} /></Field><Field label="Função"><select name="professional_function_id" defaultValue={barberForm === "new" ? "" : barberForm.professional_function_id ?? ""}><option value="">Sem função</option>{props.professionalFunctions.map((professionalFunction) => <option key={professionalFunction.id} value={professionalFunction.id}>{professionalFunction.name}</option>)}</select></Field></div>
             <Field label="Unidade"><select name="location_id" required defaultValue={barberForm === "new" ? activeLocation?.id : barberForm.location_id}>{props.locations.filter((item) => item.active).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></Field>
             <Field label="WhatsApp do profissional"><><input name="whatsapp_e164" inputMode="tel" required placeholder="47999999999 ou +5547999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={barberForm === "new" ? "" : barberForm.whatsapp_e164 ?? ""} onBlur={(event) => { const normalized = normalizePhoneE164(event.currentTarget.value); if (normalized) event.currentTarget.value = normalized; }} /><small>Usado somente para avisos transacionais dos próprios agendamentos.</small></></Field>
-            <Field label="E-mail de acesso do Barbeiro"><><input name="login_email" type="email" readOnly={editingManager} aria-readonly={editingManager || undefined} defaultValue={barberForm === "new" ? "" : barberForm.login_email ?? ""} /><small>{editingManager ? "Vínculo original do login de administrador; não pode ser alterado." : "Deve ser igual ao e-mail usado no login. Sem este cadastro, o App do Barbeiro não libera acesso."}</small></></Field>
+            <Field label="E-mail de acesso ao app"><><input name="login_email" type="email" readOnly={editingManager} aria-readonly={editingManager || undefined} defaultValue={barberForm === "new" ? "" : barberForm.login_email ?? ""} /><small>{editingManager ? "Vínculo original do login de administrador; não pode ser alterado." : "Deve ser igual ao e-mail usado no login. Sem este cadastro, o App do Barbeiro não libera acesso."}</small></></Field>
             <Field label="Agenda no App do Barbeiro"><select name="agenda_access_scope" defaultValue={barberForm === "new" ? "OWN" : barberForm.agenda_access_scope ?? "OWN"}><option value="OWN">Somente a própria agenda</option><option value="FULL">Agenda completa da barbearia</option></select></Field>
-            <Field label="Acesso ao App"><label className={styles.check}><input name="app_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.app_access_enabled)} />Liberar login do Barbeiro</label></Field>
+            <Field label="Acesso ao App"><label className={styles.check}><input name="app_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.app_access_enabled)} />Liberar login no app</label></Field>
             <Field label="Acesso ao Caixa"><label className={styles.check}><input name="cash_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.cash_access_enabled)} />Permitir recebimentos no Caixa individual</label></Field>
             <Field label="Acesso a Projetos"><label className={styles.check}><input name="projects_access_enabled" type="checkbox" disabled={!props.projectsModuleEnabled} defaultChecked={barberForm !== "new" && Boolean(barberForm.projects_access_enabled)} />Permitir acesso ao módulo Projetos</label>{!props.projectsModuleEnabled && <small>Ative o módulo Projetos em Configurações → Módulos.</small>}</Field>
             <Field label="Contas que pode receber"><select name="financial_account_ids" multiple defaultValue={barberForm === "new" ? [] : (props.barberAccountPermissions ?? []).filter((item) => item.barber_id === barberForm.id).map((item) => item.financial_account_id)}>{(props.financialAccounts ?? []).map((account) => <option key={account.id} value={account.id}>{account.name} · {account.kind === "CASH" ? "Caixa" : "Banco"}</option>)}</select></Field>
             <Field label="Apresentação"><textarea name="bio" defaultValue={barberForm === "new" ? "" : barberForm.bio ?? ""} /></Field>
-            <div className={styles.field}><span>Foto de perfil</span><div className={styles.profilePhotoField}><span className={styles.profilePhotoPreview}>{barberForm !== "new" && barberForm.avatar_url ? <Image src={barberForm.avatar_url} alt="" width={64} height={64} sizes="64px" /> : initials(barberForm === "new" ? "Profissional" : barberForm.display_name)}</span><span><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => photoInputRef.current?.click()}>Adicionar foto</button><input ref={photoInputRef} className={styles.fileInput} type="file" name="avatar" accept="image/png,image/jpeg,image/webp" /><small>Será centralizada e salva em 320 × 320 pixels.</small></span></div></div>
+            <div className={styles.field}><span>Foto de perfil</span><div className={styles.profilePhotoField}><span className={styles.profilePhotoPreview}>{selectedPhotoPreview ? <Image src={selectedPhotoPreview} alt="Prévia da foto de perfil" width={64} height={64} sizes="64px" unoptimized /> : barberForm !== "new" && barberForm.avatar_url ? <Image src={barberForm.avatar_url} alt="Foto de perfil" width={64} height={64} sizes="64px" /> : initials(barberForm === "new" ? "Profissional" : barberForm.display_name)}</span><span><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => photoInputRef.current?.click()}>Adicionar foto</button><input ref={photoInputRef} className={styles.fileInput} type="file" name="avatar" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.currentTarget.files?.[0]; setSelectedPhotoPreview(file ? URL.createObjectURL(file) : null); }} /><small>Será centralizada e salva em 320 × 320 pixels.</small></span></div></div>
           </div>
-          <div className="form-modal__footer"><button className="button button--ghost" type="button" onClick={() => setBarberForm(null)}>Cancelar</button><button className="button button--dark" type="submit">{barberForm === "new" ? "Cadastrar" : "Salvar"}</button></div>
+          <div className="form-modal__footer"><button className="button button--ghost" type="button" onClick={closeBarberForm}>Cancelar</button><button className="button button--dark" type="submit">{barberForm === "new" ? "Cadastrar" : "Salvar"}</button></div>
         </form>
       </div>}
       <div className={styles.toolbar}><label className={styles.field}><span>Buscar</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome ou WhatsApp" /></label></div>
