@@ -73,6 +73,9 @@ export function TeamManager(props: Props) {
   const [subscriptionPlanDrafts, setSubscriptionPlanDrafts] = useState<Record<string, ServiceDraft>>({});
   const [defaultCommissionDraft, setDefaultCommissionDraft] = useState<ServiceDraft>({ enabled: true, mode: "PERCENT", value: "" });
   const [commissionPaymentFrequency, setCommissionPaymentFrequency] = useState<CommissionPaymentFrequency>("PER_SERVICE");
+  const [commissionPaymentWeekday, setCommissionPaymentWeekday] = useState("1");
+  const [commissionPaymentFirstDay, setCommissionPaymentFirstDay] = useState("");
+  const [commissionPaymentSecondDay, setCommissionPaymentSecondDay] = useState("");
   const [scheduleWeekday, setScheduleWeekday] = useState("0");
   const [scheduleStartsAt, setScheduleStartsAt] = useState("09:00");
   const [scheduleEndsAt, setScheduleEndsAt] = useState("18:00");
@@ -172,6 +175,9 @@ export function TeamManager(props: Props) {
     const barber = props.barbers.find((item) => item.id === barberId);
     setScheduleBarber(barberId);
     setCommissionPaymentFrequency(barber?.commission_payment_frequency ?? "PER_SERVICE");
+    setCommissionPaymentWeekday(String(barber?.commission_payment_weekday ?? 1));
+    setCommissionPaymentFirstDay(barber?.commission_payment_first_day == null ? "" : String(barber.commission_payment_first_day));
+    setCommissionPaymentSecondDay(barber?.commission_payment_second_day == null ? "" : String(barber.commission_payment_second_day));
   }
 
   function openScale(barberId: string) {
@@ -269,9 +275,14 @@ export function TeamManager(props: Props) {
 
   async function saveServiceSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
     const saved = await runMutation(setMessage, async () => {
       if (!scheduleBarber) throw new Error("Selecione um profissional.");
+      const weekday = Number(commissionPaymentWeekday);
+      const firstPaymentDay = Number(commissionPaymentFirstDay);
+      const secondPaymentDay = Number(commissionPaymentSecondDay);
+      if (commissionPaymentFrequency === "WEEKLY" && (!Number.isInteger(weekday) || weekday < 1 || weekday > 7)) throw new Error("Selecione o dia semanal de pagamento da comissão.");
+      if ((commissionPaymentFrequency === "BIWEEKLY" || commissionPaymentFrequency === "MONTHLY") && (!Number.isInteger(firstPaymentDay) || firstPaymentDay < 1 || firstPaymentDay > 31)) throw new Error("Informe um dia válido para o pagamento da comissão.");
+      if (commissionPaymentFrequency === "BIWEEKLY" && (!Number.isInteger(secondPaymentDay) || secondPaymentDay < 1 || secondPaymentDay > 31 || secondPaymentDay === firstPaymentDay)) throw new Error("Informe dois dias diferentes para o pagamento quinzenal.");
       const client = connectedClient();
       const packageConfigs = props.packages.map((item) => {
         const draft = packageDrafts[item.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" };
@@ -327,12 +338,11 @@ export function TeamManager(props: Props) {
           p_current_rule_id: currentDefaultRule?.id ?? null,
         }));
       }
-      const frequency = String(formData.get("commission_payment_frequency")) as CommissionPaymentFrequency;
       await assertResult(await client.from("barbers").update({
-        commission_payment_frequency: frequency,
-        commission_payment_weekday: frequency === "WEEKLY" ? Number(formData.get("commission_payment_weekday")) : null,
-        commission_payment_first_day: frequency === "BIWEEKLY" || frequency === "MONTHLY" ? Number(formData.get("commission_payment_first_day")) : null,
-        commission_payment_second_day: frequency === "BIWEEKLY" ? Number(formData.get("commission_payment_second_day")) : null,
+        commission_payment_frequency: commissionPaymentFrequency,
+        commission_payment_weekday: commissionPaymentFrequency === "WEEKLY" ? weekday : null,
+        commission_payment_first_day: commissionPaymentFrequency === "BIWEEKLY" || commissionPaymentFrequency === "MONTHLY" ? firstPaymentDay : null,
+        commission_payment_second_day: commissionPaymentFrequency === "BIWEEKLY" ? secondPaymentDay : null,
       }).eq("id", scheduleBarber).eq("organization_id", props.organizationId));
     }, "Serviços e pagamento atualizados.");
     if (saved) { setServicesOpen(false); router.refresh(); }
@@ -476,7 +486,7 @@ export function TeamManager(props: Props) {
             <div className={styles.serviceCommissionGroups}>{serviceGroups.map((group) => <section className={styles.serviceCommissionGroup} key={group.key}><h4>{group.label}</h4>{group.services.length === 0 ? <p className={styles.serviceCommissionEmpty}>Nenhum serviço cadastrado neste setor.</p> : <><div className={styles.serviceCommissionHeader}><span>Serviço habilitado</span><span>Modelo</span><span>Valor</span></div>{group.services.map((service) => { const draft = serviceDrafts[service.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" }; return <div className={styles.serviceCommissionRow} key={service.id}><label className={styles.check}><input type="checkbox" checked={draft.enabled} onChange={(event) => updateServiceDraft(service.id, { enabled: event.target.checked })} />{service.name}</label><select aria-label={`Modelo de comissão de ${service.name}`} value={draft.mode} onChange={(event) => updateServiceDraft(service.id, { mode: event.target.value as CommissionMode })} disabled={!draft.enabled}><option value="PERCENT">Percentual (%)</option><option value="FIXED">Fixo (R$)</option></select><input aria-label={`Valor da comissão de ${service.name}`} type="number" min="0" step="0.01" value={draft.value} onChange={(event) => updateServiceDraft(service.id, { value: event.target.value })} disabled={!draft.enabled} /></div>; })}</>}</section>)}</div>
           </section>
           <section className={styles.serviceDefaultCommission}><h3>Comissão padrão do profissional</h3><label className={styles.check}><input type="checkbox" checked={defaultCommissionDraft.enabled} onChange={(event) => setDefaultCommissionDraft((current) => ({ ...current, enabled: event.target.checked }))} />Usar comissão padrão</label><div className={styles.form}><Field label="Modelo"><select value={defaultCommissionDraft.mode} onChange={(event) => setDefaultCommissionDraft((current) => ({ ...current, mode: event.target.value as CommissionMode }))} disabled={!defaultCommissionDraft.enabled}><option value="PERCENT">Percentual (%)</option><option value="FIXED">Fixo (R$)</option></select></Field><Field label="Valor"><input type="number" min="0" step="0.01" value={defaultCommissionDraft.value} onChange={(event) => setDefaultCommissionDraft((current) => ({ ...current, value: event.target.value }))} disabled={!defaultCommissionDraft.enabled} /></Field></div></section>
-          <section className={styles.servicePaymentPanel}><h3>Forma de pagamento da comissão</h3><div className={styles.form}><Field label="Forma de pagamento"><select name="commission_payment_frequency" value={commissionPaymentFrequency} onChange={(event) => setCommissionPaymentFrequency(event.target.value as CommissionPaymentFrequency)}><option value="PER_SERVICE">Por serviço</option><option value="WEEKLY">Por semana</option><option value="BIWEEKLY">Quinzenal</option><option value="MONTHLY">Mensal</option></select></Field>{commissionPaymentFrequency === "WEEKLY" && <Field label="Dia do pagamento"><select name="commission_payment_weekday" defaultValue={selectedBarber.commission_payment_weekday ?? 1}><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="7">Domingo</option></select></Field>}{commissionPaymentFrequency === "BIWEEKLY" && <><Field label="1º pagamento"><input name="commission_payment_first_day" type="number" min="1" max="31" required defaultValue={selectedBarber.commission_payment_first_day ?? ""} /></Field><Field label="2º pagamento"><input name="commission_payment_second_day" type="number" min="1" max="31" required defaultValue={selectedBarber.commission_payment_second_day ?? ""} /></Field></>}{commissionPaymentFrequency === "MONTHLY" && <Field label="Dia do pagamento"><input name="commission_payment_first_day" type="number" min="1" max="31" required defaultValue={selectedBarber.commission_payment_first_day ?? ""} /></Field>}</div></section>
+          <section className={styles.servicePaymentPanel}><h3>Forma de pagamento da comissão</h3><div className={styles.form}><Field label="Forma de pagamento"><select value={commissionPaymentFrequency} onChange={(event) => setCommissionPaymentFrequency(event.target.value as CommissionPaymentFrequency)}><option value="PER_SERVICE">Por serviço</option><option value="WEEKLY">Por semana</option><option value="BIWEEKLY">Quinzenal</option><option value="MONTHLY">Mensal</option></select></Field>{commissionPaymentFrequency === "WEEKLY" && <Field label="Dia do pagamento"><select value={commissionPaymentWeekday} onChange={(event) => setCommissionPaymentWeekday(event.target.value)}><option value="1">Segunda-feira</option><option value="2">Terça-feira</option><option value="3">Quarta-feira</option><option value="4">Quinta-feira</option><option value="5">Sexta-feira</option><option value="6">Sábado</option><option value="7">Domingo</option></select></Field>}{commissionPaymentFrequency === "BIWEEKLY" && <><Field label="1º pagamento"><input type="number" min="1" max="31" required value={commissionPaymentFirstDay} onChange={(event) => setCommissionPaymentFirstDay(event.target.value)} /></Field><Field label="2º pagamento"><input type="number" min="1" max="31" required value={commissionPaymentSecondDay} onChange={(event) => setCommissionPaymentSecondDay(event.target.value)} /></Field></>}{commissionPaymentFrequency === "MONTHLY" && <Field label="Dia do pagamento"><input type="number" min="1" max="31" required value={commissionPaymentFirstDay} onChange={(event) => setCommissionPaymentFirstDay(event.target.value)} /></Field>}</div></section>
           </>}
           {commissionTab === "PACKAGES" && <>
             {renderCatalogCommissionRows(props.packages, packageDrafts, updatePackageDraft, "Pacote atendido", "Nenhum pacote cadastrado.")}
