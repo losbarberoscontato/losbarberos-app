@@ -285,12 +285,6 @@ export function TeamManager(props: Props) {
         if (value !== null && (!Number.isFinite(value) || value < 0 || (draft.mode === "PERCENT" && value > 100))) throw new Error(`Informe uma comissão válida para o plano ${item.name}.`);
         return { id: item.id, enabled: draft.enabled, mode: draft.mode, value_present: value !== null, percentage_bps: draft.mode === "PERCENT" && value !== null ? Math.round(value * 100) : null, fixed_cents: draft.mode === "FIXED" && value !== null ? value : null };
       });
-      await assertResult(await client.rpc("save_barber_catalog_commissions", {
-        p_organization_id: props.organizationId,
-        p_barber_id: scheduleBarber,
-        p_packages: packageConfigs,
-        p_subscription_plans: planConfigs,
-      }));
       for (const service of props.services) {
         const draft = serviceDrafts[service.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" };
         await assertResult(await client.from("barber_services").upsert({ organization_id: props.organizationId, barber_id: scheduleBarber, service_id: service.id, active: draft.enabled }, { onConflict: "barber_id,service_id" }));
@@ -312,6 +306,12 @@ export function TeamManager(props: Props) {
           p_current_rule_id: currentRule?.id ?? null,
         }));
       }
+      await assertResult(await client.rpc("save_barber_catalog_commissions", {
+        p_organization_id: props.organizationId,
+        p_barber_id: scheduleBarber,
+        p_packages: packageConfigs,
+        p_subscription_plans: planConfigs,
+      }));
       if (defaultCommissionDraft.enabled && defaultCommissionDraft.value.trim()) {
         const numericValue = defaultCommissionDraft.mode === "FIXED" ? centsFromInput(defaultCommissionDraft.value) : Number(defaultCommissionDraft.value.replace(",", "."));
         if (!Number.isFinite(numericValue) || numericValue < 0) throw new Error("Informe um valor válido para a comissão padrão.");
@@ -484,6 +484,7 @@ export function TeamManager(props: Props) {
           </>}
           {commissionTab === "SUBSCRIPTION_PLANS" && <>
             {renderCatalogCommissionRows(props.subscriptionPlans, subscriptionPlanDrafts, updatePlanDraft, "Plano atendido", "Nenhum plano de assinatura cadastrado.")}
+            <p className={styles.muted}>Ao habilitar um plano, os serviços incluídos também serão habilitados para este profissional.</p>
             <p className={styles.muted}>A comissão é calculada por sessão atendida sobre o valor pago no ciclo e liberada após o recebimento da fatura.</p>
           </>}
           <div className="form-modal__footer"><button className="button button--ghost" type="button" onClick={() => setServicesOpen(false)}>Cancelar</button><button className="button button--dark" type="submit">Salvar configurações</button></div>
