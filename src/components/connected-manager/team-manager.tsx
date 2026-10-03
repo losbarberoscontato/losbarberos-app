@@ -66,6 +66,7 @@ export function TeamManager(props: Props) {
   const [scheduleBarber, setScheduleBarber] = useState(props.barbers.find((item) => item.active)?.id ?? "");
   const [activeOperationForm, setActiveOperationForm] = useState<OperationForm>(null);
   const [operationOpen, setOperationOpen] = useState(false);
+  const [parallelScheduleSaving, setParallelScheduleSaving] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
   const [commissionTab, setCommissionTab] = useState<CommissionTab>("SERVICES");
   const [serviceDrafts, setServiceDrafts] = useState<Record<string, ServiceDraft>>({});
@@ -374,6 +375,22 @@ export function TeamManager(props: Props) {
     if (saved) router.refresh();
   }
 
+  async function setParallelEnvironmentAppointments(allowed: boolean) {
+    if (!selectedBarber || parallelScheduleSaving) return;
+    setParallelScheduleSaving(true);
+    try {
+      const saved = await runMutation(setMessage, async () => {
+        await assertResult(await connectedClient().from("barbers")
+          .update({ allow_parallel_environment_appointments: allowed })
+          .eq("id", selectedBarber.id)
+          .eq("organization_id", props.organizationId));
+      }, allowed ? "Atendimento simultâneo em ambientes diferentes liberado." : "Atendimento simultâneo desativado.");
+      if (saved) router.refresh();
+    } finally {
+      setParallelScheduleSaving(false);
+    }
+  }
+
   async function addException(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -409,6 +426,13 @@ export function TeamManager(props: Props) {
     .map((item) => item.environment_id)
     .filter((value): value is string => Boolean(value)));
   const availableScheduleEnvironments = scheduleEnvironments.filter((item) => !occupiedEnvironmentIds.has(item.id));
+  const selectedBarberHasOverlappingInterval = props.workIntervals.some((item) => item.active
+    && item.barber_id === scheduleBarber
+    && item.weekday === Number(scheduleWeekday)
+    && item.starts_at < scheduleEndsAt
+    && item.ends_at > scheduleStartsAt);
+  const allowedScheduleEnvironments = availableScheduleEnvironments.filter(() =>
+    Boolean(selectedBarber?.allow_parallel_environment_appointments) || !selectedBarberHasOverlappingInterval);
   const serviceGroups = ([
     ["CLIENT", "Cliente"],
     ["HIDDEN", "Gestão"],
@@ -457,8 +481,10 @@ export function TeamManager(props: Props) {
         <div className="form-modal__head"><span><small>Configuração do profissional</small><strong>Escala e exceções</strong></span><button type="button" className="icon-button" onClick={() => setOperationOpen(false)} aria-label="Fechar"><X size={19} /></button></div>
         <div className="form-modal__body">
           <p className={styles.operationDescription}>{selectedBarber.display_name}</p>
+          {message && <ActionMessage message={message} tone={message.includes("liberado") || message.includes("desativado") || message.includes("adicionado") || message.includes("removido") ? "info" : "error"} />}
+          <Field label="Escala"><label className={styles.check}><input type="checkbox" checked={Boolean(selectedBarber.allow_parallel_environment_appointments)} disabled={parallelScheduleSaving} onChange={(event) => void setParallelEnvironmentAppointments(event.currentTarget.checked)} />Permitir profissional atender mais de um cliente no mesmo horário em outro ambiente?</label><small>Exige um ambiente diferente e livre para cada atendimento; conflitos no mesmo ambiente continuam bloqueados.</small></Field>
           <div className={styles.toolbarGroup}><button className={`${styles.button} ${activeOperationForm === "SCHEDULE" ? "" : styles.buttonSoft}`} type="button" onClick={() => setActiveOperationForm((value) => value === "SCHEDULE" ? null : "SCHEDULE")}>Adicionar horário</button><button className={`${styles.button} ${activeOperationForm === "EXCEPTION" ? "" : styles.buttonSoft}`} type="button" onClick={() => setActiveOperationForm((value) => value === "EXCEPTION" ? null : "EXCEPTION")}>Adicionar folga/exceção</button></div>
-          {activeOperationForm === "SCHEDULE" && <form className={styles.form} onSubmit={addInterval}><Field label="Ambiente"><select name="environment_id" required defaultValue=""><option value="">Selecione um ambiente disponível</option>{availableScheduleEnvironments.map((environment) => <option value={environment.id} key={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select>{availableScheduleEnvironments.length === 0 && <small className={styles.muted}>Nenhum ambiente livre para esta faixa.</small>}</Field><Field label="Dia"><select name="weekday" value={scheduleWeekday} onChange={(event) => setScheduleWeekday(event.target.value)}>{weekDays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></Field><Field label="Início"><input type="time" name="starts_at" required value={scheduleStartsAt} onChange={(event) => setScheduleStartsAt(event.target.value)} /></Field><Field label="Fim"><input type="time" name="ends_at" required value={scheduleEndsAt} onChange={(event) => setScheduleEndsAt(event.target.value)} /></Field><div className={styles.toolbarGroup}><button className={styles.button} disabled={availableScheduleEnvironments.length === 0}>Adicionar</button></div></form>}
+          {activeOperationForm === "SCHEDULE" && <form className={styles.form} onSubmit={addInterval}><Field label="Ambiente"><select name="environment_id" required defaultValue=""><option value="">Selecione um ambiente disponível</option>{allowedScheduleEnvironments.map((environment) => <option value={environment.id} key={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select>{allowedScheduleEnvironments.length === 0 && <small className={styles.muted}>Nenhum ambiente livre ou permitido para esta faixa.</small>}</Field><Field label="Dia"><select name="weekday" value={scheduleWeekday} onChange={(event) => setScheduleWeekday(event.target.value)}>{weekDays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select></Field><Field label="Início"><input type="time" name="starts_at" required value={scheduleStartsAt} onChange={(event) => setScheduleStartsAt(event.target.value)} /></Field><Field label="Fim"><input type="time" name="ends_at" required value={scheduleEndsAt} onChange={(event) => setScheduleEndsAt(event.target.value)} /></Field><div className={styles.toolbarGroup}><button className={styles.button} disabled={allowedScheduleEnvironments.length === 0}>Adicionar</button></div></form>}
           {activeOperationForm === "EXCEPTION" && <form className={styles.form} onSubmit={addException}><Field label="Tipo"><select name="kind" value={exceptionKind} onChange={(event) => setExceptionKind(event.target.value)}><option value="UNAVAILABLE">Indisponível / folga</option><option value="AVAILABLE_OVERRIDE">Disponível em exceção</option></select></Field>{exceptionKind === "AVAILABLE_OVERRIDE" && <Field label="Ambiente"><select name="environment_id" required defaultValue=""><option value="">Selecione um ambiente</option>{scheduleEnvironments.map((environment) => <option value={environment.id} key={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select></Field>}<Field label="Motivo"><input name="reason" required /></Field><Field label="Início"><input type="datetime-local" name="start" required /></Field><Field label="Fim"><input type="datetime-local" name="end" required /></Field><button className={styles.button}>Adicionar exceção</button></form>}
           <div className={styles.grid}>
             <section className={styles.span12}><h3>Escala semanal</h3><div className={styles.schedule}>{weekDays.map((day, index) => <div className={styles.day} key={day}><strong>{day}</strong>{intervals.filter((item) => item.weekday === index).map((item) => <span key={item.id}>{item.starts_at.slice(0, 5)}–{item.ends_at.slice(0, 5)} · {scheduleEnvironments.find((environment) => environment.id === item.environment_id)?.name ?? "Ambiente pendente"} <button aria-label="Remover intervalo" type="button" onClick={() => removeInterval(item.id)}>×</button></span>)}</div>)}</div></section>
