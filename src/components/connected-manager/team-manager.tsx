@@ -288,13 +288,13 @@ export function TeamManager(props: Props) {
         const draft = packageDrafts[item.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" };
         const value = draft.value.trim() ? (draft.mode === "FIXED" ? centsFromInput(draft.value) : Number(draft.value.replace(",", "."))) : null;
         if (value !== null && (!Number.isFinite(value) || value < 0 || (draft.mode === "PERCENT" && value > 100))) throw new Error(`Informe uma comissão válida para o pacote ${item.name}.`);
-        return { id: item.id, enabled: draft.enabled, mode: draft.mode, value_present: value !== null, percentage_bps: draft.mode === "PERCENT" && value !== null ? Math.round(value * 100) : null, fixed_cents: draft.mode === "FIXED" && value !== null ? value : null };
+        return { id: item.id, enabled: draft.enabled, mode: draft.mode, value_present: value !== null, percentage_bps: draft.mode === "PERCENT" && value !== null ? Math.round(value * 100) : null, percentage_value: draft.mode === "PERCENT" && value !== null ? value : null, fixed_cents: draft.mode === "FIXED" && value !== null ? value : null };
       });
       const planConfigs = props.subscriptionPlans.map((item) => {
         const draft = subscriptionPlanDrafts[item.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" };
         const value = draft.value.trim() ? (draft.mode === "FIXED" ? centsFromInput(draft.value) : Number(draft.value.replace(",", "."))) : null;
         if (value !== null && (!Number.isFinite(value) || value < 0 || (draft.mode === "PERCENT" && value > 100))) throw new Error(`Informe uma comissão válida para o plano ${item.name}.`);
-        return { id: item.id, enabled: draft.enabled, mode: draft.mode, value_present: value !== null, percentage_bps: draft.mode === "PERCENT" && value !== null ? Math.round(value * 100) : null, fixed_cents: draft.mode === "FIXED" && value !== null ? value : null };
+        return { id: item.id, enabled: draft.enabled, mode: draft.mode, value_present: value !== null, percentage_bps: draft.mode === "PERCENT" && value !== null ? Math.round(value * 100) : null, percentage_value: draft.mode === "PERCENT" && value !== null ? value : null, fixed_cents: draft.mode === "FIXED" && value !== null ? value : null };
       });
       for (const service of props.services) {
         const draft = serviceDrafts[service.id] ?? { enabled: false, mode: "PERCENT" as const, value: "" };
