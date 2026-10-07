@@ -21,13 +21,15 @@ import styles from "@/components/connected-client/connected-client.module.css";
 import { formatBirthDateInput, normalizeBirthDateInput, parseBirthDateInput } from "@/lib/birth-date";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { cpfCnpjDigits, formatCpfCnpj, isCpfCnpjValid } from "@/lib/cpf-cnpj";
+import { clientVocabulary } from "@/components/connected-client/vocabulary";
 
 export function ConnectedProfile() {
   return <ConnectedClientGate><ProfileContent /></ConnectedClientGate>;
 }
 
 function ProfileContent() {
-  const { context, user, account, customer, organizations, authLoading, reloadCustomer, selectTenant, signOut } = useConnectedClient();
+  const { context, user, account, customer, organizations, authLoading, reloadCustomer, selectTenant, signOut, identity, entry } = useConnectedClient();
+  const vocabulary = clientVocabulary(identity, entry?.product_key);
   const profileIdentity = user ? `${user.id}:${account?.auth_user_id ?? "new"}` : "";
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [fullName, setFullName] = useState("");
@@ -47,6 +49,9 @@ function ProfileContent() {
   const [personalOpen, setPersonalOpen] = useState(true);
   const [dependents, setDependents] = useState<CustomerDependent[]>([]);
   const [dependentsOpen, setDependentsOpen] = useState(false);
+  const [establishmentsOpen, setEstablishmentsOpen] = useState(true);
+  const [communicationOpen, setCommunicationOpen] = useState(true);
+  const [privacyOpen, setPrivacyOpen] = useState(true);
   const [dependentDraft, setDependentDraft] = useState<{ id?: string; fullName: string; birthDate: string; relationship: CustomerDependent["relationship"] }>({ fullName: "", birthDate: "", relationship: "CHILD" });
 
   useEffect(() => {
@@ -207,7 +212,7 @@ function ProfileContent() {
     : null;
   return (
     <div className={styles.profile}>
-      <header className={styles.pageHeading}><span>Sua conta · {context.organization.name}</span><h1>Perfil e privacidade</h1><p>Gerencie seus dados e preferências de comunicação nesta barbearia.</p></header>
+      <header className={styles.pageHeading}><span>Sua conta · {context.organization.name}</span><h1>Perfil e privacidade</h1><p>Gerencie seus dados e preferências de comunicação {vocabulary.inOrganization}.</p></header>
       {notice && <div className={styles.notice} role="status"><Check size={17} /><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Fechar aviso"><X size={15} /></button></div>}
       {error && <div className={styles.errorBox} role="alert"><strong>Ação não concluída</strong><span>{error}</span></div>}
       <div className={styles.profileGrid}>
@@ -215,17 +220,17 @@ function ProfileContent() {
           <span className={styles.profileAvatar}>{initials(displayName)}</span>
           <h2>{displayName}</h2>
           <p>{user.email}</p>
-          <dl><div><dt>Barbearia</dt><dd>{context.organization.name}</dd></div><div><dt>Unidade</dt><dd>{context.location?.name ?? "Unidade"}</dd></div><div><dt>Endereço</dt><dd>{locationLabel(context.location?.address)}</dd></div></dl>
+          <dl><div><dt>Estabelecimento</dt><dd>{context.organization.name}</dd></div><div><dt>Unidade</dt><dd>{context.location?.name ?? "Unidade"}</dd></div><div><dt>Endereço</dt><dd>{locationLabel(context.location?.address)}</dd></div></dl>
           <button type="button" className={styles.signOut} onClick={() => void signOut()}><LogOut size={16} /> Sair</button>
         </aside>
         <div className={styles.profileMain}>
-          <section className={styles.panel}>
-            <button type="button" className={styles.sectionToggle} onClick={() => setPersonalOpen((value) => !value)} aria-expanded={personalOpen}><ChevronRight size={18} className={personalOpen ? styles.sectionToggleOpen : ""} /> <UserRound /><span><strong>Dados pessoais</strong><small>Aplicados em todas as barbearias vinculadas à sua conta.</small></span></button>
-            {personalOpen && <><div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>CPF/CNPJ<input value={cpfCnpj} onChange={(event) => setCpfCnpj(formatCpfCnpj(event.target.value))} placeholder="CPF ou CNPJ" inputMode="numeric" /></label><label>Telefone E.164<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Data de nascimento <small>opcional · DD/MM/AAAA</small><input type="text" value={birthDate} onChange={(event) => setBirthDate(normalizeBirthDateInput(event.target.value))} placeholder="DD/MM/AAAA" inputMode="numeric" autoComplete="bday" maxLength={10} /></label></div><button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void saveProfile()}><Save size={16} /> {busy ? "Salvando…" : "Salvar dados"}</button></>}
+          <section className={`${styles.panel} ${styles.collapsiblePanel}`}>
+            <button type="button" className={styles.sectionToggle} onClick={() => setPersonalOpen((value) => !value)} aria-expanded={personalOpen} aria-controls="client-personal-data"><span className={styles.sectionIcon}><UserRound size={18} /></span><span><strong>Dados pessoais</strong></span><ChevronRight size={17} className={personalOpen ? styles.sectionToggleOpen : ""} /></button>
+            {personalOpen && <div id="client-personal-data" className={styles.collapsibleContent}><div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>CPF/CNPJ<input value={cpfCnpj} onChange={(event) => setCpfCnpj(formatCpfCnpj(event.target.value))} placeholder="CPF ou CNPJ" inputMode="numeric" /></label><label>Telefone/Whatsapp<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Data de nascimento <small>opcional · DD/MM/AAAA</small><input type="text" value={birthDate} onChange={(event) => setBirthDate(normalizeBirthDateInput(event.target.value))} placeholder="DD/MM/AAAA" inputMode="numeric" autoComplete="bday" maxLength={10} /></label></div><button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void saveProfile()}><Save size={16} /> {busy ? "Salvando…" : "Salvar dados"}</button></div>}
           </section>
-          <section className={`${styles.panel} ${styles.dependentsPanel}`}>
-            <button type="button" className={styles.sectionToggle} onClick={() => setDependentsOpen((value) => !value)} aria-expanded={dependentsOpen}><span className={styles.sectionToggleLead}><ChevronRight size={18} className={dependentsOpen ? styles.sectionToggleOpen : ""} /><UserPlus /></span><span><strong>Dependentes</strong><small>Até 8 pessoas cadastradas para atendimento.</small></span><span className={styles.dependentsCount}>{dependents.length}/8</span></button>
-            {dependentsOpen && <div className={styles.dependentsContent}>
+          <section className={`${styles.panel} ${styles.dependentsPanel} ${styles.collapsiblePanel}`}>
+            <button type="button" className={styles.sectionToggle} onClick={() => setDependentsOpen((value) => !value)} aria-expanded={dependentsOpen} aria-controls="client-dependents"><span className={styles.sectionIcon}><UserPlus size={18} /></span><span><strong>Dependentes</strong></span><ChevronRight size={17} className={dependentsOpen ? styles.sectionToggleOpen : ""} /></button>
+            {dependentsOpen && <div id="client-dependents" className={styles.dependentsContent}>
               <div className={styles.dependentsForm}>
                 <label>Nome<input value={dependentDraft.fullName} onChange={(event) => setDependentDraft((d) => ({ ...d, fullName: event.target.value }))} placeholder="Nome completo" /></label>
                 <label>Data de nascimento<input aria-label="Data de nascimento do dependente" type="date" value={dependentDraft.birthDate} onChange={(event) => setDependentDraft((d) => ({ ...d, birthDate: event.target.value }))} /></label>
@@ -239,11 +244,12 @@ function ProfileContent() {
               </div> : <div className={styles.dependentsEmpty}><UserPlus size={19} /><span><strong>Nenhum dependente cadastrado</strong><small>Adicione alguém que poderá ser atendido no lugar do cliente.</small></span></div>}
             </div>}
           </section>
-          <section className={styles.panel} aria-labelledby="linked-organizations-title">
-            <div className={styles.sectionTitle}><Search /><div><h2 id="linked-organizations-title">Meus estabelecimentos</h2><p>Gerencie os estabelecimentos vinculados à sua conta Display.</p></div></div>
+          <section className={`${styles.panel} ${styles.collapsiblePanel}`}>
+            <button type="button" className={styles.sectionToggle} onClick={() => setEstablishmentsOpen((value) => !value)} aria-expanded={establishmentsOpen} aria-controls="client-establishments"><span className={styles.sectionIcon}><Search size={18} /></span><span><strong>Meus estabelecimentos</strong></span><ChevronRight size={17} className={establishmentsOpen ? styles.sectionToggleOpen : ""} /></button>
+            {establishmentsOpen && <div id="client-establishments" className={styles.collapsibleContent}>
             <form className={styles.formGrid} onSubmit={(event) => { event.preventDefault(); if (searchSlug.trim()) selectTenant(searchSlug); }}>
               <label>Conectar a outro estabelecimento<input value={searchSlug} onChange={(event) => setSearchSlug(event.target.value)} placeholder="slug-do-estabelecimento" autoComplete="off" /></label>
-              <button type="submit" className={styles.primaryButton}>Pesquisar por slug</button>
+              <button type="submit" className={styles.primaryButton}>Pesquisar Estabelecimento</button>
             </form>
             <div className={styles.organizationList}>
               {organizations.map((item) => <article className={styles.organizationCard} key={item.organization_id}>
@@ -251,19 +257,24 @@ function ProfileContent() {
                 <div><strong>{item.organization_name}</strong><small>{({ "los-barberos": "Los Barberos", "le-gras": "Le Gras", "pro-stetic": "ProStetic", "music-pro": "MusicPro" } as Record<string, string>)[item.product_key ?? ""] ?? "Produto indisponível"}</small><small>{item.location?.name ?? "Unidade"}</small><small>{locationLabel(item.location?.address)}</small>{item.public_contact_phone_e164 && <small>WhatsApp: {item.public_contact_phone_e164}</small>}</div>
                 <button type="button" className={styles.secondaryButton} disabled={item.organization_slug === context.organization.slug} onClick={() => selectTenant(item.organization_slug)}>{item.organization_slug === context.organization.slug ? "Conectado" : "Conectar"}</button>
               </article>)}
-              {!organizations.length && <p className={styles.empty}>Nenhuma barbearia conectada ainda.</p>}
+              {!organizations.length && <p className={styles.empty}>Nenhum estabelecimento conectado ainda.</p>}
             </div>
+            </div>}
           </section>
-          <section className={styles.panel}>
-            <div className={styles.sectionTitle}><MessageCircle /><div><h2>Comunicação</h2><p>Controle avisos da reserva e mensagens personalizadas separadamente.</p></div></div>
+          <section className={`${styles.panel} ${styles.collapsiblePanel}`}>
+            <button type="button" className={styles.sectionToggle} onClick={() => setCommunicationOpen((value) => !value)} aria-expanded={communicationOpen} aria-controls="client-communication"><span className={styles.sectionIcon}><MessageCircle size={18} /></span><span><strong>Comunicação</strong></span><ChevronRight size={17} className={communicationOpen ? styles.sectionToggleOpen : ""} /></button>
+            {communicationOpen && <div id="client-communication" className={styles.collapsibleContent}>
             <div className={styles.consent}><div><strong>WhatsApp transacional</strong><p>Confirmação, lembrete e alteração de horário. Opt-out imediato.</p></div><label className={styles.switch}><input type="checkbox" checked={whatsappGranted} disabled={busy || loadingPrivacy || !customer} onChange={(event) => void updateWhatsapp(event.target.checked)} /><span /></label></div>
             <div className={styles.consent}><div><strong>Marketing e mensagens personalizadas</strong><p>Felicitações, retorno após atendimento e promoções. Pode desativar a qualquer momento.</p></div><label className={styles.switch}><input aria-label="Marketing e mensagens personalizadas" type="checkbox" checked={marketingGranted} disabled={busy || loadingPrivacy || !customer} onChange={(event) => void updateWhatsapp(event.target.checked, true)} /><span /></label></div>
             <p className={styles.privacyNote}><ShieldCheck size={16} /> Preferências independentes. Desativar marketing mantém seus avisos de reserva.</p>
+            </div>}
           </section>
-          <section className={styles.panel}>
-            <div className={styles.sectionTitle}><ShieldCheck /><div><h2>Direitos LGPD</h2><p>Pedidos ficam auditados e têm prazo operacional.</p></div></div>
+          <section className={`${styles.panel} ${styles.collapsiblePanel}`}>
+            <button type="button" className={styles.sectionToggle} onClick={() => setPrivacyOpen((value) => !value)} aria-expanded={privacyOpen} aria-controls="client-privacy"><span className={styles.sectionIcon}><ShieldCheck size={18} /></span><span><strong>Direitos LGPD</strong></span><ChevronRight size={17} className={privacyOpen ? styles.sectionToggleOpen : ""} /></button>
+            {privacyOpen && <div id="client-privacy" className={styles.collapsibleContent}>
             <div className={styles.privacyActions}><button type="button" className={styles.secondaryButton} disabled={busy || !customer || exportPending} onClick={() => void requestPrivacy("EXPORT")}><Download size={16} /> {exportPending ? "Exportação em andamento" : "Solicitar exportação"}</button><button type="button" className={styles.dangerOutline} disabled={busy || !customer || deletionPending} onClick={() => setConfirmDeletion(true)}><Trash2 size={16} /> {deletionPending ? "Exclusão em análise" : "Solicitar exclusão"}</button></div>
             {loadingPrivacy ? <p className={styles.loadingLine}><LoaderCircle className={styles.spin} /> Carregando solicitações…</p> : requests.length > 0 && <div className={styles.requestList}><h3>Solicitações</h3>{requests.map((request) => <article key={request.id}><span>{request.kind}</span><strong>{request.status.replaceAll("_", " ")}</strong><small>{formatInstant(request.requested_at, context.organization.timezone)}</small></article>)}</div>}
+            </div>}
           </section>
         </div>
       </div>

@@ -1,5 +1,12 @@
 # Handoff — Los Barberos
 
+## Telas internas do cliente e identidade por produto — 07/10/2026
+
+- Entrada no estabelecimento: removida a explicação sobre vínculo; botão agora é “Entrar”. Home: removido “Minha barbearia” e exibida a logo configurada pelo gestor, com fallback da marca do produto.
+- Identidade publicada do produto agora colore Home, agendamento, reservas e perfil. Vocabulário de estabelecimento, serviço e profissional acompanha o produto ativo; as cinco seções do perfil usam controles uniformes de abrir e fechar. Textos e contador pedidos foram removidos; busca agora usa “Pesquisar Estabelecimento”.
+- Código e testes alterados somente no app do cliente; nenhuma migration, Edge Function ou arquivo do WhatsApp Evolution mudou. Supabase remoto alinhado no dry run; Functions ativas no inventário.
+- Validação local: build, 118 testes focados e 4 E2E públicos desktop/mobile aprovados (2 testes autenticados ignorados por ausência de sessão). `verify`: lint e typecheck aprovados; Vitest geral com 7 falhas anteriores fora deste diff. Fluxo autenticado e aparência dessas telas em produção continuam **NÃO VALIDADOS**.
+
 ## Ajuste global do acesso do cliente — 07/10/2026
 
 - Login, cadastro, complementação e recuperação agora mostram a logo cadastrada em Configurações pelo estabelecimento (`organizations.logo_path` no bucket `organization-logos`). Sem logo própria, usam a identidade publicada do produto; Estúdio Gras ainda está sem `logo_path` no banco e usa Le Gras.

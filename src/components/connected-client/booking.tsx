@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, Clock3, LoaderCircle, Scissors, ShieldCheck, UserRound, X } from "lucide-react";
+import { CalendarDays, Camera, Check, Clock3, LoaderCircle, Scissors, ShieldCheck, UserRound, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -36,6 +36,7 @@ import type { AvailableDateOption, AvailableSlot, CustomerDependent } from "@/co
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { CATALOG_AUDIENCES, audienceLabel, filterByAudience, type CatalogAudience } from "@/lib/catalog-audiences";
+import { clientVocabulary } from "@/components/connected-client/vocabulary";
 
 type Draft = {
   choiceId: string;
@@ -49,8 +50,6 @@ type Draft = {
 
 type CatalogChoiceKindFilter = "ALL" | "SERVICE" | "PACKAGE";
 type BarberMode = "ANY" | "SPECIFIC" | "";
-
-const BOOKING_STEPS = ["Serviço", "Barbeiro", "Horário", "Confirmar"] as const;
 
 function periodLabel(startsAt: string, timezone: string) {
   const hour = Number(new Intl.DateTimeFormat("pt-BR", {
@@ -97,7 +96,9 @@ export function ConnectedBooking() {
 }
 
 function BookingContent() {
-  const { context, slug, user, customer } = useConnectedClient();
+  const { context, slug, user, customer, identity, entry } = useConnectedClient();
+  const vocabulary = clientVocabulary(identity, entry?.product_key);
+  const bookingSteps = [vocabulary.serviceLabel, vocabulary.professionalLabel, "Horário", "Confirmar"];
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [selectedAudience, setSelectedAudience] = useState<CatalogAudience | null>(null);
@@ -456,7 +457,7 @@ function BookingContent() {
   async function protectBookingForReview() {
     if (!supabase || !choice || !barber || !startsAt || !user || !customer) return;
     if (customer.auth_user_id !== user.id) {
-      setError("Sua conta de cliente não corresponde a esta barbearia.");
+      setError("Sua conta de cliente não corresponde a este estabelecimento.");
       return;
     }
     setBusy(true);
@@ -577,16 +578,16 @@ function BookingContent() {
   }
 
   const stepTitle = step === 1
-    ? "Qual serviço você quer?"
+    ? `Qual ${vocabulary.service} você quer?`
     : step === 2
       ? "Quem vai cuidar de você?"
       : step === 3
         ? "Quando fica melhor?"
         : "Revise e agende";
   const stepDescription = step === 1
-    ? "Escolha um serviço ou pacote do catálogo da barbearia."
+    ? `Escolha ${vocabulary.serviceArticle === "a" ? "uma" : "um"} ${vocabulary.service} ou pacote do catálogo ${vocabulary.organizationPhrase}.`
     : step === 2
-      ? "Escolha um barbeiro ou deixe o sistema encontrar o primeiro horário livre."
+      ? `Escolha um ${vocabulary.professional} ou deixe o sistema encontrar o primeiro horário livre.`
       : step === 3
         ? "Selecione a data e um horário ainda disponível."
         : "Confira os dados e confirme. O pagamento será feito no atendimento.";
@@ -616,7 +617,7 @@ function BookingContent() {
         <h1 ref={stepHeadingRef} tabIndex={-1} id="booking-step-title">{stepTitle}</h1>
         <p id="booking-step-description">{stepDescription}</p>
         <ol className={styles.steps} aria-label={`Etapa ${step} de 4`}>
-          {BOOKING_STEPS.map((label, index) => {
+          {bookingSteps.map((label, index) => {
             const itemStep = index + 1;
             return (
               <li
@@ -635,16 +636,16 @@ function BookingContent() {
       <div ref={dialogBodyRef} className={styles.bookingDialogBody}>
         {step > 1 && choice && (
           <div className={styles.selectionStrip}>
-            <Scissors size={18} aria-hidden="true" />
-            <span><small>{isSubscriptionBooking ? "Sessão assinatura" : "Seu serviço"}</small><strong>{isSubscriptionBooking ? "Serviços do plano completo" : choice.name}</strong></span>
+            {entry?.product_key === "le-gras" ? <Camera size={18} aria-hidden="true" /> : <Scissors size={18} aria-hidden="true" />}
+            <span><small>{isSubscriptionBooking ? "Sessão assinatura" : `${vocabulary.serviceArticle === "a" ? "Sua" : "Seu"} ${vocabulary.service}`}</small><strong>{isSubscriptionBooking ? `${vocabulary.servicesLabel} do plano completo` : choice.name}</strong></span>
             <b>{isSubscriptionBooking ? "Incluída no plano" : formatMoney(choice.priceCents, organization.currency)}</b>
           </div>
         )}
 
         {step === 1 && (
-          <section className={styles.bookingStep} aria-label="Escolher serviço">
-            <div className={styles.audienceFilter} role="tablist" aria-label="Público do serviço">
-              <span>Para quem é o serviço?</span>
+          <section className={styles.bookingStep} aria-label={`Escolher ${vocabulary.service}`}>
+            <div className={styles.audienceFilter} role="tablist" aria-label={`Público ${vocabulary.organizationPhrase}`}>
+              <span>Para quem é {vocabulary.serviceArticle} {vocabulary.service}?</span>
               {CATALOG_AUDIENCES.map((audience) => (
                 <button
                   type="button"
@@ -663,14 +664,14 @@ function BookingContent() {
               ))}
             </div>
             {!selectedAudience ? (
-              <p className={styles.empty}>Escolha o público para ver serviços e pacotes.</p>
+              <p className={styles.empty}>Escolha o público para ver {vocabulary.services} e pacotes.</p>
             ) : !choices.length ? (
-              <p className={styles.empty}>Nenhum serviço disponível para este público.</p>
+              <p className={styles.empty}>Nenhum item disponível para este público.</p>
             ) : (
               <>
                 <div className={styles.audienceFilter} role="tablist" aria-label="Tipo de item">
                   <span>O que você procura?</span>
-                  {([['ALL', 'Todos'], ['SERVICE', 'Serviços'], ['PACKAGE', 'Pacotes']] as const).map(([kind, label]) => (
+                  {([['ALL', 'Todos'], ['SERVICE', vocabulary.servicesLabel], ['PACKAGE', 'Pacotes']] as const).map(([kind, label]) => (
                     <button
                       type="button"
                       key={kind}
@@ -701,9 +702,9 @@ function BookingContent() {
                           setChoiceId(item.id);
                         }}
                       >
-                        <span className={styles.choiceKind}>{item.kind === "PACKAGE" ? "Pacote" : "Serviço"}</span>
+                        <span className={styles.choiceKind}>{item.kind === "PACKAGE" ? "Pacote" : vocabulary.serviceLabel}</span>
                         <strong>{item.name}</strong>
-                        <small>{item.description || "Detalhes informados pela barbearia."}</small>
+                        <small>{item.description || `Detalhes informados ${vocabulary.byOrganization}.`}</small>
                         <span className={styles.choiceMeta}><Clock3 size={14} aria-hidden="true" /> {item.durationMinutes} min <b>{formatMoney(item.priceCents, organization.currency)}</b></span>
                         {selected && <i><Check size={15} aria-hidden="true" /></i>}
                       </button>
@@ -716,9 +717,9 @@ function BookingContent() {
         )}
 
         {step === 2 && choice && (
-          <section className={styles.bookingStep} aria-label="Escolher barbeiro">
+          <section className={styles.bookingStep} aria-label={`Escolher ${vocabulary.professional}`}>
             {!compatibleBarbers.length ? (
-              <p className={styles.empty}>Nenhum profissional habilitado para este serviço.</p>
+              <p className={styles.empty}>Nenhum profissional habilitado para esta seleção.</p>
             ) : (
               <>
                 <button
@@ -734,10 +735,10 @@ function BookingContent() {
                   }}
                 >
                   <span><Clock3 size={22} aria-hidden="true" /></span>
-                  <span><strong>Primeiro horário livre</strong><small>Escolha o horário e informamos qual barbeiro está disponível.</small></span>
+                  <span><strong>Primeiro horário livre</strong><small>Escolha o horário e informamos qual {vocabulary.professional} está disponível.</small></span>
                   {barberMode === "ANY" && <Check size={20} aria-hidden="true" />}
                 </button>
-                <div className={styles.choiceDivider}><span>ou escolha um barbeiro</span></div>
+                <div className={styles.choiceDivider}><span>ou escolha um {vocabulary.professional}</span></div>
                 <div className={styles.barbers}>
                   {compatibleBarbers.map((item) => {
                     const selected = barberMode === "SPECIFIC" && barberId === item.id;
@@ -859,9 +860,9 @@ function BookingContent() {
                   </section>
                   <p className={styles.holdNotice} role="timer" aria-live="polite"><Clock3 size={18} aria-hidden="true" /> Horário protegido por <strong>{countdownLabel(holdSeconds)}</strong>. Conclua antes do contador terminar.</p>
                   <section className={styles.panel}>
-                    <div className={styles.sectionTitle}><CalendarDays aria-hidden="true" /><div><h2>Pagamento no atendimento</h2><p>O valor integral será pago diretamente à barbearia.</p></div></div>
+                    <div className={styles.sectionTitle}><CalendarDays aria-hidden="true" /><div><h2>Pagamento no atendimento</h2><p>O valor integral será pago diretamente {vocabulary.toOrganization}.</p></div></div>
                   </section>
-                  <label className={styles.policy}><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} /><span><ShieldCheck size={17} aria-hidden="true" /> Aceito a política desta reserva. Cancelamentos e alterações seguem o prazo informado pela barbearia.</span></label>
+                  <label className={styles.policy}><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} /><span><ShieldCheck size={17} aria-hidden="true" /> Aceito a política desta reserva. Cancelamentos e alterações seguem o prazo informado {vocabulary.byOrganization}.</span></label>
                   <p className={`${styles.whatsappPreference} ${whatsappAccepted ? "" : styles.whatsappPreferenceOff}`}><ShieldCheck size={17} aria-hidden="true" /> {whatsappAccepted ? "Mensagens de confirmação e lembrete pelo WhatsApp estão ativas. Você pode desativá-las no Perfil." : "Mensagens automáticas pelo WhatsApp estão desativadas no seu Perfil. A reserva continua disponível."}</p>
                 </>
               )}

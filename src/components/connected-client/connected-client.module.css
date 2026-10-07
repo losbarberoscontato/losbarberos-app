@@ -736,21 +736,121 @@
   .dependentsTableHead, .dependentsTableRow { min-width: 620px; }
 }
 
-.leGrasAccess { background: var(--paper); color: var(--ink); }
-.leGrasAccess .topbar { border-color: var(--border); background: color-mix(in srgb, var(--surface) 95%, transparent); }
-.leGrasAccess .locationStrip { border-color: var(--border); background: color-mix(in srgb, var(--paper) 90%, var(--surface)); color: var(--ink); }
-.leGrasAccess .locationStrip svg { color: var(--amber-500); }
-.leGrasAccess .authForm { border-color: var(--border); background: var(--surface); color: var(--ink); box-shadow: 0 18px 45px color-mix(in srgb, var(--forest-900) 12%, transparent); }
-.leGrasAccess .userMark { background: color-mix(in srgb, var(--forest-900) 10%, var(--surface)); color: var(--forest-900); }
-.leGrasAccess .authTabs { background: color-mix(in srgb, var(--forest-900) 8%, var(--surface)); }
-.leGrasAccess .authTabs button[aria-selected="true"] { color: var(--forest-900); background: var(--surface); }
-.leGrasAccess .authFields label { color: var(--ink); }
-.leGrasAccess .authFields input { border-color: var(--border); color: var(--ink); background: var(--surface); }
-.leGrasAccess .authFields input:focus-visible { border-color: var(--forest-900); outline-color: color-mix(in srgb, var(--forest-900) 20%, transparent); }
-.leGrasAccess .authFields .authTerms input { accent-color: var(--forest-900); }
-.leGrasAccess .oauthButton { border-color: var(--border); color: var(--ink); background: var(--surface); }
-.leGrasAccess .primaryButton { border-color: var(--forest-900); background: var(--forest-900); color: var(--surface); }
-.leGrasAccess .primaryButton:not(:disabled):hover { background: var(--forest-800); }
-.leGrasAccess :global(.brand__wordmark strong) { color: var(--forest-900); }
-.leGrasAccess :global(.brand__wordmark small) { color: var(--muted); }
+.productAccess { background: var(--paper); color: var(--ink); }
+.productAccess .topbar { border-color: var(--border); background: color-mix(in srgb, var(--surface) 95%, transparent); }
+.productAccess .locationStrip { border-color: var(--border); background: color-mix(in srgb, var(--paper) 90%, var(--surface)); color: var(--ink); }
+.productAccess .locationStrip svg { color: var(--amber-500); }
+.productAccess .authForm { border-color: var(--border); background: var(--surface); color: var(--ink); box-shadow: 0 18px 45px color-mix(in srgb, var(--forest-900) 12%, transparent); }
+.productAccess .userMark { background: color-mix(in srgb, var(--forest-900) 10%, var(--surface)); color: var(--forest-900); }
+.productAccess .authTabs { background: color-mix(in srgb, var(--forest-900) 8%, var(--surface)); }
+.productAccess .authTabs button[aria-selected="true"] { color: var(--forest-900); background: var(--surface); }
+.productAccess .authFields label { color: var(--ink); }
+.productAccess .authFields input { border-color: var(--border); color: var(--ink); background: var(--surface); }
+.productAccess .authFields input:focus-visible { border-color: var(--forest-900); outline-color: color-mix(in srgb, var(--forest-900) 20%, transparent); }
+.productAccess .authFields .authTerms input { accent-color: var(--forest-900); }
+.productAccess .oauthButton { border-color: var(--border); color: var(--ink); background: var(--surface); }
+.productAccess .primaryButton { border-color: var(--forest-900); background: var(--forest-900); color: var(--surface); }
+.productAccess .primaryButton:not(:disabled):hover { background: var(--forest-800); }
+.productAccess :global(.brand__wordmark strong) { color: var(--forest-900); }
+.productAccess :global(.brand__wordmark small) { color: var(--muted); }
 .locationLogo { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; }
+
+.homeMarkLogo { padding: 4px; border: 1px solid var(--border, #ded8cc); background: var(--surface, #fff); }
+.homeMarkLogo img { width: 100%; height: 100%; border-radius: 9px; object-fit: contain; }
+.authPrompt .userMark:has(img) { padding: 4px; border: 1px solid var(--border, #ded8cc); background: var(--surface, #fff); }
+.authPrompt .userMark img { width: 100%; height: 100%; border-radius: 9px; object-fit: contain; }
+
+.collapsiblePanel .sectionToggle {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 17px;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.collapsiblePanel .sectionToggle > span:nth-child(2) { min-width: 0; }
+.collapsiblePanel .sectionToggle strong { display: block; color: inherit; font-size: 17px; line-height: 1.2; }
+.collapsiblePanel .sectionToggle > svg:last-child { color: currentColor; transition: transform .18s ease; }
+.collapsiblePanel .sectionToggleOpen { transform: rotate(90deg); }
+.collapsiblePanel .sectionToggle:focus-visible { outline: 2px solid var(--forest-900, #245f50); outline-offset: 5px; border-radius: 5px; }
+.sectionIcon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; background: #e8f0e9; color: #28604f; }
+.collapsibleContent { margin-top: 18px; }
+.dependentsPanel.collapsiblePanel .sectionToggle { padding: 18px 22px; }
+.dependentsPanel .dependentsContent { margin-top: 0; }
+
+.productTheme { background: var(--paper); color: var(--ink); }
+.productTheme .topbar { border-color: var(--border); background: color-mix(in srgb, var(--surface) 96%, transparent); }
+.productTheme .topbar :global(.brand__wordmark strong) { color: var(--forest-900); }
+.productTheme .topbar :global(.brand__wordmark small) { color: var(--muted); }
+.productTheme .desktopNav a, .productTheme .account { color: var(--muted); }
+.productTheme .desktopNav a.active, .productTheme .bottomNav a.active { background: color-mix(in srgb, var(--forest-900) 11%, var(--surface)); color: var(--forest-900); }
+.productTheme .account > span, .productTheme .profileAvatar { background: var(--forest-900); }
+.productTheme .locationStrip { border-color: var(--border); background: color-mix(in srgb, var(--paper) 88%, var(--surface)); color: var(--ink); }
+.productTheme .locationStrip svg, .productTheme .homeAddress svg { color: var(--amber-500); }
+.productTheme .open, .productTheme .homeOpen { color: var(--success); }
+.productTheme .closed, .productTheme .homeClosed { color: var(--danger); }
+.productTheme .state, .productTheme .resolver, .productTheme .authPrompt, .productTheme .emptyPage, .productTheme .bookingBlocked,
+.productTheme .homeHero, .productTheme .homePanel, .productTheme .catalog, .productTheme .schedule > section,
+.productTheme .panel, .productTheme .reservationSection, .productTheme .profileAside, .productTheme .modal,
+.productTheme .reservationCard, .productTheme .organizationCard, .productTheme .switchConfirm, .productTheme .tenantMenu {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--ink);
+}
+.productTheme .homeMark, .productTheme .userMark, .productTheme .sectionIcon, .productTheme .sectionTitle > svg,
+.productTheme .rescheduleIcon, .productTheme .organizationLogoFallback { background: color-mix(in srgb, var(--forest-900) 10%, var(--surface)); color: var(--forest-900); }
+.productTheme .homeMarkLogo { background: var(--surface); }
+.productTheme .pageHeading h1, .productTheme .sectionTitle h2, .productTheme .bookingDialogHeader h1,
+.productTheme .dependentsPanel .sectionToggle strong { color: var(--ink); }
+.productTheme .pageHeading > span, .productTheme .homePanel > span, .productTheme .switchConfirm > p,
+.productTheme .choiceKind, .productTheme .bookingContext > span:nth-child(2) { color: var(--amber-500); }
+.productTheme .pageHeading > p, .productTheme .sectionTitle p, .productTheme .homePanel > p,
+.productTheme .bookingDialogHeader > p { color: var(--muted); }
+.productTheme .primaryButton, .productTheme .resolver button, .productTheme .dateBox,
+.productTheme .steps .current > span, .productTheme .dates button.selected, .productTheme .slots button.selected,
+.productTheme .anyBarber > span:first-child { border-color: var(--forest-900); background: var(--forest-900); color: var(--surface); }
+.productTheme .primaryButton:disabled { border-color: var(--border); background: color-mix(in srgb, var(--forest-900) 12%, var(--surface)); color: var(--muted); }
+.productTheme .secondaryButton, .productTheme .authPrompt > button, .productTheme .bookingClose,
+.productTheme .tenantMenu button, .productTheme .organizationChoices button { border-color: var(--border); background: var(--surface); color: var(--forest-900); }
+.productTheme .authPrompt > button { border-color: var(--forest-900); background: var(--forest-900); color: var(--surface); }
+.productTheme .bookingDialog { border-color: var(--border); background: var(--surface); color: var(--ink); }
+.productTheme .bookingDialog::backdrop { background: color-mix(in srgb, var(--forest-900) 38%, transparent); }
+.productTheme .bookingDialogHeader, .productTheme .bookingDialogFooter { border-color: var(--border); background: var(--surface); }
+.productTheme .bookingContext, .productTheme .steps li, .productTheme .bookingDialogFooter > span small { color: var(--muted); }
+.productTheme .steps .current, .productTheme .steps .done { color: var(--forest-900); }
+.productTheme .steps .done > span, .productTheme .selectionStrip, .productTheme .scheduleIntro,
+.productTheme .assignmentNotice, .productTheme .anyBarber.selected, .productTheme .audienceFilter button.selected,
+.productTheme .empty, .productTheme .reservationCard > header, .productTheme .consent,
+.productTheme .dependentAge, .productTheme .dependentsTableHead {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--forest-900) 8%, var(--surface));
+  color: var(--ink);
+}
+.productTheme .audienceFilter button, .productTheme .cards > button, .productTheme .barbers > button,
+.productTheme .anyBarber, .productTheme .dates button, .productTheme .slots button,
+.productTheme .rescheduleCatalog button, .productTheme .dependentsForm, .productTheme .dependentsTable {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--ink);
+}
+.productTheme .audienceFilter button.selected, .productTheme .cards > button.selected,
+.productTheme .barbers > button.selected, .productTheme .rescheduleCatalog button.selected { border-color: var(--forest-900); }
+.productTheme .selectionStrip > svg, .productTheme .choiceKind, .productTheme .sectionToggle > svg,
+.productTheme .reservationCard > header > span, .productTheme .privacyNote svg { color: var(--forest-900); }
+.productTheme .cards > button > i, .productTheme .barbers > button > span, .productTheme .switch input:checked + span { background: var(--forest-900); }
+.productTheme .homePanel > p, .productTheme .organizationCard small, .productTheme .dependentsEmpty small { color: var(--muted); }
+.productTheme .bottomNav { border-color: var(--border); background: color-mix(in srgb, var(--surface) 97%, transparent); }
+.productTheme .bottomNav a { color: var(--muted); }
+.productTheme .dateBox span { color: var(--amber-500); }
+
+@media (max-width: 680px) {
+  .dependentsPanel.collapsiblePanel .sectionToggle { padding: 16px 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .collapsiblePanel .sectionToggle > svg:last-child { transition: none; }
+}

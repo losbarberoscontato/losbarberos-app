@@ -1,5 +1,9 @@
 # Prompt inicial — próxima conversa Los Barberos
 
+## Telas internas do cliente — 07/10/2026
+
+Entrada, Home, agendamento, reservas e perfil agora consomem a identidade do produto ativo para cor e vocabulário. A Home usa a logo cadastrada pelo gestor. Perfil tem cinco seções expansíveis com controles uniformes. Nenhuma migration ou Function mudou nesta rodada; WhatsApp Evolution permanece fora do diff. Build e testes focados passaram; o `verify` geral ainda tem 7 falhas preexistentes. Confira publicação, CI e limites autenticados em `HANDOFF.md`.
+
 ## Ajuste global do acesso do cliente — 07/10/2026
 
 O formulário compartilhado usa a logo do estabelecimento cadastrada em Configurações, com fallback para a marca publicada do produto. Textos redundantes e card informativo de WhatsApp/marketing foram removidos; rótulo do telefone agora é “Telefone/Whatsapp”. Não houve mudança no consentimento, migrations ou Edge Functions. Veja validações e limites no topo de `HANDOFF.md`.

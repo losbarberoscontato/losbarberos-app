@@ -76,11 +76,12 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   const productLabel = (key: string | null | undefined) => ({
     "los-barberos": "Los Barberos", "le-gras": "Le Gras", "pro-stetic": "ProStetic", "music-pro": "MusicPro",
   })[key ?? ""] ?? "Produto indisponível";
-  const isLeGrasAccess = (pathname === "/cliente/entrar" || pathname === "/cliente/redefinir-senha")
-    && entry?.product_key === "le-gras";
+  const isAccessPage = pathname === "/cliente/entrar" || pathname === "/cliente/redefinir-senha";
+  const identityStyle = productIdentityStyle(identity);
+  const themed = Boolean(identityStyle && entry?.product_key !== "los-barberos");
 
   return (
-    <div className={`${styles.shell} ${isLeGrasAccess ? styles.leGrasAccess : ""}`} style={isLeGrasAccess ? productIdentityStyle(identity) : undefined}>
+    <div className={`${styles.shell} ${themed ? styles.productTheme : ""} ${isAccessPage && themed ? styles.productAccess : ""}`} style={identityStyle}>
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
           <Brand href={`/cliente/agendar${suffix}`} name={entryLoading ? "Display SH" : productName} tagline={identity?.brand.tagline ?? (entry?.product_key === "los-barberos" ? "gestão para barbearias" : "Área do cliente")} mark={identity?.brand.mark ?? (entry?.product_key === "los-barberos" ? "LB" : "DS")} logoUrl={entryLoading ? undefined : identity?.brand.logoUrl} />

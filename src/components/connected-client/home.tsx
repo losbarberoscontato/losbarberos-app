@@ -7,13 +7,15 @@ import { useConnectedClient } from "@/components/connected-client/context";
 import { locationLabel } from "@/components/connected-client/format";
 import { ConnectedClientGate } from "@/components/connected-client/state";
 import styles from "@/components/connected-client/connected-client.module.css";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { clientVocabulary } from "@/components/connected-client/vocabulary";
 
 export function ConnectedClientHome() {
   return <ConnectedClientGate><HomeContent /></ConnectedClientGate>;
 }
 
 function HomeContent() {
-  const { context, organizations, slug, switchTenant } = useConnectedClient();
+  const { context, organizations, slug, switchTenant, identity, entry } = useConnectedClient();
   const [targetSlug, setTargetSlug] = useState<string | null>(null);
   if (!context || !slug) return null;
 
@@ -23,12 +25,19 @@ function HomeContent() {
     : null;
   const address = locationLabel(context.location?.address);
   const linkedElsewhere = organizations.filter((item) => item.organization_slug !== slug);
+  const vocabulary = clientVocabulary(identity, entry?.product_key);
+  const supabase = getSupabaseBrowserClient();
+  const logoPath = context.organization.logo_path ?? entry?.logo_path;
+  const logoUrl = logoPath && supabase
+    ? supabase.storage.from("organization-logos").getPublicUrl(logoPath).data.publicUrl
+    : identity?.brand.logoUrl;
 
   return (
     <section className={styles.clientHome} aria-labelledby="client-home-title">
       <div className={styles.homeHero}>
-        <span className={styles.homeMark} aria-hidden="true"><Store size={22} /></span>
-        <p>Minha barbearia</p>
+        <span className={`${styles.homeMark} ${logoUrl ? styles.homeMarkLogo : ""}`}>
+          {logoUrl ? <img src={logoUrl} alt={`Logo de ${logoPath ? context.organization.name : identity?.brand.name}`} /> : <Store size={22} aria-hidden="true" />}
+        </span>
         <h1 id="client-home-title">{context.organization.name}</h1>
         <span className={context.organization.accepting_bookings ? styles.homeOpen : styles.homeClosed}>
           <CheckCircle2 size={14} aria-hidden="true" />
@@ -43,12 +52,12 @@ function HomeContent() {
       <section className={styles.homePanel} aria-label="Próximo atendimento">
         <span>Próximo atendimento</span>
         <strong>Nenhum horário futuro confirmado</strong>
-        <p>Escolha um serviço e horário para sua próxima visita.</p>
+        <p>Escolha {vocabulary.serviceArticle} {vocabulary.service} e um horário para sua próxima visita.</p>
       </section>
 
       {linkedElsewhere.length > 0 && (
-        <section className={styles.homePanel} aria-label="Trocar de barbearia">
-          <span>Outras barbearias</span>
+        <section className={styles.homePanel} aria-label="Trocar de estabelecimento">
+          <span>Outros estabelecimentos</span>
           <strong>Troque apenas entre vínculos confirmados</strong>
           <div className={styles.organizationChoices}>
             {linkedElsewhere.map((item) => (
@@ -62,9 +71,9 @@ function HomeContent() {
 
       {target && (
         <section className={styles.switchConfirm} role="dialog" aria-modal="true" aria-labelledby="switch-title">
-          <p>Trocar de barbearia</p>
+          <p>Trocar de estabelecimento</p>
           <h2 id="switch-title">Abrir {target.organization_name}?</h2>
-          <span>Você sairá de {current?.organization_name ?? context.organization.name}. Agenda e histórico exibidos passarão a pertencer à nova barbearia.</span>
+          <span>Você sairá de {current?.organization_name ?? context.organization.name}. Agenda e histórico exibidos passarão a pertencer {vocabulary.article === "da" ? "à nova" : "ao novo"} {vocabulary.organization}.</span>
           <div>
             <button type="button" className={styles.secondaryButton} onClick={() => setTargetSlug(null)}>Cancelar</button>
             <button type="button" className={styles.primaryButton} onClick={() => {

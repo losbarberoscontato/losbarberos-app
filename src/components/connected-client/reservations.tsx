@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CalendarDays, Check, Clock3, LoaderCircle, RefreshCw, RotateCcw, Scissors, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, Camera, Check, Clock3, LoaderCircle, RefreshCw, RotateCcw, Scissors, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -30,6 +30,7 @@ import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/s
 import type { AvailableSlot, CustomerAppointment } from "@/components/connected-client/types";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { clientVocabulary } from "@/components/connected-client/vocabulary";
 
 const statusLabels: Record<CustomerAppointment["status"], string> = {
   HELD: "Horário protegido",
@@ -62,7 +63,8 @@ export function ConnectedReservations() {
 }
 
 function ReservationsContent() {
-  const { context, slug, user, customer, authLoading } = useConnectedClient();
+  const { context, slug, user, customer, authLoading, identity, entry } = useConnectedClient();
+  const vocabulary = clientVocabulary(identity, entry?.product_key);
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [appointments, setAppointments] = useState<CustomerAppointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,7 +180,7 @@ function ReservationsContent() {
   if (authLoading) return <div className={styles.state} role="status"><LoaderCircle className={styles.spin} /> Validando sessão…</div>;
   if (!user) return <AuthPrompt description="Entre para ver somente reservas vinculadas à sua identidade." />;
   if (!customer && !loading) {
-    return <section className={styles.emptyPage}><CalendarDays size={30} /><h1>Ainda sem perfil nesta barbearia</h1><p>Perfil nasce quando primeira reserva é confirmada.</p><Link className={styles.primaryButton} href={`/cliente/agendar?barbearia=${encodeURIComponent(slug)}`}>Agendar horário</Link></section>;
+    return <section className={styles.emptyPage}><CalendarDays size={30} /><h1>Ainda sem perfil neste estabelecimento</h1><p>Seu perfil neste estabelecimento aparecerá após a primeira reserva confirmada.</p><Link className={styles.primaryButton} href={`/cliente/agendar?barbearia=${encodeURIComponent(slug)}`}>Agendar horário</Link></section>;
   }
 
   const upcoming = appointments.filter((appointment) => {
@@ -220,7 +222,7 @@ function ReservationsContent() {
     setRescheduleChoiceId("");
     setModalError("");
     if (!canCustomerReschedule(appointment.status, currentStart, appointment.cancellation_lead_minutes_snapshot, acceptingBookings)) {
-      setModalError("Reserva fora do prazo ou barbearia pausou novos horários.");
+      setModalError("Reserva fora do prazo ou estabelecimento pausou novos horários.");
     }
   }
 
@@ -238,7 +240,7 @@ function ReservationsContent() {
       });
       setNotice(replacement
         ? "Reserva reagendada. Novo item usou catálogo atual; diferença financeira ficou registrada."
-        : "Reserva reagendada. Preços dos itens preservados; novo slot confirmado atomicamente.");
+        : "Reserva reagendada com sucesso.");
       setRescheduleTarget(null);
       await load();
     } catch (cause: unknown) {
@@ -269,20 +271,20 @@ function ReservationsContent() {
 
   return (
     <div className={styles.reservations}>
-      <header className={styles.pageHeading}><span>Sua agenda · {context.organization.name}</span><h1>Minhas reservas</h1><p>Status operacional e financeiro separados. Dados vêm do tenant autenticado.</p></header>
+      <header className={styles.pageHeading}><span>Sua agenda · {context.organization.name}</span><h1>Minhas reservas</h1><p>Acompanhe seus horários e pagamentos em {context.organization.name}.</p></header>
       {notice && <div className={styles.notice} role="status"><Check size={17} /><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Fechar aviso"><X size={15} /></button></div>}
       {error && <div className={styles.errorBox} role="alert"><strong>Falha ao carregar</strong><span>{error}</span><button type="button" onClick={() => void load()}><RefreshCw size={15} /> Tentar novamente</button></div>}
       {loading ? <div className={styles.state} role="status"><LoaderCircle className={styles.spin} /> Carregando reservas…</div> : (
         <>
           <section className={styles.reservationSection}>
             <div className={styles.sectionTitle}><CalendarDays /><div><h2>Próximas</h2><p>{upcoming.length} compromisso(s)</p></div></div>
-          {!upcoming.length ? <div className={styles.empty}><p>Nenhuma reserva futura.</p><Link href={`/cliente/agendar?barbearia=${encodeURIComponent(slug)}`} className={styles.primaryButton}>Agendar horário</Link></div> : <div className={styles.reservationList}>{upcoming.map((appointment) => <ReservationCard key={appointment.id} appointment={appointment} timezone={timezone} barberName={context.barbers.find((item) => item.id === appointment.barber_id)?.name ?? "Profissional"} onCancel={() => { const { startsAt } = parsePostgresRange(appointment.service_period); const leadMinutes = appointment.cancellation_lead_minutes_snapshot ?? 0; setCancelTarget(appointment); setCancelBeforeDeadline(leadMinutes === 0 || Date.now() <= new Date(startsAt).getTime() - leadMinutes * 60_000); setCancelAcknowledged(false); setModalError(""); }} onResumePayment={() => void resumePayment(appointment)} paymentBusy={paymentBusyId === appointment.id} acceptingBookings={context.organization.accepting_bookings} />)}</div>}
+          {!upcoming.length ? <div className={styles.empty}><p>Nenhuma reserva futura.</p><Link href={`/cliente/agendar?barbearia=${encodeURIComponent(slug)}`} className={styles.primaryButton}>Agendar horário</Link></div> : <div className={styles.reservationList}>{upcoming.map((appointment) => <ReservationCard key={appointment.id} appointment={appointment} timezone={timezone} barberName={context.barbers.find((item) => item.id === appointment.barber_id)?.name ?? vocabulary.professionalLabel} onCancel={() => { const { startsAt } = parsePostgresRange(appointment.service_period); const leadMinutes = appointment.cancellation_lead_minutes_snapshot ?? 0; setCancelTarget(appointment); setCancelBeforeDeadline(leadMinutes === 0 || Date.now() <= new Date(startsAt).getTime() - leadMinutes * 60_000); setCancelAcknowledged(false); setModalError(""); }} onResumePayment={() => void resumePayment(appointment)} paymentBusy={paymentBusyId === appointment.id} acceptingBookings={context.organization.accepting_bookings} />)}</div>}
           </section>
           <section className={styles.reservationSection}>
-            <div className={styles.sectionTitle}><Scissors /><div><h2>Histórico</h2><p>Atendimentos e reservas encerradas</p></div></div>
+            <div className={styles.sectionTitle}>{entry?.product_key === "le-gras" ? <Camera /> : <Scissors />}<div><h2>Histórico</h2><p>{vocabulary.servicesLabel} e reservas encerradas</p></div></div>
             {!history.length ? <p className={styles.empty}>Histórico vazio.</p> : <div className={styles.history}>{history.map((appointment) => {
               const { startsAt: start } = parsePostgresRange(appointment.service_period);
-              return <article key={appointment.id}><span>{formatInstant(start, timezone, { dateStyle: "medium", timeStyle: undefined })}</span><div><strong>{appointment.items.map((item) => item.service_name_snapshot).join(" + ") || "Reserva"}</strong><small>{context.barbers.find((item) => item.id === appointment.barber_id)?.name ?? "Profissional"}</small></div><b data-status={appointment.status}>{appointmentStatusLabel(appointment)}</b><em>{appointment.payment_mode === "SUBSCRIPTION" ? "Sessão assinatura" : formatMoney(appointment.total_cents_snapshot, appointment.currency)}</em></article>;
+              return <article key={appointment.id}><span>{formatInstant(start, timezone, { dateStyle: "medium", timeStyle: undefined })}</span><div><strong>{appointment.items.map((item) => item.service_name_snapshot).join(" + ") || "Reserva"}</strong><small>{context.barbers.find((item) => item.id === appointment.barber_id)?.name ?? vocabulary.professionalLabel}</small></div><b data-status={appointment.status}>{appointmentStatusLabel(appointment)}</b><em>{appointment.payment_mode === "SUBSCRIPTION" ? "Sessão assinatura" : formatMoney(appointment.total_cents_snapshot, appointment.currency)}</em></article>;
             })}</div>}
           </section>
         </>
@@ -290,7 +292,7 @@ function ReservationsContent() {
 
       {cancelTarget && <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.backdrop} onClick={() => setCancelTarget(null)} aria-label="Fechar cancelamento" /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="cancel-title"><button type="button" className={styles.modalClose} onClick={() => setCancelTarget(null)} aria-label="Fechar"><X /></button><AlertTriangle className={styles.warning} /><h2 id="cancel-title">Cancelar reserva?</h2>{cancelBeforeDeadline ? <p>Cancelamento dentro do prazo devolve a sessão para <strong>Em aberto</strong>. Você poderá agendar novamente.</p> : <><p>O cancelamento após o prazo limite encerrará esta sessão. Você não poderá reagendar.</p><label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={cancelAcknowledged} onChange={(event) => setCancelAcknowledged(event.target.checked)} /><span>Estou ciente</span></label></>}<label>Motivo <small>opcional</small><select value={cancelReason} onChange={(event) => setCancelReason(event.target.value)}><option value="">Selecione</option><option value="personal_unforeseen">Imprevisto pessoal</option><option value="need_another_time">Preciso de outro horário</option><option value="other">Outro</option></select></label>{modalError && <p className={styles.error} role="alert">{modalError}</p>}<footer><button type="button" className={styles.secondaryButton} onClick={() => setCancelTarget(null)}>Manter reserva</button><button type="button" className={styles.dangerButton} disabled={mutationBusy} onClick={() => void performCancel()}>{mutationBusy ? "Cancelando…" : "Confirmar cancelamento da sessão"}</button></footer></section></div>}
 
-      {rescheduleTarget && <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.backdrop} onClick={() => setRescheduleTarget(null)} aria-label="Fechar reagendamento" /><section className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="reschedule-title"><button type="button" className={styles.modalClose} onClick={() => setRescheduleTarget(null)} aria-label="Fechar"><X /></button><RotateCcw className={styles.rescheduleIcon} /><h2 id="reschedule-title">Reagendar reserva</h2><p>Novo slot troca atomicamente. Se falhar, reserva original permanece intacta. Itens mantidos preservam preço; substituição usa catálogo atual.</p><fieldset className={styles.rescheduleCatalog}><legend>Serviço ou pacote</legend><button type="button" className={!rescheduleChoiceId ? styles.selected : undefined} onClick={() => setRescheduleChoiceId("")}><strong>Manter itens atuais</strong><small>{rescheduleTarget.items.map((item) => item.service_name_snapshot).join(" + ")}</small></button>{catalogChoices(context).map((choice) => <button type="button" key={choice.id} className={rescheduleChoiceId === choice.id ? styles.selected : undefined} onClick={() => setRescheduleChoiceId(choice.id)}><strong>{choice.name}</strong><small>{formatMoney(choice.priceCents, context.organization.currency)}</small></button>)}</fieldset><label>Profissional<select value={barberId} onChange={(event) => setBarberId(event.target.value)}><option value="">Selecione</option>{compatibleBarbers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{compatibleBarbers.length === 0 && <p className={styles.empty}>Nenhum profissional habilitado para esta seleção.</p>}<div className={styles.dates}>{dateOptions(timezone, 10).map((date) => <button type="button" key={date} className={localDate === date ? styles.selected : undefined} onClick={() => setLocalDate(date)}><small>{formatLocalDate(date, { weekday: "short" })}</small><strong>{date.slice(-2)}</strong></button>)}</div>{slotsLoading ? <p className={styles.loadingLine}><LoaderCircle className={styles.spin} /> Consultando…</p> : <div className={styles.slots}>{slots.map((slot) => <button type="button" key={slot.starts_at} className={startsAt === slot.starts_at ? styles.selected : undefined} onClick={() => setStartsAt(slot.starts_at)}>{formatSlotTime(slot.starts_at, timezone)}</button>)}</div>}{!slotsLoading && !slots.length && !modalError && <p className={styles.empty}>Nenhum horário nesta data.</p>}{modalError && <p className={styles.error} role="alert">{modalError}</p>}<footer><button type="button" className={styles.secondaryButton} onClick={() => setRescheduleTarget(null)}>Voltar</button><button type="button" className={styles.primaryButton} disabled={!startsAt || !barberId || mutationBusy || Boolean(modalError)} onClick={() => void performReschedule()}>{mutationBusy ? "Reagendando…" : "Confirmar novo horário"}</button></footer></section></div>}
+      {rescheduleTarget && <div className={styles.modalLayer} role="presentation"><button type="button" className={styles.backdrop} onClick={() => setRescheduleTarget(null)} aria-label="Fechar reagendamento" /><section className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="reschedule-title"><button type="button" className={styles.modalClose} onClick={() => setRescheduleTarget(null)} aria-label="Fechar"><X /></button><RotateCcw className={styles.rescheduleIcon} /><h2 id="reschedule-title">Reagendar reserva</h2><p>Escolha um novo horário. Sua reserva atual será mantida se a alteração não for concluída.</p><fieldset className={styles.rescheduleCatalog}><legend>{vocabulary.serviceLabel} ou pacote</legend><button type="button" className={!rescheduleChoiceId ? styles.selected : undefined} onClick={() => setRescheduleChoiceId("")}><strong>Manter itens atuais</strong><small>{rescheduleTarget.items.map((item) => item.service_name_snapshot).join(" + ")}</small></button>{catalogChoices(context).map((choice) => <button type="button" key={choice.id} className={rescheduleChoiceId === choice.id ? styles.selected : undefined} onClick={() => setRescheduleChoiceId(choice.id)}><strong>{choice.name}</strong><small>{formatMoney(choice.priceCents, context.organization.currency)}</small></button>)}</fieldset><label>{vocabulary.professionalLabel}<select value={barberId} onChange={(event) => setBarberId(event.target.value)}><option value="">Selecione</option>{compatibleBarbers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{compatibleBarbers.length === 0 && <p className={styles.empty}>Nenhum profissional habilitado para esta seleção.</p>}<div className={styles.dates}>{dateOptions(timezone, 10).map((date) => <button type="button" key={date} className={localDate === date ? styles.selected : undefined} onClick={() => setLocalDate(date)}><small>{formatLocalDate(date, { weekday: "short" })}</small><strong>{date.slice(-2)}</strong></button>)}</div>{slotsLoading ? <p className={styles.loadingLine}><LoaderCircle className={styles.spin} /> Consultando…</p> : <div className={styles.slots}>{slots.map((slot) => <button type="button" key={slot.starts_at} className={startsAt === slot.starts_at ? styles.selected : undefined} onClick={() => setStartsAt(slot.starts_at)}>{formatSlotTime(slot.starts_at, timezone)}</button>)}</div>}{!slotsLoading && !slots.length && !modalError && <p className={styles.empty}>Nenhum horário nesta data.</p>}{modalError && <p className={styles.error} role="alert">{modalError}</p>}<footer><button type="button" className={styles.secondaryButton} onClick={() => setRescheduleTarget(null)}>Voltar</button><button type="button" className={styles.primaryButton} disabled={!startsAt || !barberId || mutationBusy || Boolean(modalError)} onClick={() => void performReschedule()}>{mutationBusy ? "Reagendando…" : "Confirmar novo horário"}</button></footer></section></div>}
     </div>
   );
 }

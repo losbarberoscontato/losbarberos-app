@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { ConnectedClientProvider, useConnectedClient } from "@/components/connected-client/context";
 import { ClientAuthForm, ClientPasswordResetForm } from "@/components/connected-client/auth-form";
 import { ConnectedClientHome } from "@/components/connected-client/home";
+import { ConnectedClientShell } from "@/components/connected-client/shell";
 import { ConnectedBooking } from "@/components/connected-client/booking";
 import { ConnectedProfile } from "@/components/connected-client/profile";
 import ClientPasswordResetPage from "@/app/cliente/redefinir-senha/page";
@@ -411,7 +412,7 @@ describe("cliente conectado", () => {
   it("não renderiza conteúdo privado sem tenant resolvido", async () => {
     authMocks.client = null;
     render(<ConnectedClientProvider><ConnectedClientGate><div>conteúdo privado</div></ConnectedClientGate></ConnectedClientProvider>);
-    expect(await screen.findByRole("heading", { name: "Qual barbearia?" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Qual estabelecimento?" })).toBeInTheDocument();
     expect(screen.queryByText("conteúdo privado")).not.toBeInTheDocument();
   });
   beforeEach(() => {
@@ -473,7 +474,7 @@ describe("cliente conectado", () => {
       </ConnectedClientProvider>,
     );
 
-    const enter = await screen.findByRole("button", { name: "Entrar nesta barbearia" });
+    const enter = await screen.findByRole("button", { name: "Entrar" });
     expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
     expect(from).not.toHaveBeenCalledWith("customers");
 
@@ -485,7 +486,7 @@ describe("cliente conectado", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("network interrupted after commit");
     expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Entrar nesta barbearia" }));
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
     expect(await screen.findByText("conteúdo tenant")).toBeInTheDocument();
     expect(rpc.mock.calls.filter(([name]) => name === "link_my_client_to_organization")).toHaveLength(2);
     expect(from).toHaveBeenCalledWith("customers");
@@ -500,7 +501,7 @@ describe("cliente conectado", () => {
       </ConnectedClientProvider>,
     );
 
-    expect(await screen.findByText("Complete seus dados de cliente antes de entrar nesta barbearia.")).toBeInTheDocument();
+    expect(await screen.findByText("Complete seus dados de cliente antes de entrar neste estabelecimento.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Completar cadastro" })).toHaveAttribute(
       "href",
       "/cliente/entrar?barbearia=barbearia-real&complete=1",
@@ -539,7 +540,7 @@ describe("cliente conectado", () => {
       </ConnectedClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar" }));
     expect(await screen.findByRole("button", { name: "Confirmar cadastro encontrado" })).toBeEnabled();
     expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
     expect(from).not.toHaveBeenCalledWith("customers");
@@ -566,7 +567,7 @@ describe("cliente conectado", () => {
       </ConnectedClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar" }));
     const claimButton = await screen.findByRole("button", { name: "Confirmar cadastro encontrado" });
     fireEvent.click(claimButton);
     fireEvent.click(claimButton);
@@ -590,9 +591,9 @@ describe("cliente conectado", () => {
       </ConnectedClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Confirmar cadastro encontrado" }));
-    expect(await screen.findByText("Vínculo enviado para revisão pela barbearia.")).toBeInTheDocument();
+    expect(await screen.findByText("Vínculo enviado para revisão pelo estabelecimento.")).toBeInTheDocument();
     expect(screen.queryByText("conteúdo tenant")).not.toBeInTheDocument();
     expect(from).not.toHaveBeenCalledWith("customers");
   });
@@ -610,7 +611,7 @@ describe("cliente conectado", () => {
       </ConnectedClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Confirmar cadastro encontrado" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Resposta de confirmação não corresponde ao cadastro selecionado.",
@@ -685,6 +686,37 @@ describe("cliente conectado", () => {
       "/cliente/agendar?barbearia=barbearia-real",
     );
     expect(screen.queryByText(/saldo|carteira/iu)).not.toBeInTheDocument();
+    expect(screen.queryByText("Minha barbearia")).not.toBeInTheDocument();
+  });
+
+  it("usa logo do estabelecimento na home e vocabulário Le Gras no agendamento", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true, productKey: "le-gras", logoPath: "studio/logo.png" });
+    const view = render(
+      <ConnectedClientProvider initialSlug="barbearia-real"><ConnectedClientHome /></ConnectedClientProvider>,
+    );
+    expect(await screen.findByRole("img", { name: "Logo de Barbearia Real" })).toHaveAttribute(
+      "src", "https://assets.example.test/organization-logos/studio/logo.png",
+    );
+    view.rerender(<ConnectedClientProvider initialSlug="barbearia-real"><ConnectedBooking /></ConnectedClientProvider>);
+    expect(await screen.findByRole("heading", { name: "Qual serviço você quer?" })).toBeInTheDocument();
+    expect(screen.getByText("Escolha um serviço ou pacote do catálogo do estúdio.")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Etapa 1 de 4" })).toHaveTextContent("Fotógrafo");
+  });
+
+  it("usa vocabulário MusicPro no agendamento", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true, productKey: "music-pro" });
+    render(<ConnectedClientProvider initialSlug="barbearia-real"><ConnectedBooking /></ConnectedClientProvider>);
+    expect(await screen.findByRole("heading", { name: "Qual aula você quer?" })).toBeInTheDocument();
+    expect(screen.getByText("Escolha uma aula ou pacote do catálogo da escola.")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Etapa 1 de 4" })).toHaveTextContent("Professor");
+  });
+
+  it("aplica identidade Le Gras em todo o shell do cliente", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true, productKey: "le-gras" });
+    const { container } = render(<ConnectedClientShell initialSlug="barbearia-real"><span>Conteúdo interno</span></ConnectedClientShell>);
+    await waitFor(() => expect((container.firstElementChild as HTMLElement).className).toContain("productTheme"));
+    expect((container.firstElementChild as HTMLElement).style.getPropertyValue("--forest-900")).toBe("#29143d");
+    expect((container.firstElementChild as HTMLElement).style.getPropertyValue("--paper")).toBe("#f5f0f7");
   });
 
   it("protege por três minutos o primeiro horário e o libera ao voltar", async () => {
@@ -870,6 +902,32 @@ describe("cliente conectado", () => {
     expect(rpc.mock.calls.some(([name]) => name === "upsert_my_customer")).toBe(false);
   });
 
+  it("abre e fecha todas as seções do perfil com rótulos compartilhados", async () => {
+    installProviderClient({ authenticated: true, initiallyLinked: true, productKey: "le-gras" });
+    render(<ConnectedClientProvider initialSlug="barbearia-real"><ConnectedProfile /></ConnectedClientProvider>);
+    const personal = await screen.findByRole("button", { name: "Dados pessoais" });
+    expect(personal).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByText("Aplicados em todas as barbearias vinculadas à sua conta.")).not.toBeInTheDocument();
+    fireEvent.click(personal);
+    expect(personal).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Nome completo")).not.toBeInTheDocument();
+    fireEvent.click(personal);
+    expect(screen.getByLabelText("Nome completo")).toBeInTheDocument();
+
+    for (const label of ["Dependentes", "Meus estabelecimentos", "Comunicação", "Direitos LGPD"]) {
+      const toggle = screen.getByRole("button", { name: label });
+      const previous = toggle.getAttribute("aria-expanded");
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", previous === "true" ? "false" : "true");
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", previous);
+    }
+    expect(screen.queryByText("Até 8 pessoas cadastradas para atendimento.")).not.toBeInTheDocument();
+    expect(screen.queryByText("0/8")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pesquisar Estabelecimento" })).toBeInTheDocument();
+    expect(screen.getByText("Gerencie seus dados e preferências de comunicação neste estúdio.")).toBeInTheDocument();
+  });
+
   it("deduplica confirmações concorrentes do mesmo slug", async () => {
     const { resolveLink, rpc } = installProviderClient({ authenticated: true, deferLink: true });
 
@@ -950,7 +1008,7 @@ describe("cliente conectado", () => {
       </ConnectedClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Entrar nesta barbearia" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Entrar" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Resposta de vínculo não corresponde à barbearia selecionada.",
     );
@@ -1102,7 +1160,7 @@ describe("cliente conectado", () => {
     fireEvent.click(screen.getByLabelText("Aceito os termos de uso e a política de privacidade"));
     fireEvent.submit(screen.getByRole("form", { name: "Completar cadastro" }));
 
-    expect(await screen.findByRole("button", { name: "Entrar nesta barbearia" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Entrar" })).toBeInTheDocument();
     expect(authMocks.push).toHaveBeenCalledWith("/cliente/agendar?barbearia=barbearia-real");
   });
 

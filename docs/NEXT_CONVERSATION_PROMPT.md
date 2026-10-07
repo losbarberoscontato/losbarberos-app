@@ -1,5 +1,7 @@
 # Prompt inicial — próxima conversa Los Barberos
 
+As telas internas do cliente agora usam identidade por produto e vocabulário contextual; entrada e perfil receberam as simplificações solicitadas. A Home usa a logo do estabelecimento. Nenhuma migration ou Function foi alterada nesta rodada. Consulte `HANDOFF.md` para testes, publicação e limites de prova autenticada.
+
 O acesso compartilhado do cliente recebeu a logo cadastrada do estabelecimento, textos simplificados e rótulo “Telefone/Whatsapp” em 07/10/2026. A lógica de consentimento e o módulo WhatsApp Evolution não mudaram. Veja testes e limites no topo de `HANDOFF.md`.
 
 Entrega de 07/10/2026: entrada do cliente Le Gras e vínculo compartilhado publicados em `main`; migration `20261007131357_client_product_entry_context.sql` aplicada ao Supabase e Vercel em `READY`. Leia o registro e os limites de validação no topo de `HANDOFF.md`. Functions não tiveram mudança. A CI inicial `37639705351` falhou; acompanhar a CI do ajuste do E2E condicionado a Supabase e manter as falhas legadas de UI/domínio/pgTAP separadas. Teste autenticado com conta controlada e conferência do cliente no gestor permanecem pendentes.
