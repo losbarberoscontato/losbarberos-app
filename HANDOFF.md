@@ -1,5 +1,14 @@
 # Handoff — Los Barberos
 
+## Entrada compartilhada do cliente e Le Gras — 07/10/2026
+
+- Commit funcional `61cf257` publicado em `main`. Migration remota `20261007131357_client_product_entry_context.sql` aplicada ao projeto `bwdjkhqshmppescunwer`; dry run posterior sem pendências.
+- Consulta remota confirmou Estúdio Gras (`estudiogras`) associado a `le-gras`; nova RPC pública devolve essa associação para `booking_public_id=4039018f-5f6c-4359-ac66-ab17a04ba161`.
+- Vercel `dpl_gsezJ417AkwwRAHHFMzetRGTQCdN` ficou `READY` em `displaysh-app.vercel.app` a partir de `61cf257`. O link por UUID redirecionou com HTTP 307 para `/cliente/entrar?booking=...`; a página exibiu título e ícone Le Gras no HTML.
+- Nenhum arquivo de Edge Function mudou. Inventário remoto mostrou Functions ativas; nenhuma foi reimplantada, preservando o módulo WhatsApp Evolution.
+- Testes locais da entrega: 112 focados, 34 de WhatsApp, E2E Le Gras desktop/mobile e build aprovados. CI `37639705351` ficou vermelha: o E2E novo exigia Supabase ausente no runner e foi ajustado para executar apenas quando houver configuração conectada; `verify` e `database` têm falhas fora deste diff (7 testes de UI/domínio e fixture pgTAP financeira). Aguardar nova CI do ajuste.
+- Fluxos autenticados com cliente novo/existente e visual do gestor em produção continuam **NÃO VALIDADOS**; precisam de conta controlada e inspeção do vínculo em `customers`.
+
 ## Painel oficial Display SH e regras de entrada — 28/09/2026
 
 - `/admin` foi desativado como painel independente e redireciona para `/entrar?modo=login&next=%2Fdisplay-admin`.

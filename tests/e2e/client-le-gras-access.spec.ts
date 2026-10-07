@@ -1,6 +1,9 @@
+import { existsSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 test("link do Estúdio Gras mostra acesso Le Gras em desktop e mobile", async ({ page }) => {
+  test.skip(!existsSync(".env.local") && !(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+    "Acesso conectado exige configuração Supabase no servidor E2E.");
   test.setTimeout(120_000);
   await page.route("**/rest/v1/rpc/get_public_client_entry_context", (route) => route.fulfill({
     status: 200,
