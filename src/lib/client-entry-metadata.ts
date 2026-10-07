@@ -5,7 +5,7 @@ import { getPublishedProductIdentity } from "@/lib/product-identity-server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const neutralMetadata: Metadata = {
-  title: { absolute: "Acesso do cliente · Display SH" },
+  title: { absolute: "Entrar · Display SH" },
   icons: { icon: "/display-sh/icon.svg" },
 };
 
@@ -26,7 +26,7 @@ export async function clientEntryMetadata(input: {
     const identity = await getPublishedProductIdentity(entry.product_key);
     const name = identity?.brand.name ?? (entry.product_key === "los-barberos" ? "Los Barberos" : "Display SH");
     return {
-      title: { absolute: `Acesso do cliente · ${name}` },
+      title: { absolute: `Entrar · ${name}` },
       icons: { icon: identity?.brand.logoUrl ?? (entry.product_key === "los-barberos" ? "/icon.svg" : "/display-sh/icon.svg") },
     };
   } catch {

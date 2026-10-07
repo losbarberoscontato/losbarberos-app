@@ -1,5 +1,9 @@
 # Prompt inicial — próxima conversa Los Barberos
 
+## Ajuste global do acesso do cliente — 07/10/2026
+
+O formulário compartilhado usa a logo do estabelecimento cadastrada em Configurações, com fallback para a marca publicada do produto. Textos redundantes e card informativo de WhatsApp/marketing foram removidos; rótulo do telefone agora é “Telefone/Whatsapp”. Não houve mudança no consentimento, migrations ou Edge Functions. Veja validações e limites no topo de `HANDOFF.md`.
+
 ## Entrega cliente Le Gras — 07/10/2026
 
 Código de entrada compartilhada e skin de acesso Le Gras publicado em `main` a partir de `61cf257`. Migration `20261007131357_client_product_entry_context.sql` aplicada e alinhada no Supabase `bwdjkhqshmppescunwer`; Estúdio Gras confirmado como `le-gras`. Vercel `dpl_gsezJ417AkwwRAHHFMzetRGTQCdN` ficou `READY`, com redirecionamento público UUID → `/cliente/entrar?booking=...`. Functions não alteradas nem reimplantadas. CI inicial `37639705351` falhou em E2E sem Supabase configurado (teste ajustado), testes de UI/domínio antigos e fixture financeira pgTAP; revisar nova CI. Cadastro/login/vínculo autenticado em produção ainda não foi validado com conta controlada.

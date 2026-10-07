@@ -1,5 +1,11 @@
 # Handoff — Los Barberos
 
+## Ajuste global do acesso do cliente — 07/10/2026
+
+- Login, cadastro, complementação e recuperação agora mostram a logo cadastrada em Configurações pelo estabelecimento (`organizations.logo_path` no bucket `organization-logos`). Sem logo própria, usam a identidade publicada do produto; Estúdio Gras ainda está sem `logo_path` no banco e usa Le Gras.
+- Removidos os textos “Acesso do cliente”, “Seus dados globais são usados somente após confirmação segura.” e o card informativo de WhatsApp/marketing. Campo rotulado “Telefone/Whatsapp”. A lógica de consentimento não mudou; nenhuma migration ou Edge Function foi alterada.
+- Validação local: 114 testes focados de acesso/callback aprovados, E2E Le Gras desktop/mobile aprovado, build aprovado. `npm.cmd run verify` parou em 7 testes preexistentes fora do formulário; lint e typecheck passaram. Fluxo autenticado real e logo própria após upload ainda requerem conferência em produção.
+
 ## Entrada compartilhada do cliente e Le Gras — 07/10/2026
 
 - Commit funcional `61cf257` publicado em `main`. Migration remota `20261007131357_client_product_entry_context.sql` aplicada ao projeto `bwdjkhqshmppescunwer`; dry run posterior sem pendências.

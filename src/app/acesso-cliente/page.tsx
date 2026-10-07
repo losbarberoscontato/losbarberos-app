@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, CalendarCheck2, ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Acesso do cliente",
+  title: "Área do cliente",
   description: "Acesse sua conta Los Barberos para cuidar dos seus horários.",
 };
 

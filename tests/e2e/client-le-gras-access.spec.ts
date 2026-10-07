@@ -37,6 +37,7 @@ test("link do Estúdio Gras mostra acesso Le Gras em desktop e mobile", async ({
 
   await page.goto("/b/4039018f-5f6c-4359-ac66-ab17a04ba161", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Acesse seu estúdio" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Logo de Le Gras" })).toBeVisible();
   await expect(page.getByText("Estúdio Gras").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /Le Gras/u })).toBeVisible();
   await expect(page.getByRole("button", { name: "Entrar", exact: true })).toHaveCSS("background-color", "rgb(41, 20, 61)");
@@ -44,6 +45,9 @@ test("link do Estúdio Gras mostra acesso Le Gras em desktop e mobile", async ({
 
   await page.getByRole("tab", { name: "Criar conta" }).click();
   await expect(page.getByRole("heading", { name: "Acesse seu estúdio" })).toBeVisible();
+  await expect(page.getByLabel("Telefone/Whatsapp")).toBeVisible();
+  await expect(page.getByText("Avisos no WhatsApp e marketing começam ativos, separadamente.")).toHaveCount(0);
+  await expect(page.getByText("Acesso do cliente")).toHaveCount(0);
   await page.getByRole("tab", { name: "Entrar" }).click();
   await page.getByRole("button", { name: "Esqueci minha senha" }).click();
   await expect(page.getByRole("button", { name: "Recuperar senha" })).toBeVisible();

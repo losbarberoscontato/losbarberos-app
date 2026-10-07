@@ -38,6 +38,7 @@ const authMocks = vi.hoisted(() => ({
     };
     rpc: ReturnType<typeof vi.fn>;
     from?: ReturnType<typeof vi.fn>;
+    storage?: { from: ReturnType<typeof vi.fn> };
   } | null,
   push: vi.fn(),
   redirect: vi.fn(),
@@ -108,6 +109,7 @@ function installProviderClient({
   initiallyLinked = false,
   linkedElsewhere = false,
   productKey = "los-barberos",
+  logoPath = null,
   isLast = false,
   claimRequired = false,
   reviewAfterClaim = false,
@@ -127,6 +129,7 @@ function installProviderClient({
   initiallyLinked?: boolean;
   linkedElsewhere?: boolean;
   productKey?: "los-barberos" | "le-gras" | "pro-stetic" | "music-pro";
+  logoPath?: string | null;
   isLast?: boolean;
   claimRequired?: boolean;
   reviewAfterClaim?: boolean;
@@ -223,7 +226,7 @@ function installProviderClient({
       organization_id: context.organization.id,
       organization_slug: canonicalSlug ?? context.organization.slug,
       organization_name: productKey === "le-gras" ? "Estúdio Gras" : context.organization.name,
-      logo_path: null,
+      logo_path: logoPath,
       product_key: productKey,
     }, error: null };
     if (name === "get_public_booking_context") return { data: publicContext, error: null };
@@ -315,6 +318,9 @@ function installProviderClient({
     },
     rpc,
     from,
+    storage: {
+      from: vi.fn(() => ({ getPublicUrl: vi.fn(() => ({ data: { publicUrl: "https://assets.example.test/organization-logos/studio/logo.png" } })) })),
+    },
   };
   return {
     from,
@@ -918,7 +924,7 @@ describe("cliente conectado", () => {
     expect(screen.queryByRole("heading", { name: "Acesse sua barbearia" })).not.toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Acesse seu estúdio" })).toBeInTheDocument();
     expect(screen.getByText("Estúdio Gras")).toBeInTheDocument();
-    expect(document.querySelector(".lucide-camera")).not.toBeNull();
+    expect(screen.getByRole("img", { name: "Logo de Le Gras" })).toHaveAttribute("src", "/display-sh/le-gras.png");
   });
 
   it("envia cliente já autenticado do link público diretamente ao estabelecimento", async () => {
@@ -974,12 +980,36 @@ describe("cliente conectado", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
 
     expect(screen.getByLabelText("Nome completo")).toBeRequired();
-    expect(screen.getByLabelText("Telefone (E.164)")).toBeRequired();
+    expect(screen.getByLabelText("Telefone/Whatsapp")).toBeRequired();
     expect(screen.getByLabelText("Data de nascimento")).toBeRequired();
     expect(screen.getByLabelText("Data de nascimento")).toHaveAttribute("type", "text");
     expect(screen.getByLabelText("Data de nascimento")).toHaveAttribute("inputmode", "numeric");
     expect(screen.getByLabelText("Aceito os termos de uso e a política de privacidade")).toBeRequired();
-    expect(screen.getByText("Avisos no WhatsApp e marketing começam ativos, separadamente.")).toBeInTheDocument();
+    expect(screen.queryByText("Avisos no WhatsApp e marketing começam ativos, separadamente.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Acesso do cliente")).not.toBeInTheDocument();
+  });
+
+  it.each(["los-barberos", "le-gras", "pro-stetic", "music-pro"] as const)(
+    "mostra a logo cadastrada do estabelecimento no acesso %s",
+    async (productKey) => {
+      installProviderClient({ authenticated: false, productKey, logoPath: "studio/logo.png" });
+      render(<ConnectedClientProvider initialSlug="barbearia-real"><ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente/agendar" /></ConnectedClientProvider>);
+
+      const logo = await screen.findByRole("img", { name: productKey === "le-gras" ? "Logo de Estúdio Gras" : "Logo de Barbearia Real" });
+      expect(logo).toHaveAttribute("src", "https://assets.example.test/organization-logos/studio/logo.png");
+      fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
+      expect(logo).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: "Entrar" }));
+      fireEvent.click(screen.getByRole("button", { name: "Esqueci minha senha" }));
+      expect(logo).toBeInTheDocument();
+    },
+  );
+
+  it("usa a marca Le Gras quando o estúdio ainda não cadastrou logo própria", async () => {
+    installProviderClient({ authenticated: false, productKey: "le-gras" });
+    render(<ConnectedClientProvider initialSlug="barbearia-real"><ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente/agendar" /></ConnectedClientProvider>);
+
+    expect(await screen.findByRole("img", { name: "Logo de Le Gras" })).toHaveAttribute("src", "/display-sh/le-gras.png");
   });
 
   it("inicia Google com callback allowlisted e contexto da barbearia", async () => {
@@ -1034,11 +1064,11 @@ describe("cliente conectado", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Validando sua conta Google");
     expect(await screen.findByRole("heading", { name: "Complete seu cadastro" })).toBeInTheDocument();
     expect(screen.getByLabelText("Nome completo")).toHaveValue("Ana Souza");
-    expect(screen.getByLabelText("Telefone (E.164)")).toBeRequired();
+    expect(screen.getByLabelText("Telefone/Whatsapp")).toBeRequired();
     expect(screen.getByLabelText("Data de nascimento")).toBeRequired();
     expect(screen.queryByLabelText("E-mail")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Telefone (E.164)"), { target: { value: "47999782545" } });
+    fireEvent.change(screen.getByLabelText("Telefone/Whatsapp"), { target: { value: "47999782545" } });
     fireEvent.change(screen.getByLabelText("Data de nascimento"), { target: { value: "10/02/1990" } });
     fireEvent.click(screen.getByLabelText("Aceito os termos de uso e a política de privacidade"));
     fireEvent.submit(screen.getByRole("form", { name: "Completar cadastro" }));
@@ -1067,7 +1097,7 @@ describe("cliente conectado", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Complete seu cadastro" })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Telefone (E.164)"), { target: { value: "47999782545" } });
+    fireEvent.change(screen.getByLabelText("Telefone/Whatsapp"), { target: { value: "47999782545" } });
     fireEvent.change(screen.getByLabelText("Data de nascimento"), { target: { value: "10/02/1990" } });
     fireEvent.click(screen.getByLabelText("Aceito os termos de uso e a política de privacidade"));
     fireEvent.submit(screen.getByRole("form", { name: "Completar cadastro" }));
@@ -1105,7 +1135,7 @@ describe("cliente conectado", () => {
     render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente/agendar" />);
     fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
     fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: " Ana Souza " } });
-    fireEvent.change(screen.getByLabelText("Telefone (E.164)"), { target: { value: "+5511999999999" } });
+    fireEvent.change(screen.getByLabelText("Telefone/Whatsapp"), { target: { value: "+5511999999999" } });
     fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: " ANA@EXAMPLE.COM " } });
     fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "Senha#123" } });
     fireEvent.change(screen.getByLabelText("Data de nascimento"), { target: { value: "1990-02-10" } });
@@ -1136,7 +1166,7 @@ describe("cliente conectado", () => {
     render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente" />);
     fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
     fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Ana Souza" } });
-    fireEvent.change(screen.getByLabelText("Telefone (E.164)"), { target: { value: "47999782545" } });
+    fireEvent.change(screen.getByLabelText("Telefone/Whatsapp"), { target: { value: "47999782545" } });
     fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ana@example.com" } });
     fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "Senha#123" } });
     fireEvent.change(screen.getByLabelText("Data de nascimento"), { target: { value: "1990-02-10" } });
@@ -1173,7 +1203,7 @@ describe("cliente conectado", () => {
 
     expect(await screen.findByRole("heading", { name: "Complete seu cadastro" })).toBeInTheDocument();
     expect(authMocks.client?.rpc).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Telefone (E.164)")).toBeRequired();
+    expect(screen.getByLabelText("Telefone/Whatsapp")).toBeRequired();
   });
 
   it("usa recovery direto e callback allowlisted no reenvio", async () => {
@@ -1216,7 +1246,7 @@ describe("cliente conectado", () => {
     render(<ClientAuthForm initialSlug="barbearia-real" initialNext="/cliente" />);
     fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
     fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Ana Souza" } });
-    fireEvent.change(screen.getByLabelText("Telefone (E.164)"), { target: { value: "+5511999999999" } });
+    fireEvent.change(screen.getByLabelText("Telefone/Whatsapp"), { target: { value: "+5511999999999" } });
     fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ana@example.com" } });
     fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "Senha#123" } });
     fireEvent.change(screen.getByLabelText("Data de nascimento"), { target: { value: "1990-02-10" } });

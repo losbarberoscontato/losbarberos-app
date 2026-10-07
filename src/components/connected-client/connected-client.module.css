@@ -169,6 +169,8 @@
 
 .authForm { width: min(500px, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 12px; margin: 34px auto; padding: 30px; border: 1px solid #ded8cc; border-radius: 20px; background: #fffefa; box-shadow: 0 14px 34px rgb(25 47 39 / 7%); }
 .authForm .userMark { align-self: center; }
+.authForm .organizationMark { padding: 4px; border: 1px solid #e2dacc; background: #fff; }
+.authForm .organizationMark img { width: 100%; height: 100%; border-radius: 9px; object-fit: contain; }
 .authKicker { color: #825328; font-size: 11px; font-weight: 850; letter-spacing: .13em; text-align: center; text-transform: uppercase; }
 .authForm h1 { text-align: center; font-size: clamp(28px, 4vw, 38px); line-height: 1.05; }
 .authDescription { color: #505d56; font-size: 14px; font-weight: 520; line-height: 1.55; text-align: center; }
@@ -197,9 +199,6 @@
 .passwordControl button:focus-visible { outline: 2px solid #2d6d5c; outline-offset: -4px; border-radius: 7px; }
 .authFields .authTerms { display: flex; align-items: flex-start; gap: 8px; color: #4f5e56; font-size: 12px; line-height: 1.45; font-weight: 650; }
 .authFields .authTerms input { width: 16px; min-width: 16px; min-height: 16px; margin-top: 1px; accent-color: #245f50; }
-.authWhatsappDefault { display: flex; align-items: flex-start; gap: 9px; padding: 11px 12px; border-radius: 10px; background: #e9f2ed; color: #31574b; font-size: 12px; line-height: 1.45; }
-.authWhatsappDefault svg { flex: 0 0 auto; margin-top: 1px; }
-.authWhatsappDefault strong { display: block; color: #1f4d40; font-size: 12px; }
 .authForm > .notice,
 .authForm > .error { margin: 0; }
 .authForm > .notice,

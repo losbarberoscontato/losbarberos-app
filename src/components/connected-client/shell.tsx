@@ -83,7 +83,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     <div className={`${styles.shell} ${isLeGrasAccess ? styles.leGrasAccess : ""}`} style={isLeGrasAccess ? productIdentityStyle(identity) : undefined}>
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
-          <Brand href={`/cliente/agendar${suffix}`} name={entryLoading ? "Display SH" : productName} tagline={identity?.brand.tagline ?? (entry?.product_key === "los-barberos" ? "gestão para barbearias" : "Acesso do cliente")} mark={identity?.brand.mark ?? (entry?.product_key === "los-barberos" ? "LB" : "DS")} logoUrl={entryLoading ? undefined : identity?.brand.logoUrl} />
+          <Brand href={`/cliente/agendar${suffix}`} name={entryLoading ? "Display SH" : productName} tagline={identity?.brand.tagline ?? (entry?.product_key === "los-barberos" ? "gestão para barbearias" : "Área do cliente")} mark={identity?.brand.mark ?? (entry?.product_key === "los-barberos" ? "LB" : "DS")} logoUrl={entryLoading ? undefined : identity?.brand.logoUrl} />
           <nav className={styles.desktopNav} aria-label="Navegação do cliente">
             {visibleNavigation.map((item) => {
               const Icon = item.icon;

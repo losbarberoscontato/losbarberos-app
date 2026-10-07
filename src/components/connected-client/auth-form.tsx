@@ -2,7 +2,7 @@
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Eye, EyeOff, LoaderCircle, MessageCircle, Scissors } from "lucide-react";
+import { Camera, Eye, EyeOff, LoaderCircle, Scissors } from "lucide-react";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getMyClientAccount } from "@/components/connected-client/api";
 import { useOptionalConnectedClient } from "@/components/connected-client/context";
@@ -59,6 +59,24 @@ function metadataString(metadata: unknown, field: string): string {
   return typeof value === "string" ? value : "";
 }
 
+function ClientOrganizationMark() {
+  const clientContext = useOptionalConnectedClient();
+  const logoPath = clientContext?.entry?.logo_path;
+  const supabase = getSupabaseBrowserClient();
+  const organizationLogoUrl = logoPath && supabase?.storage?.from("organization-logos").getPublicUrl(logoPath).data.publicUrl;
+  const logoUrl = organizationLogoUrl || clientContext?.identity?.brand.logoUrl;
+  const logoName = organizationLogoUrl ? clientContext?.entry?.organization_name : clientContext?.identity?.brand.name;
+  const ClientIcon = clientContext?.entry?.product_key === "le-gras" ? Camera : Scissors;
+
+  return (
+    <span className={`${styles.userMark} ${logoUrl ? styles.organizationMark : ""}`}>
+      {logoUrl
+        ? <img src={logoUrl} alt={`Logo de ${logoName ?? "estabelecimento"}`} />
+        : <ClientIcon size={22} aria-hidden="true" />}
+    </span>
+  );
+}
+
 function useExclusiveMutation() {
   const inFlight = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -100,7 +118,6 @@ export function ClientAuthForm({
   const clientContext = useOptionalConnectedClient();
   const isLeGras = clientContext?.entry?.product_key === "le-gras";
   const organizationPhrase = isLeGras ? "seu estúdio" : "sua barbearia";
-  const ClientIcon = isLeGras ? Camera : Scissors;
   const [mode, setMode] = useState<AuthMode>(oauthCompletion ? "complete" : initialMode);
   const [oauthChecking, setOauthChecking] = useState(oauthCompletion || resumeCompletion);
   const [email, setEmail] = useState("");
@@ -423,17 +440,14 @@ export function ClientAuthForm({
 
   return (
     <section className={styles.authForm} aria-labelledby="client-auth-title">
-      <span className={styles.userMark} aria-hidden="true"><ClientIcon size={22} /></span>
-      <p className={styles.authKicker}>Acesso do cliente</p>
+      <ClientOrganizationMark />
       <h1 id="client-auth-title">{isComplete ? "Complete seu cadastro" : `Acesse ${organizationPhrase}`}</h1>
       {clientContext?.entry && <p className={styles.authDescription}>{clientContext.entry.organization_name}</p>}
-      <p className={styles.authDescription}>
+      {!isComplete && <p className={styles.authDescription}>
         {isRecovery
           ? "Enviaremos instruções apenas se houver uma conta elegível."
-          : isComplete
-            ? "Seus dados globais são usados somente após confirmação segura."
-            : "Continue com Google ou use seu e-mail e senha."}
-      </p>
+          : "Continue com Google ou use seu e-mail e senha."}
+      </p>}
 
       {!isComplete && (
         <div className={styles.authTabs} role="tablist" aria-label="Modo de acesso">
@@ -461,7 +475,7 @@ export function ClientAuthForm({
             <label htmlFor="client-full-name">Nome completo
               <input id="client-full-name" value={fullName} onChange={(event) => setFullName(event.target.value)} required autoComplete="name" />
             </label>
-            <label htmlFor="client-phone">Telefone (E.164)
+            <label htmlFor="client-phone">Telefone/Whatsapp
             <input id="client-phone" value={phoneE164} onChange={(event) => setPhoneE164(event.target.value)} onBlur={() => { const normalized = normalizePhoneE164(phoneE164); if (normalized) setPhoneE164(normalized); }} required placeholder="11999999999 ou +5511999999999" autoComplete="tel" />
             </label>
           </>
@@ -485,10 +499,6 @@ export function ClientAuthForm({
               <input id="client-terms" type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} required />
               Aceito os termos de uso e a política de privacidade
             </label>
-            <p className={styles.authWhatsappDefault}>
-              <MessageCircle size={17} aria-hidden="true" />
-              <span><strong>Avisos no WhatsApp e marketing começam ativos, separadamente.</strong> Você pode desativar cada preferência no perfil.</span>
-            </p>
           </>
         )}
         <button className={styles.primaryButton} type="submit" disabled={busy} aria-busy={busy}>{busy ? "Aguarde…" : formName}</button>
@@ -531,7 +541,6 @@ export function ClientPasswordResetForm({
 }) {
   const router = useRouter();
   const clientContext = useOptionalConnectedClient();
-  const ClientIcon = clientContext?.entry?.product_key === "le-gras" ? Camera : Scissors;
   const [sessionState, setSessionState] = useState<RecoverySessionState>("checking");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -656,7 +665,7 @@ export function ClientPasswordResetForm({
       : "Link inválido ou sessão expirada. Solicite uma nova recuperação de senha.";
     return (
       <section className={styles.authForm} aria-labelledby="client-reset-title">
-        <span className={styles.userMark} aria-hidden="true"><ClientIcon size={22} /></span>
+        <ClientOrganizationMark />
         <h1 id="client-reset-title">Redefinir senha</h1>
         <p className={styles.error} role="alert">{message}</p>
         <button className={styles.textButton} type="button" onClick={() => router.push(destination)}>Voltar para cliente</button>
@@ -666,7 +675,7 @@ export function ClientPasswordResetForm({
 
   return (
     <section className={styles.authForm} aria-labelledby="client-reset-title">
-      <span className={styles.userMark} aria-hidden="true"><ClientIcon size={22} /></span>
+      <ClientOrganizationMark />
       <p className={styles.authKicker}>Recuperação segura</p>
       <h1 id="client-reset-title">Redefinir senha</h1>
       <p className={styles.authDescription}>Crie uma nova senha para sua conta de cliente.</p>
