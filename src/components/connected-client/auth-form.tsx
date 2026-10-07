@@ -2,9 +2,10 @@
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, LoaderCircle, MessageCircle, Scissors } from "lucide-react";
+import { Camera, Eye, EyeOff, LoaderCircle, MessageCircle, Scissors } from "lucide-react";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getMyClientAccount } from "@/components/connected-client/api";
+import { useOptionalConnectedClient } from "@/components/connected-client/context";
 import { notifyClientAccountSaved } from "@/components/connected-client/account-events";
 import { GoogleMark } from "@/components/google-mark";
 import { formatBirthDateInput, normalizeBirthDateInput, parseBirthDateInput } from "@/lib/birth-date";
@@ -96,6 +97,10 @@ export function ClientAuthForm({
   resumeCompletion?: boolean;
 }) {
   const { push } = useRouter();
+  const clientContext = useOptionalConnectedClient();
+  const isLeGras = clientContext?.entry?.product_key === "le-gras";
+  const organizationPhrase = isLeGras ? "seu estúdio" : "sua barbearia";
+  const ClientIcon = isLeGras ? Camera : Scissors;
   const [mode, setMode] = useState<AuthMode>(oauthCompletion ? "complete" : initialMode);
   const [oauthChecking, setOauthChecking] = useState(oauthCompletion || resumeCompletion);
   const [email, setEmail] = useState("");
@@ -108,8 +113,19 @@ export function ClientAuthForm({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const { busy, runMutation } = useExclusiveMutation();
+  const alreadyRedirected = useRef(false);
 
   const destination = clientAuthDestination({ next: initialNext, slug: initialSlug });
+
+  useEffect(() => {
+    if (oauthCompletion || resumeCompletion || alreadyRedirected.current
+        || !clientContext || clientContext.authLoading || clientContext.entryLoading
+        || clientContext.error || !clientContext.user) return;
+    const target = new URL(destination, "https://cliente.local");
+    if ((target.searchParams.has("booking") || target.searchParams.has("barbearia")) && !clientContext.entry) return;
+    alreadyRedirected.current = true;
+    push(destination);
+  }, [clientContext, destination, oauthCompletion, push, resumeCompletion]);
 
   function clearMessages() {
     setError("");
@@ -145,6 +161,8 @@ export function ClientAuthForm({
     const recoveryUrl = new URL("/cliente/redefinir-senha", window.location.origin);
     const slug = currentDestination.searchParams.get("barbearia");
     if (slug) recoveryUrl.searchParams.set("barbearia", slug);
+    const booking = currentDestination.searchParams.get("booking");
+    if (booking) recoveryUrl.searchParams.set("booking", booking);
     return recoveryUrl.toString();
   }
 
@@ -384,6 +402,13 @@ export function ClientAuthForm({
   const isComplete = mode === "complete";
   const formName = isSignUp ? "Criar conta" : isRecovery ? "Recuperar senha" : isComplete ? "Completar cadastro" : "Entrar";
 
+  if (clientContext?.entryLoading) {
+    return <section className={styles.authForm} role="status">Identificando estabelecimento…</section>;
+  }
+  if (clientContext?.error && !clientContext.entry) {
+    return <section className={styles.authForm} role="alert">{clientContext.error}</section>;
+  }
+
   if (oauthChecking) {
     return (
       <section className={styles.authForm} aria-label="Validando acesso Google">
@@ -398,9 +423,10 @@ export function ClientAuthForm({
 
   return (
     <section className={styles.authForm} aria-labelledby="client-auth-title">
-      <span className={styles.userMark} aria-hidden="true"><Scissors size={22} /></span>
+      <span className={styles.userMark} aria-hidden="true"><ClientIcon size={22} /></span>
       <p className={styles.authKicker}>Acesso do cliente</p>
-      <h1 id="client-auth-title">{isComplete ? "Complete seu cadastro" : "Acesse sua barbearia"}</h1>
+      <h1 id="client-auth-title">{isComplete ? "Complete seu cadastro" : `Acesse ${organizationPhrase}`}</h1>
+      {clientContext?.entry && <p className={styles.authDescription}>{clientContext.entry.organization_name}</p>}
       <p className={styles.authDescription}>
         {isRecovery
           ? "Enviaremos instruções apenas se houver uma conta elegível."
@@ -494,21 +520,25 @@ function isRuntimeRecoveryExchange(value: unknown): value is RuntimeRecoveryExch
 
 export function ClientPasswordResetForm({
   initialSlug,
+  initialBooking = null,
   recoveryCode,
   recoveryFlowId,
 }: {
   initialSlug: string | null;
+  initialBooking?: string | null;
   recoveryCode: string | null;
   recoveryFlowId: string | null;
 }) {
   const router = useRouter();
+  const clientContext = useOptionalConnectedClient();
+  const ClientIcon = clientContext?.entry?.product_key === "le-gras" ? Camera : Scissors;
   const [sessionState, setSessionState] = useState<RecoverySessionState>("checking");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const { busy, runMutation } = useExclusiveMutation();
-  const destination = clientAuthDestination({ next: "/cliente", slug: initialSlug });
+  const destination = clientAuthDestination({ next: "/cliente", slug: initialSlug, booking: initialBooking });
   const exchangeRef = useRef<{
     code: string;
     flowId: string | null;
@@ -534,6 +564,8 @@ export function ClientPasswordResetForm({
       const safeDestination = new URL(destination, "https://cliente.local");
       const slug = safeDestination.searchParams.get("barbearia");
       if (slug) cleanUrl.searchParams.set("barbearia", slug);
+      const booking = safeDestination.searchParams.get("booking");
+      if (booking) cleanUrl.searchParams.set("booking", booking);
       window.history.replaceState(
         window.history.state,
         "",
@@ -607,6 +639,13 @@ export function ClientPasswordResetForm({
     }, showInvalidSession);
   }
 
+  if (clientContext?.entryLoading) {
+    return <div className={styles.state} role="status">Identificando estabelecimento…</div>;
+  }
+  if (clientContext?.error && !clientContext.entry) {
+    return <div className={styles.state} role="alert">{clientContext.error}</div>;
+  }
+
   if (sessionState === "checking") {
     return <div className={styles.state} role="status">Validando link de recuperação…</div>;
   }
@@ -617,7 +656,7 @@ export function ClientPasswordResetForm({
       : "Link inválido ou sessão expirada. Solicite uma nova recuperação de senha.";
     return (
       <section className={styles.authForm} aria-labelledby="client-reset-title">
-        <span className={styles.userMark} aria-hidden="true"><Scissors size={22} /></span>
+        <span className={styles.userMark} aria-hidden="true"><ClientIcon size={22} /></span>
         <h1 id="client-reset-title">Redefinir senha</h1>
         <p className={styles.error} role="alert">{message}</p>
         <button className={styles.textButton} type="button" onClick={() => router.push(destination)}>Voltar para cliente</button>
@@ -627,7 +666,7 @@ export function ClientPasswordResetForm({
 
   return (
     <section className={styles.authForm} aria-labelledby="client-reset-title">
-      <span className={styles.userMark} aria-hidden="true"><Scissors size={22} /></span>
+      <span className={styles.userMark} aria-hidden="true"><ClientIcon size={22} /></span>
       <p className={styles.authKicker}>Recuperação segura</p>
       <h1 id="client-reset-title">Redefinir senha</h1>
       <p className={styles.authDescription}>Crie uma nova senha para sua conta de cliente.</p>

@@ -240,15 +240,15 @@ function ProfileContent() {
             </div>}
           </section>
           <section className={styles.panel} aria-labelledby="linked-organizations-title">
-            <div className={styles.sectionTitle}><Search /><div><h2 id="linked-organizations-title">Minhas barbearias</h2><p>Conecte-se às barbearias que você já usa no Los Barberos.</p></div></div>
+            <div className={styles.sectionTitle}><Search /><div><h2 id="linked-organizations-title">Meus estabelecimentos</h2><p>Gerencie os estabelecimentos vinculados à sua conta Display.</p></div></div>
             <form className={styles.formGrid} onSubmit={(event) => { event.preventDefault(); if (searchSlug.trim()) selectTenant(searchSlug); }}>
-              <label>Conectar a outra barbearia<input value={searchSlug} onChange={(event) => setSearchSlug(event.target.value)} placeholder="slug-da-barbearia" autoComplete="off" /></label>
+              <label>Conectar a outro estabelecimento<input value={searchSlug} onChange={(event) => setSearchSlug(event.target.value)} placeholder="slug-do-estabelecimento" autoComplete="off" /></label>
               <button type="submit" className={styles.primaryButton}>Pesquisar por slug</button>
             </form>
             <div className={styles.organizationList}>
               {organizations.map((item) => <article className={styles.organizationCard} key={item.organization_id}>
                 {logoUrl(item.logo_path) ? <img src={logoUrl(item.logo_path)!} alt="" /> : <span className={styles.organizationLogoFallback}>{initials(item.organization_name)}</span>}
-                <div><strong>{item.organization_name}</strong><small>{item.location?.name ?? "Unidade"}</small><small>{locationLabel(item.location?.address)}</small>{item.public_contact_phone_e164 && <small>WhatsApp: {item.public_contact_phone_e164}</small>}</div>
+                <div><strong>{item.organization_name}</strong><small>{({ "los-barberos": "Los Barberos", "le-gras": "Le Gras", "pro-stetic": "ProStetic", "music-pro": "MusicPro" } as Record<string, string>)[item.product_key ?? ""] ?? "Produto indisponível"}</small><small>{item.location?.name ?? "Unidade"}</small><small>{locationLabel(item.location?.address)}</small>{item.public_contact_phone_e164 && <small>WhatsApp: {item.public_contact_phone_e164}</small>}</div>
                 <button type="button" className={styles.secondaryButton} disabled={item.organization_slug === context.organization.slug} onClick={() => selectTenant(item.organization_slug)}>{item.organization_slug === context.organization.slug ? "Conectado" : "Conectar"}</button>
               </article>)}
               {!organizations.length && <p className={styles.empty}>Nenhuma barbearia conectada ainda.</p>}

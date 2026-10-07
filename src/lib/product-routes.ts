@@ -1,5 +1,9 @@
 export type ProductKey = "los-barberos" | "le-gras" | "pro-stetic" | "music-pro";
 
+export function parseProductKey(value: unknown): ProductKey | null {
+  return value === "los-barberos" || value === "le-gras" || value === "pro-stetic" || value === "music-pro" ? value : null;
+}
+
 export function productBillingPath(productKey: ProductKey): string {
   if (productKey === "le-gras") return "/le-gras/regularizacao";
   if (productKey === "music-pro") return "/music-pro/regularizacao";

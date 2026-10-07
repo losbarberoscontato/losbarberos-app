@@ -1,13 +1,10 @@
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
-import type { ProductKey } from "./product-routes";
+import { parseProductKey, type ProductKey } from "./product-routes";
 
 export type { ProductKey } from "./product-routes";
+export { parseProductKey } from "./product-routes";
 export const PRODUCT_CONTEXT_COOKIE = "display_product";
-
-export function parseProductKey(value: unknown): ProductKey | null {
-  return value === "los-barberos" || value === "le-gras" || value === "pro-stetic" || value === "music-pro" ? value : null;
-}
 
 export async function getSelectedProductKey(): Promise<ProductKey> {
   const store = await cookies();

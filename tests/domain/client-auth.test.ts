@@ -38,6 +38,14 @@ describe("clientAuthDestination", () => {
     })).toBe("/cliente?booking=00000000-0000-4000-8000-000000000001");
   });
 
+  it("preserves both supplied identifiers for server-side conflict validation", () => {
+    expect(clientAuthDestination({
+      next: "/cliente",
+      slug: "estudiogras",
+      booking: "4039018f-5f6c-4359-ac66-ab17a04ba161",
+    })).toBe("/cliente?barbearia=estudiogras&booking=4039018f-5f6c-4359-ac66-ab17a04ba161");
+  });
+
   it("preserves a public booking link through Google completion", () => {
     expect(clientOAuthCompletionDestination({
       booking: "00000000-0000-4000-8000-000000000001",

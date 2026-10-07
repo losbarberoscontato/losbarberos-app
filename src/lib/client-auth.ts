@@ -54,7 +54,7 @@ export function clientAuthDestination(input: {
   const slug = normalizeTenantSlug(input.slug);
   const params = new URLSearchParams();
   if (slug) params.set("barbearia", slug);
-  if (!slug && booking && destination === "/cliente") params.set("booking", booking);
+  if (booking && destination === "/cliente") params.set("booking", booking);
   if (destination === "/cliente/agendar") {
     const barberId = nextUrl.searchParams.get("barbeiro");
     const startsAt = nextUrl.searchParams.get("horario");

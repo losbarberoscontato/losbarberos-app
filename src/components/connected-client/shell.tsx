@@ -9,6 +9,7 @@ import { ConnectedClientProvider, useConnectedClient } from "@/components/connec
 import { initials, locationLabel } from "@/components/connected-client/format";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { productIdentityStyle } from "@/lib/product-identity";
 
 const navigation = [
   { href: "/cliente/agendar", label: "Agendar", icon: CalendarPlus2 },
@@ -20,7 +21,7 @@ const navigation = [
 function ShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
-  const { context, customer, organizations, user, slug, signOut, switchTenant } = useConnectedClient();
+  const { context, customer, organizations, user, slug, entry, identity, entryLoading, signOut, switchTenant } = useConnectedClient();
   const [subscriptionAccess, setSubscriptionAccess] = useState<boolean | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [targetSlug, setTargetSlug] = useState<string | null>(null);
@@ -71,12 +72,18 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   const logoUrl = context?.organization.logo_path && supabase
     ? supabase.storage.from("organization-logos").getPublicUrl(context.organization.logo_path).data.publicUrl
     : null;
+  const productName = identity?.brand.name ?? (entry?.product_key === "los-barberos" ? "Los Barberos" : "Display SH");
+  const productLabel = (key: string | null | undefined) => ({
+    "los-barberos": "Los Barberos", "le-gras": "Le Gras", "pro-stetic": "ProStetic", "music-pro": "MusicPro",
+  })[key ?? ""] ?? "Produto indisponível";
+  const isLeGrasAccess = (pathname === "/cliente/entrar" || pathname === "/cliente/redefinir-senha")
+    && entry?.product_key === "le-gras";
 
   return (
-    <div className={styles.shell}>
+    <div className={`${styles.shell} ${isLeGrasAccess ? styles.leGrasAccess : ""}`} style={isLeGrasAccess ? productIdentityStyle(identity) : undefined}>
       <header className={styles.topbar}>
         <div className={styles.topbarInner}>
-          <Brand href={`/cliente/agendar${suffix}`} />
+          <Brand href={`/cliente/agendar${suffix}`} name={entryLoading ? "Display SH" : productName} tagline={identity?.brand.tagline ?? (entry?.product_key === "los-barberos" ? "gestão para barbearias" : "Acesso do cliente")} mark={identity?.brand.mark ?? (entry?.product_key === "los-barberos" ? "LB" : "DS")} logoUrl={entryLoading ? undefined : identity?.brand.logoUrl} />
           <nav className={styles.desktopNav} aria-label="Navegação do cliente">
             {visibleNavigation.map((item) => {
               const Icon = item.icon;
@@ -92,7 +99,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
           {user && organizations.length > 1 && (
             <button type="button" className={styles.tenantMenuButton} onClick={() => setSwitcherOpen((open) => !open)} aria-expanded={switcherOpen} aria-controls="client-tenant-menu">
               {switcherOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
-              <span>Barbearias</span>
+              <span>Estabelecimentos</span>
             </button>
           )}
           {user ? (
@@ -109,7 +116,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         <span>
           {context
             ? `${context.organization.name} · ${context.location?.name ?? "Unidade"} · ${locationLabel(context.location?.address)}`
-            : "Selecione uma barbearia"}
+            : "Selecione um estabelecimento"}
         </span>
         {context && (
           <strong className={context.organization.accepting_bookings ? styles.open : styles.closed}>
@@ -119,20 +126,20 @@ function ShellContent({ children }: { children: React.ReactNode }) {
       </div>
       <main className={styles.main}>{children}</main>
       {switcherOpen && (
-        <section id="client-tenant-menu" className={styles.tenantMenu} aria-label="Trocar de barbearia">
-          <strong>Suas barbearias</strong>
+        <section id="client-tenant-menu" className={styles.tenantMenu} aria-label="Trocar de estabelecimento">
+          <strong>Meus estabelecimentos</strong>
           {organizations.filter((item) => item.organization_slug !== slug).map((item) => (
             <button key={item.organization_id} type="button" onClick={() => setTargetSlug(item.organization_slug)}>
-              <span>{item.organization_name}</span><ChevronRight size={16} aria-hidden="true" />
+              <span>{item.organization_name} · {productLabel(item.product_key)}</span><ChevronRight size={16} aria-hidden="true" />
             </button>
           ))}
         </section>
       )}
       {target && (
         <section className={styles.switchConfirm} role="dialog" aria-modal="true" aria-labelledby="shell-switch-title">
-          <p>Trocar de barbearia</p>
+          <p>Trocar de estabelecimento</p>
           <h2 id="shell-switch-title">Abrir {target.organization_name}?</h2>
-          <span>Agenda e histórico exibidos passarão a pertencer à nova barbearia.</span>
+          <span>Agenda e histórico exibidos passarão a pertencer ao novo estabelecimento.</span>
           <div>
             <button type="button" className={styles.secondaryButton} onClick={() => setTargetSlug(null)}>Cancelar</button>
             <button type="button" className={styles.primaryButton} onClick={() => {

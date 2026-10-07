@@ -6,15 +6,16 @@ import {
   claimMyExistingCustomer,
   getMyClientAccount,
   getMyCustomer,
-  getPublicBookingOrganization,
   getPublicBookingContext,
+  getPublicClientEntryContext,
+  getPublicClientProductIdentity,
   linkMyClientToOrganization,
   listMyClientOrganizations,
   setMyLastClientOrganization,
   toClientError,
 } from "@/components/connected-client/api";
 import { clientAccountSavedEvent } from "@/components/connected-client/account-events";
-import { normalizeTenantSlug, resolveTenantSlug, tenantStorageKey } from "@/components/connected-client/format";
+import { normalizeTenantSlug, tenantStorageKey } from "@/components/connected-client/format";
 import type {
   ClientClaimResult,
   ClientLinkResult,
@@ -22,6 +23,7 @@ import type {
   Customer,
 } from "@/components/connected-client/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { clientAuthDestination } from "@/lib/client-auth";
 
 type ClientTenantLinkResult = ClientLinkResult | ClientClaimResult;
 
@@ -54,9 +56,37 @@ function queryTenant(): string | null {
 
 function queryBookingId(): string | null {
   if (typeof window === "undefined") return null;
-  const value = new URLSearchParams(window.location.search).get("booking")
-    ?? window.sessionStorage.getItem("los-barberos:pending-booking");
+  const value = new URLSearchParams(window.location.search).get("booking");
   return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value) ? value : null;
+}
+
+type EntryRequest = { booking?: string; slug?: string };
+
+function initialEntryRequest(initialSlug: string | null): EntryRequest | null {
+  if (typeof window === "undefined") return initialSlug ? { slug: initialSlug } : null;
+  const query = new URLSearchParams(window.location.search);
+  const identifiers = ["booking", "barbearia", "tenant", "slug"];
+  if (identifiers.some((name) => query.getAll(name).length > 1)
+      || ["barbearia", "tenant", "slug"].filter((name) => query.has(name)).length > 1
+      || query.getAll("next").length > 1) {
+    return { slug: "" };
+  }
+  let nestedBooking: string | null = null;
+  let nestedSlug: string | null = null;
+  if (window.location.pathname === "/cliente/entrar" && query.getAll("next").length === 1) {
+    const destination = new URL(clientAuthDestination({ next: query.get("next") }), "https://cliente.local");
+    nestedBooking = destination.searchParams.get("booking");
+    nestedSlug = destination.searchParams.get("barbearia");
+  }
+  if (query.has("booking") || query.has("barbearia") || query.has("tenant") || query.has("slug")
+      || nestedBooking || nestedSlug) {
+    return {
+      ...(query.has("booking") || nestedBooking ? { booking: query.get("booking") ?? nestedBooking ?? "" } : {}),
+      ...(query.has("barbearia") || query.has("tenant") || query.has("slug") || nestedSlug
+        ? { slug: queryTenant() ?? nestedSlug ?? "" } : {}),
+    };
+  }
+  return initialSlug ? { slug: initialSlug } : null;
 }
 
 export function ConnectedClientProvider({
@@ -67,7 +97,12 @@ export function ConnectedClientProvider({
   initialSlug?: string | null;
 }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [slug, setSlug] = useState<string | null>(() => normalizeTenantSlug(initialSlug));
+  const [slug, setSlug] = useState<string | null>(null);
+  const [entryRequest, setEntryRequest] = useState<EntryRequest | null>(null);
+  const [entryInitialized, setEntryInitialized] = useState(false);
+  const [entry, setEntry] = useState<ConnectedClientState["entry"]>(null);
+  const [identity, setIdentity] = useState<ConnectedClientState["identity"]>(null);
+  const [entryLoading, setEntryLoading] = useState(true);
   const [context, setContext] = useState<ConnectedClientState["context"]>(null);
   const [user, setUser] = useState<User | null>(null);
   const [account, setAccount] = useState<ConnectedClientState["account"]>(null);
@@ -90,31 +125,68 @@ export function ConnectedClientProvider({
   }, [slug]);
 
   useEffect(() => {
-    if (slug) return;
+    queueMicrotask(() => {
+      setEntryRequest(initialEntryRequest(initialSlug));
+      setEntryInitialized(true);
+    });
+  }, [initialSlug]);
+
+  useEffect(() => {
+    if (!entryInitialized) return;
+    if (!entryRequest) {
+      queueMicrotask(() => { setEntryLoading(false); setLoading(false); });
+      return;
+    }
+    if (!supabase) return;
     let active = true;
-    const resolve = async () => {
-      const bookingId = queryBookingId();
-      const direct = resolveTenantSlug(queryTenant(), null, initialSlug);
-      if (direct) {
-        if (active) setSlug(direct);
-        return;
+    queueMicrotask(() => {
+      if (!active) return;
+      setEntryLoading(true);
+      setLoading(true);
+      currentSlugRef.current = null;
+      setSlug(null);
+      setContext(null);
+      setCustomer(null);
+      setEntry(null);
+      setIdentity(null);
+      setError(null);
+    });
+    void (async () => {
+      const resolved = await getPublicClientEntryContext(supabase, entryRequest);
+      if (!resolved) throw new Error("Estabelecimento não encontrado.");
+      if (!resolved.product_key) throw new Error("Produto do estabelecimento não configurado.");
+      const publishedIdentity = await getPublicClientProductIdentity(supabase, resolved.product_key);
+      if (!active) return;
+      const url = new URL(window.location.href);
+      if (entryRequest.slug && url.searchParams.has("barbearia")
+          && url.searchParams.get("barbearia") !== resolved.organization_slug) {
+        url.searchParams.set("barbearia", resolved.organization_slug);
+        window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
       }
-      if (bookingId && supabase) {
-        window.sessionStorage.setItem("los-barberos:pending-booking", bookingId);
-        try {
-          const organization = await getPublicBookingOrganization(supabase, bookingId);
-          if (active && organization) setSlug(organization.slug);
-          else if (active) setLoading(false);
-        } catch {
-          if (active) setLoading(false);
-        }
-        return;
-      }
-      if (active) setLoading(false);
-    };
-    void resolve();
+      setEntry(resolved);
+      setIdentity(publishedIdentity);
+      setSlug(resolved.organization_slug);
+      if (entryRequest.booking) window.sessionStorage.setItem("los-barberos:pending-booking", entryRequest.booking);
+    })().catch((cause: unknown) => {
+      if (!active) return;
+      setEntry(null);
+      setIdentity(null);
+      setSlug(null);
+      setContext(null);
+      const reason = cause instanceof Error ? cause.message : "";
+      setError(reason === "Produto do estabelecimento não configurado."
+        ? reason
+        : reason === "Estabelecimento não encontrado."
+          ? reason
+          : /conflict|invalid|identifier required/iu.test(reason)
+            ? "Link de acesso inválido. Solicite um novo link ao estabelecimento."
+            : "Não foi possível identificar o estabelecimento. Tente novamente.");
+      setLoading(false);
+    }).finally(() => {
+      if (active) setEntryLoading(false);
+    });
     return () => { active = false; };
-  }, [initialSlug, slug, supabase]);
+  }, [entryInitialized, entryRequest, supabase]);
 
   useEffect(() => {
     if (!slug || !supabase) {
@@ -264,6 +336,8 @@ export function ConnectedClientProvider({
   useEffect(() => {
     if (
       slug
+      || entryRequest
+      || entryLoading
       || !user
       || authLoading
       || organizations.length === 0
@@ -281,12 +355,12 @@ export function ConnectedClientProvider({
     autoTenantResolvedRef.current = true;
     let active = true;
     queueMicrotask(() => {
-      if (active) setSlug(target.organization_slug);
+      if (active) setEntryRequest({ slug: target.organization_slug });
     });
     return () => {
       active = false;
     };
-  }, [authLoading, initialSlug, organizations, slug, user]);
+  }, [authLoading, entryLoading, entryRequest, initialSlug, organizations, slug, user]);
 
   useEffect(() => {
     if (!supabase || !user || !context) return;
@@ -324,8 +398,14 @@ export function ConnectedClientProvider({
   }, [context, organizations, supabase, user]);
 
   const selectTenant = useCallback((value: string) => {
+    window.sessionStorage.removeItem("los-barberos:pending-booking");
+    bookingAutoLinkRef.current = null;
     if (!value.trim()) {
+      currentSlugRef.current = null;
       setSlug(null);
+      setEntryRequest(null);
+      setEntry(null);
+      setIdentity(null);
       setContext(null);
       setCustomer(null);
       setPendingClaim(null);
@@ -341,11 +421,17 @@ export function ConnectedClientProvider({
     setError(normalized ? null : "Slug inválido.");
     if (!normalized) return;
     setContext(null);
+    currentSlugRef.current = null;
+    setEntry(null);
+    setIdentity(null);
+    setEntryLoading(true);
     setCustomer(null);
     setPendingClaim(null);
     setLinkStatus(user ? "LOADING" : "IDLE");
-    setSlug(normalized);
+    setSlug(null);
+    setEntryRequest({ slug: normalized });
     const url = new URL(window.location.href);
+    url.searchParams.delete("booking");
     url.searchParams.set("barbearia", normalized);
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   }, [user]);
@@ -461,12 +547,14 @@ export function ConnectedClientProvider({
     setCustomer(null);
     setPendingClaim(null);
     setLinkStatus("IDLE");
+    bookingAutoLinkRef.current = null;
     window.sessionStorage.removeItem("los-barberos:pending-booking");
   }, [supabase]);
 
   useEffect(() => {
     const bookingId = queryBookingId();
-    if (!bookingId || !user || !context || organizations.length > 0 || linkStatus !== "UNLINKED") return;
+    const directLink = Boolean(bookingId || entryRequest?.slug && window.location.search.includes("barbearia="));
+    if (!directLink || !user || !account || !context || linkStatus !== "UNLINKED") return;
     if (bookingAutoLinkRef.current === context.organization.slug) return;
     bookingAutoLinkRef.current = context.organization.slug;
     void confirmTenantLink().then(() => {
@@ -474,10 +562,13 @@ export function ConnectedClientProvider({
     }).catch(() => {
       bookingAutoLinkRef.current = null;
     });
-  }, [confirmTenantLink, context, linkStatus, organizations.length, user]);
+  }, [account, confirmTenantLink, context, entryRequest, linkStatus, user]);
 
   const value = useMemo<ConnectedClientContextValue>(() => ({
     slug,
+    entry,
+    identity,
+    entryLoading,
     context,
     user,
     account,
@@ -492,7 +583,7 @@ export function ConnectedClientProvider({
     reloadCustomer,
     confirmTenantLink,
     signOut,
-  }), [account, authLoading, confirmTenantLink, context, customer, error, linkStatus, loading, organizations, reloadCustomer, selectTenant, signOut, slug, switchTenant, user]);
+  }), [account, authLoading, confirmTenantLink, context, customer, entry, entryLoading, error, identity, linkStatus, loading, organizations, reloadCustomer, selectTenant, signOut, slug, switchTenant, user]);
 
   return <ConnectedClientContext.Provider value={value}>{children}</ConnectedClientContext.Provider>;
 }
@@ -501,4 +592,8 @@ export function useConnectedClient(): ConnectedClientContextValue {
   const value = useContext(ConnectedClientContext);
   if (!value) throw new Error("useConnectedClient requires ConnectedClientProvider");
   return value;
+}
+
+export function useOptionalConnectedClient(): ConnectedClientContextValue | null {
+  return useContext(ConnectedClientContext);
 }

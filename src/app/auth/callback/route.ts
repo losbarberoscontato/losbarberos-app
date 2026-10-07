@@ -15,11 +15,16 @@ export async function GET(request: NextRequest) {
   const requestedSlug = requestedSlugs.length === 1 ? requestedSlugs[0] : null;
   const requestedProviders = url.searchParams.getAll("provider");
   const requestedProducts = url.searchParams.getAll("produto");
+  const clientIntent = requestedNextValues.some((value) => value === "/cliente" || value.startsWith("/cliente?") || value.startsWith("/cliente/"))
+    || (requestedNextValues.length === 0 && requestedSlugs.length > 0);
+  if (clientIntent && (requestedNextValues.length !== 1 || requestedSlugs.length > 1)) {
+    return NextResponse.redirect(new URL("/cliente/entrar?erro=invalid_client_context", url.origin));
+  }
   const requestedProduct = requestedProducts.length === 1 ? parseProductKey(requestedProducts[0]) : null;
   const selectedProduct = requestedProduct ?? "los-barberos";
   const isGoogleFlow = requestedProviders.length === 1 && requestedProviders[0] === "google";
   const isClientDestination = requestedNextValues.length === 1
-    && (requestedNext === "/cliente" || requestedNext.startsWith("/cliente/"));
+    && (requestedNext === "/cliente" || requestedNext.startsWith("/cliente?") || requestedNext.startsWith("/cliente/"));
   const isBarberDestination = requestedNextValues.length === 1
     && (requestedNext === "/barbeiro" || requestedNext.startsWith("/barbeiro/"));
   const destination = requestedNextValues.length !== 1
@@ -41,7 +46,8 @@ export async function GET(request: NextRequest) {
       params.set("modo", "login");
       params.set("next", destination);
     }
-    const loginPath = requestedProduct === "le-gras" ? "/le-gras/entrar" : requestedProduct === "music-pro" ? "/music-pro/entrar" : "/los-barberos/entrar";
+    const loginPath = isClientDestination ? "/cliente/entrar"
+      : requestedProduct === "le-gras" ? "/le-gras/entrar" : requestedProduct === "music-pro" ? "/music-pro/entrar" : "/los-barberos/entrar";
     return NextResponse.redirect(new URL(`${loginPath}?${params.toString()}`, url.origin));
   }
 
@@ -52,7 +58,8 @@ export async function GET(request: NextRequest) {
       params.set("modo", "login");
       params.set("next", destination);
     }
-    const loginPath = requestedProduct === "le-gras" ? "/le-gras/entrar" : requestedProduct === "music-pro" ? "/music-pro/entrar" : "/los-barberos/entrar";
+    const loginPath = isClientDestination ? "/cliente/entrar"
+      : requestedProduct === "le-gras" ? "/le-gras/entrar" : requestedProduct === "music-pro" ? "/music-pro/entrar" : "/los-barberos/entrar";
     return NextResponse.redirect(new URL(`${loginPath}?${params.toString()}`, url.origin));
   }
 
@@ -61,9 +68,9 @@ export async function GET(request: NextRequest) {
       next: requestedNext,
       slug: requestedSlug,
     }), url.origin));
-    setProductContextCookie(response, selectedProduct);
     return response;
   }
+  if (isClientDestination) return NextResponse.redirect(new URL(destination, url.origin));
 
   if (requestedNext === "/onboarding" && requestedProducts.length <= 1) {
     const onboarding = new URL("/onboarding", url.origin);

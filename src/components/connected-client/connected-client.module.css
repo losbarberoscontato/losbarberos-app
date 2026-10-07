@@ -736,4 +736,22 @@
   .dependentsTable { overflow-x: auto; }
   .dependentsTableHead, .dependentsTableRow { min-width: 620px; }
 }
+
+.leGrasAccess { background: var(--paper); color: var(--ink); }
+.leGrasAccess .topbar { border-color: var(--border); background: color-mix(in srgb, var(--surface) 95%, transparent); }
+.leGrasAccess .locationStrip { border-color: var(--border); background: color-mix(in srgb, var(--paper) 90%, var(--surface)); color: var(--ink); }
+.leGrasAccess .locationStrip svg { color: var(--amber-500); }
+.leGrasAccess .authForm { border-color: var(--border); background: var(--surface); color: var(--ink); box-shadow: 0 18px 45px color-mix(in srgb, var(--forest-900) 12%, transparent); }
+.leGrasAccess .userMark { background: color-mix(in srgb, var(--forest-900) 10%, var(--surface)); color: var(--forest-900); }
+.leGrasAccess .authTabs { background: color-mix(in srgb, var(--forest-900) 8%, var(--surface)); }
+.leGrasAccess .authTabs button[aria-selected="true"] { color: var(--forest-900); background: var(--surface); }
+.leGrasAccess .authFields label { color: var(--ink); }
+.leGrasAccess .authFields input { border-color: var(--border); color: var(--ink); background: var(--surface); }
+.leGrasAccess .authFields input:focus-visible { border-color: var(--forest-900); outline-color: color-mix(in srgb, var(--forest-900) 20%, transparent); }
+.leGrasAccess .authFields .authTerms input { accent-color: var(--forest-900); }
+.leGrasAccess .oauthButton { border-color: var(--border); color: var(--ink); background: var(--surface); }
+.leGrasAccess .primaryButton { border-color: var(--forest-900); background: var(--forest-900); color: var(--surface); }
+.leGrasAccess .primaryButton:not(:disabled):hover { background: var(--forest-800); }
+.leGrasAccess :global(.brand__wordmark strong) { color: var(--forest-900); }
+.leGrasAccess :global(.brand__wordmark small) { color: var(--muted); }
 .locationLogo { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; }

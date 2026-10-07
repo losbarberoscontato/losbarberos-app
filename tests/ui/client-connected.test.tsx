@@ -106,6 +106,8 @@ function installProviderClient({
   deferLink = false,
   deferClaim = false,
   initiallyLinked = false,
+  linkedElsewhere = false,
+  productKey = "los-barberos",
   isLast = false,
   claimRequired = false,
   reviewAfterClaim = false,
@@ -123,6 +125,8 @@ function installProviderClient({
   deferLink?: boolean;
   deferClaim?: boolean;
   initiallyLinked?: boolean;
+  linkedElsewhere?: boolean;
+  productKey?: "los-barberos" | "le-gras" | "pro-stetic" | "music-pro";
   isLast?: boolean;
   claimRequired?: boolean;
   reviewAfterClaim?: boolean;
@@ -168,7 +172,8 @@ function installProviderClient({
   let accountVisible = !missingAccount;
   const accountQuery = queryResult(() => accountVisible ? account : null);
   const customerQuery = queryResult(customer);
-  const from = vi.fn((table: string) => table === "client_accounts" ? accountQuery : customerQuery);
+  const from = vi.fn((table: string) => table === "client_accounts" ? accountQuery
+    : table === "platform_product_identities" ? queryResult(null) : customerQuery);
   let linked = initiallyLinked;
   let firstLink = failFirstLink;
   let resolveAuth: (() => void) | null = null;
@@ -214,6 +219,13 @@ function installProviderClient({
       })
     : null;
   const rpc = vi.fn(async (name: string) => {
+    if (name === "get_public_client_entry_context") return { data: {
+      organization_id: context.organization.id,
+      organization_slug: canonicalSlug ?? context.organization.slug,
+      organization_name: productKey === "le-gras" ? "Estúdio Gras" : context.organization.name,
+      logo_path: null,
+      product_key: productKey,
+    }, error: null };
     if (name === "get_public_booking_context") return { data: publicContext, error: null };
     if (name === "get_available_slots_for_date") return {
       data: {
@@ -250,7 +262,17 @@ function installProviderClient({
       data: { appointment_id: "appointment-hold-1", status: "EXPIRED" },
       error: null,
     };
-    if (name === "list_my_client_organizations") return { data: linked ? [relation] : [], error: null };
+    if (name === "list_my_client_organizations") return { data: [
+      ...(linked ? [relation] : []),
+      ...(linkedElsewhere ? [{
+        organization_id: "00000000-0000-4000-8000-000000000099",
+        organization_slug: "outro-estudio",
+        organization_name: "Outro Estúdio",
+        product_key: "le-gras",
+        customer_id: "customer-other",
+        is_last: true,
+      }] : []),
+    ], error: null };
     if (name === "link_my_client_to_organization") {
       if (linkPromise) return linkPromise;
       if (firstLink) {
@@ -493,7 +515,8 @@ describe("cliente conectado", () => {
 
     expect(await screen.findByText("contexto canônico")).toBeInTheDocument();
     await waitFor(() => expect(window.location.search).toBe("?barbearia=cutclub"));
-    expect(rpc).toHaveBeenCalledWith("get_public_booking_context", {
+    expect(rpc).toHaveBeenCalledWith("get_public_client_entry_context", {
+      p_booking_public_id: null,
       p_organization_slug: "barbershop",
     });
     expect(rpc).toHaveBeenCalledWith("get_public_booking_context", {
@@ -606,7 +629,8 @@ describe("cliente conectado", () => {
       "/cliente/entrar?barbearia=barbearia-real",
     );
     expect(screen.getByText("Use Google ou e-mail. Sua sessão é protegida pelo Supabase.")).toBeVisible();
-    expect(from).not.toHaveBeenCalled();
+    expect(from).not.toHaveBeenCalledWith("customers");
+    expect(from).not.toHaveBeenCalledWith("client_accounts");
     expect(rpc.mock.calls.filter(([name]) => name === "link_my_client_to_organization")).toHaveLength(0);
   });
 
@@ -860,6 +884,55 @@ describe("cliente conectado", () => {
     await waitFor(() => {
       expect(screen.getByRole("status", { name: "status do vínculo" })).toHaveTextContent("LINKED");
     });
+  });
+
+  it("vincula automaticamente pelo link público mesmo com outro estabelecimento associado", async () => {
+    window.history.replaceState(null, "", "/cliente?booking=4039018f-5f6c-4359-ac66-ab17a04ba161");
+    const { rpc } = installProviderClient({ authenticated: true, linkedElsewhere: true });
+
+    render(
+      <ConnectedClientProvider>
+        <ConnectedClientGate><div>painel do estabelecimento recebido</div></ConnectedClientGate>
+      </ConnectedClientProvider>,
+    );
+
+    expect(await screen.findByText("painel do estabelecimento recebido")).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledWith("link_my_client_to_organization", {
+      p_organization_slug: "barbearia-real",
+      p_expected_organization_id: context.organization.id,
+    });
+    expect(rpc).toHaveBeenCalledWith("list_my_client_organizations");
+  });
+
+  it("resolve Le Gras após retorno com booking aninhado sem exibir marca Los Barberos", async () => {
+    const booking = "4039018f-5f6c-4359-ac66-ab17a04ba161";
+    window.history.replaceState(null, "", `/cliente/entrar?next=${encodeURIComponent(`/cliente?booking=${booking}`)}`);
+    installProviderClient({ authenticated: false, productKey: "le-gras" });
+
+    render(
+      <ConnectedClientProvider>
+        <ClientAuthForm initialSlug={null} initialNext={`/cliente?booking=${booking}`} />
+      </ConnectedClientProvider>,
+    );
+
+    expect(screen.queryByRole("heading", { name: "Acesse sua barbearia" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Acesse seu estúdio" })).toBeInTheDocument();
+    expect(screen.getByText("Estúdio Gras")).toBeInTheDocument();
+    expect(document.querySelector(".lucide-camera")).not.toBeNull();
+  });
+
+  it("envia cliente já autenticado do link público diretamente ao estabelecimento", async () => {
+    const booking = "4039018f-5f6c-4359-ac66-ab17a04ba161";
+    window.history.replaceState(null, "", `/cliente/entrar?booking=${booking}`);
+    installProviderClient({ authenticated: true, linkedElsewhere: true, productKey: "le-gras" });
+
+    render(
+      <ConnectedClientProvider>
+        <ClientAuthForm initialSlug={null} initialNext={`/cliente?booking=${booking}`} />
+      </ConnectedClientProvider>,
+    );
+
+    await waitFor(() => expect(authMocks.push).toHaveBeenCalledWith(`/cliente?booking=${booking}`));
   });
 
   it("recusa resposta de vínculo de outro tenant antes de carregar customer", async () => {

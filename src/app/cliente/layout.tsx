@@ -4,7 +4,10 @@ import { ClientShell } from "@/components/client-shell";
 import { ConnectedClientShell } from "@/components/connected-client/shell";
 import { hasSupabaseConfig } from "@/lib/env";
 
-export const metadata: Metadata = { title: "Cliente" };
+export const metadata: Metadata = {
+  title: { absolute: "Cliente · Display SH" },
+  icons: { icon: "/display-sh/icon.svg" },
+};
 
 const clientSans = Inter({
   subsets: ["latin"],

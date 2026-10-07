@@ -1,5 +1,15 @@
 import type { User } from "@supabase/supabase-js";
 import type { CatalogAudience } from "@/lib/catalog-audiences";
+import type { ProductKey } from "@/lib/product-routes";
+import type { ProductIdentityConfig } from "@/lib/product-identity";
+
+export type ClientEntryContext = {
+  organization_id: string;
+  organization_slug: string;
+  organization_name: string;
+  logo_path: string | null;
+  product_key: ProductKey | null;
+};
 
 export type PublicOrganization = {
   id: string;
@@ -104,6 +114,7 @@ export type ClientOrganization = {
   organization_id: string;
   organization_slug: string;
   organization_name: string;
+  product_key?: ProductKey | null;
   customer_id: string;
   booking_public_id?: string | null;
   logo_path?: string | null;
@@ -251,6 +262,9 @@ export type PrivacyRequest = {
 
 export type ConnectedClientState = {
   slug: string | null;
+  entry: ClientEntryContext | null;
+  identity: ProductIdentityConfig | null;
+  entryLoading: boolean;
   context: PublicBookingContext | null;
   user: User | null;
   account: ClientAccount | null;

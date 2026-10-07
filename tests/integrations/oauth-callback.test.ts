@@ -62,6 +62,17 @@ describe("OAuth callback return path", () => {
     );
   });
 
+  it("keeps a public booking link in the client flow after Google login", async () => {
+    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+    const response = await GET(new Request(
+      "https://app.example/auth/callback?code=code&next=%2Fcliente%3Fbooking%3D4039018f-5f6c-4359-ac66-ab17a04ba161&provider=google",
+    ) as NextRequest);
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.example/cliente/entrar?oauth=complete&next=%2Fcliente%3Fbooking%3D4039018f-5f6c-4359-ac66-ab17a04ba161",
+    );
+  });
+
   it("preserves validated booking context through Google profile completion", async () => {
     exchangeCodeForSession.mockResolvedValueOnce({ error: null });
     const next = "/cliente/agendar?barbeiro=00000000-0000-4000-8000-000000000002&horario=2026-08-11T13%3A15%3A00.000Z";
@@ -109,8 +120,7 @@ describe("OAuth callback return path", () => {
   it.each([
     ["Barbearia-Real", "Barbearia-Real"],
     ["barbearia-real", "outra-barbearia"],
-  ])("drops duplicated client tenant context %s and %s", async (firstSlug, secondSlug) => {
-    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+  ])("rejects duplicated client tenant context %s and %s", async (firstSlug, secondSlug) => {
 
     const url = new URL("https://app.example/auth/callback");
     url.searchParams.set("code", "code");
@@ -120,29 +130,27 @@ describe("OAuth callback return path", () => {
 
     const response = await GET(new Request(url) as NextRequest);
 
-    expect(response.headers.get("location")).toBe("https://app.example/cliente/agendar");
+    expect(response.headers.get("location")).toBe("https://app.example/cliente/entrar?erro=invalid_client_context");
   });
 
-  it("defaults to manager and drops slug when callback next is missing", async () => {
-    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+  it("keeps a client callback out of manager onboarding when next is missing", async () => {
     const response = await GET(
       new Request(
         "https://app.example/auth/callback?code=code&barbearia=barbearia-real",
       ) as NextRequest,
     );
 
-    expect(response.headers.get("location")).toBe("https://app.example/gestor");
+    expect(response.headers.get("location")).toBe("https://app.example/cliente/entrar?erro=invalid_client_context");
   });
 
-  it("defaults to manager and drops slug when callback next is duplicated", async () => {
-    exchangeCodeForSession.mockResolvedValueOnce({ error: null });
+  it("keeps a client callback out of manager onboarding when next is duplicated", async () => {
     const response = await GET(
       new Request(
         "https://app.example/auth/callback?code=code&next=%2Fcliente%2Fagendar&next=%2Fdisplay-admin&barbearia=barbearia-real",
       ) as NextRequest,
     );
 
-    expect(response.headers.get("location")).toBe("https://app.example/gestor");
+    expect(response.headers.get("location")).toBe("https://app.example/cliente/entrar?erro=invalid_client_context");
   });
 
   it("keeps manager and admin callback destinations constrained", async () => {
