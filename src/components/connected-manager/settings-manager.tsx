@@ -52,6 +52,7 @@ export function SettingsManager(props: Props) {
   const [professionalFunctionName, setProfessionalFunctionName] = useState("");
   const [professionalFunctionMessage, setProfessionalFunctionMessage] = useState("");
   const [audienceName, setAudienceName] = useState("");
+  const [audienceMessage, setAudienceMessage] = useState("");
   const [logoPath, setLogoPath] = useState(props.organization.logo_path ?? "");
   const location = props.locations.find((item) => item.active) ?? props.locations[0];
   const address = (location?.address ?? {}) as Record<string, string>;
@@ -147,8 +148,8 @@ export function SettingsManager(props: Props) {
   async function saveAudience(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = audienceName.trim();
-    if (name.length < 2 || name.length > 60) { setMessage("Informe um público com 2 a 60 caracteres."); return; }
-    const saved = await runMutation(setMessage, async () => {
+    if (name.length < 2 || name.length > 60) { setAudienceMessage("Informe um público com 2 a 60 caracteres."); return; }
+    const saved = await runMutation(setAudienceMessage, async () => {
       await assertResult(await connectedClient().rpc("manage_organization_audience", {
         p_organization_id: props.organizationId,
         p_name: name,
@@ -160,7 +161,7 @@ export function SettingsManager(props: Props) {
   }
 
   async function toggleAudience(audienceKey: string, active: boolean) {
-    const saved = await runMutation(setMessage, async () => {
+    const saved = await runMutation(setAudienceMessage, async () => {
       await assertResult(await connectedClient().rpc("manage_organization_audience", {
         p_organization_id: props.organizationId,
         p_name: null,
@@ -317,7 +318,7 @@ export function SettingsManager(props: Props) {
           </article>
           <article className={styles.integration}>
             <div className={styles.integrationInfo}><strong>Públicos</strong><p>{activeAudienceCount} ativos · Defina os públicos atendidos pelo estabelecimento</p></div>
-            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar públicos" onClick={() => setRulesEditor("audiences")}><Pencil size={15} /> Editar</button>
+            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar públicos" onClick={() => { setAudienceMessage(""); setRulesEditor("audiences"); }}><Pencil size={15} /> Editar</button>
           </article>
           <article className={styles.integration}>
             <div className={styles.integrationInfo}><strong>Bloqueio de Datas</strong><p>{(props.dateBlocks ?? []).length ? `${(props.dateBlocks ?? []).length} bloqueios cadastrados · Feriados, recessos e eventos` : "Cadastre feriados, recessos e eventos para fechar a agenda."}</p></div>
@@ -417,6 +418,7 @@ export function SettingsManager(props: Props) {
       <div className="form-modal__head"><span><small>Regras de negócio</small><strong>Públicos atendidos</strong></span><button type="button" className="icon-button" onClick={() => setRulesEditor(null)} aria-label="Fechar cadastro de públicos"><X size={19} /></button></div>
       <div className="form-modal__body">
         <p className={styles.muted}>Os públicos ativos poderão ser escolhidos nos serviços e pacotes. Inativar um público não apaga os vínculos já salvos.</p>
+        {audienceMessage && <p className={styles.message} role="status" aria-live="polite">{audienceMessage}</p>}
         <form className={styles.professionalFunctionForm} onSubmit={(event) => void saveAudience(event)}>
           <Field label="Nome do público"><input value={audienceName} onChange={(event) => setAudienceName(event.target.value)} minLength={2} maxLength={60} required placeholder="Ex.: Noivos" /></Field>
           <button className={`${styles.button} ${styles.buttonSoft}`} type="submit">Adicionar</button>
