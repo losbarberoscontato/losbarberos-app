@@ -12,7 +12,7 @@ import { centsFromInput, formatCents } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
-import { audienceLabel, type CatalogAudience, hasAudience } from "@/lib/catalog-audiences";
+import { CATALOG_AUDIENCES, audienceLabel, type CatalogAudience, hasAudience } from "@/lib/catalog-audiences";
 import type { ProductKey } from "@/lib/product-context";
 
 type CatalogAudienceRecord = AwaitedReturn<typeof loadCatalogData>["organizationAudiences"][number];
@@ -63,7 +63,15 @@ export function CatalogManager(props: Props) {
   const [serviceFilter, setServiceFilter] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const [serviceAvailabilityFilter, setServiceAvailabilityFilter] = useState<ServiceAvailabilityFilter>("ALL");
   const [packageFilter, setPackageFilter] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
-  const organizationAudiences = props.organizationAudiences ?? [];
+  const organizationAudiences = props.organizationAudiences ?? CATALOG_AUDIENCES.map((audience_key, index) => ({
+    organization_id: organizationId,
+    audience_key,
+    name: audienceLabel(audience_key),
+    active: true,
+    sort_order: (index + 1) * 10,
+    is_default: true,
+    created_at: "",
+  }));
   const activeAudiences = organizationAudiences.filter((audience) => audience.active);
   const activeAudienceKeys = new Set(activeAudiences.map((audience) => audience.audience_key));
   const serviceById = new Map(services.map((service) => [service.id, service]));

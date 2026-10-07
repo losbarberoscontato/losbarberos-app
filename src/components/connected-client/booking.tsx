@@ -35,7 +35,7 @@ import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/s
 import type { AvailableDateOption, AvailableSlot, CustomerDependent } from "@/components/connected-client/types";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { audienceLabel, filterByAudience, type CatalogAudience } from "@/lib/catalog-audiences";
+import { CATALOG_AUDIENCES, audienceLabel, filterByAudience, type CatalogAudience } from "@/lib/catalog-audiences";
 import { clientVocabulary } from "@/components/connected-client/vocabulary";
 
 type Draft = {
@@ -97,6 +97,13 @@ export function ConnectedBooking() {
 
 function BookingContent() {
   const { context, slug, user, customer, identity, entry } = useConnectedClient();
+  const bookingAudiences = context?.audiences ?? CATALOG_AUDIENCES.map((audience_key, index) => ({
+    audience_key,
+    name: audienceLabel(audience_key),
+    active: true,
+    sort_order: (index + 1) * 10,
+    is_default: true,
+  }));
   const vocabulary = clientVocabulary(identity, entry?.product_key);
   const bookingSteps = [vocabulary.serviceLabel, vocabulary.professionalLabel, "Horário", "Confirmar"];
   const router = useRouter();
@@ -221,7 +228,7 @@ function BookingContent() {
       setSubscriptionPlanId(subscription.plan_id);
       setSubscriptionSelections(links.map((link) => ({ type: "SERVICE" as const, service_id: link.service_id, quantity: 1 })));
       const firstService = context.services.find((service) => service.id === links[0].service_id);
-      setSelectedAudience(firstService?.audiences?.[0] ?? context.audiences?.[0]?.audience_key ?? null);
+      setSelectedAudience(firstService?.audiences?.[0] ?? bookingAudiences[0]?.audience_key ?? null);
       setChoiceId(links[0].service_id);
       setStep(2);
     }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Sessão de assinatura indisponível."); });
@@ -274,7 +281,7 @@ function BookingContent() {
         try {
           const draft = JSON.parse(raw) as Partial<Draft>;
           if (typeof draft.choiceId === "string") setChoiceId(draft.choiceId);
-          if (typeof draft.audience === "string" && context.audiences?.some((audience) => audience.audience_key === draft.audience)) setSelectedAudience(draft.audience);
+          if (typeof draft.audience === "string" && bookingAudiences.some((audience) => audience.audience_key === draft.audience)) setSelectedAudience(draft.audience);
           if (!queuePresetRef.current) {
             if (draft.barberMode === "ANY" || draft.barberMode === "SPECIFIC") setBarberMode(draft.barberMode);
             else if (typeof draft.barberId === "string" && draft.barberId) setBarberMode("SPECIFIC");
@@ -646,7 +653,7 @@ function BookingContent() {
           <section className={styles.bookingStep} aria-label={`Escolher ${vocabulary.service}`}>
             <div className={styles.audienceFilter} role="tablist" aria-label={`Público ${vocabulary.organizationPhrase}`}>
               <span>Para quem é {vocabulary.serviceArticle} {vocabulary.service}?</span>
-              {(context.audiences ?? []).map(({ audience_key: audience }) => (
+              {bookingAudiences.map(({ audience_key: audience }) => (
                 <button
                   type="button"
                   key={audience}
@@ -659,7 +666,7 @@ function BookingContent() {
                     resetBookingAfterChoice();
                   }}
                 >
-                  {audienceLabel(audience, context.audiences ?? [])}
+                  {audienceLabel(audience, bookingAudiences)}
                 </button>
               ))}
             </div>
