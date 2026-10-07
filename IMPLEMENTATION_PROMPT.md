@@ -1,5 +1,9 @@
 # Prompt inicial — próxima conversa Los Barberos
 
+## Públicos configuráveis — 07/10/2026
+
+Configurações permite adicionar, inativar e reativar públicos por estabelecimento. Os quatro padrões continuam disponíveis por padrão; serviços/pacotes mostram somente públicos ativos. Migration `20261007161507_organization_catalog_audiences.sql` aplicada ao Supabase. Build e typecheck aprovados; testes automatizados não executados nesta rodada. Sem mudanças em Edge Functions/WhatsApp Evolution. Detalhes e validação de produção em `HANDOFF.md`.
+
 ## Telas internas do cliente — 07/10/2026
 
 Entrada, Home, agendamento, reservas e perfil agora consomem a identidade do produto ativo para cor e vocabulário. A Home usa a logo cadastrada pelo gestor. Perfil tem cinco seções expansíveis com controles uniformes. Nenhuma migration ou Function mudou nesta rodada; WhatsApp Evolution permanece fora do diff. Build e testes focados passaram; o `verify` geral ainda tem 7 falhas preexistentes. Confira publicação, CI e limites autenticados em `HANDOFF.md`.

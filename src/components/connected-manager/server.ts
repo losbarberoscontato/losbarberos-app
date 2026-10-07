@@ -305,7 +305,7 @@ export async function loadCustomersData() {
 
 export async function loadCatalogData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [servicesResult, packagesResult, itemsResult] = await Promise.all([
+  const [servicesResult, packagesResult, itemsResult, audiencesResult] = await Promise.all([
     supabase
       .from("services")
       .select("*")
@@ -324,6 +324,12 @@ export async function loadCatalogData() {
       .eq("organization_id", organizationId)
       .eq("active", true)
       .order("position"),
+    supabase
+      .from("organization_audiences")
+      .select("organization_id,audience_key,name,active,sort_order,is_default,created_at")
+      .eq("organization_id", organizationId)
+      .order("sort_order")
+      .order("name"),
   ]);
   return {
     organizationId,
@@ -334,6 +340,7 @@ export async function loadCatalogData() {
       itemsResult,
       "Itens dos pacotes",
     ) as PackageItemRecord[],
+    organizationAudiences: requireData(audiencesResult, "Públicos do estabelecimento") as import("./types").OrganizationAudienceRecord[],
   };
 }
 
@@ -1730,6 +1737,7 @@ export async function loadSettingsData() {
     environmentIssues,
     professionalFunctions,
     dateBlocks,
+    organizationAudiences,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase
@@ -1780,6 +1788,12 @@ export async function loadSettingsData() {
       .select("id,organization_id,block_type,name,description,holiday_scope,recurrence,start_date,end_date,start_time,end_time")
       .eq("organization_id", organizationId)
       .order("start_date"),
+    supabase
+      .from("organization_audiences")
+      .select("organization_id,audience_key,name,active,sort_order,is_default,created_at")
+      .eq("organization_id", organizationId)
+      .order("sort_order")
+      .order("name"),
   ]);
   const professionalFunctionsMigrationPending = Boolean(
     professionalFunctions.error && (
@@ -1816,6 +1830,7 @@ export async function loadSettingsData() {
       : requireData(professionalFunctions, "Funções profissionais") as ProfessionalFunctionRecord[],
     professionalFunctionsAvailable: !professionalFunctionsMigrationPending,
     dateBlocks: requireData(dateBlocks, "Bloqueios de datas") as OrganizationDateBlock[],
+    organizationAudiences: requireData(organizationAudiences, "Públicos do estabelecimento") as import("./types").OrganizationAudienceRecord[],
   };
 }
 

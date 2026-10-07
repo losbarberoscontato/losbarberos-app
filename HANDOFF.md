@@ -1,5 +1,12 @@
 # Handoff — Los Barberos
 
+## Públicos configuráveis no catálogo — 07/10/2026
+
+- Regras de negócio ganhou o gerenciamento de Públicos por estabelecimento: cadastrar, inativar e reativar. Os quatro públicos padrão são semeados para estabelecimentos existentes e novos, preservando as chaves já usadas nos serviços e pacotes.
+- Formulários de serviço e pacote listam apenas públicos ativos do tenant. A validação de escrita e o contexto público de agendamento conferem esses vínculos no banco; desativar não apaga serviços/pacotes nem seus históricos.
+- Migration `20261007161507_organization_catalog_audiences.sql` aplicada ao Supabase `bwdjkhqshmppescunwer`; dry run confirmou banco alinhado. Não houve alteração de Edge Functions ou do WhatsApp Evolution.
+- Validação local: `npm.cmd run typecheck` e `npm.cmd run build` aprovados; testes automatizados não foram executados nesta rodada. Verificar CI e interface autenticada após o deploy.
+
 ## Telas internas do cliente e identidade por produto — 07/10/2026
 
 - Entrada no estabelecimento: removida a explicação sobre vínculo; botão agora é “Entrar”. Home: removido “Minha barbearia” e exibida a logo configurada pelo gestor, com fallback da marca do produto.

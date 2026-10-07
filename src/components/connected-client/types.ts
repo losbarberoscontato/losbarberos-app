@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import type { CatalogAudience } from "@/lib/catalog-audiences";
+import type { CatalogAudience, CatalogAudienceOption } from "@/lib/catalog-audiences";
 import type { ProductKey } from "@/lib/product-routes";
 import type { ProductIdentityConfig } from "@/lib/product-identity";
 
@@ -72,6 +72,7 @@ export type PublicBookingContext = {
   location: PublicLocation | null;
   services: PublicService[];
   packages: PublicPackage[];
+  audiences?: readonly CatalogAudienceOption[];
   barbers: PublicBarber[];
 };
 

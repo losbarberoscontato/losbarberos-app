@@ -18,13 +18,14 @@ import { DateBlocksEditor } from "./date-blocks-editor";
 import styles from "./connected-manager.module.css";
 
 type SettingsData = AwaitedReturn<typeof loadSettingsData>;
-type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professionalFunctions" | "professionalFunctionsAvailable" | "dateBlocks"> & {
+type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professionalFunctions" | "professionalFunctionsAvailable" | "dateBlocks" | "organizationAudiences"> & {
   productKey?: ProductKey;
   environments?: SettingsData["environments"];
   environmentIssues?: SettingsData["environmentIssues"];
   professionalFunctions?: SettingsData["professionalFunctions"];
   professionalFunctionsAvailable?: boolean;
   dateBlocks?: SettingsData["dateBlocks"];
+  organizationAudiences?: SettingsData["organizationAudiences"];
 };
 
 export function SettingsManager(props: Props) {
@@ -46,10 +47,11 @@ export function SettingsManager(props: Props) {
   const barberAccessUrl = `${publicOrigin}${barberAccessPath}`;
   const [exporting, setExporting] = useState(false);
   const [rulesHelpOpen, setRulesHelpOpen] = useState(false);
-  const [rulesEditor, setRulesEditor] = useState<"deadline" | "environments" | "functions" | "date-blocks" | null>(null);
+  const [rulesEditor, setRulesEditor] = useState<"deadline" | "environments" | "functions" | "date-blocks" | "audiences" | null>(null);
   const [environmentName, setEnvironmentName] = useState("");
   const [professionalFunctionName, setProfessionalFunctionName] = useState("");
   const [professionalFunctionMessage, setProfessionalFunctionMessage] = useState("");
+  const [audienceName, setAudienceName] = useState("");
   const [logoPath, setLogoPath] = useState(props.organization.logo_path ?? "");
   const location = props.locations.find((item) => item.active) ?? props.locations[0];
   const address = (location?.address ?? {}) as Record<string, string>;
@@ -139,6 +141,35 @@ export function SettingsManager(props: Props) {
   const activeEnvironmentCount = environments.filter((environment) => environment.active).length;
   const professionalFunctions = props.professionalFunctions ?? [];
   const professionalFunctionsAvailable = props.professionalFunctionsAvailable ?? true;
+  const organizationAudiences = props.organizationAudiences ?? [];
+  const activeAudienceCount = organizationAudiences.filter((audience) => audience.active).length;
+
+  async function saveAudience(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = audienceName.trim();
+    if (name.length < 2 || name.length > 60) { setMessage("Informe um público com 2 a 60 caracteres."); return; }
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("manage_organization_audience", {
+        p_organization_id: props.organizationId,
+        p_name: name,
+        p_active: true,
+        p_audience_key: null,
+      }));
+    }, "Público adicionado.");
+    if (saved) { setAudienceName(""); router.refresh(); }
+  }
+
+  async function toggleAudience(audienceKey: string, active: boolean) {
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("manage_organization_audience", {
+        p_organization_id: props.organizationId,
+        p_name: null,
+        p_active: !active,
+        p_audience_key: audienceKey,
+      }));
+    }, active ? "Público inativado." : "Público reativado.");
+    if (saved) router.refresh();
+  }
 
   async function addEnvironment() {
     const name = environmentName.trim();
@@ -285,6 +316,10 @@ export function SettingsManager(props: Props) {
             <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar cadastro de funções" onClick={() => { setProfessionalFunctionMessage(""); setRulesEditor("functions"); }}><Pencil size={15} /> Editar</button>
           </article>
           <article className={styles.integration}>
+            <div className={styles.integrationInfo}><strong>Públicos</strong><p>{activeAudienceCount} ativos · Defina os públicos atendidos pelo estabelecimento</p></div>
+            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar públicos" onClick={() => setRulesEditor("audiences")}><Pencil size={15} /> Editar</button>
+          </article>
+          <article className={styles.integration}>
             <div className={styles.integrationInfo}><strong>Bloqueio de Datas</strong><p>{(props.dateBlocks ?? []).length ? `${(props.dateBlocks ?? []).length} bloqueios cadastrados · Feriados, recessos e eventos` : "Cadastre feriados, recessos e eventos para fechar a agenda."}</p></div>
             <button type="button" className={`${styles.button} ${styles.buttonSoft}`} aria-label="Editar datas bloqueadas" onClick={() => setRulesEditor("date-blocks")}><Pencil size={15} /> Editar datas</button>
           </article>
@@ -375,6 +410,23 @@ export function SettingsManager(props: Props) {
           : <ul className={styles.professionalFunctionList} aria-label="Funções cadastradas">
             {professionalFunctions.map((item) => <li className={styles.professionalFunctionItem} key={item.id}>{item.name}</li>)}
           </ul>}
+      </div>
+      <div className="form-modal__footer"><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setRulesEditor(null)}>Concluir</button></div>
+    </section></div>}
+    {rulesEditor === "audiences" && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar cadastro de públicos" onClick={() => setRulesEditor(null)} /><section className="form-modal" role="dialog" aria-modal="true" aria-label="Cadastro de públicos">
+      <div className="form-modal__head"><span><small>Regras de negócio</small><strong>Públicos atendidos</strong></span><button type="button" className="icon-button" onClick={() => setRulesEditor(null)} aria-label="Fechar cadastro de públicos"><X size={19} /></button></div>
+      <div className="form-modal__body">
+        <p className={styles.muted}>Os públicos ativos poderão ser escolhidos nos serviços e pacotes. Inativar um público não apaga os vínculos já salvos.</p>
+        <form className={styles.professionalFunctionForm} onSubmit={(event) => void saveAudience(event)}>
+          <Field label="Nome do público"><input value={audienceName} onChange={(event) => setAudienceName(event.target.value)} minLength={2} maxLength={60} required placeholder="Ex.: Noivos" /></Field>
+          <button className={`${styles.button} ${styles.buttonSoft}`} type="submit">Adicionar</button>
+        </form>
+        <ul className={styles.professionalFunctionList} aria-label="Públicos cadastrados">
+          {organizationAudiences.map((audience) => <li className={`${styles.professionalFunctionItem} ${styles.audienceManagerItem}`} key={audience.audience_key}>
+            <span>{audience.name}{audience.is_default && <small> · padrão</small>}</span>
+            <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => void toggleAudience(audience.audience_key, audience.active)}>{audience.active ? "Inativar" : "Reativar"}</button>
+          </li>)}
+        </ul>
       </div>
       <div className="form-modal__footer"><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setRulesEditor(null)}>Concluir</button></div>
     </section></div>}

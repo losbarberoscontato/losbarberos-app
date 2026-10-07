@@ -1,5 +1,7 @@
 # Prompt inicial — próxima conversa Los Barberos
 
+Entrega de 07/10/2026: públicos configuráveis por estabelecimento publicados em `main`; migration `20261007161507_organization_catalog_audiences.sql` aplicada ao Supabase `bwdjkhqshmppescunwer`. Deploy da Vercel e CI devem ser confirmados nesta entrega; testes automatizados não foram executados localmente. Edge Functions e WhatsApp Evolution não foram alterados. Consulte o topo de `HANDOFF.md`.
+
 As telas internas do cliente agora usam identidade por produto e vocabulário contextual; entrada e perfil receberam as simplificações solicitadas. A Home usa a logo do estabelecimento. Nenhuma migration ou Function foi alterada nesta rodada. Consulte `HANDOFF.md` para testes, publicação e limites de prova autenticada.
 
 O acesso compartilhado do cliente recebeu a logo cadastrada do estabelecimento, textos simplificados e rótulo “Telefone/Whatsapp” em 07/10/2026. A lógica de consentimento e o módulo WhatsApp Evolution não mudaram. Veja testes e limites no topo de `HANDOFF.md`.

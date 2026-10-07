@@ -424,6 +424,16 @@ export interface FinancialCommissionDetailRecord {
   internal_service_id?: string | null;
 }
 
+export interface OrganizationAudienceRecord {
+  organization_id: string;
+  audience_key: string;
+  name: string;
+  active: boolean;
+  sort_order: number;
+  is_default: boolean;
+  created_at: string;
+}
+
 export interface BarberPackageRecord {
   organization_id: string;
   barber_id: string;
