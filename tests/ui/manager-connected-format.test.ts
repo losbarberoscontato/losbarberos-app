@@ -33,6 +33,12 @@ describe("connected manager formatting contracts", () => {
     expect(humanizeError(new Error("start time is not aligned to slot interval"))).toBe("Escolha um horário alinhado ao intervalo de slots da agenda.");
   });
 
+  it("explains why WhatsApp manual confirmation is blocked", () => {
+    expect(humanizeError(new Error("WhatsApp V2 runtime is not active for this establishment"))).toContain("ainda não foi habilitado");
+    expect(humanizeError(new Error("WhatsApp automation is not active"))).toContain("automação do WhatsApp está desativada");
+    expect(humanizeError(new Error("WhatsApp dispatch is paused"))).toContain("envio de mensagens do WhatsApp está pausado");
+  });
+
   it("explains that open internal services block moving a Kanban card", () => {
     expect(humanizeError(new Error("complete the internal service before moving this card"))).toBe("Não é possível mover o card: há serviço interno pendente de conclusão. Conclua ou exclua o serviço antes de transferir.");
     expect(humanizeError(new Error("complete the internal service before moving this card to another board"))).toBe("Não é possível mover o card: há serviço interno pendente de conclusão. Conclua ou exclua o serviço antes de transferir.");

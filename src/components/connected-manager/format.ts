@@ -96,6 +96,13 @@ export function toPostgresRange(start: string, end: string, timezone = "America/
 export function humanizeError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "Erro inesperado.");
   const dictionary: Array<[RegExp, string]> = [
+    [/WhatsApp V2 runtime is not active for this establishment/i, "O envio V2 do WhatsApp ainda não foi habilitado para este estabelecimento. A ativação depende da validação operacional do runtime."],
+    [/WhatsApp automation is not active/i, "A automação do WhatsApp está desativada para este estabelecimento."],
+    [/WhatsApp dispatch is paused/i, "O envio de mensagens do WhatsApp está pausado para este estabelecimento."],
+    [/active WhatsApp QR connection not found/i, "Conecte o WhatsApp do estabelecimento e tente novamente."],
+    [/WhatsApp automation settings not found/i, "A configuração do WhatsApp deste estabelecimento não foi encontrada."],
+    [/appointment customer not found/i, "O cliente deste agendamento não foi encontrado neste estabelecimento."],
+    [/appointment barber not found/i, "O profissional deste agendamento não foi encontrado neste estabelecimento."],
     [/start time is not aligned to slot interval/i, "Escolha um horário alinhado ao intervalo de slots da agenda."],
     [/requested slot is no longer available|exclusion constraint/i, "Esse horário acabou de ser ocupado."],
     [/organization_date_block_conflict/i, "Há agendamento ativo neste período. Reagende ou cancele antes de bloquear."],

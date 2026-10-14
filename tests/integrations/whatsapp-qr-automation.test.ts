@@ -12,6 +12,7 @@ describe("automação WhatsApp QR v2", () => {
   const managerNotificationMigration = read("supabase/migrations/20260819143928_whatsapp_v2_manager_notification_phone.sql");
   const managerPhoneValidationMigration = read("supabase/migrations/20260819163816_fix_whatsapp_v2_manager_notification_phone_validation.sql");
   const agendaStatusMigration = read("supabase/migrations/20260821115548_whatsapp_agenda_response_statuses.sql");
+  const manualConfirmationRepairMigration = read("supabase/migrations/20261014172600_repair_qr_connection_whatsapp_v2_mode.sql");
   const dailyConfirmationMigration = read("supabase/migrations/20260821145726_whatsapp_evolution_single_daily_confirmation.sql");
   const reconnectionRecoveryMigration = read("supabase/migrations/20260831201500_whatsapp_v2_reconnection_recovery.sql");
   const safeReconnectionMigration = read("supabase/migrations/20260905134350_whatsapp_v2_reconnection_safe_jobs.sql");
@@ -78,6 +79,20 @@ describe("automação WhatsApp QR v2", () => {
     expect(dispatcher).toContain('.replaceAll("\\\\n", "\\n")');
     expect(legacyOutbox).toContain("function normalizeMessageText");
     expect(legacyOutbox).toContain('.replaceAll("\\\\n", "\\n")');
+  });
+
+  it("identifica runtime V2 não promovido antes de alterar confirmação ou fila", () => {
+    expect(manualConfirmationRepairMigration).toContain("WhatsApp V2 runtime is not active for this establishment");
+    expect(manualConfirmationRepairMigration).toContain("v_settings.runtime_engine <> 'ACTIVE'");
+    expect(manualConfirmationRepairMigration).toContain("active WhatsApp QR connection not found");
+    expect(manualConfirmationRepairMigration).toContain("WhatsApp automation is not active");
+    expect(manualConfirmationRepairMigration).toContain("WhatsApp dispatch is paused");
+    expect(manualConfirmationRepairMigration).not.toContain("appointment, active WhatsApp connection, customer, or barber not found");
+    expect(manualConfirmationRepairMigration.indexOf("v_settings.runtime_engine <> 'ACTIVE'")).toBeLessThan(
+      manualConfirmationRepairMigration.indexOf("update public.appointments"),
+    );
+    expect(manualConfirmationRepairMigration).toContain("from public, anon");
+    expect(manualConfirmationRepairMigration).toContain("to authenticated");
   });
 
   it("entrega atendimento a um número do gestor separado e sinaliza coincidência com o QR", () => {
