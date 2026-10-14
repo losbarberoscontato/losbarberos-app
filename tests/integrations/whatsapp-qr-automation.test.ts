@@ -13,6 +13,7 @@ describe("automação WhatsApp QR v2", () => {
   const managerPhoneValidationMigration = read("supabase/migrations/20260819163816_fix_whatsapp_v2_manager_notification_phone_validation.sql");
   const agendaStatusMigration = read("supabase/migrations/20260821115548_whatsapp_agenda_response_statuses.sql");
   const manualConfirmationRepairMigration = read("supabase/migrations/20261014180506_fix_whatsapp_qr_activation_and_legacy_manual_confirmation.sql");
+  const manualConfirmationWindowMigration = read("supabase/migrations/20261014181006_extend_manual_confirmation_delivery_window.sql");
   const runtimeMigration = read("supabase/migrations/20260906230249_whatsapp_reliable_runtime.sql");
   const dailyConfirmationMigration = read("supabase/migrations/20260821145726_whatsapp_evolution_single_daily_confirmation.sql");
   const reconnectionRecoveryMigration = read("supabase/migrations/20260831201500_whatsapp_v2_reconnection_recovery.sql");
@@ -97,6 +98,14 @@ describe("automação WhatsApp QR v2", () => {
     );
     expect(manualConfirmationRepairMigration).toContain("from public, anon");
     expect(manualConfirmationRepairMigration).toContain("to authenticated");
+  });
+
+  it("mantém a confirmação manual válida durante o atendimento sem reabrir após o fim", () => {
+    expect(manualConfirmationWindowMigration).toContain("MANUAL_CONFIRMATION_CLIENT");
+    expect(manualConfirmationWindowMigration).toContain("MANUAL_CONFIRMATION_STAFF");
+    expect(manualConfirmationWindowMigration).toContain("upper(a.service_period)");
+    expect(manualConfirmationWindowMigration).toContain("before insert on public.whatsapp_automation_jobs");
+    expect(manualConfirmationWindowMigration).toContain("a.organization_id = new.organization_id");
   });
 
   it("entrega atendimento a um número do gestor separado e sinaliza coincidência com o QR", () => {
