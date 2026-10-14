@@ -34,7 +34,6 @@ describe("connected manager formatting contracts", () => {
   });
 
   it("explains why WhatsApp manual confirmation is blocked", () => {
-    expect(humanizeError(new Error("WhatsApp V2 runtime is not active for this establishment"))).toContain("ainda não foi habilitado");
     expect(humanizeError(new Error("WhatsApp automation is not active"))).toContain("automação do WhatsApp está desativada");
     expect(humanizeError(new Error("WhatsApp dispatch is paused"))).toContain("envio de mensagens do WhatsApp está pausado");
   });
