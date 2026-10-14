@@ -271,6 +271,22 @@ describe("connected manager UI", () => {
     expect(screen.getByLabelText("Valor da comissão de Corte Real")).toHaveValue(25);
   });
 
+  it("salva comissão fixa digitada no campo numérico em centavos exatos", async () => {
+    renderTeam();
+    fireEvent.click(screen.getByRole("button", { name: "Serviços" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Corte Real" }));
+    fireEvent.change(screen.getByLabelText("Modelo de comissão de Corte Real"), { target: { value: "FIXED" } });
+    fireEvent.change(screen.getByLabelText("Valor da comissão de Corte Real"), { target: { value: "50.00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar configurações" }));
+
+    await waitFor(() => expect(mutationMocks.rpc).toHaveBeenCalledWith("replace_commission_rule", expect.objectContaining({
+      p_barber_id: "barber-1",
+      p_service_id: "service-1",
+      p_mode: "FIXED",
+      p_fixed_cents: 5000,
+    })));
+  });
+
   it("exibe a resposta do cliente pelo WhatsApp na agenda do gestor", () => {
     const start = new Date();
     const end = new Date(start.getTime() + 30 * 60_000);

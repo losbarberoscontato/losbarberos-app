@@ -10,6 +10,9 @@ describe("connected manager formatting contracts", () => {
 
   it("keeps money in integer cents", () => {
     expect(centsFromInput("1.234,56")).toBe(123456);
+    expect(centsFromInput("1.234")).toBe(123400);
+    expect(centsFromInput("50.00")).toBe(5000);
+    expect(centsFromInput("50,00")).toBe(5000);
     expect(formatCents(123456)).toContain("1.234,56");
   });
 

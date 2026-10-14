@@ -11,7 +11,15 @@ export function formatCents(value: number | string | null | undefined) {
 }
 
 export function centsFromInput(value: FormDataEntryValue | null) {
-  const normalized = String(value ?? "").trim().replace(/\./g, "").replace(",", ".");
+  const raw = String(value ?? "").trim();
+  // Inputs type="number" always expose the decimal separator as a point,
+  // even in a pt-BR browser. With a comma, parse pt-BR grouping; without one,
+  // only treat groups of three digits after a point as thousands separators.
+  const normalized = raw.includes(",")
+    ? raw.replace(/\./g, "").replace(",", ".")
+    : /^\d{1,3}(?:\.\d{3})+$/u.test(raw)
+      ? raw.replace(/\./g, "")
+      : raw;
   const numeric = Number(normalized);
   if (!Number.isFinite(numeric) || numeric < 0) throw new Error("Informe um valor válido.");
   return Math.round(numeric * 100);
