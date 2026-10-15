@@ -232,7 +232,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [automationRules, setAutomationRules] = useState(() => normalizeReminderSelection(initialAutomation));
   const [messageTemplates, setMessageTemplates] = useState<Record<WhatsAppFixedMessageKey, string>>(() => ({ ...defaultMessageTemplates, ...status.automation.message_templates }));
   const [editingTemplate, setEditingTemplate] = useState<WhatsAppFixedMessageKey | null>(null);
-  const [collapsedTemplates, setCollapsedTemplates] = useState<Partial<Record<WhatsAppFixedMessageKey, boolean>>>({});
+  const [expandedTemplates, setExpandedTemplates] = useState<Partial<Record<WhatsAppFixedMessageKey, boolean>>>({});
   const templateEditors = useRef<Partial<Record<WhatsAppFixedMessageKey, HTMLTextAreaElement | null>>>({});
   const pendingTemplateCursor = useRef<{ key: WhatsAppFixedMessageKey; cursor: number } | null>(null);
   const [customMessages, setCustomMessages] = useState(() => customMessageDefaults(initialAutomation.custom_messages));
@@ -456,7 +456,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
         ? definition.description.replaceAll("profissional", "especialista").replaceAll("atendimento", "serviço").replaceAll("agendamento", "serviço")
         : definition.description;
     const editing = editingTemplate === definition.key;
-    const expanded = collapsedTemplates[definition.key] !== true;
+    const expanded = expandedTemplates[definition.key] === true;
     const contentId = `whatsapp-template-${definition.key}`;
     return <article className={styles.whatsappTemplateCard} key={definition.key}>
       <div className={styles.whatsappTemplateHead}>
@@ -466,7 +466,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
           aria-label={`${expanded ? "Recolher" : "Expandir"} mensagem: ${title}`}
           aria-expanded={expanded}
           aria-controls={contentId}
-          onClick={() => setCollapsedTemplates((current) => ({ ...current, [definition.key]: expanded }))}
+          onClick={() => setExpandedTemplates((current) => ({ ...current, [definition.key]: !expanded }))}
         ><span className={styles.whatsappTemplateChevron} aria-hidden="true">›</span></button>
         <div><strong>{title}</strong><small>{description}</small></div>
         {definition.toggle
@@ -590,7 +590,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
 
     <Panel title="Mensagens automáticas" description="Edite os textos e escolha os avisos enviados pelo WhatsApp.">
       <form onSubmit={saveAutomation} className={styles.stack}>
-        <details className={styles.whatsappMessageGroup} open>
+        <details className={styles.whatsappMessageGroup}>
           <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>Agendamentos e lembretes</strong><small>Ative confirmações e escolha um único horário de lembrete.</small></span></summary>
           <div className={styles.whatsappMessageGroupContent}>
             {bookingAndReminderMessages.map((definition) => fixedMessageCard(definition))}
@@ -612,7 +612,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       description={customReady ? "Pós-serviço, felicitações e campanhas. Até uma mensagem por dia e duas por semana para cada cliente." : "Estas automações ainda não estão disponíveis para configuração ou envio."}
     >
       <form onSubmit={saveAutomation} className={styles.stack}>
-        {customMessageGroups.map((group, index) => <details className={styles.whatsappMessageGroup} key={group.title} open={index === 0}>
+        {customMessageGroups.map((group) => <details className={styles.whatsappMessageGroup} key={group.title}>
           <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>{group.title}</strong></span></summary>
           <div className={styles.whatsappMessageGroupContent}>
             {group.messages.map((definition) => {

@@ -69,8 +69,11 @@ describe("WhatsApp settings", () => {
     expect(screen.getAllByText("Confirmação de presença 3 horas antes")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença 45 minutos antes")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença 24 horas antes")).not.toHaveLength(0);
+    fireEvent.click(screen.getByText("Agendamentos e lembretes"));
+    fireEvent.click(screen.getByRole("button", { name: "Expandir mensagem: Confirmação de agendamento para o cliente" }));
     expect(screen.getByRole("button", { name: "Editar texto: Confirmação de agendamento para o cliente" })).toBeInTheDocument();
     expect(screen.getByText("Mensagens Personalizadas")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Mensagens após o serviço"));
     expect(screen.getByLabelText("Texto de 14 dias após o serviço")).toBeInTheDocument();
     expect(screen.queryByText("Confirmação do agendamento")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Mensagem de boas-vindas")).not.toBeInTheDocument();
@@ -80,22 +83,42 @@ describe("WhatsApp settings", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 
     const title = "Confirmação de agendamento para o cliente";
-    const collapseButton = screen.getByRole("button", { name: `Recolher mensagem: ${title}` });
-    expect(screen.getByLabelText(`Texto: ${title}`)).toBeInTheDocument();
+    const messageGroup = screen.getByText("Agendamentos e lembretes").closest("details");
+    expect(messageGroup).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Agendamentos e lembretes"));
 
-    fireEvent.click(collapseButton);
+    const expandButton = screen.getByRole("button", { name: `Expandir mensagem: ${title}` });
+    expect(expandButton).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("textbox", { name: `Texto: ${title}` })).not.toBeInTheDocument();
+
+    fireEvent.click(expandButton);
+    expect(screen.getByLabelText(`Texto: ${title}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: `Recolher mensagem: ${title}` }));
     expect(screen.queryByRole("textbox", { name: `Texto: ${title}` })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: `Expandir mensagem: ${title}` })).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("textbox", { name: "Texto: Confirmação de agendamento para o profissional" })).toBeInTheDocument();
-    expect(screen.getByText("Agendamentos e lembretes")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Texto: Confirmação de agendamento para o profissional" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: `Expandir mensagem: ${title}` }));
     expect(screen.getByLabelText(`Texto: ${title}`)).toBeInTheDocument();
   });
 
+  it.each(["los-barberos", "le-gras", "pro-stetic", "music-pro"] as const)("inicia todos os menus do WhatsApp recolhidos em %s", (productKey) => {
+    const { container } = render(<WhatsAppSettings organizationId="org-1" organizationName="Estabelecimento" status={status} productKey={productKey} />);
+
+    const groups = [...container.querySelectorAll("details")];
+    expect(groups.length).toBeGreaterThan(0);
+    expect(groups.every((group) => !group.open)).toBe(true);
+
+    const messageToggles = [...container.querySelectorAll<HTMLButtonElement>('button[aria-label^="Expandir mensagem:"]')];
+    expect(messageToggles.length).toBeGreaterThan(0);
+    expect(messageToggles.every((button) => button.getAttribute("aria-expanded") === "false")).toBe(true);
+  });
+
   it("edita uma mensagem, insere variável no cursor e salva o template", async () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 
+    fireEvent.click(screen.getByText("Agendamentos e lembretes"));
+    fireEvent.click(screen.getByRole("button", { name: "Expandir mensagem: Confirmação de agendamento para o cliente" }));
     fireEvent.click(screen.getByRole("button", { name: "Editar texto: Confirmação de agendamento para o cliente" }));
     const editor = screen.getByLabelText("Texto: Confirmação de agendamento para o cliente");
     fireEvent.change(editor, { target: { value: "Oi !", selectionStart: 3, selectionEnd: 3 } });
@@ -111,6 +134,8 @@ describe("WhatsApp settings", () => {
   it("não salva uma mensagem vazia", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 
+    fireEvent.click(screen.getByText("Agendamentos e lembretes"));
+    fireEvent.click(screen.getByRole("button", { name: "Expandir mensagem: Confirmação de agendamento para o cliente" }));
     fireEvent.click(screen.getByRole("button", { name: "Editar texto: Confirmação de agendamento para o cliente" }));
     fireEvent.change(screen.getByLabelText("Texto: Confirmação de agendamento para o cliente"), { target: { value: "   " } });
 
@@ -119,6 +144,7 @@ describe("WhatsApp settings", () => {
 
   it("desativa os outros lembretes ao ativar um horário", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
+    fireEvent.click(screen.getByText("Agendamentos e lembretes"));
     const morning = screen.getByRole("checkbox", { name: "Ativar Confirmação de presença às 8h" });
     const t45 = screen.getByRole("checkbox", { name: "Ativar Confirmação de presença 45 minutos antes" });
     const t24 = screen.getByRole("checkbox", { name: "Ativar Confirmação de presença 24 horas antes" });
