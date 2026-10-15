@@ -232,6 +232,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [automationRules, setAutomationRules] = useState(() => normalizeReminderSelection(initialAutomation));
   const [messageTemplates, setMessageTemplates] = useState<Record<WhatsAppFixedMessageKey, string>>(() => ({ ...defaultMessageTemplates, ...status.automation.message_templates }));
   const [editingTemplate, setEditingTemplate] = useState<WhatsAppFixedMessageKey | null>(null);
+  const [collapsedTemplates, setCollapsedTemplates] = useState<Partial<Record<WhatsAppFixedMessageKey, boolean>>>({});
   const templateEditors = useRef<Partial<Record<WhatsAppFixedMessageKey, HTMLTextAreaElement | null>>>({});
   const pendingTemplateCursor = useRef<{ key: WhatsAppFixedMessageKey; cursor: number } | null>(null);
   const [customMessages, setCustomMessages] = useState(() => customMessageDefaults(initialAutomation.custom_messages));
@@ -455,8 +456,18 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
         ? definition.description.replaceAll("profissional", "especialista").replaceAll("atendimento", "serviço").replaceAll("agendamento", "serviço")
         : definition.description;
     const editing = editingTemplate === definition.key;
+    const expanded = collapsedTemplates[definition.key] !== true;
+    const contentId = `whatsapp-template-${definition.key}`;
     return <article className={styles.whatsappTemplateCard} key={definition.key}>
       <div className={styles.whatsappTemplateHead}>
+        <button
+          className={styles.whatsappTemplateToggle}
+          type="button"
+          aria-label={`${expanded ? "Recolher" : "Expandir"} mensagem: ${title}`}
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={() => setCollapsedTemplates((current) => ({ ...current, [definition.key]: expanded }))}
+        ><span className={styles.whatsappTemplateChevron} aria-hidden="true">›</span></button>
         <div><strong>{title}</strong><small>{description}</small></div>
         {definition.toggle
           ? <label className={styles.automationSwitch}>
@@ -465,31 +476,33 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
             </label>
           : <span className={styles.whatsappReplyBadge}>Enviada pelo fluxo</span>}
       </div>
-      <Field label={`Texto: ${title}`} wide>
-        <textarea
-          ref={(node) => { templateEditors.current[definition.key] = node; }}
-          aria-label={`Texto: ${title}`}
-          value={messageTemplates[definition.key]}
-          disabled={!schemaReady || !editing}
-          maxLength={4096}
-          onChange={(event) => setMessageTemplates((current) => ({ ...current, [definition.key]: event.target.value }))}
-        />
-      </Field>
-      <div className={styles.whatsappTemplateVariables} aria-label={`Variáveis para ${title}`}>
-        <span>Variáveis</span>
-        {messageVariables.map((variable) => <button
-          className={styles.buttonSoft}
-          type="button"
-          key={variable}
-          aria-label={`Inserir ${variable} em ${title}`}
-          disabled={!schemaReady || !editing}
-          onClick={() => insertVariable(definition.key, variable)}
-        >{variable}</button>)}
-      </div>
-      <div className={styles.rowActions}>
-        {editing
-          ? <button className={styles.button} type="button" disabled={!schemaReady || !messageTemplates[definition.key].trim()} onClick={() => void saveTemplate(definition.key)}>Salvar texto: {title}</button>
-          : <button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={!schemaReady} onClick={() => setEditingTemplate(definition.key)}>Editar texto: {title}</button>}
+      <div id={contentId} className={styles.whatsappTemplateBody} hidden={!expanded}>
+        <Field label={`Texto: ${title}`} wide>
+          <textarea
+            ref={(node) => { templateEditors.current[definition.key] = node; }}
+            aria-label={`Texto: ${title}`}
+            value={messageTemplates[definition.key]}
+            disabled={!schemaReady || !editing}
+            maxLength={4096}
+            onChange={(event) => setMessageTemplates((current) => ({ ...current, [definition.key]: event.target.value }))}
+          />
+        </Field>
+        <div className={styles.whatsappTemplateVariables} aria-label={`Variáveis para ${title}`}>
+          <span>Variáveis</span>
+          {messageVariables.map((variable) => <button
+            className={styles.buttonSoft}
+            type="button"
+            key={variable}
+            aria-label={`Inserir ${variable} em ${title}`}
+            disabled={!schemaReady || !editing}
+            onClick={() => insertVariable(definition.key, variable)}
+          >{variable}</button>)}
+        </div>
+        <div className={styles.rowActions}>
+          {editing
+            ? <button className={styles.button} type="button" disabled={!schemaReady || !messageTemplates[definition.key].trim()} onClick={() => void saveTemplate(definition.key)}>Salvar texto: {title}</button>
+            : <button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={!schemaReady} onClick={() => setEditingTemplate(definition.key)}>Editar texto: {title}</button>}
+        </div>
       </div>
     </article>;
   }

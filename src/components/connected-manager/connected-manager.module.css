@@ -362,10 +362,17 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .whatsappMessageGroupContent { display: grid; gap: .7rem; padding: 0 .85rem .85rem; }
 .whatsappTemplateCard { display: grid; gap: .7rem; padding: .9rem; border: 1px solid #e7ebe5; border-radius: 13px; background: #fbfcfa; }
 .whatsappTemplateHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-.whatsappTemplateHead > div { display: grid; gap: .22rem; }
+.whatsappTemplateHead > div { display: grid; flex: 1; min-width: 0; gap: .22rem; }
+.whatsappTemplateToggle { display: grid; width: 1.7rem; height: 1.7rem; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: 8px; background: #eef3ed; color: #315f51; cursor: pointer; }
+.whatsappTemplateToggle:hover { background: #e4eee6; }
+.whatsappTemplateToggle:focus-visible { outline: 3px solid rgba(106, 133, 98, .28); outline-offset: 2px; }
+.whatsappTemplateChevron { display: block; font-size: 1.45rem; line-height: 1; transition: transform .16s ease; }
+.whatsappTemplateToggle[aria-expanded="true"] .whatsappTemplateChevron { transform: rotate(90deg); }
 .whatsappTemplateHead strong { color: #24342d; font-size: .87rem; }
 .whatsappTemplateHead small { color: #778078; font-size: .75rem; line-height: 1.45; }
 .whatsappReplyBadge { flex: 0 0 auto; padding: .3rem .55rem; border-radius: 999px; background: #edf3ee; color: #315f51; font-size: .68rem; font-weight: 800; }
+.whatsappTemplateBody { display: grid; gap: .7rem; }
+.whatsappTemplateBody[hidden] { display: none; }
 .whatsappTemplateCard textarea { min-height: 6.2rem; resize: vertical; }
 .whatsappTemplateCard textarea:disabled { opacity: .82; background: #fff; color: #4d5850; }
 .whatsappTemplateVariables { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }

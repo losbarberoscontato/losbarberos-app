@@ -76,6 +76,23 @@ describe("WhatsApp settings", () => {
     expect(screen.queryByLabelText("Mensagem de boas-vindas")).not.toBeInTheDocument();
   });
 
+  it("abre e recolhe o editor de cada mensagem sem fechar o grupo", () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
+
+    const title = "Confirmação de agendamento para o cliente";
+    const collapseButton = screen.getByRole("button", { name: `Recolher mensagem: ${title}` });
+    expect(screen.getByLabelText(`Texto: ${title}`)).toBeInTheDocument();
+
+    fireEvent.click(collapseButton);
+    expect(screen.queryByRole("textbox", { name: `Texto: ${title}` })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `Expandir mensagem: ${title}` })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("textbox", { name: "Texto: Confirmação de agendamento para o profissional" })).toBeInTheDocument();
+    expect(screen.getByText("Agendamentos e lembretes")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: `Expandir mensagem: ${title}` }));
+    expect(screen.getByLabelText(`Texto: ${title}`)).toBeInTheDocument();
+  });
+
   it("edita uma mensagem, insere variável no cursor e salva o template", async () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 
