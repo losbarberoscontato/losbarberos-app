@@ -1,4 +1,4 @@
-.shell { min-height: 100vh; background: #f4f1ea; color: #17201e; }
+.shell { min-height: 100vh; background: var(--page-canvas, #e8e2d8); color: #17201e; }
 .topbar { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px max(22px,calc((100% - 1360px)/2)); background: #0d2b25; color: rgba(255,255,255,.72); }
 .topbar > span { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 750; }
 .main { width: min(1360px,calc(100% - 36px)); margin: 0 auto; padding: 38px 0 70px; }

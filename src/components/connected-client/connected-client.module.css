@@ -2,7 +2,7 @@
   min-height: 100vh;
   min-width: 0;
   padding-bottom: max(74px, env(safe-area-inset-bottom));
-  background: #f7f4ed;
+  background: var(--page-canvas, #e8e2d8);
   color: #13251f;
   font-family: var(--font-client-sans), "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 16px;
@@ -736,7 +736,7 @@
   .dependentsTableHead, .dependentsTableRow { min-width: 620px; }
 }
 
-.productAccess { background: var(--paper); color: var(--ink); }
+.productAccess { background: var(--page-canvas, #e8e2d8); color: var(--ink); }
 .productAccess .topbar { border-color: var(--border); background: color-mix(in srgb, var(--surface) 95%, transparent); }
 .productAccess .locationStrip { border-color: var(--border); background: color-mix(in srgb, var(--paper) 90%, var(--surface)); color: var(--ink); }
 .productAccess .locationStrip svg { color: var(--amber-500); }
@@ -783,7 +783,7 @@
 .dependentsPanel.collapsiblePanel .sectionToggle { padding: 18px 22px; }
 .dependentsPanel .dependentsContent { margin-top: 0; }
 
-.productTheme { background: var(--paper); color: var(--ink); }
+.productTheme { background: var(--page-canvas, #e8e2d8); color: var(--ink); }
 .productTheme .topbar { border-color: var(--border); background: color-mix(in srgb, var(--surface) 96%, transparent); }
 .productTheme .topbar :global(.brand__wordmark strong) { color: var(--forest-900); }
 .productTheme .topbar :global(.brand__wordmark small) { color: var(--muted); }
