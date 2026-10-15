@@ -117,6 +117,7 @@ export function humanizeError(error: unknown) {
     [/requested date is blocked/i, "A agenda está bloqueada nesse período. Escolha outra data ou horário."],
     [/fixed_schedule_conflict/i, "Há conflito na série fixa. Escolha outra data, horário ou profissional antes de registrar o primeiro pagamento."],
     [/open internal service pending completion|complete the internal service before moving this card(?: to another board)?/i, "Não é possível mover o card: há serviço interno pendente de conclusão. Conclua ou exclua o serviço antes de transferir."],
+    [/standalone card with completed or commissioned internal service cannot be deleted/i, "Este card não pode ser excluído porque possui serviço concluído ou comissão registrada."],
     [/environment is not assigned to barber for requested period/i, "A cadeira/sala escolhida não está vinculada ao profissional nesse horário."],
     [/barber already has a work interval in this period/i, "O profissional já tem escala nesse horário. Libere atendimento em outro ambiente para adicionar mais uma."],
     [/barber is already serving a client during this period/i, "O profissional já tem atendimento nesse horário e não pode atender em dois ambientes."],

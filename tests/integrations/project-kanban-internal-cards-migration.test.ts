@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync("supabase/migrations/20260922195504_project_kanban_standalone_internal_cards.sql", "utf8");
 const serviceRulesMigration = readFileSync("supabase/migrations/20260922202742_project_internal_service_delete_and_move_notice.sql", "utf8");
 const completionFixMigration = readFileSync("supabase/migrations/20260922205319_fix_internal_service_commission_completion_order.sql", "utf8");
+const deleteCardMigration = readFileSync("supabase/migrations/20261014191215_delete_project_kanban_internal_card.sql", "utf8");
 
 describe("standalone project Kanban cards migration", () => {
   it("stores internal cards independently from customers and engagements", () => {
@@ -42,5 +43,16 @@ describe("project internal service completion commission validation migration", 
     expect(completionFixMigration).toMatch(/select \* into v_service[\s\S]*from public\.project_engagement_internal_services[\s\S]*where organization_id = new\.organization_id and id = new\.id/i);
     expect(completionFixMigration).toMatch(/v_service\.status = 'COMPLETED'[\s\S]*ledger\.id = v_service\.commission_ledger_entry_id/i);
     expect(completionFixMigration).toContain("completed internal service requires its matching earned commission");
+  });
+});
+
+describe("standalone project card deletion migration", () => {
+  it("limits deletion to the owning organization and protects completed or commissioned service history", () => {
+    expect(deleteCardMigration).toMatch(/require_financial_owner\(p_organization_id, 'delete project internal card'\)/i);
+    expect(deleteCardMigration).toMatch(/where organization_id = p_organization_id\s+and project_id = p_project_id\s+and id = p_internal_card_id/i);
+    expect(deleteCardMigration).toMatch(/internal_service\.status <> 'OPEN'/i);
+    expect(deleteCardMigration).toMatch(/internal_service\.commission_ledger_entry_id is not null/i);
+    expect(deleteCardMigration).toMatch(/ledger\.project_internal_service_id = internal_service\.id/i);
+    expect(deleteCardMigration).toMatch(/grant execute on function public\.delete_project_kanban_internal_card\(uuid, uuid, uuid\) to authenticated/i);
   });
 });

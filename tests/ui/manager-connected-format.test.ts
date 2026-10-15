@@ -21,6 +21,11 @@ describe("connected manager formatting contracts", () => {
     expect(humanizeError(new Error("requested slot is no longer available"))).toBe("Esse horário acabou de ser ocupado.");
   });
 
+  it("explains why a standalone project card with a completed service cannot be deleted", () => {
+    expect(humanizeError(new Error("standalone card with completed or commissioned internal service cannot be deleted")))
+      .toBe("Este card não pode ser excluído porque possui serviço concluído ou comissão registrada.");
+  });
+
   it("interprets datetime-local in the tenant IANA timezone", () => {
     expect(localDateTimeToIso("2026-08-04T14:00", "America/Sao_Paulo")).toBe("2026-08-04T17:00:00.000Z");
     expect(localDateTimeToIso("2026-08-04T14:00", "America/Manaus")).toBe("2026-08-04T18:00:00.000Z");

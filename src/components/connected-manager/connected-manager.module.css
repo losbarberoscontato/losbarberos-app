@@ -601,6 +601,9 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .kanbanCardContext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kanbanCardDescription, .kanbanCardComment { margin: .1rem 0 0; color: #4f6154; font-size: .72rem; line-height: 1.35; overflow-wrap: anywhere; }
 .kanbanCardDescription { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.kanbanCardDelete { justify-self: end; display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .5rem; border: 1px solid #efd1ce; border-radius: 8px; background: #fff8f7; color: #a64236; font: inherit; font-size: .72rem; font-weight: 750; cursor: pointer; }
+.kanbanCardDelete:hover:not(:disabled) { background: #fff0ed; border-color: #e7b5ae; }
+.kanbanCardDelete:disabled { opacity: .55; cursor: not-allowed; }
 .kanbanCardComment { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; padding-top: .35rem; border-top: 1px dashed #e2e9e1; }
 .kanbanCardComment span { display: block; margin-bottom: .12rem; color: #718076; font-size: .62rem; font-weight: 800; }
 .kanbanCardDeadlineOverdue { border-color: #e7b5ae; background: #fff0ed; }

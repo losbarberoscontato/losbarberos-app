@@ -154,6 +154,28 @@ describe("kanban board editing", () => {
     expect(screen.getByRole("dialog", { name: "Card avulso · Serviço Interno" })).toBeInTheDocument();
   });
 
+  it("deletes a standalone card only after confirmation", async () => {
+    const standaloneCard = { id: "internal-card-1", organization_id: "org-1", project_id: "project-1", kanban_board_id: "board-1", title: "Card avulso", created_at: "2026-09-22T12:00:00.000Z" };
+    mocks.rpc.mockImplementation(async (name: string) => name === "create_project_kanban_internal_card"
+      ? { data: standaloneCard, error: null }
+      : { data: true, error: null });
+    render(<ProjectsManager {...internalServiceData} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Kanban/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Criar Card" }));
+    await waitFor(() => expect(screen.getByText("Card avulso")).toBeInTheDocument());
+
+    const card = screen.getByText("Card avulso").closest("article") as HTMLElement;
+    fireEvent.click(within(card).getByRole("button", { name: "Excluir card avulso" }));
+    const confirmation = screen.getByRole("dialog", { name: "Excluir card avulso" });
+    expect(within(confirmation).getByText(/serviço interno em aberto também serão removidos/u)).toBeInTheDocument();
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Excluir card" }));
+
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("delete_project_kanban_internal_card", {
+      p_organization_id: "org-1", p_project_id: "project-1", p_internal_card_id: standaloneCard.id,
+    }));
+    expect(screen.queryByText("Card avulso")).not.toBeInTheDocument();
+  });
+
   it("saves an internal service on a standalone card using the selected package commission", async () => {
     const standaloneCard = { id: "internal-card-1", organization_id: "org-1", project_id: "project-1", kanban_board_id: "board-1", title: "Card avulso", created_at: "2026-09-22T12:00:00.000Z" };
     mocks.rpc.mockImplementation(async (name: string) => name === "create_project_kanban_internal_card"
@@ -580,7 +602,7 @@ describe("kanban board editing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Kanban/ }));
     fireEvent.doubleClick(screen.getByText("Cliente").closest("article") as HTMLElement);
     const eventDialog = screen.getByRole("dialog", { name: "Aguardando aceite" });
-    fireEvent.click(within(eventDialog).getByRole("button", { name: "Pagar serviço e gerar comissão" }));
+    fireEvent.click(within(eventDialog).getByRole("button", { name: "Concluir e gerar comissão a pagar" }));
     const confirmation = screen.getByRole("dialog", { name: "Confirmar geração de comissão" });
     expect(within(confirmation).getByText(/não realiza o pagamento agora/i)).toBeInTheDocument();
     fireEvent.click(within(confirmation).getByRole("button", { name: "Confirmar e concluir" }));
