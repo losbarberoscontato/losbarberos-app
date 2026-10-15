@@ -21,6 +21,8 @@ describe("automação WhatsApp QR v2", () => {
   const perAppointmentMigration = read("supabase/migrations/20260831213000_whatsapp_v2_per_appointment_t45.sql");
   const automationControlsMigration = read("supabase/migrations/20260901144842_whatsapp_v2_automation_controls_implementation.sql");
   const dispatcher = read("supabase/functions/whatsapp-v2-dispatcher/index.ts");
+  const templateRenderer = read("supabase/functions/_shared/whatsapp-templates.ts");
+  const editableTemplatesMigration = read("supabase/migrations/20261015213200_whatsapp_editable_templates_and_single_reminder.sql");
   const legacyOutbox = read("supabase/functions/whatsapp-send-outbox/index.ts");
   const webhook = read("supabase/functions/whatsapp-qr-webhook/index.ts");
   const config = read("supabase/functions/_shared/evolution-qr-webhook.ts");
@@ -43,12 +45,12 @@ describe("automação WhatsApp QR v2", () => {
   });
 
   it("aceita resposta numérica e altera agenda atomicamente", () => {
-    expect(dispatcher).toContain("Responda somente com um número");
-    expect(dispatcher).toContain("1 — Confirmar");
-    expect(dispatcher).toContain("2 — Cancelar");
-    expect(dispatcher).toContain("3 — Falar com atendente");
-    expect(dispatcher).toContain("ATTENDANT_REQUEST_MANAGER");
-    expect(dispatcher).toContain("INVALID_REPLY_PROMPT");
+    expect(templateRenderer).toContain("Responda somente com um número");
+    expect(templateRenderer).toContain("1 — Confirmar");
+    expect(templateRenderer).toContain("2 — Cancelar");
+    expect(templateRenderer).toContain("3 — Falar com atendente");
+    expect(templateRenderer).toContain("ATTENDANT_REQUEST_MANAGER");
+    expect(templateRenderer).toContain("INVALID_REPLY_PROMPT");
     expect(dispatcher).not.toContain("Responda somente com código");
     expect(dispatcher).toContain("parseResponse");
     expect(simpleReplyMigration).toContain("AMBIGUOUS_ACTIVE_REQUEST");
@@ -76,9 +78,9 @@ describe("automação WhatsApp QR v2", () => {
     expect(agendaStatusMigration).toContain("confirm_appointment_manually_by_whatsapp");
     expect(agendaStatusMigration).toContain("MANUAL_CONFIRMATION_CLIENT");
     expect(agendaStatusMigration).toContain("MANUAL_CONFIRMATION_STAFF");
-    expect(dispatcher).toContain("MANUAL_CONFIRMATION_CLIENT");
-    expect(dispatcher).toContain("MANUAL_CONFIRMATION_STAFF");
-    expect(dispatcher).toContain('.replaceAll("\\\\n", "\\n")');
+    expect(templateRenderer).toContain("MANUAL_CONFIRMATION_CLIENT");
+    expect(templateRenderer).toContain("MANUAL_CONFIRMATION_STAFF");
+    expect(templateRenderer).toContain('.replaceAll("\\\\n", "\\n")');
     expect(legacyOutbox).toContain("function normalizeMessageText");
     expect(legacyOutbox).toContain('.replaceAll("\\\\n", "\\n")');
   });
@@ -202,9 +204,19 @@ describe("automação WhatsApp QR v2", () => {
 
   it("persiste template V2 no job e renderiza placeholders seguros", () => {
     expect(reconnectionRecoveryMigration).toContain("'templates',v_settings.templates");
-    expect(dispatcher).toContain("configuredTemplate");
-    expect(dispatcher).toContain("replaceAll(\"{cliente}\"");
-    expect(dispatcher).toContain("replaceAll(\"{horario}\"");
+    expect(dispatcher).toContain("textFor(job)");
+    expect(templateRenderer).toContain("configuredTemplate");
+    expect(templateRenderer).toContain("replaceAll(\"{cliente}\"");
+    expect(templateRenderer).toContain("replaceAll(\"{horario}\"");
+  });
+
+  it("salva templates editáveis e habilita um lembrete exclusivo em T24", () => {
+    expect(editableTemplatesMigration).toContain("reminder_t24_enabled");
+    expect(editableTemplatesMigration).toContain("interval '24 hours'");
+    expect(editableTemplatesMigration).toContain("only one presence reminder may be active");
+    expect(editableTemplatesMigration).toContain("'message_templates', v_templates");
+    expect(editableTemplatesMigration).toContain("when 'REMINDER_T24_CLIENT' then 'T24'");
+    expect(templateRenderer).toContain("case \"REMINDER_T24_CLIENT\"");
   });
 
   it("controla cada automação V2 e adiciona T180 sem retroenvio", () => {
@@ -219,7 +231,7 @@ describe("automação WhatsApp QR v2", () => {
     expect(automationControlsMigration).toContain("'REMINDER_T180_CLIENT'");
     expect(automationControlsMigration).toContain("v_start - interval '180 minutes'");
     expect(automationControlsMigration).toContain("when 'REMINDER_T180_CLIENT' then 'T180'");
-    expect(dispatcher).toContain('case "REMINDER_T180_CLIENT"');
+    expect(templateRenderer).toContain('case "REMINDER_T180_CLIENT"');
     expect(dispatcher).toContain('job.job_type === "REMINDER_T180_CLIENT"');
   });
 

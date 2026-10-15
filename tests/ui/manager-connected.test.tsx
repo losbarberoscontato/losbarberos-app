@@ -60,6 +60,7 @@ const connectedWhatsapp: WhatsAppSettingsStatus = {
   automation: {
     booking_client_enabled: true,
     booking_staff_enabled: true,
+    reminder_t24_enabled: false,
     reminder_morning_enabled: true,
     reminder_t180_enabled: false,
     reminder_t45_enabled: true,

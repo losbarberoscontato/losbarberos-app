@@ -348,6 +348,31 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .automationSwitch input:checked::after { transform: translateX(18px); }
 .automationSwitch input:focus-visible { outline: 3px solid rgba(106, 133, 98, .28); outline-offset: 2px; }
 .automationSwitch input:disabled { cursor: not-allowed; opacity: .62; }
+.whatsappMessageGroup { overflow: hidden; border: 1px solid #e7e1d6; border-radius: 15px; background: #fff; }
+.whatsappMessageGroup + .whatsappMessageGroup { margin-top: .25rem; }
+.whatsappMessageGroupSummary { display: flex; align-items: center; gap: .75rem; padding: .95rem 1rem; list-style: none; cursor: pointer; }
+.whatsappMessageGroupSummary::-webkit-details-marker { display: none; }
+.whatsappMessageGroupSummary:hover { background: #fbfaf7; }
+.whatsappMessageGroupSummary > span:last-child { display: grid; gap: .2rem; }
+.whatsappMessageGroupSummary strong { color: #24342d; font-size: .96rem; }
+.whatsappMessageGroupSummary small { color: #778078; font-size: .76rem; }
+.whatsappMessageChevron { display: grid; width: 1.7rem; height: 1.7rem; flex: 0 0 auto; place-items: center; border-radius: 8px; background: #eef3ed; color: #315f51; font-size: 1.45rem; line-height: 1; transition: transform .16s ease; }
+.whatsappMessageGroup[open] .whatsappMessageChevron { transform: rotate(90deg); }
+.whatsappMessageGroupSummary:focus-visible { outline: 3px solid rgba(106, 133, 98, .28); outline-offset: -3px; }
+.whatsappMessageGroupContent { display: grid; gap: .7rem; padding: 0 .85rem .85rem; }
+.whatsappTemplateCard { display: grid; gap: .7rem; padding: .9rem; border: 1px solid #e7ebe5; border-radius: 13px; background: #fbfcfa; }
+.whatsappTemplateHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.whatsappTemplateHead > div { display: grid; gap: .22rem; }
+.whatsappTemplateHead strong { color: #24342d; font-size: .87rem; }
+.whatsappTemplateHead small { color: #778078; font-size: .75rem; line-height: 1.45; }
+.whatsappReplyBadge { flex: 0 0 auto; padding: .3rem .55rem; border-radius: 999px; background: #edf3ee; color: #315f51; font-size: .68rem; font-weight: 800; }
+.whatsappTemplateCard textarea { min-height: 6.2rem; resize: vertical; }
+.whatsappTemplateCard textarea:disabled { opacity: .82; background: #fff; color: #4d5850; }
+.whatsappTemplateVariables { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
+.whatsappTemplateVariables > span { width: 100%; color: #69716b; font-size: .72rem; font-weight: 800; }
+.whatsappTemplateVariables button { padding: .38rem .62rem; border: 1px solid #dfe6de; border-radius: 999px; color: #315f51; font: inherit; font-size: .72rem; font-weight: 800; cursor: pointer; }
+.whatsappTemplateVariables button:hover:not(:disabled) { background: #e4eee6; }
+.whatsappTemplateVariables button:disabled { cursor: not-allowed; opacity: .5; }
 .customMessageGroup { display: grid; gap: .55rem; }
 .customMessageGroup h3 { margin: .3rem 0 0; color: #303a31; font-size: .92rem; }
 .customMessageRow { display: grid; gap: .55rem; padding: .65rem; border: 1px solid #e7ece5; border-radius: 14px; background: #fafbf9; }

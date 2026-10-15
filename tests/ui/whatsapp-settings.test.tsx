@@ -29,6 +29,7 @@ const status: WhatsAppSettingsStatus = {
   automation: {
     booking_client_enabled: true,
     booking_staff_enabled: true,
+    reminder_t24_enabled: false,
     reminder_morning_enabled: true,
     reminder_t180_enabled: false,
     reminder_t45_enabled: true,
@@ -44,7 +45,7 @@ describe("WhatsApp settings", () => {
     expect(toggle).toBeEnabled();
     fireEvent.click(toggle);
     fireEvent.change(screen.getByLabelText("Texto de 14 dias após o serviço"), { target: { value: "Olá {cliente}, vamos agendar?" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Salvar automações" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Salvar automações" }));
     await waitFor(() => expect(rpcMock).toHaveBeenCalled());
     expect(JSON.stringify(rpcMock.mock.calls)).toContain("Olá {cliente}, vamos agendar?");
     expect(screen.getByText(/Mensagens pendentes: 2/)).toHaveAttribute("role", "status");
@@ -63,14 +64,52 @@ describe("WhatsApp settings", () => {
     expect(screen.queryByText(/O QR Web exige VPS/i)).not.toBeInTheDocument();
     expect(screen.getByText(/Conecte seu Whatsapp Business/i)).toBeInTheDocument();
     expect(screen.getAllByText("Confirmação de agendamento para o cliente")).not.toHaveLength(0);
-    expect(screen.getAllByText("Confirmação de agendamento para o barbeiro")).not.toHaveLength(0);
+    expect(screen.getAllByText("Confirmação de agendamento para o profissional")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença às 8h")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença 3 horas antes")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença 45 minutos antes")).not.toHaveLength(0);
+    expect(screen.getAllByText("Confirmação de presença 24 horas antes")).not.toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Editar texto: Confirmação de agendamento para o cliente" })).toBeInTheDocument();
     expect(screen.getByText("Mensagens Personalizadas")).toBeInTheDocument();
     expect(screen.getByLabelText("Texto de 14 dias após o serviço")).toBeInTheDocument();
     expect(screen.queryByText("Confirmação do agendamento")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Mensagem de boas-vindas")).not.toBeInTheDocument();
+  });
+
+  it("edita uma mensagem, insere variável no cursor e salva o template", async () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar texto: Confirmação de agendamento para o cliente" }));
+    const editor = screen.getByLabelText("Texto: Confirmação de agendamento para o cliente");
+    fireEvent.change(editor, { target: { value: "Oi !", selectionStart: 3, selectionEnd: 3 } });
+    fireEvent.click(screen.getByRole("button", { name: "Inserir {cliente} em Confirmação de agendamento para o cliente" }));
+    expect(editor).toHaveValue("Oi {cliente}!");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar texto: Confirmação de agendamento para o cliente" }));
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("save_whatsapp_v2_automation_controls", expect.objectContaining({
+      p_rules: expect.objectContaining({ message_templates: expect.objectContaining({ BOOKING_CREATED_CLIENT: "Oi {cliente}!" }) }),
+    })));
+  });
+
+  it("não salva uma mensagem vazia", () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar texto: Confirmação de agendamento para o cliente" }));
+    fireEvent.change(screen.getByLabelText("Texto: Confirmação de agendamento para o cliente"), { target: { value: "   " } });
+
+    expect(screen.getByRole("button", { name: "Salvar texto: Confirmação de agendamento para o cliente" })).toBeDisabled();
+  });
+
+  it("desativa os outros lembretes ao ativar um horário", () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
+    const morning = screen.getByRole("checkbox", { name: "Ativar Confirmação de presença às 8h" });
+    const t45 = screen.getByRole("checkbox", { name: "Ativar Confirmação de presença 45 minutos antes" });
+    const t24 = screen.getByRole("checkbox", { name: "Ativar Confirmação de presença 24 horas antes" });
+
+    fireEvent.click(t24);
+    expect(t24).toBeChecked();
+    expect(morning).not.toBeChecked();
+    expect(t45).not.toBeChecked();
   });
 
   it("não expõe campos de token ou segredo", () => {
@@ -86,7 +125,8 @@ describe("WhatsApp settings", () => {
     expect(screen.getByText("FUNÇÃO EM BREVE")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Ativar Aniversário" })).toBeDisabled();
     expect(screen.getByLabelText("Texto de Aniversário")).toBeDisabled();
-    expect(screen.getAllByRole("button", { name: "Salvar automações" })[1]).toBeDisabled();
+    fireEvent.click(screen.getByText("Mensagens de Felicitações"));
+    expect(screen.getByRole("button", { name: "Salvar automações" })).toBeDisabled();
     expect(rpcMock).not.toHaveBeenCalledWith("save_whatsapp_v2_automation_controls", expect.anything());
   });
 

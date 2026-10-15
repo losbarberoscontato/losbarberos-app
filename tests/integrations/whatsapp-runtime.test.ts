@@ -53,6 +53,25 @@ describe("Evolution transport contract", () => {
     expect(textFor(job)).toBe("Olá Ana!");
     expect(textFor({ job_type: "REMINDER_T45_CLIENT", payload: {} })).not.toContain("começa em 45 minutos");
   });
+  it("renderiza o lembrete T24 e usa o texto editado das respostas", () => {
+    expect(textFor({
+      job_type: "REMINDER_T24_CLIENT",
+      payload: { customer_name: "Ana", starts_at: "2026-10-16T15:00:00-03:00", timezone: "America/Sao_Paulo" },
+    })).toContain("24 horas");
+    expect(textFor({
+      job_type: "MANUAL_OUTBOUND_TEXT",
+      payload: {
+        message_kind: "ATTENDANT_REQUEST_MANAGER",
+        customer_name: "Ana",
+        customer_phone: "+5511999999999",
+        templates: { ATTENDANT_REQUEST_MANAGER: "{cliente} pediu ajuda em {horario}; {telefone}; {barbeiro}; {servico}" },
+      },
+    })).toContain("Ana pediu ajuda");
+    expect(textFor({
+      job_type: "MANUAL_OUTBOUND_TEXT",
+      payload: { message_kind: "ATTENDANT_REQUEST_MANAGER", customer_phone: "+5511999999999", templates: { ATTENDANT_REQUEST_MANAGER: "{telefone}" } },
+    })).toBe("+5511999999999");
+  });
   it("rejeita HTML, SVG e imagens acima do limite", () => {
     expect(() => validateImage(new TextEncoder().encode("<html>invalid file</html>"))).toThrow("INVALID_IMAGE_CONTENT");
     expect(() => validateImage(new TextEncoder().encode('<svg width="1"/>'))).toThrow("INVALID_IMAGE_CONTENT");

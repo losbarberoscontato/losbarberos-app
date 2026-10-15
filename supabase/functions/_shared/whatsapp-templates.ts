@@ -18,7 +18,13 @@ function configuredTemplate(job: Job): string | null {
   if (!templates || typeof templates !== "object" || Array.isArray(templates)) {
     return null;
   }
-  const value = (templates as Record<string, unknown>)[job.job_type];
+  const messageKind = typeof job.payload.message_kind === "string"
+    ? job.payload.message_kind
+    : null;
+  const key = job.job_type === "MANUAL_OUTBOUND_TEXT" && messageKind
+    ? messageKind
+    : job.job_type;
+  const value = (templates as Record<string, unknown>)[key];
   return typeof value === "string" && value.trim().length > 0 &&
       value.length <= 4_096
     ? value
@@ -35,6 +41,17 @@ function applyTemplate(template: string, job: Job, fallback: string): string {
   const service = typeof job.payload.service_names === "string"
     ? job.payload.service_names
     : "Serviço não informado";
+  const phone = typeof job.payload.customer_phone === "string"
+    ? job.payload.customer_phone
+    : "não informado";
+  const reservationPrompt = typeof job.payload.body === "string"
+    ? job.payload.body
+    : "";
+  const reservations = typeof job.payload.reservations === "string"
+    ? job.payload.reservations
+    : job.payload.message_kind === "RESERVATION_CHOICE"
+      ? reservationPrompt.split(/\r?\n/).slice(1).join("\n")
+      : "";
   const rendered = template
     // Templates persisted through JSON may contain literal "\\n" sequences.
     // Evolution must receive real line breaks for WhatsApp to format them.
@@ -42,16 +59,16 @@ function applyTemplate(template: string, job: Job, fallback: string): string {
     .replaceAll("{cliente}", name)
     .replaceAll("{barbeiro}", barber)
     .replaceAll("{horario}", formatStart(job.payload))
-    .replaceAll("{servico}", service);
+    .replaceAll("{servico}", service)
+    .replaceAll("{telefone}", phone)
+    .replaceAll("{reservas}", reservations);
   return rendered.trim() || fallback;
 }
 
 export function textFor(job: Job): string {
-  if (
-    typeof job.payload.body === "string" &&
-    (job.payload.custom_key ||
-      job.payload.message_kind === "RESERVATION_CHOICE")
-  ) return applyTemplate(job.payload.body, job, job.payload.body);
+  if (typeof job.payload.body === "string" && job.payload.custom_key) {
+    return applyTemplate(job.payload.body, job, job.payload.body);
+  }
   const name = typeof job.payload.customer_name === "string"
     ? job.payload.customer_name
     : "cliente";
@@ -82,11 +99,15 @@ export function textFor(job: Job): string {
       break;
     case "REMINDER_T180_CLIENT":
       fallback =
-        `Lembrete: seu atendimento começa em 3 horas (${when}).\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente`;
+        `Lembrete: seu atendimento está marcado para ${when}.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente`;
       break;
     case "REMINDER_T45_CLIENT":
       fallback =
-        `Lembrete: seu atendimento começa em 45 minutos (${when}).\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente`;
+        `Lembrete: seu atendimento está marcado para ${when}.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente`;
+      break;
+    case "REMINDER_T24_CLIENT":
+      fallback =
+        `Lembrete: seu atendimento está marcado para ${when} (daqui a 24 horas).\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente`;
       break;
     case "CONFIRMATION_ACK_CLIENT":
       fallback = `Presença confirmada. Até ${when}.`;
@@ -113,20 +134,18 @@ export function textFor(job: Job): string {
           `${name}, seu agendamento foi confirmado pela barbearia para ${when}.`;
       } else if (messageKind === "MANUAL_CONFIRMATION_STAFF") {
         fallback = `Agendamento confirmado manualmente: ${name}, ${when}.`;
+      } else if (messageKind === "RESERVATION_CHOICE") {
+        fallback = typeof job.payload.body === "string"
+          ? job.payload.body
+          : "Encontrei mais de um agendamento. Responda com o número correspondente:\n\n{reservas}";
       } else fallback = `Atualização do agendamento de ${name} com ${barber}.`;
       break;
     default:
       fallback = `Atualização do agendamento de ${name} com ${barber}.`;
   }
   let template = configuredTemplate(job) ?? fallback;
-  if (
-    job.job_type === "REMINDER_T45_CLIENT" ||
-    job.job_type === "REMINDER_T180_CLIENT"
-  ) {
-    template = template.replace(
-      /começa em (45 minutos|3 horas)/g,
-      "está marcado para",
-    );
+  if (job.payload.message_kind === "RESERVATION_CHOICE" && !configuredTemplate(job)) {
+    return applyTemplate(fallback, job, fallback);
   }
   return applyTemplate(template, job, fallback);
 }

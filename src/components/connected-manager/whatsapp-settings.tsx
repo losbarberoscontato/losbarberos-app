@@ -2,7 +2,7 @@
 
 import { WhatsAppCampaignDialog } from "./whatsapp-campaign-dialog";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/ui";
 import { normalizePhoneE164 } from "@/lib/phone";
 import { ActionMessage, Field, Panel, StatusChip } from "./shared";
@@ -10,6 +10,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { humanizeError } from "./format";
 import styles from "./connected-manager.module.css";
 import type { ProductKey } from "@/lib/product-context";
+import { insertTemplateVariable, normalizeReminderSelection, reminderRuleKeys, selectExclusiveReminder, type ReminderRuleKey } from "./whatsapp-message-editing";
 
 export type WhatsAppConnection = {
   id: string;
@@ -42,11 +43,30 @@ export type WhatsAppSettingsStatus = {
   automation: {
     booking_client_enabled: boolean;
     booking_staff_enabled: boolean;
+    reminder_t24_enabled: boolean;
     reminder_morning_enabled: boolean;
     reminder_t180_enabled: boolean;
     reminder_t45_enabled: boolean;
+    message_templates?: Partial<Record<WhatsAppFixedMessageKey, string>>;
     custom_messages: WhatsAppCustomMessage[];
   };
+};
+
+type WhatsAppFixedMessageKey =
+  | "BOOKING_CREATED_CLIENT" | "BOOKING_CREATED_STAFF"
+  | "REMINDER_T24_CLIENT" | "REMINDER_MORNING_CLIENT" | "REMINDER_T180_CLIENT" | "REMINDER_T45_CLIENT"
+  | "CONFIRMATION_ACK_CLIENT" | "CANCELLATION_ACK_CLIENT"
+  | "APPOINTMENT_CONFIRMED_STAFF" | "APPOINTMENT_CANCELED_STAFF"
+  | "INVALID_REPLY_PROMPT" | "ATTENDANT_REQUEST_MANAGER"
+  | "MANUAL_CONFIRMATION_CLIENT" | "MANUAL_CONFIRMATION_STAFF" | "RESERVATION_CHOICE";
+
+type AutomationToggleKey = "booking_client_enabled" | "booking_staff_enabled" | ReminderRuleKey;
+
+type FixedMessageDefinition = {
+  key: WhatsAppFixedMessageKey;
+  title: string;
+  description: string;
+  toggle?: AutomationToggleKey;
 };
 
 type WhatsAppCustomMessageKey = "AFTER_SERVICE_14D" | "AFTER_SERVICE_28D" | "AFTER_SERVICE_40D" | "BIRTHDAY" | "SPECIAL_DATES" | "MARKETING_CAMPAIGNS";
@@ -60,19 +80,57 @@ type WhatsAppCustomMessage = {
 const defaultAutomationRules: WhatsAppSettingsStatus["automation"] = {
   booking_client_enabled: true,
   booking_staff_enabled: true,
-  reminder_morning_enabled: true,
+  reminder_t24_enabled: false,
+  reminder_morning_enabled: false,
   reminder_t180_enabled: false,
   reminder_t45_enabled: true,
   custom_messages: [],
 };
 
-const automaticMessages: Array<{ key: Exclude<keyof WhatsAppSettingsStatus["automation"], "custom_messages">; title: string; description: string }> = [
-  { key: "booking_client_enabled", title: "Confirmação de agendamento para o cliente", description: "Vai para o cliente após o agendamento confirmado. Vale para novos agendamentos feitos depois da ativação." },
-  { key: "booking_staff_enabled", title: "Confirmação de agendamento para o barbeiro", description: "Vai para o barbeiro após o cliente agendar. Vale para novos agendamentos feitos depois da ativação." },
-  { key: "reminder_morning_enabled", title: "Confirmação de presença às 8h", description: "Vai ao cliente às 08:00 no dia do atendimento. Ao confirmar, o barbeiro também é avisado." },
-  { key: "reminder_t180_enabled", title: "Confirmação de presença 3 horas antes", description: "Vai ao cliente 180 minutos antes do atendimento. Ao confirmar, o barbeiro também é avisado." },
-  { key: "reminder_t45_enabled", title: "Confirmação de presença 45 minutos antes", description: "Vai ao cliente 45 minutos antes do atendimento. Ao confirmar, o barbeiro também é avisado." },
+const bookingAndReminderMessages: FixedMessageDefinition[] = [
+  { key: "BOOKING_CREATED_CLIENT", toggle: "booking_client_enabled", title: "Confirmação de agendamento para o cliente", description: "Enviada quando o cliente confirma um novo agendamento." },
+  { key: "BOOKING_CREATED_STAFF", toggle: "booking_staff_enabled", title: "Confirmação de agendamento para o profissional", description: "Enviada ao profissional após um novo agendamento." },
+  { key: "REMINDER_T24_CLIENT", toggle: "reminder_t24_enabled", title: "Confirmação de presença 24 horas antes", description: "Enviada ao cliente 24 horas antes do atendimento." },
+  { key: "REMINDER_MORNING_CLIENT", toggle: "reminder_morning_enabled", title: "Confirmação de presença às 8h", description: "Enviada ao cliente às 08:00 no dia do atendimento." },
+  { key: "REMINDER_T180_CLIENT", toggle: "reminder_t180_enabled", title: "Confirmação de presença 3 horas antes", description: "Enviada ao cliente 180 minutos antes do atendimento." },
+  { key: "REMINDER_T45_CLIENT", toggle: "reminder_t45_enabled", title: "Confirmação de presença 45 minutos antes", description: "Enviada ao cliente 45 minutos antes do atendimento." },
 ];
+
+const responseMessages: FixedMessageDefinition[] = [
+  { key: "CONFIRMATION_ACK_CLIENT", title: "Cliente confirmou presença", description: "Retorno enviado após a resposta 1 — Confirmar." },
+  { key: "CANCELLATION_ACK_CLIENT", title: "Cliente cancelou", description: "Retorno enviado após a resposta 2 — Cancelar." },
+  { key: "APPOINTMENT_CONFIRMED_STAFF", title: "Aviso ao profissional: presença confirmada", description: "Enviado ao profissional após o cliente confirmar." },
+  { key: "APPOINTMENT_CANCELED_STAFF", title: "Aviso ao profissional: cancelamento", description: "Enviado ao profissional após o cliente cancelar." },
+  { key: "ATTENDANT_REQUEST_MANAGER", title: "Pedido para falar com atendente", description: "Enviado ao número de avisos do gestor após a resposta 3." },
+  { key: "INVALID_REPLY_PROMPT", title: "Resposta inválida", description: "Enviada quando o cliente responde com uma opção diferente de 1, 2 ou 3." },
+  { key: "MANUAL_CONFIRMATION_CLIENT", title: "Confirmação manual para o cliente", description: "Enviada quando o gestor confirma presença manualmente." },
+  { key: "MANUAL_CONFIRMATION_STAFF", title: "Confirmação manual para o profissional", description: "Enviada ao profissional após confirmação manual." },
+  { key: "RESERVATION_CHOICE", title: "Escolha entre vários agendamentos", description: "Enviada quando o cliente tem mais de um pedido de confirmação em aberto." },
+];
+
+const defaultMessageTemplates: Record<WhatsAppFixedMessageKey, string> = {
+  BOOKING_CREATED_CLIENT: "{cliente}, seu agendamento foi confirmado para {horario}.",
+  BOOKING_CREATED_STAFF: "Novo agendamento: {cliente}, {horario}.",
+  REMINDER_T24_CLIENT: "Lembrete: seu atendimento está marcado para {horario} (daqui a 24 horas).\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
+  REMINDER_MORNING_CLIENT: "Lembrete: seu atendimento é {horario}.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
+  REMINDER_T180_CLIENT: "Lembrete: seu atendimento está marcado para {horario}.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
+  REMINDER_T45_CLIENT: "Lembrete: seu atendimento está marcado para {horario}.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
+  CONFIRMATION_ACK_CLIENT: "Presença confirmada. Até {horario}.",
+  CANCELLATION_ACK_CLIENT: "Cancelamento confirmado. Se precisar, fale com o estabelecimento para novo horário.",
+  APPOINTMENT_CONFIRMED_STAFF: "{cliente} confirmou presença pelo WhatsApp para {horario}.",
+  APPOINTMENT_CANCELED_STAFF: "{cliente} cancelou pelo WhatsApp.",
+  INVALID_REPLY_PROMPT: "Não entendi sua resposta.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
+  ATTENDANT_REQUEST_MANAGER: "Cliente deseja falar com atendente.\n\nCliente: {cliente}\nWhatsApp: {telefone}\nData e hora: {horario}\nProfissional: {barbeiro}\nServiço: {servico}",
+  MANUAL_CONFIRMATION_CLIENT: "{cliente}, seu agendamento foi confirmado pelo estabelecimento para {horario}.",
+  MANUAL_CONFIRMATION_STAFF: "Agendamento confirmado manualmente: {cliente}, {horario}.",
+  RESERVATION_CHOICE: "Encontrei mais de um agendamento. Responda com o número correspondente:\n\n{reservas}",
+};
+
+const messageVariables = ["{cliente}", "{barbeiro}", "{horario}", "{servico}", "{telefone}", "{reservas}"] as const;
+
+function messageDefinitionTitle(key: WhatsAppFixedMessageKey) {
+  return [...bookingAndReminderMessages, ...responseMessages].find((message) => message.key === key)?.title ?? key;
+}
 
 const customMessageGroups: Array<{ title: string; messages: Array<{ key: WhatsAppCustomMessageKey; title: string }> }> = [
   { title: "Mensagens após o serviço", messages: [
@@ -171,7 +229,11 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [qrCodeOverride, setQrCodeOverride] = useState<string | null | undefined>(undefined);
   const initialAutomation = { ...defaultAutomationRules, ...status.automation };
-  const [automationRules, setAutomationRules] = useState(initialAutomation);
+  const [automationRules, setAutomationRules] = useState(() => normalizeReminderSelection(initialAutomation));
+  const [messageTemplates, setMessageTemplates] = useState<Record<WhatsAppFixedMessageKey, string>>(() => ({ ...defaultMessageTemplates, ...status.automation.message_templates }));
+  const [editingTemplate, setEditingTemplate] = useState<WhatsAppFixedMessageKey | null>(null);
+  const templateEditors = useRef<Partial<Record<WhatsAppFixedMessageKey, HTMLTextAreaElement | null>>>({});
+  const pendingTemplateCursor = useRef<{ key: WhatsAppFixedMessageKey; cursor: number } | null>(null);
   const [customMessages, setCustomMessages] = useState(() => customMessageDefaults(initialAutomation.custom_messages));
   const managerNotification = status.managerNotification ?? { phoneE164: null, matchesQrPhone: false };
   const [managerNotificationPhone, setManagerNotificationPhone] = useState(managerNotification.phoneE164 ?? "");
@@ -184,6 +246,17 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [campaignKey, setCampaignKey] = useState<string | null>(null);
   const customReady = schemaReady && status.runtime?.ready === true;
   const updateCustom = (key: WhatsAppCustomMessageKey, patch: Partial<WhatsAppCustomMessage>) => setCustomMessages((current) => current.map((item) => item.key === key ? { ...item, ...patch } : item));
+
+  useLayoutEffect(() => {
+    const pending = pendingTemplateCursor.current;
+    if (!pending) return;
+    const editor = templateEditors.current[pending.key];
+    if (editor) {
+      editor.focus();
+      editor.setSelectionRange(pending.cursor, pending.cursor);
+    }
+    pendingTemplateCursor.current = null;
+  }, [messageTemplates]);
 
   const connectionByProvider = new Map(status.connections.map((connection) => [connection.provider, connection]));
   const qrConnection = connectionByProvider.get("QR_WEB");
@@ -221,22 +294,58 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     }
   }
 
-  async function saveAutomation(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const saved = await runMutation(setMessage, async () => {
+  async function persistAutomation() {
+    return runMutation(setMessage, async () => {
       await assertResult(await connectedClient().rpc("save_whatsapp_v2_automation_controls", {
         p_organization_id: organizationId,
         p_rules: {
           booking_client_enabled: automationRules.booking_client_enabled,
           booking_staff_enabled: automationRules.booking_staff_enabled,
+          reminder_t24_enabled: automationRules.reminder_t24_enabled,
           reminder_morning_enabled: automationRules.reminder_morning_enabled,
           reminder_t180_enabled: automationRules.reminder_t180_enabled,
           reminder_t45_enabled: automationRules.reminder_t45_enabled,
+          message_templates: messageTemplates,
         },
         p_custom_messages: customMessages,
       }));
     }, "Automações atualizadas.");
+  }
+
+  async function saveAutomation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const saved = await persistAutomation();
     if (saved) setMessage(customReady ? "Automações atualizadas. Mensagens personalizadas respeitarão consentimento, horário e limites de frequência." : "Automações atualizadas. Regras ativas valem somente para novos agendamentos confirmados; mensagens personalizadas continuam salvas sem envio nesta etapa.");
+  }
+
+  async function saveTemplate(key: WhatsAppFixedMessageKey) {
+    if (!schemaReady) return;
+    const saved = await persistAutomation();
+    if (saved) {
+      setEditingTemplate(null);
+      setMessage(`Texto de ${messageDefinitionTitle(key)} salvo.`);
+    }
+  }
+
+  function insertVariable(key: WhatsAppFixedMessageKey, variable: string) {
+    const editor = templateEditors.current[key];
+    if (!editor) return;
+    const inserted = insertTemplateVariable(
+      messageTemplates[key],
+      editor.selectionStart ?? messageTemplates[key].length,
+      editor.selectionEnd ?? messageTemplates[key].length,
+      variable,
+    );
+    pendingTemplateCursor.current = { key, cursor: inserted.cursor };
+    setMessageTemplates((current) => ({ ...current, [key]: inserted.value }));
+  }
+
+  function updateAutomation(key: AutomationToggleKey, enabled: boolean) {
+    if (reminderRuleKeys.includes(key as ReminderRuleKey)) {
+      setAutomationRules((current) => selectExclusiveReminder(current, key as ReminderRuleKey, enabled));
+      return;
+    }
+    setAutomationRules((current) => ({ ...current, [key]: enabled }));
   }
 
   async function setActive(connection: WhatsAppConnection) {
@@ -332,6 +441,59 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     };
   }, [qrConnection?.status, visibleQrCode, refreshStatus]);
 
+  function fixedMessageCard(definition: FixedMessageDefinition) {
+    const title = isLeGras
+      ? definition.title.replaceAll("profissional", "fotógrafo")
+      : isMusicPro
+        ? definition.title.replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("profissional", "professor")
+        : isProStetic
+          ? definition.title.replaceAll("profissional", "especialista")
+          : definition.title;
+    const description = isMusicPro
+      ? definition.description.replaceAll("agendamentos", "aulas").replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("profissional", "professor").replaceAll("atendimento", "aula")
+      : isProStetic
+        ? definition.description.replaceAll("profissional", "especialista").replaceAll("atendimento", "serviço").replaceAll("agendamento", "serviço")
+        : definition.description;
+    const editing = editingTemplate === definition.key;
+    return <article className={styles.whatsappTemplateCard} key={definition.key}>
+      <div className={styles.whatsappTemplateHead}>
+        <div><strong>{title}</strong><small>{description}</small></div>
+        {definition.toggle
+          ? <label className={styles.automationSwitch}>
+              <span className="sr-only">Ativar {title}</span>
+              <input type="checkbox" checked={automationRules[definition.toggle]} disabled={!schemaReady} onChange={(event) => updateAutomation(definition.toggle!, event.target.checked)} />
+            </label>
+          : <span className={styles.whatsappReplyBadge}>Enviada pelo fluxo</span>}
+      </div>
+      <Field label={`Texto: ${title}`} wide>
+        <textarea
+          ref={(node) => { templateEditors.current[definition.key] = node; }}
+          aria-label={`Texto: ${title}`}
+          value={messageTemplates[definition.key]}
+          disabled={!schemaReady || !editing}
+          maxLength={4096}
+          onChange={(event) => setMessageTemplates((current) => ({ ...current, [definition.key]: event.target.value }))}
+        />
+      </Field>
+      <div className={styles.whatsappTemplateVariables} aria-label={`Variáveis para ${title}`}>
+        <span>Variáveis</span>
+        {messageVariables.map((variable) => <button
+          className={styles.buttonSoft}
+          type="button"
+          key={variable}
+          aria-label={`Inserir ${variable} em ${title}`}
+          disabled={!schemaReady || !editing}
+          onClick={() => insertVariable(definition.key, variable)}
+        >{variable}</button>)}
+      </div>
+      <div className={styles.rowActions}>
+        {editing
+          ? <button className={styles.button} type="button" disabled={!schemaReady || !messageTemplates[definition.key].trim()} onClick={() => void saveTemplate(definition.key)}>Salvar texto: {title}</button>
+          : <button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={!schemaReady} onClick={() => setEditingTemplate(definition.key)}>Editar texto: {title}</button>}
+      </div>
+    </article>;
+  }
+
   return <div className={`${styles.stack} settings-page ${isMusicPro ? styles.musicProWhatsApp : ""}`}>
     <PageHeader title="WhatsApp" description={`Conecte o WhatsApp da ${organizationName} e automatize avisos transacionais.`} />
     <ActionMessage message={message} />
@@ -413,22 +575,21 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       </form>
     </Panel>
 
-    <Panel title="Mensagens automáticas" description="Escolha quais avisos transacionais serão enviados automaticamente pelo WhatsApp.">
+    <Panel title="Mensagens automáticas" description="Edite os textos e escolha os avisos enviados pelo WhatsApp.">
       <form onSubmit={saveAutomation} className={styles.stack}>
-        <div className={styles.automationList}>
-          {automaticMessages.map((automation) => {
-            const title = isLeGras ? automation.title.replaceAll("barbeiro", "fotógrafo") : isMusicPro ? automation.title.replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("barbeiro", "professor") : isProStetic ? automation.title.replaceAll("barbeiro", "especialista") : automation.title;
-            const description = isLeGras ? automation.description.replaceAll("barbeiro", "fotógrafo") : isMusicPro ? automation.description.replaceAll("agendamentos", "aulas").replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("barbeiro", "professor").replaceAll("atendimento", "aula") : isProStetic ? automation.description.replaceAll("barbeiro", "especialista").replaceAll("atendimento", "serviço").replaceAll("agendamento", "serviço") : automation.description;
-            return <div className={styles.automationRow} key={automation.key}>
-            <div><strong>{title}</strong><small>{description}</small></div>
-            <label className={styles.automationSwitch}>
-              <span className="sr-only">{title}</span>
-              <input type="checkbox" checked={automationRules[automation.key]} disabled={!schemaReady} onChange={(event) => setAutomationRules((current) => ({ ...current, [automation.key]: event.target.checked }))} />
-            </label>
-          </div>;
-          })}
-        </div>
-        <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady}>Salvar automações</button></div>
+        <details className={styles.whatsappMessageGroup} open>
+          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>Agendamentos e lembretes</strong><small>Ative confirmações e escolha um único horário de lembrete.</small></span></summary>
+          <div className={styles.whatsappMessageGroupContent}>
+            {bookingAndReminderMessages.map((definition) => fixedMessageCard(definition))}
+            <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady}>Salvar ativações</button></div>
+          </div>
+        </details>
+        <details className={styles.whatsappMessageGroup}>
+          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>Respostas e retornos</strong><small>Textos enviados depois que o cliente responde ou o gestor confirma.</small></span></summary>
+          <div className={styles.whatsappMessageGroupContent}>
+            {responseMessages.map((definition) => fixedMessageCard(definition))}
+          </div>
+        </details>
       </form>
     </Panel>
 
@@ -438,9 +599,9 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       description={customReady ? "Pós-serviço, felicitações e campanhas. Até uma mensagem por dia e duas por semana para cada cliente." : "Estas automações ainda não estão disponíveis para configuração ou envio."}
     >
       <form onSubmit={saveAutomation} className={styles.stack}>
-        {customMessageGroups.map((group) => <section className={styles.customMessageGroup} key={group.title} aria-labelledby={`custom-${group.title}`}>
-          <h3 id={`custom-${group.title}`}>{group.title}</h3>
-          <div className={styles.automationList}>
+        {customMessageGroups.map((group, index) => <details className={styles.whatsappMessageGroup} key={group.title} open={index === 0}>
+          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>{group.title}</strong></span></summary>
+          <div className={styles.whatsappMessageGroupContent}>
             {group.messages.map((definition) => {
               const messageDefinition = customMessages.find((message) => message.key === definition.key)!;
               return <article className={styles.customMessageRow} key={definition.key}>
@@ -459,7 +620,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
               </article>;
             })}
           </div>
-        </section>)}
+        </details>)}
         <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!customReady}>Salvar automações</button></div>
       </form>
     </Panel>

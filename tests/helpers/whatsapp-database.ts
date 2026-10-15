@@ -22,8 +22,9 @@ export async function whatsappDatabase() {
     create table public.organizations(id uuid primary key default gen_random_uuid(),name text default 'Teste',timezone text default 'America/Sao_Paulo');
     create table public.customers(id uuid primary key default gen_random_uuid(),organization_id uuid references organizations(id),auth_user_id uuid,full_name text default 'Cliente',phone_e164 text,birth_date date,active boolean default true,unique(id,organization_id));
     create table public.barbers(id uuid primary key default gen_random_uuid(),organization_id uuid references organizations(id),display_name text,whatsapp_e164 text,unique(id,organization_id));
-    create table public.appointments(id uuid primary key default gen_random_uuid(),organization_id uuid references organizations(id),customer_id uuid,barber_id uuid,status text,version integer default 1,service_period tstzrange,whatsapp_response_status text,updated_at timestamptz default now(),unique(id,organization_id));
+    create table public.appointments(id uuid primary key default gen_random_uuid(),organization_id uuid references organizations(id),customer_id uuid,barber_id uuid,status text,version integer default 1,service_period tstzrange,currency text default 'BRL',total_cents_snapshot bigint default 0,whatsapp_response_status text,updated_at timestamptz default now(),unique(id,organization_id));
     create table public.appointment_items(organization_id uuid,appointment_id uuid,service_name_snapshot text,position integer);
+    create table public.whatsapp_reminder_rules(id uuid,organization_id uuid,position integer,enabled boolean,offset_minutes integer,template_key text,language_code text);
     create table public.appointment_status_events(organization_id uuid,appointment_id uuid,from_status text,to_status text,created_at timestamptz default now(),reason text,metadata jsonb,actor_user_id uuid);
     create type public.consent_kind as enum('MARKETING','WHATSAPP_TRANSACTIONAL','PRIVACY_POLICY');
     create table public.consent_events(id uuid primary key default gen_random_uuid(),organization_id uuid,customer_id uuid,kind consent_kind,action text,source text,proof jsonb,policy_version text,occurred_at timestamptz default clock_timestamp());
@@ -52,5 +53,7 @@ export async function whatsappDatabase() {
     create function public.digest(v text,a text) returns bytea language sql as $$select decode(md5(v),'hex')$$;`);
   await db.exec(fn("20260901144842_whatsapp_v2_automation_controls_implementation", "create_whatsapp_v2_confirmation_request"));
   await db.exec(sql("20260906230249_whatsapp_reliable_runtime"));
+  await db.exec(sql("20261015213142_whatsapp_t24_runtime_enum_values"));
+  await db.exec(sql("20261015213200_whatsapp_editable_templates_and_single_reminder"));
   return db;
 }
