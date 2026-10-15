@@ -50,8 +50,8 @@ function applyTemplate(template: string, job: Job, fallback: string): string {
   const reservations = typeof job.payload.reservations === "string"
     ? job.payload.reservations
     : job.payload.message_kind === "RESERVATION_CHOICE"
-      ? reservationPrompt.split(/\r?\n/).slice(1).join("\n")
-      : "";
+    ? reservationPrompt.split(/\r?\n/).slice(1).join("\n")
+    : "";
   const rendered = template
     // Templates persisted through JSON may contain literal "\\n" sequences.
     // Evolution must receive real line breaks for WhatsApp to format them.
@@ -144,7 +144,10 @@ export function textFor(job: Job): string {
       fallback = `Atualização do agendamento de ${name} com ${barber}.`;
   }
   let template = configuredTemplate(job) ?? fallback;
-  if (job.payload.message_kind === "RESERVATION_CHOICE" && !configuredTemplate(job)) {
+  if (
+    job.payload.message_kind === "RESERVATION_CHOICE" &&
+    !configuredTemplate(job)
+  ) {
     return applyTemplate(fallback, job, fallback);
   }
   return applyTemplate(template, job, fallback);
