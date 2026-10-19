@@ -72,6 +72,45 @@ describe("Evolution transport contract", () => {
       payload: { message_kind: "ATTENDANT_REQUEST_MANAGER", customer_phone: "+5511999999999", templates: { ATTENDANT_REQUEST_MANAGER: "{telefone}" } },
     })).toBe("+5511999999999");
   });
+  it.each([
+    "REMINDER_T24_CLIENT",
+    "REMINDER_MORNING_CLIENT",
+    "REMINDER_T180_CLIENT",
+    "REMINDER_T45_CLIENT",
+    "INVALID_REPLY_PROMPT",
+  ])("mantém fixas as opções numéricas de %s", (messageKey) => {
+    const prompt = "Responda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente";
+    const customized = `Cabeçalho editável\n\nResponda somente com um número:\n1 — Opção alterada\n2 — Cancelar\n3 — Falar com atendente`;
+    const isReminder = messageKey.startsWith("REMINDER_");
+    const rendered = textFor({
+      job_type: isReminder ? messageKey : "MANUAL_OUTBOUND_TEXT",
+      payload: { ...(isReminder ? {} : { message_kind: messageKey }), templates: { [messageKey]: customized } },
+    });
+
+    expect(rendered).toBe(`Cabeçalho editável\n\n${prompt}`);
+  });
+  it("substitui {profissional} e mantém compatibilidade com {barbeiro}", () => {
+    expect(textFor({
+      job_type: "MANUAL_OUTBOUND_TEXT",
+      payload: {
+        message_kind: "ATTENDANT_REQUEST_MANAGER",
+        barber_name: "Gabriele",
+        templates: { ATTENDANT_REQUEST_MANAGER: "{profissional} / {barbeiro}" },
+      },
+    })).toBe("Gabriele / Gabriele");
+  });
+  it("usa fallback neutro quando a mensagem não carrega cópia do produto", () => {
+    const attendant = textFor({
+      job_type: "MANUAL_OUTBOUND_TEXT",
+      payload: { message_kind: "ATTENDANT_REQUEST_MANAGER", customer_name: "Ana", barber_name: "Gabi" },
+    });
+    const cancellation = textFor({ job_type: "CANCELLATION_ACK_CLIENT", payload: {} });
+
+    expect(attendant).toContain("Profissional: Gabi");
+    expect(attendant).not.toContain("Barbeiro");
+    expect(cancellation).toContain("estabelecimento");
+    expect(cancellation).not.toContain("barbearia");
+  });
   it("rejeita HTML, SVG e imagens acima do limite", () => {
     expect(() => validateImage(new TextEncoder().encode("<html>invalid file</html>"))).toThrow("INVALID_IMAGE_CONTENT");
     expect(() => validateImage(new TextEncoder().encode('<svg width="1"/>'))).toThrow("INVALID_IMAGE_CONTENT");

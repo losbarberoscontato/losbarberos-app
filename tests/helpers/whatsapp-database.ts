@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
+import type { PGlite as PGliteInstance } from "@electric-sql/pglite";
 
 const sql = (file: string) => readFileSync(`supabase/migrations/${file}.sql`, "utf8");
 const fn = (file: string, name: string) => {
@@ -11,7 +12,9 @@ const fn = (file: string, name: string) => {
 /** Real PostgreSQL engine and unmodified runtime migration; minimal host-domain fixtures.
  * Does not simulate network failover, hosted Storage, or the complete agenda/finance schema.
  */
-export async function whatsappDatabase() {
+export async function whatsappDatabase(options?: {
+  beforeProductMessageMigration?: (db: PGliteInstance) => Promise<void>;
+}) {
   const db = new PGlite();
   await db.exec(`
     create role anon; create role authenticated; create role service_role bypassrls;
@@ -55,5 +58,11 @@ export async function whatsappDatabase() {
   await db.exec(sql("20260906230249_whatsapp_reliable_runtime"));
   await db.exec(sql("20261015213142_whatsapp_t24_runtime_enum_values"));
   await db.exec(sql("20261015213200_whatsapp_editable_templates_and_single_reminder"));
+  await db.exec(`create table public.organization_product_assignments (
+    organization_id uuid primary key references public.organizations(id) on delete cascade,
+    product_key text not null check (product_key in ('los-barberos', 'le-gras', 'pro-stetic', 'music-pro'))
+  );`);
+  await options?.beforeProductMessageMigration?.(db);
+  await db.exec(sql("20261019200042_whatsapp_product_message_defaults"));
   return db;
 }

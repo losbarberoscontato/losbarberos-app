@@ -8,6 +8,35 @@ export const reminderRuleKeys = [
 export type ReminderRuleKey = typeof reminderRuleKeys[number];
 export type ReminderSelection = Record<ReminderRuleKey, boolean>;
 
+export const fixedConfirmationReplyPrompt =
+  "Responda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente";
+
+export const confirmationReplyMessageKeys = [
+  "REMINDER_T24_CLIENT",
+  "REMINDER_MORNING_CLIENT",
+  "REMINDER_T180_CLIENT",
+  "REMINDER_T45_CLIENT",
+  "INVALID_REPLY_PROMPT",
+] as const;
+
+export type ConfirmationReplyMessageKey = typeof confirmationReplyMessageKeys[number];
+
+export function isConfirmationReplyMessageKey(key: string): key is ConfirmationReplyMessageKey {
+  return (confirmationReplyMessageKeys as readonly string[]).includes(key);
+}
+
+export function editableTemplateHeader(value: string): string {
+  const normalized = value.replaceAll("\\n", "\n");
+  const fixedSectionStart = /(?:^|\r?\n)\s*(?:Responda somente com um número\s*:|1\s*(?:[—–-]|[.)]))/i;
+  const marker = fixedSectionStart.exec(normalized);
+  return (marker ? normalized.slice(0, marker.index) : normalized).replace(/[\s\r\n]+$/, "");
+}
+
+export function withFixedConfirmationReply(value: string): string {
+  const header = editableTemplateHeader(value);
+  return header ? `${header}\n\n${fixedConfirmationReplyPrompt}` : fixedConfirmationReplyPrompt;
+}
+
 const reminderPriority: ReminderRuleKey[] = [
   "reminder_t45_enabled",
   "reminder_t180_enabled",

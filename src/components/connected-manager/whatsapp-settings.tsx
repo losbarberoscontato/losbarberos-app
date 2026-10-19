@@ -10,7 +10,8 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { humanizeError } from "./format";
 import styles from "./connected-manager.module.css";
 import type { ProductKey } from "@/lib/product-context";
-import { insertTemplateVariable, normalizeReminderSelection, reminderRuleKeys, selectExclusiveReminder, type ReminderRuleKey } from "./whatsapp-message-editing";
+import { getWhatsAppProductCopy, localizeWhatsAppCopy, resolveWhatsAppProductTemplates, type WhatsAppFixedMessageKey } from "./whatsapp-product-copy";
+import { confirmationReplyMessageKeys, editableTemplateHeader, fixedConfirmationReplyPrompt, insertTemplateVariable, isConfirmationReplyMessageKey, normalizeReminderSelection, reminderRuleKeys, selectExclusiveReminder, withFixedConfirmationReply, type ReminderRuleKey } from "./whatsapp-message-editing";
 
 export type WhatsAppConnection = {
   id: string;
@@ -51,14 +52,6 @@ export type WhatsAppSettingsStatus = {
     custom_messages: WhatsAppCustomMessage[];
   };
 };
-
-type WhatsAppFixedMessageKey =
-  | "BOOKING_CREATED_CLIENT" | "BOOKING_CREATED_STAFF"
-  | "REMINDER_T24_CLIENT" | "REMINDER_MORNING_CLIENT" | "REMINDER_T180_CLIENT" | "REMINDER_T45_CLIENT"
-  | "CONFIRMATION_ACK_CLIENT" | "CANCELLATION_ACK_CLIENT"
-  | "APPOINTMENT_CONFIRMED_STAFF" | "APPOINTMENT_CANCELED_STAFF"
-  | "INVALID_REPLY_PROMPT" | "ATTENDANT_REQUEST_MANAGER"
-  | "MANUAL_CONFIRMATION_CLIENT" | "MANUAL_CONFIRMATION_STAFF" | "RESERVATION_CHOICE";
 
 type AutomationToggleKey = "booking_client_enabled" | "booking_staff_enabled" | ReminderRuleKey;
 
@@ -108,28 +101,19 @@ const responseMessages: FixedMessageDefinition[] = [
   { key: "RESERVATION_CHOICE", title: "Escolha entre vários agendamentos", description: "Enviada quando o cliente tem mais de um pedido de confirmação em aberto." },
 ];
 
-const defaultMessageTemplates: Record<WhatsAppFixedMessageKey, string> = {
-  BOOKING_CREATED_CLIENT: "{cliente}, seu agendamento foi confirmado para {horario}.",
-  BOOKING_CREATED_STAFF: "Novo agendamento: {cliente}, {horario}.",
-  REMINDER_T24_CLIENT: "Lembrete: seu atendimento está marcado para {horario} (daqui a 24 horas).\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
-  REMINDER_MORNING_CLIENT: "Lembrete: seu atendimento é {horario}.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
-  REMINDER_T180_CLIENT: "Lembrete: seu atendimento está marcado para {horario}.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
-  REMINDER_T45_CLIENT: "Lembrete: seu atendimento está marcado para {horario}.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
-  CONFIRMATION_ACK_CLIENT: "Presença confirmada. Até {horario}.",
-  CANCELLATION_ACK_CLIENT: "Cancelamento confirmado. Se precisar, fale com o estabelecimento para novo horário.",
-  APPOINTMENT_CONFIRMED_STAFF: "{cliente} confirmou presença pelo WhatsApp para {horario}.",
-  APPOINTMENT_CANCELED_STAFF: "{cliente} cancelou pelo WhatsApp.",
-  INVALID_REPLY_PROMPT: "Não entendi sua resposta.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente",
-  ATTENDANT_REQUEST_MANAGER: "Cliente deseja falar com atendente.\n\nCliente: {cliente}\nWhatsApp: {telefone}\nData e hora: {horario}\nProfissional: {barbeiro}\nServiço: {servico}",
-  MANUAL_CONFIRMATION_CLIENT: "{cliente}, seu agendamento foi confirmado pelo estabelecimento para {horario}.",
-  MANUAL_CONFIRMATION_STAFF: "Agendamento confirmado manualmente: {cliente}, {horario}.",
-  RESERVATION_CHOICE: "Encontrei mais de um agendamento. Responda com o número correspondente:\n\n{reservas}",
-};
+const messageVariables = ["{cliente}", "{profissional}", "{horario}", "{servico}", "{telefone}", "{reservas}"] as const;
 
-const messageVariables = ["{cliente}", "{barbeiro}", "{horario}", "{servico}", "{telefone}", "{reservas}"] as const;
+function normalizeConfirmationTemplates(templates: Record<WhatsAppFixedMessageKey, string>) {
+  const normalized = { ...templates };
+  for (const key of confirmationReplyMessageKeys) {
+    normalized[key] = withFixedConfirmationReply(normalized[key]);
+  }
+  return normalized;
+}
 
-function messageDefinitionTitle(key: WhatsAppFixedMessageKey) {
-  return [...bookingAndReminderMessages, ...responseMessages].find((message) => message.key === key)?.title ?? key;
+function messageDefinitionTitle(key: WhatsAppFixedMessageKey, productKey: ProductKey) {
+  const title = [...bookingAndReminderMessages, ...responseMessages].find((message) => message.key === key)?.title ?? key;
+  return localizeWhatsAppCopy(title, productKey);
 }
 
 const customMessageGroups: Array<{ title: string; messages: Array<{ key: WhatsAppCustomMessageKey; title: string }> }> = [
@@ -220,9 +204,7 @@ function diagnostic(connection: WhatsAppConnection | undefined) {
 }
 
 export function WhatsAppSettings({ organizationId, organizationName, status, schemaReady = true, productKey = "los-barberos" }: Props) {
-  const isLeGras = productKey === "le-gras";
-  const isMusicPro = productKey === "music-pro";
-  const isProStetic = productKey === "pro-stetic";
+  const productCopy = getWhatsAppProductCopy(productKey);
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [busyProvider, setBusyProvider] = useState<"META_CLOUD" | "QR_WEB" | null>(null);
@@ -230,7 +212,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [qrCodeOverride, setQrCodeOverride] = useState<string | null | undefined>(undefined);
   const initialAutomation = { ...defaultAutomationRules, ...status.automation };
   const [automationRules, setAutomationRules] = useState(() => normalizeReminderSelection(initialAutomation));
-  const [messageTemplates, setMessageTemplates] = useState<Record<WhatsAppFixedMessageKey, string>>(() => ({ ...defaultMessageTemplates, ...status.automation.message_templates }));
+  const [messageTemplates, setMessageTemplates] = useState<Record<WhatsAppFixedMessageKey, string>>(() => normalizeConfirmationTemplates(resolveWhatsAppProductTemplates(productKey, status.automation.message_templates)));
   const [editingTemplate, setEditingTemplate] = useState<WhatsAppFixedMessageKey | null>(null);
   const [expandedTemplates, setExpandedTemplates] = useState<Partial<Record<WhatsAppFixedMessageKey, boolean>>>({});
   const templateEditors = useRef<Partial<Record<WhatsAppFixedMessageKey, HTMLTextAreaElement | null>>>({});
@@ -324,21 +306,25 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     const saved = await persistAutomation();
     if (saved) {
       setEditingTemplate(null);
-      setMessage(`Texto de ${messageDefinitionTitle(key)} salvo.`);
+      setMessage(`Texto de ${messageDefinitionTitle(key, productKey)} salvo.`);
     }
   }
 
   function insertVariable(key: WhatsAppFixedMessageKey, variable: string) {
     const editor = templateEditors.current[key];
     if (!editor) return;
+    const currentText = isConfirmationReplyMessageKey(key)
+      ? editableTemplateHeader(messageTemplates[key])
+      : messageTemplates[key];
     const inserted = insertTemplateVariable(
-      messageTemplates[key],
-      editor.selectionStart ?? messageTemplates[key].length,
-      editor.selectionEnd ?? messageTemplates[key].length,
+      currentText,
+      editor.selectionStart ?? currentText.length,
+      editor.selectionEnd ?? currentText.length,
       variable,
     );
+    if (isConfirmationReplyMessageKey(key) && withFixedConfirmationReply(inserted.value).length > 4096) return;
     pendingTemplateCursor.current = { key, cursor: inserted.cursor };
-    setMessageTemplates((current) => ({ ...current, [key]: inserted.value }));
+    setMessageTemplates((current) => ({ ...current, [key]: isConfirmationReplyMessageKey(key) ? withFixedConfirmationReply(inserted.value) : inserted.value }));
   }
 
   function updateAutomation(key: AutomationToggleKey, enabled: boolean) {
@@ -369,7 +355,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       }));
     }, "Integração desconectada no sistema.");
     if (saved) {
-      setMessage("Integração desconectada no sistema. Agora remova manualmente a sessão Los Barberos no WhatsApp Business do celular: Aparelhos conectados → remova o dispositivo. Depois clique em Gerar QR e leia o novo código.");
+      setMessage("Integração desconectada no sistema. Agora remova manualmente esta sessão no WhatsApp Business do celular: Aparelhos conectados → remova o dispositivo. Depois clique em Gerar QR e leia o novo código.");
       router.refresh();
     }
   }
@@ -443,20 +429,13 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   }, [qrConnection?.status, visibleQrCode, refreshStatus]);
 
   function fixedMessageCard(definition: FixedMessageDefinition) {
-    const title = isLeGras
-      ? definition.title.replaceAll("profissional", "fotógrafo")
-      : isMusicPro
-        ? definition.title.replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("profissional", "professor")
-        : isProStetic
-          ? definition.title.replaceAll("profissional", "especialista")
-          : definition.title;
-    const description = isMusicPro
-      ? definition.description.replaceAll("agendamentos", "aulas").replaceAll("agendamento", "aula").replaceAll("cliente", "aluno").replaceAll("profissional", "professor").replaceAll("atendimento", "aula")
-      : isProStetic
-        ? definition.description.replaceAll("profissional", "especialista").replaceAll("atendimento", "serviço").replaceAll("agendamento", "serviço")
-        : definition.description;
+    const title = localizeWhatsAppCopy(definition.title, productKey);
+    const description = localizeWhatsAppCopy(definition.description, productKey);
     const editing = editingTemplate === definition.key;
     const expanded = expandedTemplates[definition.key] === true;
+    const hasFixedReply = isConfirmationReplyMessageKey(definition.key);
+    const templateText = hasFixedReply ? editableTemplateHeader(messageTemplates[definition.key]) : messageTemplates[definition.key];
+    const editorLabel = hasFixedReply ? `Cabeçalho editável: ${title}` : `Texto: ${title}`;
     const contentId = `whatsapp-template-${definition.key}`;
     return <article className={styles.whatsappTemplateCard} key={definition.key}>
       <div className={styles.whatsappTemplateHead}>
@@ -477,16 +456,21 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
           : <span className={styles.whatsappReplyBadge}>Enviada pelo fluxo</span>}
       </div>
       <div id={contentId} className={styles.whatsappTemplateBody} hidden={!expanded}>
-        <Field label={`Texto: ${title}`} wide>
+        <Field label={editorLabel} wide>
           <textarea
             ref={(node) => { templateEditors.current[definition.key] = node; }}
-            aria-label={`Texto: ${title}`}
-            value={messageTemplates[definition.key]}
+            aria-label={editorLabel}
+            value={templateText}
             disabled={!schemaReady || !editing}
-            maxLength={4096}
-            onChange={(event) => setMessageTemplates((current) => ({ ...current, [definition.key]: event.target.value }))}
+            maxLength={hasFixedReply ? 4096 - fixedConfirmationReplyPrompt.length - 2 : 4096}
+            onChange={(event) => setMessageTemplates((current) => ({ ...current, [definition.key]: hasFixedReply ? withFixedConfirmationReply(event.target.value) : event.target.value }))}
           />
         </Field>
+        {hasFixedReply && <aside className={styles.whatsappFixedReply} aria-label={`Trecho fixo do fluxo: ${title}`}>
+          <div><strong>Trecho fixo do fluxo</strong><span>Não editável</span></div>
+          <pre>{fixedConfirmationReplyPrompt}</pre>
+          <p>As opções 1, 2 e 3 controlam o fluxo de confirmação e não podem ser alteradas. Edite somente o cabeçalho acima.</p>
+        </aside>}
         <div className={styles.whatsappTemplateVariables} aria-label={`Variáveis para ${title}`}>
           <span>Variáveis</span>
           {messageVariables.map((variable) => <button
@@ -507,16 +491,16 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     </article>;
   }
 
-  return <div className={`${styles.stack} settings-page ${isMusicPro ? styles.musicProWhatsApp : ""}`}>
+  return <div className={`${styles.stack} settings-page ${productCopy.rootClass ? styles[productCopy.rootClass] : ""}`}>
     <PageHeader title="WhatsApp" description={`Conecte o WhatsApp da ${organizationName} e automatize avisos transacionais.`} />
     <ActionMessage message={message} />
     {!schemaReady && <p className={styles.message}>A estrutura conectada desta integração ainda aguarda a migration remota. A tela está pronta, mas salvar e conectar ficará disponível após a aplicação autorizada.</p>}
 
-    <section className={`${styles.whatsappHero} ${isLeGras ? styles.whatsappHeroLeGras : isProStetic ? styles.whatsappHeroProStetic : isMusicPro ? styles.whatsappHeroMusicPro : ""}`} aria-labelledby="whatsapp-title">
+    <section className={`${styles.whatsappHero} ${productCopy.heroClass ? styles[productCopy.heroClass] : ""}`} aria-labelledby="whatsapp-title">
       <div>
-        <span className={styles.whatsappEyebrow}>{isLeGras || isMusicPro || isProStetic ? "INTEGRAÇÃO WHATSAPP" : "INTEGRAÇÃO POR BARBEARIA"}</span>
-        <h1 id="whatsapp-title">{isMusicPro ? "WhatsApp da sua escola" : isProStetic ? "WhatsApp do seu estúdio" : "WhatsApp da sua operação"}</h1>
-        <p>{isMusicPro ? "Conecte seu WhatsApp Business e envie confirmações e lembretes de aulas com consentimento dos alunos." : isProStetic ? "Conecte seu WhatsApp Business e envie confirmações e lembretes de serviços com consentimento dos clientes." : "Conecte seu Whatsapp Business, envie confirmações e lembretes de forma automática com consentimento do cliente."}</p>
+        <span className={styles.whatsappEyebrow}>{productCopy.heroEyebrow}</span>
+        <h1 id="whatsapp-title">{productCopy.heroTitle}</h1>
+        <p>{productCopy.heroDescription}</p>
       </div>
       <StatusChip active={activeConnectionHealthy} label={checkingStatus ? "VERIFICANDO…" : activeConnectionHealthy ? "CONECTADO" : "AÇÃO NECESSÁRIA"} />
     </section>
@@ -564,7 +548,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       </div>}
     </Panel>
 
-    <Panel title="Avisos do gestor" description="Receba solicitações de atendimento do cliente em um WhatsApp separado da conta conectada ao QR.">
+    <Panel title="Avisos do gestor" description={productCopy.managerNotificationDescription}>
       <form onSubmit={saveManagerNotification} className={styles.stack}>
         <Field label="WhatsApp para avisos do gestor">
           <input
@@ -591,14 +575,14 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     <Panel title="Mensagens automáticas" description="Edite os textos e escolha os avisos enviados pelo WhatsApp.">
       <form onSubmit={saveAutomation} className={styles.stack}>
         <details className={styles.whatsappMessageGroup}>
-          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>Agendamentos e lembretes</strong><small>Ative confirmações e escolha um único horário de lembrete.</small></span></summary>
+          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>{productCopy.bookingGroupTitle}</strong><small>{productCopy.bookingGroupDescription}</small></span></summary>
           <div className={styles.whatsappMessageGroupContent}>
             {bookingAndReminderMessages.map((definition) => fixedMessageCard(definition))}
             <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady}>Salvar ativações</button></div>
           </div>
         </details>
         <details className={styles.whatsappMessageGroup}>
-          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>Respostas e retornos</strong><small>Textos enviados depois que o cliente responde ou o gestor confirma.</small></span></summary>
+          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>Respostas e retornos</strong><small>{productCopy.responseGroupDescription}</small></span></summary>
           <div className={styles.whatsappMessageGroupContent}>
             {responseMessages.map((definition) => fixedMessageCard(definition))}
           </div>
@@ -609,27 +593,28 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     <Panel
       title="Mensagens Personalizadas"
       titleAdornment={customReady ? undefined : <StatusChip active={false} tone="danger" label="FUNÇÃO EM BREVE" />}
-      description={customReady ? "Pós-serviço, felicitações e campanhas. Até uma mensagem por dia e duas por semana para cada cliente." : "Estas automações ainda não estão disponíveis para configuração ou envio."}
+      description={customReady ? localizeWhatsAppCopy("Pós-serviço, felicitações e campanhas. Até uma mensagem por dia e duas por semana para cada cliente.", productKey) : "Estas automações ainda não estão disponíveis para configuração ou envio."}
     >
       <form onSubmit={saveAutomation} className={styles.stack}>
         {customMessageGroups.map((group) => <details className={styles.whatsappMessageGroup} key={group.title}>
-          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>{group.title}</strong></span></summary>
+          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>{group.title === "Mensagens após o serviço" ? productCopy.customAfterServiceTitle : localizeWhatsAppCopy(group.title, productKey)}</strong></span></summary>
           <div className={styles.whatsappMessageGroupContent}>
             {group.messages.map((definition) => {
               const messageDefinition = customMessages.find((message) => message.key === definition.key)!;
+              const title = localizeWhatsAppCopy(definition.title, productKey);
               return <article className={styles.customMessageRow} key={definition.key}>
                 <div className={styles.automationRow}>
-                  <div><strong>{definition.title}</strong><small>{customReady ? "Exige preferência de marketing ativa." : "Disponível em uma próxima atualização."}</small></div>
+                  <div><strong>{title}</strong><small>{customReady ? "Exige preferência de marketing ativa." : "Disponível em uma próxima atualização."}</small></div>
                   <label className={styles.automationSwitch}>
-                    <span className="sr-only">Ativar {definition.title}</span>
+                    <span className="sr-only">Ativar {title}</span>
                     <input type="checkbox" checked={messageDefinition.enabled} disabled={!customReady} onChange={(event) => updateCustom(definition.key, { enabled: event.target.checked })} />
                   </label>
                 </div>
-                <Field label={`Texto de ${definition.title}`} wide>
-                  <textarea aria-label={`Texto de ${definition.title}`} value={messageDefinition.body} disabled={!customReady} maxLength={4096} onChange={(event) => updateCustom(definition.key, { body: event.target.value })} />
+                <Field label={`Texto de ${title}`} wide>
+                  <textarea aria-label={`Texto de ${title}`} value={messageDefinition.body} disabled={!customReady} maxLength={4096} onChange={(event) => updateCustom(definition.key, { body: event.target.value })} />
                 </Field>
-                <small className={styles.muted}>{customReady ? "Use {cliente} para incluir o nome. Salve antes de agendar." : "Variáveis e personalização serão liberadas junto da função."}</small>
-                {customReady && ["SPECIAL_DATES", "MARKETING_CAMPAIGNS"].includes(definition.key) && <button type="button" className={styles.button} disabled={!messageDefinition.enabled || !messageDefinition.body.trim()} onClick={() => setCampaignKey(definition.key)}>Agendar {definition.title}</button>}
+                <small className={styles.muted}>{customReady ? `Use {cliente} para incluir o nome do ${productCopy.terms.customer}. Salve antes de agendar.` : "Variáveis e personalização serão liberadas junto da função."}</small>
+                {customReady && ["SPECIAL_DATES", "MARKETING_CAMPAIGNS"].includes(definition.key) && <button type="button" className={styles.button} disabled={!messageDefinition.enabled || !messageDefinition.body.trim()} onClick={() => setCampaignKey(definition.key)}>Agendar {title}</button>}
               </article>;
             })}
           </div>

@@ -314,9 +314,9 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .integrationInfo { display: grid; gap: .28rem; }
 .integrationInfo p { margin: 0; color: #757d76; font-size: .82rem; }
 .whatsappHero { display: flex; justify-content: space-between; gap: 1.5rem; align-items: flex-start; padding: 1.45rem; border-radius: 22px; background: linear-gradient(135deg, #123f35, #0c2e28); color: #f7fbf5; box-shadow: 0 18px 38px rgb(14 48 40 / 16%); }
-.whatsappHeroLeGras { background: linear-gradient(135deg, var(--forest-950, #29143d), var(--forest-800, #59366f)); }
-.whatsappHeroProStetic { background: linear-gradient(135deg, var(--forest-950, #4d245f), var(--forest-800, #805793)); }
-.whatsappHeroMusicPro { background: linear-gradient(135deg, var(--forest-950, #06233b), var(--forest-800, #075a96)); box-shadow: 0 18px 38px rgb(6 35 59 / 18%); }
+.whatsappHeroLeGras { background: linear-gradient(135deg, #29143d, #59366f); }
+.whatsappHeroProStetic { background: linear-gradient(135deg, #4d245f, #805793); }
+.whatsappHeroMusicPro { background: linear-gradient(135deg, #06233b, #075a96); box-shadow: 0 18px 38px rgb(6 35 59 / 18%); }
 .whatsappHero h1 { margin: .45rem 0 .35rem; color: inherit; font-family: var(--font-display, serif); font-size: clamp(1.55rem, 3vw, 2.2rem); }
 .whatsappHero p { max-width: 620px; margin: 0; color: #c7ded4; font-size: .9rem; }
 .whatsappEyebrow { color: #e6b45f; font-size: .7rem; font-weight: 900; letter-spacing: .12em; }
@@ -375,6 +375,12 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .whatsappTemplateBody[hidden] { display: none; }
 .whatsappTemplateCard textarea { min-height: 6.2rem; resize: vertical; }
 .whatsappTemplateCard textarea:disabled { opacity: .82; background: #fff; color: #4d5850; }
+.whatsappFixedReply { display: grid; gap: .45rem; padding: .75rem .85rem; border: 1px solid #dfe6de; border-radius: 11px; background: #f4f7f2; }
+.whatsappFixedReply > div { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }
+.whatsappFixedReply strong { color: #315f51; font-size: .78rem; }
+.whatsappFixedReply span { color: #66716a; font-size: .68rem; font-weight: 800; }
+.whatsappFixedReply pre { margin: 0; color: #34443a; font: inherit; font-size: .84rem; line-height: 1.55; white-space: pre-wrap; }
+.whatsappFixedReply p { margin: 0; color: #69716b; font-size: .74rem; line-height: 1.45; }
 .whatsappTemplateVariables { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
 .whatsappTemplateVariables > span { width: 100%; color: #69716b; font-size: .72rem; font-weight: 800; }
 .whatsappTemplateVariables button { padding: .38rem .62rem; border: 1px solid #dfe6de; border-radius: 999px; color: #315f51; font: inherit; font-size: .72rem; font-weight: 800; cursor: pointer; }
@@ -412,6 +418,88 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .musicProWhatsApp .automationSwitch input:focus-visible { outline-color: rgb(53 189 252 / 38%); }
 .musicProWhatsApp a:not([class]) { color: #075a96; }
 .musicProWhatsApp a:not([class]):hover { color: #06233b; }
+.leGrasWhatsApp .providerCard { border-color: #e5dce9; background: #fffaff; }
+.leGrasWhatsApp .providerCardActive { border-color: #805793; background: #f5f0f7; box-shadow: 0 0 0 2px rgb(89 54 111 / 14%); }
+.leGrasWhatsApp .providerIcon,
+.leGrasWhatsApp .whatsappSteps span,
+.leGrasWhatsApp .qrConnection,
+.leGrasWhatsApp .definition div { background: #eee5f2; color: #59366f; }
+.leGrasWhatsApp .providerCard h3,
+.leGrasWhatsApp .customMessageGroup h3,
+.leGrasWhatsApp .definition dd,
+.leGrasWhatsApp .whatsappMessageGroupSummary strong,
+.leGrasWhatsApp .whatsappTemplateHead strong { color: #251b2b; }
+.leGrasWhatsApp .providerCard p,
+.leGrasWhatsApp .providerCard small,
+.leGrasWhatsApp .automationRow small,
+.leGrasWhatsApp .qrConnection p,
+.leGrasWhatsApp .muted,
+.leGrasWhatsApp .definition dt,
+.leGrasWhatsApp .whatsappMessageGroupSummary small,
+.leGrasWhatsApp .whatsappTemplateHead small { color: #756b7c; }
+.leGrasWhatsApp .automationRow,
+.leGrasWhatsApp .customMessageRow { border-color: #e5dce9; background: #fbf7fc; }
+.leGrasWhatsApp .whatsappMessageGroup,
+.leGrasWhatsApp .whatsappTemplateCard { border-color: #e5dce9; }
+.leGrasWhatsApp .whatsappMessageChevron,
+.leGrasWhatsApp .whatsappTemplateToggle { background: #eee5f2; color: #59366f; }
+.leGrasWhatsApp .whatsappMessageGroupSummary:hover,
+.leGrasWhatsApp .whatsappTemplateToggle:hover { background: #e5d9eb; }
+.leGrasWhatsApp .whatsappReplyBadge { background: #eee5f2; color: #59366f; }
+.leGrasWhatsApp .automationSwitch input:checked { border-color: #59366f; background: #59366f; }
+.leGrasWhatsApp .automationSwitch input:focus-visible,
+.leGrasWhatsApp .whatsappMessageGroupSummary:focus-visible,
+.leGrasWhatsApp .whatsappTemplateToggle:focus-visible { outline-color: rgb(89 54 111 / 35%); }
+.leGrasWhatsApp .whatsappTemplateVariables button { border-color: #e5dce9; color: #59366f; }
+.leGrasWhatsApp .whatsappTemplateVariables button:hover:not(:disabled) { background: #eee5f2; }
+.leGrasWhatsApp .whatsappFixedReply { border-color: #e5dce9; background: #f5f0f7; }
+.leGrasWhatsApp .whatsappFixedReply strong { color: #59366f; }
+.leGrasWhatsApp .whatsappFixedReply pre,
+.leGrasWhatsApp .whatsappFixedReply p { color: #756b7c; }
+.leGrasWhatsApp .button { border-color: #59366f; background: #59366f; }
+.leGrasWhatsApp .button:hover:not(:disabled) { background: #29143d; }
+.proSteticWhatsApp .providerCard { border-color: #e8ddea; background: #fffaff; }
+.proSteticWhatsApp .providerCardActive { border-color: #805793; background: #f8f2fa; box-shadow: 0 0 0 2px rgb(128 87 147 / 14%); }
+.proSteticWhatsApp .providerIcon,
+.proSteticWhatsApp .whatsappSteps span,
+.proSteticWhatsApp .qrConnection,
+.proSteticWhatsApp .definition div { background: #efe5f3; color: #4d245f; }
+.proSteticWhatsApp .providerCard h3,
+.proSteticWhatsApp .customMessageGroup h3,
+.proSteticWhatsApp .definition dd,
+.proSteticWhatsApp .whatsappMessageGroupSummary strong,
+.proSteticWhatsApp .whatsappTemplateHead strong { color: #281d2d; }
+.proSteticWhatsApp .providerCard p,
+.proSteticWhatsApp .providerCard small,
+.proSteticWhatsApp .automationRow small,
+.proSteticWhatsApp .qrConnection p,
+.proSteticWhatsApp .muted,
+.proSteticWhatsApp .definition dt,
+.proSteticWhatsApp .whatsappMessageGroupSummary small,
+.proSteticWhatsApp .whatsappTemplateHead small { color: #766b7c; }
+.proSteticWhatsApp .automationRow,
+.proSteticWhatsApp .customMessageRow { border-color: #e8ddea; background: #fbf7fc; }
+.proSteticWhatsApp .whatsappMessageGroup,
+.proSteticWhatsApp .whatsappTemplateCard { border-color: #e8ddea; }
+.proSteticWhatsApp .whatsappMessageChevron,
+.proSteticWhatsApp .whatsappTemplateToggle { background: #efe5f3; color: #4d245f; }
+.proSteticWhatsApp .whatsappMessageGroupSummary:hover,
+.proSteticWhatsApp .whatsappTemplateToggle:hover { background: #e5d9eb; }
+.proSteticWhatsApp .whatsappReplyBadge { background: #efe5f3; color: #4d245f; }
+.proSteticWhatsApp .automationSwitch input:checked { border-color: #805793; background: #805793; }
+.proSteticWhatsApp .automationSwitch input:focus-visible,
+.proSteticWhatsApp .whatsappMessageGroupSummary:focus-visible,
+.proSteticWhatsApp .whatsappTemplateToggle:focus-visible { outline-color: rgb(128 87 147 / 36%); }
+.proSteticWhatsApp .whatsappTemplateVariables button { border-color: #e8ddea; color: #4d245f; }
+.proSteticWhatsApp .whatsappTemplateVariables button:hover:not(:disabled) { background: #efe5f3; }
+.proSteticWhatsApp .whatsappFixedReply { border-color: #e8ddea; background: #f8f2fa; }
+.proSteticWhatsApp .whatsappFixedReply strong { color: #4d245f; }
+.proSteticWhatsApp .whatsappFixedReply pre,
+.proSteticWhatsApp .whatsappFixedReply p { color: #766b7c; }
+.proSteticWhatsApp .button { border-color: #4d245f; background: #4d245f; }
+.proSteticWhatsApp .button:hover:not(:disabled) { background: #321743; }
+.musicProWhatsApp .button { border-color: #075a96; background: #075a96; }
+.musicProWhatsApp .button:hover:not(:disabled) { background: #06233b; }
 .agendaEnvironmentRow { display: grid; grid-template-columns: minmax(130px, 1.5fr) minmax(5rem, .7fr) auto auto; gap: .65rem; align-items: center; padding: .8rem; border: 1px solid #edf0eb; border-radius: 13px; }
 .agendaEnvironmentRow .field { min-width: 0; margin: 0; }
 .deadlineEditorField { display: grid; gap: .65rem; }

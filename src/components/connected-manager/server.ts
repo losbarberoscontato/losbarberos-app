@@ -47,6 +47,8 @@ import type {
   WorkIntervalRecord,
 } from "./types";
 import type { WhatsAppSettingsStatus } from "./whatsapp-settings";
+import { resolveWhatsAppProductTemplates } from "./whatsapp-product-copy";
+import { parseProductKey } from "@/lib/product-routes";
 import type { OrganizationDateBlock } from "./date-block-calendar";
 import {
   appointmentServiceDateKey,
@@ -1844,6 +1846,16 @@ export async function loadWhatsAppSettingsData() {
       .single(),
     "Organização",
   ) as { id: string; name: string };
+  const productAssignment = requireData(
+    await supabase
+      .from("organization_product_assignments")
+      .select("product_key")
+      .eq("organization_id", organizationId)
+      .maybeSingle(),
+    "Sistema do estabelecimento",
+  ) as { product_key: string } | null;
+  const productKey = parseProductKey(productAssignment?.product_key);
+  if (!productKey) throw new Error("Sistema do estabelecimento não configurado.");
   const result = await supabase.rpc("get_whatsapp_connection_status", {
     p_organization_id: organizationId,
   });
@@ -1858,6 +1870,7 @@ export async function loadWhatsAppSettingsData() {
           reminder_morning_enabled: false,
           reminder_t180_enabled: false,
           reminder_t45_enabled: true,
+          message_templates: resolveWhatsAppProductTemplates(productKey, undefined),
           custom_messages: [],
         },
       }
@@ -1870,6 +1883,10 @@ export async function loadWhatsAppSettingsData() {
         };
         return {
           ...raw,
+          automation: {
+            ...raw.automation,
+            message_templates: resolveWhatsAppProductTemplates(productKey, raw.automation?.message_templates),
+          },
           managerNotification: {
             phoneE164: raw.manager_notification?.phone_e164 ?? null,
             matchesQrPhone: raw.manager_notification?.matches_qr_phone === true,
@@ -1884,6 +1901,7 @@ export async function loadWhatsAppSettingsData() {
     status.runtime = runtimeResult.data;
   return {
     organizationId,
+    productKey,
     billingStatus: context.billingStatus,
     organization,
     status,

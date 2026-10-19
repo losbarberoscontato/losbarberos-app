@@ -1,5 +1,28 @@
 type Job = { job_type: string; payload: Record<string, unknown> };
 
+const fixedConfirmationReplyPrompt =
+  "Responda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente";
+
+function withFixedConfirmationReply(template: string): string {
+  const normalized = template.replaceAll("\\n", "\n");
+  const fixedSectionStart = /(?:^|\r?\n)\s*(?:Responda somente com um número\s*:|1\s*(?:[—–-]|[.)]))/i;
+  const marker = fixedSectionStart.exec(normalized);
+  const header = (marker ? normalized.slice(0, marker.index) : normalized)
+    .replace(/[\s\r\n]+$/, "");
+  return header ? `${header}\n\n${fixedConfirmationReplyPrompt}` : fixedConfirmationReplyPrompt;
+}
+
+function hasFixedConfirmationReply(job: Job): boolean {
+  if ([
+    "REMINDER_T24_CLIENT",
+    "REMINDER_MORNING_CLIENT",
+    "REMINDER_T180_CLIENT",
+    "REMINDER_T45_CLIENT",
+  ].includes(job.job_type)) return true;
+  return job.job_type === "MANUAL_OUTBOUND_TEXT" &&
+    job.payload.message_kind === "INVALID_REPLY_PROMPT";
+}
+
 function formatStart(payload: Record<string, unknown>): string {
   const raw = typeof payload.starts_at === "string" ? payload.starts_at : "";
   const timezone = typeof payload.timezone === "string"
@@ -57,6 +80,8 @@ function applyTemplate(template: string, job: Job, fallback: string): string {
     // Evolution must receive real line breaks for WhatsApp to format them.
     .replaceAll("\\n", "\n")
     .replaceAll("{cliente}", name)
+    .replaceAll("{profissional}", barber)
+    // Keep compatibility with templates saved before the variable was renamed.
     .replaceAll("{barbeiro}", barber)
     .replaceAll("{horario}", formatStart(job.payload))
     .replaceAll("{servico}", service)
@@ -114,7 +139,7 @@ export function textFor(job: Job): string {
       break;
     case "CANCELLATION_ACK_CLIENT":
       fallback =
-        "Cancelamento confirmado. Se precisar, fale com a barbearia para novo horário.";
+        "Cancelamento confirmado. Se precisar, fale com o estabelecimento para marcar novo horário.";
       break;
     case "APPOINTMENT_CONFIRMED_STAFF":
       fallback = `${name} confirmou presença pelo WhatsApp para ${when}.`;
@@ -128,10 +153,10 @@ export function textFor(job: Job): string {
           "Não entendi sua resposta.\n\nResponda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente";
       } else if (messageKind === "ATTENDANT_REQUEST_MANAGER") {
         fallback =
-          `Cliente deseja falar com atendente.\n\nCliente: ${name}\nWhatsApp: ${phone}\nData e hora: ${when}\nBarbeiro: ${barber}\nServiço: ${service}`;
+          `Cliente deseja falar com atendente.\n\nCliente: ${name}\nWhatsApp: ${phone}\nData e hora: ${when}\nProfissional: ${barber}\nServiço: ${service}`;
       } else if (messageKind === "MANUAL_CONFIRMATION_CLIENT") {
         fallback =
-          `${name}, seu agendamento foi confirmado pela barbearia para ${when}.`;
+          `${name}, seu agendamento foi confirmado pelo estabelecimento para ${when}.`;
       } else if (messageKind === "MANUAL_CONFIRMATION_STAFF") {
         fallback = `Agendamento confirmado manualmente: ${name}, ${when}.`;
       } else if (messageKind === "RESERVATION_CHOICE") {
@@ -144,6 +169,9 @@ export function textFor(job: Job): string {
       fallback = `Atualização do agendamento de ${name} com ${barber}.`;
   }
   let template = configuredTemplate(job) ?? fallback;
+  if (hasFixedConfirmationReply(job)) {
+    template = withFixedConfirmationReply(template);
+  }
   if (
     job.payload.message_kind === "RESERVATION_CHOICE" &&
     !configuredTemplate(job)

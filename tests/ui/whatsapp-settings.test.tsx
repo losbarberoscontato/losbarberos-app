@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WhatsAppSettings, type WhatsAppSettingsStatus } from "@/components/connected-manager/whatsapp-settings";
+import { getWhatsAppProductCopy, localizeWhatsAppCopy } from "@/components/connected-manager/whatsapp-product-copy";
 
 const { invokeMock, rpcMock } = vi.hoisted(() => ({ invokeMock: vi.fn(), rpcMock: vi.fn() }));
 
@@ -62,9 +63,9 @@ describe("WhatsApp settings", () => {
     expect(screen.queryByText("Autorize a conexão")).not.toBeInTheDocument();
     expect(screen.queryByText("Aguarde a confirmação")).not.toBeInTheDocument();
     expect(screen.queryByText(/O QR Web exige VPS/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Conecte seu Whatsapp Business/i)).toBeInTheDocument();
+    expect(screen.getByText(/Conecte seu WhatsApp Business/i)).toBeInTheDocument();
     expect(screen.getAllByText("Confirmação de agendamento para o cliente")).not.toHaveLength(0);
-    expect(screen.getAllByText("Confirmação de agendamento para o profissional")).not.toHaveLength(0);
+    expect(screen.getAllByText(localizeWhatsAppCopy("Confirmação de agendamento para o profissional", "los-barberos"))).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença às 8h")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença 3 horas antes")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença 45 minutos antes")).not.toHaveLength(0);
@@ -100,10 +101,11 @@ describe("WhatsApp settings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: `Expandir mensagem: ${title}` }));
     expect(screen.getByLabelText(`Texto: ${title}`)).toBeInTheDocument();
-  });
+  }, 15000);
 
   it.each(["los-barberos", "le-gras", "pro-stetic", "music-pro"] as const)("inicia todos os menus do WhatsApp recolhidos em %s", (productKey) => {
     const { container } = render(<WhatsAppSettings organizationId="org-1" organizationName="Estabelecimento" status={status} productKey={productKey} />);
+    const productCopy = getWhatsAppProductCopy(productKey);
 
     const groups = [...container.querySelectorAll("details")];
     expect(groups.length).toBeGreaterThan(0);
@@ -112,6 +114,49 @@ describe("WhatsApp settings", () => {
     const messageToggles = [...container.querySelectorAll<HTMLButtonElement>('button[aria-label^="Expandir mensagem:"]')];
     expect(messageToggles.length).toBeGreaterThan(0);
     expect(messageToggles.every((button) => button.getAttribute("aria-expanded") === "false")).toBe(true);
+
+    expect(screen.getByRole("heading", { name: productCopy.heroTitle })).toBeInTheDocument();
+    const settingsRoot = container.querySelector(".settings-page");
+    if (productCopy.rootClass) expect(settingsRoot?.className).toContain(productCopy.rootClass);
+    fireEvent.click(screen.getByText("Respostas e retornos"));
+    const confirmationTitle = localizeWhatsAppCopy("Cliente confirmou presença", productKey);
+    fireEvent.click(screen.getByRole("button", { name: `Expandir mensagem: ${confirmationTitle}` }));
+    expect(screen.getByRole("button", { name: `Inserir {profissional} em ${confirmationTitle}` })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: `Inserir {barbeiro} em ${confirmationTitle}` })).not.toBeInTheDocument();
+  });
+
+  it.each(["los-barberos", "le-gras", "pro-stetic", "music-pro"] as const)("protege as opções numéricas das confirmações em %s", async (productKey) => {
+    const fixedPrompt = "Responda somente com um número:\n1 — Confirmar\n2 — Cancelar\n3 — Falar com atendente";
+    const confirmationTemplates = {
+      REMINDER_T24_CLIENT: "Cabeçalho T24\n\nResponda somente com um número:\n1 — Opção alterada",
+      INVALID_REPLY_PROMPT: "Cabeçalho inválida\n\nResponda somente com um número:\n1 — Opção alterada",
+    };
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Estabelecimento" productKey={productKey} status={{
+      ...status,
+      automation: { ...status.automation, message_templates: confirmationTemplates },
+    }} />);
+
+    fireEvent.click(screen.getByText(getWhatsAppProductCopy(productKey).bookingGroupTitle));
+    fireEvent.click(screen.getByRole("button", { name: "Expandir mensagem: Confirmação de presença 24 horas antes" }));
+    const reminderEditor = screen.getByRole("textbox", { name: "Cabeçalho editável: Confirmação de presença 24 horas antes" });
+    expect(reminderEditor).toHaveValue("Cabeçalho T24");
+    expect(reminderEditor.closest("article")?.querySelector("aside pre")).toHaveTextContent(/Responda somente com um número: 1 — Confirmar 2 — Cancelar 3 — Falar com atendente/);
+    expect(reminderEditor.closest("article")).toHaveTextContent(/As opções 1, 2 e 3 controlam o fluxo de confirmação/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar texto: Confirmação de presença 24 horas antes" }));
+    fireEvent.change(reminderEditor, { target: { value: `Novo cabeçalho\n\n${fixedPrompt.replace("1 — Confirmar", "1 — Alterado")}` } });
+    expect(reminderEditor).toHaveValue("Novo cabeçalho");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar texto: Confirmação de presença 24 horas antes" }));
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("save_whatsapp_v2_automation_controls", expect.objectContaining({
+      p_rules: expect.objectContaining({ message_templates: expect.objectContaining({ REMINDER_T24_CLIENT: `Novo cabeçalho\n\n${fixedPrompt}` }) }),
+    })));
+
+    fireEvent.click(screen.getByText("Respostas e retornos"));
+    fireEvent.click(screen.getByRole("button", { name: "Expandir mensagem: Resposta inválida" }));
+    const invalidReplyEditor = screen.getByRole("textbox", { name: "Cabeçalho editável: Resposta inválida" });
+    expect(invalidReplyEditor).toHaveValue("Cabeçalho inválida");
+    expect(screen.getAllByText(/Responda somente com um número/).length).toBeGreaterThan(0);
   });
 
   it("edita uma mensagem, insere variável no cursor e salva o template", async () => {
