@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ServiceKanban } from "@/components/service-kanban";
 import type { ServiceKanbanData } from "@/lib/service-kanban-server";
@@ -44,11 +44,26 @@ describe("Kanban de atendimentos", () => {
     confirm.mockRestore();
   });
 
-  it("cria card manual sem campos financeiros", async () => {
+  it("abre o cadastro de card manual pelo botão e não exibe formulário fixo", async () => {
     render(<ServiceKanban data={data} />);
-    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Conferir fotos" } });
-    fireEvent.change(screen.getByLabelText("Responsável", { selector: "select" }), { target: { value: "barber-1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Criar card" }));
+    expect(screen.queryByLabelText("Título")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Criar Card" }));
+    const dialog = screen.getByRole("dialog", { name: "Criar card manual" });
+    fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "Conferir fotos" } });
+    fireEvent.change(within(dialog).getByLabelText("Responsável"), { target: { value: "barber-1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Criar card" }));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("create_manual_service_kanban_card", expect.objectContaining({ p_title: "Conferir fotos", p_responsible_barber_id: "barber-1" })));
+  });
+
+  it("cria quadro pelo modo de edição, em diálogo", async () => {
+    render(<ServiceKanban data={data} />);
+    expect(screen.queryByRole("button", { name: "Adicionar quadro" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Editar Quadro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar quadro" }));
+    const dialog = screen.getByRole("dialog", { name: "Adicionar quadro" });
+    expect(within(dialog).getByLabelText("Responsável (opcional)")).toHaveValue("");
+    fireEvent.change(within(dialog).getByLabelText("Nome"), { target: { value: "Em revisão" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Adicionar quadro" }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("save_service_kanban_board", expect.objectContaining({ p_board_id: null, p_name: "Em revisão", p_responsible_barber_id: null })));
   });
 });
