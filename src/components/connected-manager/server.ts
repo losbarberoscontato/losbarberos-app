@@ -660,9 +660,26 @@ export async function loadAgendaData() {
       .eq("organization_id", organizationId)
       .order("start_date"),
   ]);
+  const [kanbanEntitlement, whatsappStatus] = await Promise.all([
+    supabase.from("organization_module_entitlements").select("enabled").eq("organization_id", organizationId).eq("module_key", "kanban").maybeSingle(),
+    supabase.rpc("get_whatsapp_connection_status", { p_organization_id: organizationId }),
+  ]);
+  const kanbanEnabled = Boolean(kanbanEntitlement.data?.enabled);
+  const [kanbanBoards, kanbanCards] = kanbanEnabled ? await Promise.all([
+    supabase.from("service_kanban_boards").select("id,name").eq("organization_id", organizationId),
+    supabase.from("service_kanban_cards").select("appointment_id,board_id,archived_at").eq("organization_id", organizationId).not("appointment_id", "is", null).is("archived_at", null),
+  ]) : [{ data: [], error: null }, { data: [], error: null }];
+  const whatsapp = whatsappStatus.data as WhatsAppSettingsStatus | null;
+  const whatsappAutomations = whatsapp?.automation;
+  const whatsappRequested = Boolean(whatsappAutomations && Object.entries(whatsappAutomations).some(([key, value]) => key.endsWith("_enabled") && value === true));
+  const whatsappConnected = Boolean(whatsapp?.connections?.some((connection) => connection.is_active && connection.status === "CONNECTED"));
   return {
     organizationId,
     billingStatus: context.billingStatus,
+    kanbanEnabled,
+    kanbanBoards: (kanbanBoards.data ?? []) as { id: string; name: string }[],
+    kanbanCards: (kanbanCards.data ?? []) as { appointment_id: string; board_id: string; archived_at: string | null }[],
+    whatsappPending: whatsappRequested && !whatsappConnected,
     organization: requireData(org, "Organização") as OrganizationRecord,
     appointments: requireData(appointments, "Agenda") as AppointmentRecord[],
     appointmentItems: requireData(
@@ -1604,7 +1621,7 @@ export async function loadFinancialReportsData() {
 
 export async function loadModulesData() {
   const { context, supabase, organizationId } = await managerClient();
-  const [modules, entitlements, prices] = await Promise.all([
+  const [modules, entitlements, prices, assignment, kanbanPrices, kanbanBilling, subscription, organization] = await Promise.all([
     supabase
       .from("platform_modules")
       .select("key,name,description,active")
@@ -1618,10 +1635,20 @@ export async function loadModulesData() {
       .from("platform_module_price_versions")
       .select("module_key,monthly_price_cents,effective_from,effective_until,stripe_test_price_id,stripe_live_price_id,currency")
       .order("effective_from", { ascending: false }),
+    supabase.from("organization_product_assignments").select("product_key").eq("organization_id", organizationId).maybeSingle(),
+    supabase.from("platform_kanban_price_versions").select("id,product_key,monthly_price_cents,contract_version,contract_body,retired_at"),
+    supabase.from("organization_kanban_billing").select("price_version_id,charge_starts_at").eq("organization_id", organizationId).maybeSingle(),
+    supabase.from("saas_subscriptions").select("current_period_ends_at").eq("organization_id", organizationId).maybeSingle(),
+    supabase.from("organizations").select("timezone").eq("id", organizationId).maybeSingle(),
   ]);
   return {
     organizationId,
     billingStatus: context.billingStatus,
+    productKey: assignment.data?.product_key ?? null,
+    kanbanPrices: (kanbanPrices.data ?? []) as { id: string; product_key: string; monthly_price_cents: number; contract_version: string; contract_body: string; retired_at: string | null }[],
+    kanbanBilling: kanbanBilling.data as { price_version_id: string; charge_starts_at: string | null } | null,
+    nextChargeAt: subscription.data?.current_period_ends_at ?? null,
+    timezone: organization.data?.timezone ?? "America/Sao_Paulo",
     modules: requireData(modules, "Módulos") as {
       key: string;
       name: string;

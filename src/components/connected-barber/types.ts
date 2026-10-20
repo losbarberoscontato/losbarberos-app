@@ -16,6 +16,7 @@ export type BarberAppContext = {
   agenda_access_scope: BarberAgendaScope;
   cash_access_enabled: boolean;
   projects_access_enabled: boolean;
+  kanban_access_enabled?: boolean;
   barber_auth_user_id: string;
 };
 

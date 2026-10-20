@@ -40,7 +40,9 @@ export interface AdminControlPlaneData {
   accessEventLimit: number;
   modules?: AdminModule[];
   modulePrices?: AdminModulePrice[];
+  kanbanPrices?: AdminKanbanPrice[];
 }
 
 export interface AdminModule { key: string; name: string; description: string; active: boolean; }
 export interface AdminModulePrice { module_key: string; monthly_price_cents: number; effective_from: string; effective_until: string | null; }
+export interface AdminKanbanPrice { id: string; product_key: string; monthly_price_cents: number; stripe_test_price_id: string; stripe_live_price_id: string; contract_version: string; contract_body: string; published_at: string; retired_at: string | null; }

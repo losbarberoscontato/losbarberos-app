@@ -35,6 +35,7 @@ const navigation = [
   { href: "/gestor/clientes", label: "Clientes", icon: Users },
   { href: "/gestor/equipe", label: "Equipe", icon: Sparkles },
   { href: "/gestor/catalogo", label: "Serviços", icon: PackageOpen },
+  { href: "/gestor/kanban", label: "Kanban", icon: FolderKanban, module: "kanban" as const },
   { href: "/gestor/projetos", label: "Projetos", icon: FolderKanban, module: "projects" as const },
   { href: "/gestor/financeiro", label: "Financeiro", icon: WalletCards },
 ];
@@ -57,9 +58,10 @@ export function useManagerBillingBlocked() {
   return useContext(ManagerBillingContext);
 }
 
-function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled, productKey }: { onNavigate?: () => void; agendaCount: number; projectsModuleEnabled: boolean; productKey: ProductKey }) {
+function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled, kanbanModuleEnabled, productKey }: { onNavigate?: () => void; agendaCount: number; projectsModuleEnabled: boolean; kanbanModuleEnabled: boolean; productKey: ProductKey }) {
   const pathname = usePathname() ?? "";
-  const visibleNavigation = navigation.filter((item) => item.module !== "projects" || projectsModuleEnabled).map((item) => ({
+  const visibleNavigation = navigation.filter((item) =>
+    (item.module !== "projects" || projectsModuleEnabled) && (item.module !== "kanban" || kanbanModuleEnabled)).map((item) => ({
     ...item,
     label: productKey === "music-pro"
       ? item.href === "/gestor/clientes" ? "Alunos" : item.href === "/gestor/equipe" ? "Professores" : item.href === "/gestor/catalogo" ? "Cursos" : item.label
@@ -143,7 +145,7 @@ function OrganizationSwitcher({ organizationName, locationName, organizationLogo
 
 type ManagerNotification = { id: string; title: string; body: string; href: string; read_at: string | null; created_at: string };
 
-export function ManagerShell({ children, demoMode = false, billingBlocked = false, projectsModuleEnabled = false, organizationId, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0, identity, productKey = "los-barberos" }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; projectsModuleEnabled?: boolean; organizationId?: string | null; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number; identity?: ProductIdentityConfig; productKey?: ProductKey }) {
+export function ManagerShell({ children, demoMode = false, billingBlocked = false, projectsModuleEnabled = false, kanbanModuleEnabled = false, organizationId, organizationName = "Sua barbearia", organizationLogoUrl, locationName = "Unidade principal", userName = "Gestor", agendaCount = 0, identity, productKey = "los-barberos" }: { children: React.ReactNode; demoMode?: boolean; billingBlocked?: boolean; projectsModuleEnabled?: boolean; kanbanModuleEnabled?: boolean; organizationId?: string | null; organizationName?: string; organizationLogoUrl?: string; locationName?: string; userName?: string; agendaCount?: number; identity?: ProductIdentityConfig; productKey?: ProductKey }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -236,7 +238,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           <Brand href="/gestor" light name={effectiveIdentity?.brand.name} tagline={effectiveIdentity?.brand.tagline} mark={effectiveIdentity?.brand.mark} logoUrl={effectiveIdentity?.brand.logoUrl} />
         </div>
           <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={effectiveIdentity?.vocabulary.organization ?? "barbearia"} brandMark={effectiveIdentity?.brand.mark} />
-        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} productKey={productKey} />
+        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} kanbanModuleEnabled={kanbanModuleEnabled} productKey={productKey} />
         <div className="manager-sidebar__footer">
           {managerProfile}
         </div>
@@ -258,7 +260,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
           </button>
         </div>
         <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={effectiveIdentity?.vocabulary.organization ?? "barbearia"} brandMark={effectiveIdentity?.brand.mark} />
-        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} productKey={productKey} onNavigate={() => setMenuOpen(false)} />
+        <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} kanbanModuleEnabled={kanbanModuleEnabled} productKey={productKey} onNavigate={() => setMenuOpen(false)} />
         <div className="manager-sidebar__footer">
           {managerProfile}
         </div>

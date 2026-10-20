@@ -123,6 +123,8 @@ export function BarberAgenda({
   professionals,
   outstandingByAppointment,
   accounts,
+  kanbanBoards = [],
+  kanbanCards = [],
 }: {
   context: BarberAppContext;
   appointments: BarberAppointment[];
@@ -132,6 +134,8 @@ export function BarberAgenda({
   professionals: BarberProfessional[];
   outstandingByAppointment: Map<string, number>;
   accounts: BarberFinancialAccount[];
+  kanbanBoards?: { id: string; name: string }[];
+  kanbanCards?: { appointment_id: string; board_id: string }[];
 }) {
   const router = useRouter();
   const timezone = context.timezone;
@@ -213,7 +217,7 @@ export function BarberAgenda({
       }
     }
     return layout;
-  }, [date, displayedBarbers, filteredAppointments]);
+  }, [date, displayedBarbers, filteredAppointments, timezone]);
   useEffect(() => {
     const update = () => setCurrentTime(new Date());
     update();
@@ -824,6 +828,7 @@ export function BarberAgenda({
                     <strong>{selected.source ?? "AGENDA"}</strong>
                   </div>
                 </span>
+                {context.kanban_access_enabled && (() => { const card = kanbanCards.find((item) => item.appointment_id === selected.id); const board = kanbanBoards.find((item) => item.id === card?.board_id); return board ? <span><div><small>Kanban</small><strong>{board.name}</strong></div></span> : null; })()}
               </div>
               <div className="appointment-detail__payment">
                 <div>

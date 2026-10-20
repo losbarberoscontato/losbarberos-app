@@ -137,6 +137,7 @@ export function CustomersManager({
   const [subscriptionBookingDate, setSubscriptionBookingDate] = useState("");
   const [subscriptionBookingTime, setSubscriptionBookingTime] = useState("09:00");
   const [subscriptionBookingBarberId, setSubscriptionBookingBarberId] = useState("");
+  const [subscriptionOverdueReason, setSubscriptionOverdueReason] = useState("");
   const [presentialCustomerId, setPresentialCustomerId] = useState<string | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<{ subscriptionId: string; cycleId: string; amountCents: number; method: string; dueOn: string } | null>(null);
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -632,6 +633,7 @@ export function CustomersManager({
     setSubscriptionBookingDate(tomorrow);
     setSubscriptionBookingTime("09:00");
     setSubscriptionBookingBarberId(eligible[0]?.id ?? "");
+    setSubscriptionOverdueReason("");
   }
 
   async function bookSubscriptionSession(event: FormEvent<HTMLFormElement>) {
@@ -641,12 +643,15 @@ export function CustomersManager({
       setMessage,
       async () => {
         const startsAt = new Date(`${subscriptionBookingDate}T${subscriptionBookingTime}:00`).toISOString();
-        await assertResult(await connectedClient().rpc("book_customer_subscription_session", {
+        await assertResult(await connectedClient().rpc(subscriptionOverdueReason.trim()
+          ? "book_customer_subscription_session_with_overdue_override"
+          : "book_customer_subscription_session", {
           p_organization_id: organizationId,
           p_customer_id: subscriptionBooking.customerId,
           p_subscription_session_id: subscriptionBooking.sessionId,
           p_barber_id: subscriptionBookingBarberId,
           p_starts_at: startsAt,
+          ...(subscriptionOverdueReason.trim() ? { p_reason: subscriptionOverdueReason.trim() } : {}),
         }));
       },
       "Sessão da assinatura agendada.",
@@ -1444,6 +1449,7 @@ export function CustomersManager({
                 <label>Profissional<span className="select-input"><select value={subscriptionBookingBarberId} onChange={(event) => setSubscriptionBookingBarberId(event.target.value)} required><option value="">Selecione</option>{eligible.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label>
                 <div className="form-grid"><label>Data<span className="input-shell"><CalendarDays size={17} /><input type="date" value={subscriptionBookingDate} onChange={(event) => setSubscriptionBookingDate(event.target.value)} required /></span></label><label>Horário<span className="input-shell"><Clock3 size={17} /><input type="time" value={subscriptionBookingTime} onChange={(event) => setSubscriptionBookingTime(event.target.value)} step={15 * 60} required /></span></label></div>
                 <p className={styles.subscriptionBookingHint}>O cliente e o serviço pertencem ao plano e não podem ser alterados.</p>
+                <label>Motivo de exceção por parcela vencida (apenas se necessário)<span className="input-shell"><textarea value={subscriptionOverdueReason} onChange={(event) => setSubscriptionOverdueReason(event.target.value)} minLength={5} maxLength={1000} placeholder="Informe o motivo para liberar este agendamento" /></span></label>
               </div>
               <div className="form-modal__footer"><button type="button" className="button button--ghost" onClick={() => setSubscriptionBooking(null)}>Cancelar</button><button type="submit" className="button button--dark"><Check size={17} /> Agendar sessão</button></div>
             </form>

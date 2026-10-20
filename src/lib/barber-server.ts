@@ -30,8 +30,15 @@ async function listBarberContexts(slug?: string | null): Promise<BarberAppContex
     p_organization_slug: slug ?? null,
   });
   if (error) return [];
+  const organizationIds = rows(data as BarberAppContext[]).map((context) => context.organization_id);
+  const { data: kanbanEntitlements } = organizationIds.length
+    ? await supabase.from("organization_module_entitlements").select("organization_id,enabled")
+      .eq("module_key", "kanban").in("organization_id", organizationIds)
+    : { data: [] };
+  const kanbanEnabled = new Set((kanbanEntitlements ?? []).filter((item) => item.enabled).map((item) => item.organization_id));
   return rows(data as BarberAppContext[]).map((context) => ({
     ...context,
+    kanban_access_enabled: kanbanEnabled.has(context.organization_id),
     organization_logo_url: context.organization_logo_path
       ? supabase.storage.from("organization-logos").getPublicUrl(context.organization_logo_path).data.publicUrl
       : null,
@@ -87,8 +94,14 @@ export async function loadBarberAgenda(slug?: string | null) {
       ? supabase.from("financial_accounts").select("id,name,kind").eq("organization_id", context.organization_id).eq("active", true).order("name")
       : Promise.resolve({ data: [] }),
   ]);
+  const [kanbanBoards, kanbanCards] = context.kanban_access_enabled ? await Promise.all([
+    supabase.from("service_kanban_boards").select("id,name").eq("organization_id", context.organization_id),
+    supabase.from("service_kanban_cards").select("appointment_id,board_id").eq("organization_id", context.organization_id).not("appointment_id", "is", null).is("archived_at", null),
+  ]) : [{ data: [] }, { data: [] }];
   return {
     context,
+    kanbanBoards: rows(kanbanBoards.data as { id: string; name: string }[]),
+    kanbanCards: rows(kanbanCards.data as { appointment_id: string; board_id: string }[]),
     appointments: rows(appointments.data as BarberAppointment[]),
     appointmentItems: rows(appointmentItems.data as BarberAppointmentItem[]),
     customers: rows(customers.data as BarberCustomer[]),

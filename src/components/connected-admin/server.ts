@@ -8,6 +8,7 @@ import type {
   AdminSubscription,
   AdminModule,
   AdminModulePrice,
+  AdminKanbanPrice,
 } from "./types";
 
 const ACCESS_EVENT_LIMIT = 500;
@@ -24,10 +25,11 @@ export async function loadAdminControlPlaneData(): Promise<AdminControlPlaneData
       accessEventLimit: ACCESS_EVENT_LIMIT,
       modules: [],
       modulePrices: [],
+      kanbanPrices: [],
     };
   }
 
-  const [organizationsResult, subscriptionsResult, accessEventsResult, modulesResult, modulePricesResult] = await Promise.all([
+  const [organizationsResult, subscriptionsResult, accessEventsResult, modulesResult, modulePricesResult, kanbanPricesResult] = await Promise.all([
     supabase
       .from("organizations")
       .select("id,name,slug,timezone,currency,created_at")
@@ -43,6 +45,7 @@ export async function loadAdminControlPlaneData(): Promise<AdminControlPlaneData
       .limit(ACCESS_EVENT_LIMIT),
     supabase.from("platform_modules").select("key,name,description,active").order("name"),
     supabase.from("platform_module_price_versions").select("module_key,monthly_price_cents,effective_from,effective_until").order("effective_from", { ascending: false }),
+    supabase.from("platform_kanban_price_versions").select("id,product_key,monthly_price_cents,stripe_test_price_id,stripe_live_price_id,contract_version,contract_body,published_at,retired_at").order("published_at", { ascending: false }),
   ]);
 
   const errors: string[] = [];
@@ -59,5 +62,6 @@ export async function loadAdminControlPlaneData(): Promise<AdminControlPlaneData
     accessEventLimit: ACCESS_EVENT_LIMIT,
     modules: (modulesResult.data ?? []) as AdminModule[],
     modulePrices: (modulePricesResult.data ?? []) as AdminModulePrice[],
+    kanbanPrices: (kanbanPricesResult.data ?? []) as AdminKanbanPrice[],
   };
 }

@@ -56,6 +56,8 @@ export function toClientError(error: unknown, fallback: string): string {
   if (message.includes("cannot perform") || message.includes("active barber not found")) return "Profissional não executa seleção escolhida. Escolha outro.";
   if (message.includes("mercado pago account is not connected")) return "Pagamento online ainda não foi conectado por esta barbearia.";
   if (message.includes("reschedule deadline")) return "Prazo de reagendamento já terminou.";
+  if (message.includes("subscription_overdue_installment")) return "Há parcela vencida neste plano. Fale com o estabelecimento para regularizar antes de agendar.";
+  if (message.includes("previous_subscription_session_not_finished")) return "A sessão anterior precisa ser concluída antes de agendar a próxima.";
   if (message.includes("authentication required") || message.includes("jwt")) return "Sessão expirou. Entre novamente.";
   if (message.includes("client account not found") || message.includes("query returned no rows")) {
     return "Complete seus dados de cliente antes de entrar nesta barbearia.";

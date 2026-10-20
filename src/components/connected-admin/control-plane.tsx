@@ -64,6 +64,12 @@ export function AdminControlPlane({ data }: { data: AdminControlPlaneData }) {
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [modulePriceDrafts, setModulePriceDrafts] = useState<Record<string, string>>({});
   const [moduleSaving, setModuleSaving] = useState<string | null>(null);
+  const [kanbanProduct, setKanbanProduct] = useState("los-barberos");
+  const [kanbanPrice, setKanbanPrice] = useState("");
+  const [kanbanTestId, setKanbanTestId] = useState("");
+  const [kanbanLiveId, setKanbanLiveId] = useState("");
+  const [kanbanContractVersion, setKanbanContractVersion] = useState("");
+  const [kanbanContractBody, setKanbanContractBody] = useState("");
 
   const subscriptionByOrganization = useMemo(
     () => new Map(data.subscriptions.map((subscription) => [subscription.organization_id, subscription])),
@@ -159,6 +165,26 @@ export function AdminControlPlane({ data }: { data: AdminControlPlaneData }) {
     finally { setModuleSaving(null); }
   }
 
+  async function publishKanbanPrice(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cents = Math.round(Number(kanbanPrice.trim().replace(/\./gu, "").replace(",", ".")) * 100);
+    if (!Number.isSafeInteger(cents) || cents <= 0) { setMutationError("Informe um valor mensal válido."); return; }
+    setModuleSaving("kanban"); setMutationError(null);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) throw new Error("Supabase não configurado.");
+      const result = await supabase.rpc("publish_platform_kanban_price", {
+        p_product_key: kanbanProduct, p_monthly_price_cents: cents,
+        p_stripe_test_price_id: kanbanTestId.trim(), p_stripe_live_price_id: kanbanLiveId.trim(),
+        p_contract_version: kanbanContractVersion.trim(), p_contract_body: kanbanContractBody.trim(),
+      });
+      if (result.error) throw new Error(result.error.message);
+      setFeedback({ kind: "success", message: "Preço e aditivo do Kanban publicados para novas ativações." });
+      router.refresh();
+    } catch { setMutationError("Não foi possível publicar a configuração do Kanban."); }
+    finally { setModuleSaving(null); }
+  }
+
   useEffect(() => {
     if (!accessChange) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -204,7 +230,19 @@ export function AdminControlPlane({ data }: { data: AdminControlPlaneData }) {
 
         <section className={styles.panel} aria-labelledby="modules-title">
           <div className={styles.panelHeading}><div><h2 id="modules-title">Módulos e preços futuros</h2><p>Configuração exclusiva do Platform Admin. Ainda não altera o Stripe.</p></div></div>
-          {(data.modules ?? []).length === 0 ? <div className={styles.empty}><CircleOff size={28} /><strong>Nenhum módulo cadastrado</strong></div> : <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Módulo</th><th>Preço mensal</th><th>Vigência</th><th /></tr></thead><tbody>{(data.modules ?? []).map((module) => { const current = (data.modulePrices ?? []).find((price) => price.module_key === module.key && !price.effective_until) ?? (data.modulePrices ?? []).find((price) => price.module_key === module.key); return <tr key={module.key}><td><strong>{module.name}</strong><small>{module.description}</small></td><td><input aria-label={`Preço de ${module.name}`} inputMode="decimal" defaultValue={current ? (current.monthly_price_cents / 100).toFixed(2).replace(".", ",") : ""} onChange={(event) => setModulePriceDrafts((drafts) => ({ ...drafts, [module.key]: event.target.value }))} /></td><td>{current?.effective_from ?? "—"}</td><td><button type="button" disabled={moduleSaving === module.key} onClick={() => void saveModulePrice(module.key)}>{moduleSaving === module.key ? "Salvando…" : "Salvar preço"}</button>{current && <small>{formatModuleCents(current.monthly_price_cents)}</small>}</td></tr>; })}</tbody></table></div>}
+          {(data.modules ?? []).length === 0 ? <div className={styles.empty}><CircleOff size={28} /><strong>Nenhum módulo cadastrado</strong></div> : <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Módulo</th><th>Preço mensal</th><th>Vigência</th><th /></tr></thead><tbody>{(data.modules ?? []).filter((module) => module.key !== "kanban").map((module) => { const current = (data.modulePrices ?? []).find((price) => price.module_key === module.key && !price.effective_until) ?? (data.modulePrices ?? []).find((price) => price.module_key === module.key); return <tr key={module.key}><td><strong>{module.name}</strong><small>{module.description}</small></td><td><input aria-label={`Preço de ${module.name}`} inputMode="decimal" defaultValue={current ? (current.monthly_price_cents / 100).toFixed(2).replace(".", ",") : ""} onChange={(event) => setModulePriceDrafts((drafts) => ({ ...drafts, [module.key]: event.target.value }))} /></td><td>{current?.effective_from ?? "—"}</td><td><button type="button" disabled={moduleSaving === module.key} onClick={() => void saveModulePrice(module.key)}>{moduleSaving === module.key ? "Salvando…" : "Salvar preço"}</button>{current && <small>{formatModuleCents(current.monthly_price_cents)}</small>}</td></tr>; })}</tbody></table></div>}
+          <form onSubmit={(event) => void publishKanbanPrice(event)}>
+            <h3>Kanban por sistema</h3>
+            <p>Publique valor, IDs Stripe de teste e produção e aditivo. A nova versão vale para novas ativações.</p>
+            <label>Sistema <select value={kanbanProduct} onChange={(event) => setKanbanProduct(event.target.value)}><option value="los-barberos">Los Barberos</option><option value="le-gras">Le Gras</option><option value="pro-stetic">Pro Stetic</option><option value="music-pro">Music Pro</option></select></label>
+            <label>Valor mensal em R$ <input value={kanbanPrice} onChange={(event) => setKanbanPrice(event.target.value)} inputMode="decimal" required /></label>
+            <label>Stripe Price ID de teste <input value={kanbanTestId} onChange={(event) => setKanbanTestId(event.target.value)} required /></label>
+            <label>Stripe Price ID de produção <input value={kanbanLiveId} onChange={(event) => setKanbanLiveId(event.target.value)} required /></label>
+            <label>Versão do aditivo <input value={kanbanContractVersion} onChange={(event) => setKanbanContractVersion(event.target.value)} required /></label>
+            <label>Texto do aditivo <textarea value={kanbanContractBody} onChange={(event) => setKanbanContractBody(event.target.value)} minLength={20} required /></label>
+            <button type="submit" disabled={moduleSaving === "kanban"}>Publicar Kanban</button>
+            {(data.kanbanPrices ?? []).filter((price) => price.product_key === kanbanProduct && !price.retired_at).map((price) => <p key={price.id}>Vigente: {formatModuleCents(price.monthly_price_cents)}/mês · {price.contract_version} · {new Date(price.published_at).toLocaleDateString("pt-BR")}<br />Teste: {price.stripe_test_price_id} · Produção: {price.stripe_live_price_id}</p>)}
+          </form>
         </section>
 
         <section className={styles.panel} aria-labelledby="organizations-title">
