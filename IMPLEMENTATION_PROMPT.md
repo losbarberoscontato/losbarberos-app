@@ -1,5 +1,9 @@
 # Prompt inicial — próxima conversa Los Barberos
 
+## Kanban de Atendimentos — 20/10/2026
+
+Commit `c1f5e03` publicado em `main`; três migrations e `stripe-kanban-module` publicados no Supabase `bwdjkhqshmppescunwer`. Vercel `dpl_BNFpXL1AuH84VqrG3zUxvYSTBYhA` em `READY`. Kanban permanece inativo em todas as organizações; preços/aditivos ainda não publicados. CI `39486634305` falhou em testes gerais antigos, formato de Functions antigas e fixture financeira pgTAP; E2E passou. Consulte `HANDOFF.md` e `docs/CHECKLIST_VISUAL_KANBAN_ATENDIMENTOS.md`. Conferência autenticada e Stripe teste seguem pendentes.
+
 ## Públicos configuráveis — 07/10/2026
 
 Configurações permite adicionar, inativar e reativar públicos por estabelecimento. Os quatro padrões continuam disponíveis por padrão; serviços/pacotes mostram somente públicos ativos. Migration `20261007161507_organization_catalog_audiences.sql` aplicada ao Supabase. Build e typecheck aprovados; testes automatizados não executados nesta rodada. Sem mudanças em Edge Functions/WhatsApp Evolution. Detalhes e validação de produção em `HANDOFF.md`.

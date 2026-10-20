@@ -1,5 +1,13 @@
 # Handoff — Los Barberos
 
+## Kanban de Atendimentos e regras de assinatura — 20/10/2026
+
+- Commit funcional `c1f5e03` publicado em `main`. Migrations `20261020120000`, `20261020121000` e `20261020122000` aplicadas ao Supabase `bwdjkhqshmppescunwer`; dry-run posterior sem pendências. Function `stripe-kanban-module` ativa, versão 2, com JWT obrigatório.
+- Consulta remota: módulo cadastrado, duas triggers instaladas, RLS forçada nas seis tabelas novas; zero preços publicados e zero organizações com Kanban ativo. Platform Admin precisa cadastrar preço mensal, IDs Stripe de teste/produção e aditivo antes de ativação.
+- Vercel `dpl_BNFpXL1AuH84VqrG3zUxvYSTBYhA` ficou `READY` em produção nos aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`. Smoke público: `/`, `/entrar`, `/privacidade`, `/termos`, `/acesso-cliente`, `/cliente/entrar` HTTP 200; `/gestor`, `/gestor/kanban`, `/barbeiro/kanban` HTTP 307 para login.
+- Local: 20 testes focados, typecheck, build e formatação da nova Function passaram. `npm.cmd run verify` terminou com 6 falhas em 742 testes gerais. CI `39486634305`: E2E passou; `verify` falhou nos mesmos 6 testes; `edge-functions` falhou por 20 arquivos antigos de WhatsApp fora do formato Deno; `database` falhou em fixture financeira (`chart_account_id` nulo, plano de contas esperado 42/real 34). Nenhum desses arquivos antigos foi alterado nesta entrega.
+- Teste visual autenticado, fluxo Stripe teste, entrega WhatsApp em aparelho e cobrança real permanecem **NÃO VALIDADOS**. Roteiro: `docs/CHECKLIST_VISUAL_KANBAN_ATENDIMENTOS.md`. Migrations e function foram publicadas; dados de cliente e financeiro não foram alterados manualmente.
+
 ## Públicos configuráveis no catálogo — 07/10/2026
 
 - Regras de negócio ganhou o gerenciamento de Públicos por estabelecimento: cadastrar, inativar e reativar. Os quatro públicos padrão são semeados para estabelecimentos existentes e novos, preservando as chaves já usadas nos serviços e pacotes.
