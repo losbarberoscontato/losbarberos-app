@@ -25,21 +25,64 @@ beforeAll(async () => {
     create table organization_module_entitlements(organization_id uuid,module_key text,enabled boolean,changed_by uuid,changed_at timestamptz,
       billing_change_action text,billing_change_effective_at timestamptz,billing_sync_status text,primary key(organization_id,module_key));
     create table organization_module_events(organization_id uuid,module_key text,from_enabled boolean,to_enabled boolean,reason text,actor_user_id uuid);
+    create table webhook_events(provider text,event_type text,payload jsonb,provider_created_at timestamptz,created_at timestamptz default now());
     create function public.process_stripe_billing_webhook(text,text,timestamptz,boolean,text,timestamptz,jsonb)
-    returns jsonb language sql as $$select jsonb_build_object('applied',$1<>'evt_stale','base_price',$7 #>> '{items,data,0,price,id}')$$;
+    returns jsonb language plpgsql as $$begin
+      if ($7->>'current_period_end') ~ '^[0-9]+$' then
+        update saas_subscriptions set current_period_ends_at=to_timestamp(($7->>'current_period_end')::double precision)
+        where stripe_subscription_id=$7->>'id';
+      end if;
+      return jsonb_build_object('applied',$1<>'evt_stale','base_price',$7 #>> '{items,data,0,price,id}','period_end',$7->>'current_period_end');
+    end$$;
     insert into auth.users values('${actor}');
     insert into organizations values('${org}');
     insert into organization_product_assignments values('${org}','los-barberos');
-    insert into saas_subscriptions values('${org}','sub_test','price_base','ACTIVE',now()+interval '15 days');
+    insert into saas_subscriptions values('${org}','sub_test','price_base','ACTIVE',null);
+    insert into webhook_events(provider,event_type,payload,provider_created_at) values(
+      'STRIPE','customer.subscription.updated',
+      '{"id":"sub_test","items":{"data":[{"id":"si_base","price":{"id":"price_base"},"current_period_end":1794588157}]}}'::jsonb,
+      now()
+    );
     set test.actor='${actor}'; set test.owner_org='${org}'; set test.platform_admin='true';
     set request.jwt.claim.role='authenticated';
   `);
   await db.exec(readFileSync("supabase/migrations/20261020122000_kanban_billing.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261020222527_fix_stripe_item_period_end.sql", "utf8"));
 }, 60_000);
 
 afterAll(async () => { await db?.close(); });
 
 describe("faturamento Kanban no PostgreSQL", () => {
+  it("recupera o ciclo dos eventos salvos e normaliza webhooks de item Stripe", async () => {
+    const backfilled = await db.query<{ period_end: string }>(
+      "select extract(epoch from current_period_ends_at)::bigint::text as period_end from saas_subscriptions where organization_id=$1",
+      [org],
+    );
+    expect(backfilled.rows[0].period_end).toBe("1794588157");
+
+    await db.query("update saas_subscriptions set current_period_ends_at=null where organization_id=$1", [org]);
+    await db.exec("set request.jwt.claim.role='service_role'");
+    const payload = {
+      id: "sub_test",
+      items: { data: [
+        { id: "si_module", price: { id: "price_module" }, current_period_end: 1800000000 },
+        { id: "si_base", price: { id: "price_base" }, current_period_end: 1795000000 },
+      ] },
+    };
+    const result = await db.query<{ process_stripe_billing_webhook: { base_price: string; period_end: string } }>(
+      "select process_stripe_billing_webhook('evt_item_period','customer.subscription.updated',now(),false,'ACTIVE',null,$1::jsonb)",
+      [JSON.stringify(payload)],
+    );
+    expect(result.rows[0].process_stripe_billing_webhook.base_price).toBe("price_base");
+    expect(result.rows[0].process_stripe_billing_webhook.period_end).toBe("1795000000");
+    const persisted = await db.query<{ period_end: string }>(
+      "select extract(epoch from current_period_ends_at)::bigint::text as period_end from saas_subscriptions where organization_id=$1",
+      [org],
+    );
+    expect(persisted.rows[0].period_end).toBe("1795000000");
+    await db.exec("set request.jwt.claim.role='authenticated'");
+  });
+
   it("exige catálogo completo e bloqueia ativação direta", async () => {
     await expect(db.query("select publish_platform_kanban_price('los-barberos',1000,'','price_live','v1','Texto completo do aditivo publicado')"))
       .rejects.toThrow("complete Kanban price");
