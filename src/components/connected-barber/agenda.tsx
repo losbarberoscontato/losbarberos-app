@@ -598,8 +598,9 @@ export function BarberAgenda({
                         <button
                           key={appointment.id}
                           type="button"
-                          aria-label={`Abrir ${customerById.get(appointment.customer_id)?.full_name ?? "agendamento"}`}
-                          className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${display.tone}${geometry.height <= 39 ? " agenda-event--short" : ""}`}
+                          aria-label={`Abrir agendamento de ${customerById.get(appointment.customer_id)?.full_name ?? "Cliente"}, ${geometry.startLabel}–${geometry.endLabel}, ${serviceLabel(appointment.id)}, ${display.label}`}
+                          title={`${geometry.startLabel}–${geometry.endLabel} | ${serviceLabel(appointment.id)} | ${display.label}`}
+                          className={`agenda-event agenda-event--${(barberIndex + itemIndex) % 3} agenda-event--response-${display.tone}${geometry.height <= 24 ? " agenda-event--compact" : geometry.height <= 39 ? " agenda-event--short" : ""}`}
                           style={{ top: geometry.top, height: geometry.height, left: `calc(${layout.lane * laneWidth}% + 6px)`, right: "auto", width: `calc(${laneWidth}% - 12px)` }}
                           onClick={() => setSelected(appointment)}
                         >
@@ -607,7 +608,7 @@ export function BarberAgenda({
                             <span aria-hidden="true">
                               {geometry.startLabel}
                             </span>
-                            <span aria-hidden="true">{geometry.endLabel}</span>
+                            <span className="sr-only">— {geometry.endLabel}</span>
                           </span>
                           <span className="agenda-event__details">
                             <strong>
