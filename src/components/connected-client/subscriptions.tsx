@@ -11,6 +11,7 @@ type Row = {
   id: string;
   plan_id: string;
   status: string;
+  contract_accepted_at: string | null;
   start_date: string | null;
   end_date: string | null;
   first_due_date: string | null;
@@ -84,6 +85,8 @@ type FixedScheduleDraft = {
   localTime: string;
   barberId: string;
 };
+type ProjectOffer = { id: string; project_id: string; package_id: string; status: string; contracted_cents: number; created_by: string; project: { name: string } | null; package: { name: string; description: string | null } | null };
+type PublicProject = { id: string; name: string; description: string | null; package: { id: string; name: string; description: string | null; price_cents: number }[] };
 
 const paymentMethodLabel: Record<string, string> = {
   CARD: "Cartão de crédito",
@@ -99,6 +102,8 @@ export function ConnectedSubscriptions() {
   const [rows, setRows] = useState<Row[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [plans, setPlans] = useState<AvailablePlan[]>([]);
+  const [projectOffers, setProjectOffers] = useState<ProjectOffer[]>([]);
+  const [publicProjects, setPublicProjects] = useState<PublicProject[]>([]);
   const [contractBody, setContractBody] = useState<string | null>(null);
   const [fixedScheduleDraft, setFixedScheduleDraft] = useState<FixedScheduleDraft | null>(null);
   const [message, setMessage] = useState("Carregando assinaturas…");
@@ -114,7 +119,7 @@ export function ConnectedSubscriptions() {
       client
         .from("customer_subscriptions")
         .select(
-          "id,plan_id,status,start_date,end_date,first_due_date,payment_method,contract_body_snapshot,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(price_cents,billing_period,sessions_per_cycle,scheduling_mode)",
+          "id,plan_id,status,contract_accepted_at,start_date,end_date,first_due_date,payment_method,contract_body_snapshot,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(price_cents,billing_period,sessions_per_cycle,scheduling_mode)",
         )
         .eq("organization_id", context.organization.id)
         .eq("customer_id", customer.id)
@@ -126,7 +131,11 @@ export function ConnectedSubscriptions() {
         )
         .eq("organization_id", context.organization.id)
         .eq("active", true),
-    ]).then(async ([subscriptionsResult, plansResult]) => {
+      client.from("project_engagements").select("id,project_id,package_id,status,contracted_cents,created_by,project:projects(name),package:project_packages(name,description)")
+        .eq("organization_id", context.organization.id).eq("customer_id", customer.id).in("status", ["PROPOSAL", "ACTIVE"]),
+      client.from("projects").select("id,name,description,package:project_packages(id,name,description,price_cents)")
+        .eq("organization_id", context.organization.id).eq("status", "PUBLISHED"),
+    ]).then(async ([subscriptionsResult, plansResult, projectResult, publicProjectResult]) => {
       const { data, error } = subscriptionsResult;
       if (error) {
         setMessage(error.message);
@@ -134,6 +143,8 @@ export function ConnectedSubscriptions() {
       }
       const subscriptions = (data ?? []) as unknown as Row[];
       setRows(subscriptions);
+      setProjectOffers((projectResult.data ?? []) as unknown as ProjectOffer[]);
+      setPublicProjects(((publicProjectResult.data ?? []) as unknown as PublicProject[]).map((project) => ({ ...project, package: Array.isArray(project.package) ? project.package : project.package ? [project.package] : [] })));
       const normalizedPlans = ((plansResult.data ?? []) as unknown as AvailablePlan[]).map((plan) => {
         const versions = Array.isArray(plan.version) ? plan.version : plan.version ? [plan.version] : [];
         return {
@@ -206,6 +217,28 @@ export function ConnectedSubscriptions() {
       })));
     });
   }, [context, customer, user]);
+  async function acceptSubscriptionOffer(id: string) {
+    if (!context) return;
+    const client = getSupabaseBrowserClient(); if (!client) return;
+    const { error } = await client.rpc("accept_customer_subscription_offer", { p_organization_id: context.organization.id, p_subscription_id: id });
+    setMessage(error ? error.message : "Plano aceito. Aguarde a aprovação do gestor.");
+    if (!error) window.location.reload();
+  }
+  async function acceptProjectOffer(offer: ProjectOffer) {
+    if (!context) return;
+    if (!window.confirm(`Aceitar a contratação ${offer.project?.name ?? "do projeto"} · ${offer.package?.name ?? "pacote"}?`)) return;
+    const client = getSupabaseBrowserClient(); if (!client) return;
+    const { error } = await client.rpc("accept_customer_project_engagement", { p_organization_id: context.organization.id, p_engagement_id: offer.id });
+    setMessage(error ? error.message : "Contratação aceita.");
+    if (!error) window.location.reload();
+  }
+  async function requestProject(projectId: string, packageId: string, projectName: string, packageName: string) {
+    if (!context || !window.confirm(`Solicitar ${packageName} no projeto ${projectName}?`)) return;
+    const client = getSupabaseBrowserClient(); if (!client) return;
+    const { error } = await client.rpc("request_customer_project_engagement", { p_organization_id: context.organization.id, p_project_id: projectId, p_package_id: packageId });
+    setMessage(error ? error.message : "Solicitação enviada. Aguarde contato do gestor.");
+    if (!error) window.location.reload();
+  }
   async function requestPlan(plan: AvailablePlan) {
     if (plan.version?.scheduling_mode === "FIXED") {
       const eligibleBarbers = context?.barbers.filter((barber) => barberSupportsServices(plan.service_ids, barber.service_ids)
@@ -334,6 +367,27 @@ export function ConnectedSubscriptions() {
         <p>Planos ativos, parcelas e sessões disponíveis.</p>
       </header>
       {message && <p>{message}</p>}
+      {rows.filter((row) => row.status === "REQUESTED" && !row.contract_accepted_at).map((row) => (
+        <article className={styles.subscriptionCard} key={`offer-${row.id}`}>
+          <h2>{row.plan?.name ?? "Plano de assinatura"}</h2>
+          <p>O gestor criou esta adesão para você. Aceite o plano para enviar ao gestor para aprovação.</p>
+          <button className={styles.subscriptionAction} type="button" onClick={() => void acceptSubscriptionOffer(row.id)}>Aceitar plano</button>
+        </article>
+      ))}
+      {projectOffers.length > 0 && <div>
+        <h2>Projetos e contratações</h2>
+        {projectOffers.map((offer) => {
+          const customerRequested = offer.created_by === user?.id;
+          return <article className={styles.subscriptionCard} key={offer.id}>
+            <h3>{offer.project?.name ?? "Projeto"} · {offer.package?.name ?? "Pacote"}</h3>
+            <p>{offer.package?.description ?? (customerRequested ? "Solicitação enviada; aguarde o gestor." : "O gestor enviou uma contratação para você aceitar.")}</p>
+            <strong>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(offer.contracted_cents / 100)}</strong>
+            {offer.status === "PROPOSAL" && !customerRequested && <button className={styles.subscriptionAction} type="button" onClick={() => void acceptProjectOffer(offer)}>Aceitar contratação</button>}
+            {offer.status === "PROPOSAL" && customerRequested && <small>Solicitação enviada · aguardando retorno</small>}
+            {offer.status === "ACTIVE" && <small>Contratação aceita</small>}
+          </article>;
+        })}
+      </div>}
       {rows.map((row) => (
         <article className={styles.subscriptionCard} key={row.id}>
           <h2>{row.plan?.name ?? "Plano"}</h2>
@@ -469,6 +523,15 @@ export function ConnectedSubscriptions() {
           ))}
         </div>
       )}
+      {user && publicProjects.some((project) => project.package.length) && <div>
+        <h2>Solicitar projeto</h2>
+        {publicProjects.flatMap((project) => project.package.map((pkg) => <article className={styles.subscriptionCard} key={`${project.id}-${pkg.id}`}>
+          <h3>{project.name} · {pkg.name}</h3>
+          <p>{pkg.description ?? project.description ?? "Projeto disponível para contratação."}</p>
+          <strong>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(pkg.price_cents / 100)}</strong>
+          <button className={styles.subscriptionAction} type="button" onClick={() => void requestProject(project.id, pkg.id, project.name, pkg.name)}>Solicitar projeto</button>
+        </article>))}
+      </div>}
       {fixedScheduleDraft && context && (() => {
         const eligibleBarbers = context.barbers.filter((barber) => barberSupportsServices(fixedScheduleDraft.plan.service_ids, barber.service_ids)
           && (barber.subscription_plan_ids === undefined || barber.subscription_plan_ids.includes(fixedScheduleDraft.plan.id)));

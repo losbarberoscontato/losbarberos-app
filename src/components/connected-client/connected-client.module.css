@@ -854,3 +854,6 @@
 @media (prefers-reduced-motion: reduce) {
   .collapsiblePanel .sectionToggle > svg:last-child { transition: none; }
 }
+.offerPulse { animation: client-offer-pulse 1.2s ease-in-out infinite; }
+@keyframes client-offer-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--forest-900, #245f50) 18%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .offerPulse { animation: none; outline: 2px solid var(--forest-900, #245f50); } }

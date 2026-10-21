@@ -459,11 +459,11 @@ export function CustomersManager({
             p_customer_id: customerId,
             p_plan_id: planId,
             p_acceptance_source: "PRESENTIAL",
-            p_accept_contract: true,
+            p_accept_contract: false,
           }),
         );
       },
-      "Adesão presencial criada. Aprove a primeira cobrança para ativar.",
+      "Adesão enviada ao cliente. Ele precisa aceitar antes da aprovação.",
     );
     if (saved) router.refresh();
   }
@@ -484,10 +484,10 @@ export function CustomersManager({
           p_local_time: draft.localTime,
           p_barber_id: draft.barberId,
           p_acceptance_source: "PRESENTIAL",
-          p_accept_contract: true,
+          p_accept_contract: false,
         }));
       },
-      "Adesão fixa criada. Aprove a primeira cobrança para agendar as sessões.",
+      "Adesão fixa enviada ao cliente. Ele precisa aceitar antes da aprovação.",
     );
     if (saved) {
       setFixedEnrollmentDraft(null);
@@ -1264,7 +1264,7 @@ export function CustomersManager({
                                   </span>
                                   <span className={styles.subscriptionSummaryStatus}>{String(subscription.status) === "ACTIVE" ? "Ativo" : String(subscription.status) === "PENDING_PAYMENT" ? "Pendente" : "Solicitado"}</span>
                                   <span className={styles.rowActions}>
-                                    {subscription.status === "REQUESTED" && (
+                                    {subscription.status === "REQUESTED" && Boolean(subscription.contract_accepted_at) && (
                                       <button
                                         type="button"
                                         className={`${styles.button} ${styles.buttonSmall}`}
@@ -1277,6 +1277,7 @@ export function CustomersManager({
                                         Aprovar
                                       </button>
                                     )}
+                                    {subscription.status === "REQUESTED" && !subscription.contract_accepted_at && <small>Aguardando aceite do cliente</small>}
                                     {subscription.status !== "REQUESTED" &&
                                       cycles
                                         .filter(

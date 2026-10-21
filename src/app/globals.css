@@ -2102,6 +2102,9 @@
   .topbar-preview { font-size: 9px; font-weight: 750; color: var(--muted); }
   .notification-button { position: relative; }
   .notification-button > span { position: absolute; top: 7px; right: 8px; width: 6px; height: 6px; border: 1px solid #fff; border-radius: 50%; background: var(--amber-500); }
+  .notification-button:has(> span) { animation: manager-notification-pulse 1.15s ease-in-out infinite; }
+  @keyframes manager-notification-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber-500) 24%, transparent); } }
+  @media (prefers-reduced-motion: reduce) { .notification-button:has(> span) { animation: none; outline: 2px solid var(--amber-500); } }
   .manager-notifications-popover { position: absolute; z-index: 30; top: 58px; right: 22px; width: min(360px, calc(100vw - 28px)); overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-lg); }
   .manager-notifications-popover__head { display: flex; align-items: center; justify-content: space-between; padding: 15px 17px; border-bottom: 1px solid var(--border-soft); }
   .manager-notifications-popover__head strong { font: 700 17px/1.1 var(--font-display); }

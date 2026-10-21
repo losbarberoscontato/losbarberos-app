@@ -22,6 +22,7 @@ import { formatBirthDateInput, normalizeBirthDateInput, parseBirthDateInput } fr
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { cpfCnpjDigits, formatCpfCnpj, isCpfCnpjValid } from "@/lib/cpf-cnpj";
 import { clientVocabulary } from "@/components/connected-client/vocabulary";
+import { normalizePhoneE164 } from "@/lib/phone";
 
 export function ConnectedProfile() {
   return <ConnectedClientGate><ProfileContent /></ConnectedClientGate>;
@@ -108,13 +109,13 @@ function ProfileContent() {
 
   async function saveProfile() {
     if (!supabase || !account) return;
-    const phoneE164 = phone.trim() || account.phone_e164;
+    const phoneE164 = normalizePhoneE164(phone) ?? (phone.trim() ? null : account.phone_e164);
     const parsedBirthDate = birthDate ? parseBirthDateInput(birthDate) : null;
     if (fullName.trim().length < 2) {
       setError("Informe nome completo.");
       return;
     }
-    if (!/^\+[1-9][0-9]{7,14}$/u.test(phoneE164)) {
+    if (!phoneE164 || !/^\+[1-9][0-9]{7,14}$/u.test(phoneE164)) {
       setError("Telefone deve estar em E.164. Exemplo: +5511999999999.");
       return;
     }
