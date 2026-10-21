@@ -2,11 +2,11 @@
 
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { Archive, ExternalLink, MessageSquare, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { assertResult, connectedClient, runMutation } from "@/components/connected-manager/mutation-utils";
 import { ActionMessage, Field, Panel } from "@/components/connected-manager/shared";
-import type { ServiceKanbanData, ServiceKanbanBoard, ServiceKanbanCard } from "@/lib/service-kanban-server";
+import type { ServiceKanbanData, ServiceKanbanBoard, ServiceKanbanCard, ServiceKanbanCardLink } from "@/lib/service-kanban-server";
 import styles from "@/components/connected-manager/connected-manager.module.css";
 
 export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
@@ -18,6 +18,13 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
   const [newBoardOpen, setNewBoardOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [detailTitle, setDetailTitle] = useState("");
+  const [detailDescription, setDetailDescription] = useState("");
+  const [detailDueOn, setDetailDueOn] = useState("");
+  const [detailLinks, setDetailLinks] = useState<Array<{ label: string; url: string }>>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [responsible, setResponsible] = useState("");
   const [customer, setCustomer] = useState("");
   const [service, setService] = useState("");
@@ -35,13 +42,71 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
 
   const professionalName = (id: string | null) => data.barbers.find((item) => item.id === id)?.display_name ?? "Profissional";
   const canReceive = (board: ServiceKanbanBoard) => board.system_key === "WAITING" || Boolean(board.responsible_barber_id);
+  const dateTimeLabel = (value: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-  async function mutateCard(card: ServiceKanbanCard, action: "MOVED" | "EDITED" | "COMPLETED" | "REOPENED", boardId?: string, newTitle?: string) {
+  function openCard(card: ServiceKanbanCard) {
+    setSelectedCardId(card.id);
+    setDetailTitle(card.title);
+    setDetailDescription(card.description ?? "");
+    setDetailDueOn(card.due_on ?? "");
+    const ownRole = data.manager ? "OWNER" : "BARBER";
+    const ownLinks = data.links.filter((link) => link.card_id === card.id && link.created_by_role === ownRole).slice(0, 3);
+    setDetailLinks(Array.from({ length: 3 }, (_, index) => ({ label: ownLinks[index]?.label ?? `Link ${index + 1}`, url: ownLinks[index]?.url ?? "" })));
+    setCommentDraft("");
+    setEditingCommentId(null);
+  }
+
+  async function saveCardDetails(card: ServiceKanbanCard) {
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("save_service_kanban_card_details", {
+        p_organization_id: data.organizationId, p_card_id: card.id,
+        p_title: card.appointment_id ? null : detailTitle.trim(),
+        p_description: detailDescription, p_due_on: detailDueOn || null,
+      }));
+    }, "Card atualizado.");
+    if (saved) router.refresh();
+  }
+
+  async function saveCardDueDate(card: ServiceKanbanCard, dueOn: string) {
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("save_service_kanban_card_details", {
+        p_organization_id: data.organizationId, p_card_id: card.id,
+        p_title: card.appointment_id ? null : card.title,
+        p_description: card.description ?? "", p_due_on: dueOn || null,
+      }));
+    }, "Data prazo atualizada.");
+    if (saved) router.refresh();
+  }
+
+  async function saveCardLinks(card: ServiceKanbanCard) {
+    const links = detailLinks.filter((link, index) => link.url.trim() || link.label.trim() !== `Link ${index + 1}`);
+    const invalidLink = links.find((link) => !link.label.trim() || !/^https?:\/\//i.test(link.url.trim()));
+    if (invalidLink) { setMessage("Preencha o título e uma URL iniciada por http:// ou https://."); return; }
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("save_service_kanban_card_links", {
+        p_organization_id: data.organizationId, p_card_id: card.id, p_links: links,
+      }));
+    }, "Links atualizados.");
+    if (saved) router.refresh();
+  }
+
+  async function saveCardComment(card: ServiceKanbanCard) {
+    if (!commentDraft.trim()) return;
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("save_service_kanban_card_comment", {
+        p_organization_id: data.organizationId, p_card_id: card.id,
+        p_comment_id: editingCommentId, p_body: commentDraft,
+      }));
+    }, editingCommentId ? "Comentário atualizado." : "Comentário adicionado.");
+    if (saved) { setCommentDraft(""); setEditingCommentId(null); router.refresh(); }
+  }
+
+  async function mutateCard(card: ServiceKanbanCard, action: "MOVED" | "COMPLETED" | "REOPENED", boardId?: string) {
     if (action === "COMPLETED" && !window.confirm(`Concluir e arquivar o card “${card.title}”?`)) return;
     const saved = await runMutation(setMessage, async () => {
       await assertResult(await connectedClient().rpc("mutate_service_kanban_card", {
         p_organization_id: data.organizationId, p_card_id: card.id, p_action: action,
-        p_board_id: boardId ?? null, p_title: newTitle ?? null,
+        p_board_id: boardId ?? null, p_title: null,
       }));
     }, action === "COMPLETED" ? "Card concluído e arquivado." : "Kanban atualizado.");
     if (saved) router.refresh();
@@ -105,6 +170,7 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
   const orderedBoards = [...boards].sort((a, b) => a.position - b.position);
   const activeCards = data.cards.filter((card) => !card.archived_at);
   const archivedCards = data.cards.filter((card) => card.archived_at);
+  const selectedCard = data.cards.find((card) => card.id === selectedCardId) ?? null;
 
   return <div className={styles.stack}>
     <PageHeader title="Kanban" description="Esteira dos atendimentos de serviços, pacotes e assinaturas." />
@@ -155,20 +221,24 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
                 </select>
               </label>}
               {board.system_key !== "WAITING" && !board.responsible_barber_id && <p className={styles.kanbanNote}>Atribua um responsável para receber cards.</p>}
-              {cards.map((card) => <article className={styles.kanbanCard} key={card.id} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", card.id); setDragging(card.id); }} onDragEnd={() => { setDragging(null); setDragOverBoardId(null); }} data-dragging={dragging === card.id ? "true" : undefined}>
+              {cards.map((card) => { const tone = kanbanDeadlineTone(card.due_on); const toneClass = tone ? styles[`kanbanCardDeadline${tone[0].toUpperCase()}${tone.slice(1)}` as keyof typeof styles] : ""; const lastComment = data.comments.find((comment) => comment.card_id === card.id); return <article className={`${styles.kanbanCard} ${toneClass}`} key={card.id} draggable onDoubleClick={() => openCard(card)} title="Duplo clique para abrir o card" onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", card.id); setDragging(card.id); }} onDragEnd={() => { setDragging(null); setDragOverBoardId(null); }} data-dragging={dragging === card.id ? "true" : undefined}>
+                <div className={styles.kanbanCardMeta}>
+                  <div><small>Recebido</small><strong>{shortDateTimeLabel(card.received_at)}</strong><em>{card.received_by_name}</em></div>
+                  <label onDoubleClick={(event) => event.stopPropagation()}><span>Prazo</span><input aria-label={`Data prazo de ${card.title}`} type="date" value={card.due_on ?? ""} onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => void saveCardDueDate(card, event.target.value)} /></label>
+                </div>
                 <small className={styles.kanbanCardContext}>{card.customer_id ? data.customers.find((item) => item.id === card.customer_id)?.full_name ?? "Atendimento" : "Card manual"}</small>
                 <strong>{card.title}</strong>
                 {card.description && <p className={styles.kanbanCardDescription}>{card.description}</p>}
+                {lastComment && <p className={styles.kanbanCardComment}><span>Último comentário</span>{lastComment.body}</p>}
                 <p className={styles.kanbanCardDescription}>Responsável: {professionalName(card.responsible_barber_id)}</p>
                 {card.service_id && <small className={styles.kanbanCardContext}>Serviço: {data.services.find((item) => item.id === card.service_id)?.name ?? "—"}</small>}
-                <label className={styles.kanbanResponsible}><span>Mover para</span><select aria-label={`Mover ${card.title}`} value={card.board_id} onChange={(event) => { const destination = orderedBoards.find((item) => item.id === event.target.value); if (destination) moveCardToBoard(card, destination); }}>
+                <label className={styles.kanbanResponsible} onDoubleClick={(event) => event.stopPropagation()}><span>Mover para</span><select aria-label={`Mover ${card.title}`} value={card.board_id} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => { const destination = orderedBoards.find((item) => item.id === event.target.value); if (destination) moveCardToBoard(card, destination); }}>
                   {orderedBoards.map((destination) => <option key={destination.id} value={destination.id} disabled={!canReceive(destination)}>{destination.name}</option>)}
                 </select></label>
                 <div className={styles.toolbarGroup}>
-                  <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => { const newTitle = window.prompt("Título do card", card.title); if (newTitle?.trim() && newTitle.trim() !== card.title) void mutateCard(card, "EDITED", undefined, newTitle); }}>Editar título</button>
-                  <button className={styles.button} type="button" onClick={() => void mutateCard(card, "COMPLETED")}>Concluir</button>
+                  <button className={styles.button} type="button" onDoubleClick={(event) => event.stopPropagation()} onClick={() => void mutateCard(card, "COMPLETED")}>Concluir</button>
                 </div>
-              </article>)}
+              </article>; })}
               {cards.length === 0 && <p className={styles.kanbanEmpty}>Nenhum atendimento</p>}
             </section>;
           })}
@@ -177,7 +247,7 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
     </Panel>
 
     {data.manager && showArchive && <Panel title="Cards concluídos" description="Cards arquivados podem ser consultados e reabertos pelo gestor.">
-      {archivedCards.length === 0 ? <p>Nenhum card arquivado.</p> : <div className={styles.kanban}>{archivedCards.map((card) => <article key={card.id} className={styles.kanbanCard}>
+      {archivedCards.length === 0 ? <p>Nenhum card arquivado.</p> : <div className={styles.kanban}>{archivedCards.map((card) => <article key={card.id} className={styles.kanbanCard} onDoubleClick={() => openCard(card)} title="Duplo clique para consultar o card">
         <small className={styles.kanbanCardContext}>{data.customers.find((item) => item.id === card.customer_id)?.full_name ?? "Card manual"}</small>
         <strong>{card.title}</strong>
         {card.description && <p className={styles.kanbanCardDescription}>{card.description}</p>}
@@ -185,6 +255,51 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
         <button className={styles.button} type="button" onClick={() => void mutateCard(card, "REOPENED")}>Reabrir</button>
       </article>)}</div>}
     </Panel>}
+
+    {selectedCard && <ServiceKanbanDialog title={`Detalhes do card · ${selectedCard.title}`} wide onClose={() => setSelectedCardId(null)}>
+      {(() => {
+        const archived = Boolean(selectedCard.archived_at);
+        const cardComments = data.comments.filter((comment) => comment.card_id === selectedCard.id);
+        const cardLinks = data.links.filter((link) => link.card_id === selectedCard.id);
+        const ownRole = data.manager ? "OWNER" : "BARBER";
+        const otherLinks = cardLinks.filter((link) => link.created_by_role !== ownRole);
+        return <div className={styles.eventModalLayout}>
+          <div className={styles.eventMain}>
+            <div className={styles.eventContext}>
+              <div><span>Data recebido</span><strong aria-label="Data recebido">{dateTimeLabel(selectedCard.received_at)}</strong><small>{selectedCard.received_by_name}</small></div>
+              <Field label="Data prazo"><input aria-label="Data prazo" type="date" value={detailDueOn} disabled={archived} onChange={(event) => setDetailDueOn(event.target.value)} /></Field>
+            </div>
+            {!selectedCard.appointment_id && <Field label="Título" wide><input aria-label="Título" value={detailTitle} disabled={archived} minLength={2} maxLength={160} onChange={(event) => setDetailTitle(event.target.value)} /></Field>}
+            <Field label="Cliente" wide><input aria-label="Cliente" value={selectedCard.customer_id ? data.customers.find((item) => item.id === selectedCard.customer_id)?.full_name ?? "Cliente" : "Sem cliente"} readOnly /></Field>
+            <Field label="Serviço" wide><input aria-label="Serviço" value={selectedCard.service_id ? data.services.find((item) => item.id === selectedCard.service_id)?.name ?? "Serviço" : "Sem serviço"} readOnly /></Field>
+            <Field label="Responsável" wide><input aria-label="Responsável" value={professionalName(selectedCard.responsible_barber_id)} readOnly /></Field>
+            <Field label="Descrição" wide><textarea aria-label="Descrição" value={detailDescription} disabled={archived} onChange={(event) => setDetailDescription(event.target.value)} placeholder="Adicione detalhes para orientar a execução…" rows={6} /></Field>
+            <section className={styles.eventLinks} aria-labelledby="service-card-links-title">
+              <h3 id="service-card-links-title">Links</h3>
+              {detailLinks.map((link, index) => <Field label={`Link ${index + 1}`} wide key={index}><div className={styles.eventLinkField}>
+                <input aria-label={`Link ${index + 1} - Título`} value={link.label} readOnly={archived} onChange={(event) => setDetailLinks((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value } : item))} placeholder="Título" />
+                <input aria-label={`Link ${index + 1} - URL`} type="url" value={link.url} readOnly={archived} onChange={(event) => setDetailLinks((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, url: event.target.value } : item))} placeholder="https://" />
+                {link.url.trim() && <a href={link.url} target="_blank" rel="noreferrer" aria-label={`Abrir Link ${index + 1}`}><ExternalLink size={14} /></a>}
+              </div></Field>)}
+              {otherLinks.map((link: ServiceKanbanCardLink) => <p key={link.id}><a href={link.url} target="_blank" rel="noreferrer">{link.label}</a> · adicionado pelo {link.created_by_role === "OWNER" ? "gestor" : "profissional"}</p>)}
+              {!archived && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => void saveCardLinks(selectedCard)}><Save size={15} /> Salvar links</button>}
+            </section>
+            <footer className={styles.modalActions}>
+              <button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setSelectedCardId(null)}>Fechar</button>
+              {!archived && <button className={styles.button} type="button" onClick={() => void saveCardDetails(selectedCard)}><Save size={15} /> Salvar card</button>}
+            </footer>
+          </div>
+          <aside className={styles.eventComments} aria-label="Comentários">
+            <div className={styles.eventCommentsHeader}><h3><MessageSquare size={15} /> Comentários</h3><span>{cardComments.length}</span></div>
+            {!archived && <><Field label={editingCommentId ? "Editar comentário" : "Adicionar comentário"} wide><textarea aria-label={editingCommentId ? "Editar comentário" : "Adicionar comentário"} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Escreva uma atualização para a equipe…" rows={4} /></Field>
+              <button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={!commentDraft.trim()} onClick={() => void saveCardComment(selectedCard)}>{editingCommentId ? "Salvar comentário" : "Adicionar comentário"}</button></>}
+            {cardComments.length === 0 ? <p className={styles.muted}>Nenhum comentário ainda.</p> : <div className={styles.eventCommentList}>{cardComments.map((comment) => <article className={styles.eventComment} key={comment.id}>
+              <p>{comment.body}</p><footer><span>{comment.author_name} · {dateTimeLabel(comment.created_at)}</span>{!archived && (data.manager || comment.author_user_id === data.actorUserId) && <button type="button" onClick={() => { setEditingCommentId(comment.id); setCommentDraft(comment.body); }}>Editar</button>}</footer>
+            </article>)}</div>}
+          </aside>
+        </div>;
+      })()}
+    </ServiceKanbanDialog>}
 
     {data.manager && newBoardOpen && <ServiceKanbanDialog title="Adicionar quadro" onClose={() => setNewBoardOpen(false)}>
       <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void saveBoard(null, newBoardName, newBoardResponsible || null); }}>
@@ -217,4 +332,21 @@ function ServiceKanbanDialog({ title, wide = false, onClose, children }: { title
       {children}
     </section>
   </div>;
+}
+
+function kanbanDeadlineTone(dueOn: string | null) {
+  if (!dueOn) return "";
+  const today = new Date();
+  const todayKey = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const [year, month, day] = dueOn.split("-").map(Number);
+  const daysUntil = Math.round((Date.UTC(year, month - 1, day) - todayKey) / 86_400_000);
+  if (daysUntil < 0) return "Overdue";
+  if (daysUntil >= 7) return "Green";
+  if (daysUntil >= 3) return "Yellow";
+  if (daysUntil >= 1) return "Orange";
+  return "";
+}
+
+function shortDateTimeLabel(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }

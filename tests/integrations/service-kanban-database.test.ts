@@ -20,6 +20,7 @@ beforeAll(async () => {
     create schema auth;
     create table auth.users(id uuid primary key);
     create function auth.uid() returns uuid language sql as $$select nullif(current_setting('test.actor',true),'')::uuid$$;
+    create table profiles(id uuid primary key, display_name text);
     create table organizations(id uuid primary key);
     create table platform_modules(key text primary key,name text,description text,updated_at timestamptz default now());
     create table organization_module_entitlements(organization_id uuid references organizations(id),module_key text references platform_modules(key),enabled boolean,primary key(organization_id,module_key));
@@ -40,6 +41,7 @@ beforeAll(async () => {
     grant usage on schema auth to authenticated;
     grant select on barbers to authenticated;
     insert into auth.users values('${manager}'),('${barberUser}');
+    insert into profiles values('${manager}','Gestor Teste'),('${barberUser}','Profissional Teste');
     insert into organizations values('${org}');
     insert into barbers values('${barber}','${org}','${barberUser}',true,true,'Primeiro'),('${secondBarber}','${org}',null,true,true,'Segundo');
     insert into customers values('${customer}','${org}','Cliente Exemplo');
@@ -47,6 +49,7 @@ beforeAll(async () => {
   `);
   await db.exec(readFileSync("supabase/migrations/20261020121000_service_kanban.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261021125326_service_kanban_card_description.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261021134138_service_kanban_project_card_details.sql", "utf8"));
   await db.exec(`insert into organization_module_entitlements values('${org}','kanban',true)`);
 }, 60_000);
 
@@ -71,6 +74,9 @@ describe("Kanban de atendimentos no PostgreSQL", () => {
       update appointments set status='IN_SERVICE' where id in ('${appointment}','${projectAppointment}');`);
     const cards = await db.query<{ appointment_id: string; responsible_barber_id: string }>("select appointment_id,responsible_barber_id from service_kanban_cards where appointment_id is not null");
     expect(cards.rows).toEqual([{ appointment_id: appointment, responsible_barber_id: barber }]);
+    const metadata = await db.query<{ received_at: string | null; received_by_name: string | null }>("select received_at,received_by_name from service_kanban_cards where appointment_id=$1", [appointment]);
+    expect(metadata.rows[0].received_at).toBeTruthy();
+    expect(metadata.rows[0].received_by_name).toBe("Gestor Teste");
     await db.exec(`update appointments set status='COMPLETED' where id='${appointment}';
       update appointments set status='IN_SERVICE' where id='${appointment}';`);
     expect((await db.query("select id from service_kanban_cards where appointment_id=$1", [appointment])).rows).toHaveLength(1);
@@ -83,6 +89,24 @@ describe("Kanban de atendimentos no PostgreSQL", () => {
     );
     const card = await db.query<{ description: string | null }>("select description from service_kanban_cards where id=$1", [created.rows[0].id]);
     expect(card.rows[0].description).toBe("Selecionar fotos para edição.");
+  });
+
+  it("salva detalhes, links e comentários com escopo do card", async () => {
+    const cardId = (await db.query<{ id: string }>(
+      "select create_manual_service_kanban_card($1,$2,$3,$4,$5,$6) as id",
+      [org, "Card com detalhes", barber, customer, null, "Antes"],
+    )).rows[0].id;
+    await db.query("select save_service_kanban_card_details($1,$2,$3,$4,$5)", [org, cardId, "Título atualizado", "Descrição completa", "2026-10-30"]);
+    const card = await db.query<{ title: string; description: string; due_on: string }>("select title,description,due_on::text as due_on from service_kanban_cards where id=$1", [cardId]);
+    expect(card.rows[0]).toEqual({ title: "Título atualizado", description: "Descrição completa", due_on: "2026-10-30" });
+    await db.query("select save_service_kanban_card_links($1,$2,$3::jsonb)", [org, cardId, JSON.stringify([{ label: "Referência", url: "https://example.com" }])]);
+    const link = (await db.query<{ id: string }>("select id from service_kanban_card_links where card_id=$1", [cardId])).rows[0];
+    expect(link).toBeTruthy();
+    await db.query("select save_service_kanban_card_comment($1,$2,$3,$4)", [org, cardId, null, "Conferir com cliente"]);
+    const comment = (await db.query<{ id: string; author_name: string }>("select id,author_name from service_kanban_card_comments where card_id=$1", [cardId])).rows[0];
+    expect(comment.author_name).toBe("Gestor Teste");
+    await db.query("select save_service_kanban_card_comment($1,$2,$3,$4)", [org, cardId, comment.id, "Atualização confirmada"]);
+    expect((await db.query<{ body: string }>("select body from service_kanban_card_comments where id=$1", [comment.id])).rows[0].body).toBe("Atualização confirmada");
   });
 
   it("move para responsável do quadro, retorna ao original e arquiva sem tocar na agenda", async () => {
@@ -123,6 +147,12 @@ describe("Kanban de atendimentos no PostgreSQL", () => {
     expect(visible.rows.some((item) => item.appointment_id === null)).toBe(true);
     expect(visible.rows.map((item) => item.id)).not.toContain(otherCard);
     await expect(db.query("select mutate_service_kanban_card($1,$2,'COMPLETED',null,null)", [org,otherCard]))
+      .rejects.toThrow("kanban card access denied");
+    await expect(db.query("select save_service_kanban_card_details($1,$2,null,'Invadir',null)", [org,otherCard]))
+      .rejects.toThrow("kanban card access denied");
+    await expect(db.query("select save_service_kanban_card_links($1,$2,'[]'::jsonb)", [org,otherCard]))
+      .rejects.toThrow("kanban card access denied");
+    await expect(db.query("select save_service_kanban_card_comment($1,$2,null,'Invadir')", [org,otherCard]))
       .rejects.toThrow("kanban card access denied");
     for (const card of visible.rows) {
       await db.query("select mutate_service_kanban_card($1,$2,'COMPLETED',null,null)", [org,card.id]);
