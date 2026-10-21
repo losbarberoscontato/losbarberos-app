@@ -373,6 +373,7 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .whatsappReplyBadge { flex: 0 0 auto; padding: .3rem .55rem; border-radius: 999px; background: #edf3ee; color: #315f51; font-size: .68rem; font-weight: 800; }
 .whatsappTemplateBody { display: grid; gap: .7rem; }
 .whatsappTemplateBody[hidden] { display: none; }
+.whatsappTemplateBody .rowActions > .button { color: #fff; }
 .whatsappTemplateCard textarea { min-height: 6.2rem; resize: vertical; }
 .whatsappTemplateCard textarea:disabled { opacity: .82; background: #fff; color: #4d5850; }
 .whatsappFixedReply { display: grid; gap: .45rem; padding: .75rem .85rem; border: 1px solid #dfe6de; border-radius: 11px; background: #f4f7f2; }
