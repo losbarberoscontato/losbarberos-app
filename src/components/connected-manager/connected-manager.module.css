@@ -111,6 +111,10 @@
 .reminderChangeModal p { line-height: 1.55; }
 .reminderChangeModal p strong { color: #24342d; }
 .reminderChangeActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .65rem; }
+.reminderChangeModal .reminderChangeActions > .buttonSoft { border: 1px solid #d9cbe2; background: #f0e9f4; color: #382047; }
+.reminderChangeModal .reminderChangeActions > .buttonSoft:hover:not(:disabled) { background: #e5d9eb; }
+.reminderChangeModal .reminderChangeActions > .buttonDanger { border: 1px solid #8d3026; background: #a13f31; color: #fff; }
+.reminderChangeModal .reminderChangeActions > .buttonDanger:hover:not(:disabled) { background: #842f25; }
 .modal > .form { min-height: 0; overflow-y: auto; }
 .field { display: grid; gap: .35rem; color: #555f57; font-size: .78rem; font-weight: 700; }
 .field input, .field select, .field textarea { width: 100%; min-width: 0; border: 1px solid #d9dfd7; border-radius: 11px; padding: .7rem .75rem; background: #fff; color: #222823; font: inherit; font-size: .88rem; }
