@@ -107,6 +107,10 @@
 .modalClose:hover { background: #f1f4ef; }
 .modal h2 { margin: 0; color: #10211c; font-size: 1.35rem; }
 .modal p { margin: .6rem 0 1.25rem; color: #62706b; }
+.reminderChangeModal { border-color: #ead9b8; }
+.reminderChangeModal p { line-height: 1.55; }
+.reminderChangeModal p strong { color: #24342d; }
+.reminderChangeActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .65rem; }
 .modal > .form { min-height: 0; overflow-y: auto; }
 .field { display: grid; gap: .35rem; color: #555f57; font-size: .78rem; font-weight: 700; }
 .field input, .field select, .field textarea { width: 100%; min-width: 0; border: 1px solid #d9dfd7; border-radius: 11px; padding: .7rem .75rem; background: #fff; color: #222823; font: inherit; font-size: .88rem; }

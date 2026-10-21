@@ -11,7 +11,7 @@ import { humanizeError } from "./format";
 import styles from "./connected-manager.module.css";
 import type { ProductKey } from "@/lib/product-context";
 import { getWhatsAppProductCopy, localizeWhatsAppCopy, resolveWhatsAppProductTemplates, type WhatsAppFixedMessageKey } from "./whatsapp-product-copy";
-import { confirmationReplyMessageKeys, editableTemplateHeader, fixedConfirmationReplyPrompt, insertTemplateVariable, isConfirmationReplyMessageKey, normalizeReminderSelection, reminderRuleKeys, selectExclusiveReminder, withFixedConfirmationReply, type ReminderRuleKey } from "./whatsapp-message-editing";
+import { confirmationReplyMessageKeys, editableTemplateHeader, fixedConfirmationReplyPrompt, insertTemplateVariable, isConfirmationReplyMessageKey, normalizeReminderSelection, reminderRuleKeys, selectExclusiveReminder, withFixedConfirmationReply, type ReminderRuleKey, type ReminderSelection } from "./whatsapp-message-editing";
 
 export type WhatsAppConnection = {
   id: string;
@@ -109,6 +109,22 @@ function normalizeConfirmationTemplates(templates: Record<WhatsAppFixedMessageKe
     normalized[key] = withFixedConfirmationReply(normalized[key]);
   }
   return normalized;
+}
+
+function reminderSelectionFrom(rules: ReminderSelection): ReminderSelection {
+  return Object.fromEntries(reminderRuleKeys.map((key) => [key, rules[key]])) as ReminderSelection;
+}
+
+function selectedReminder(selection: ReminderSelection): ReminderRuleKey | null {
+  return reminderRuleKeys.find((key) => selection[key]) ?? null;
+}
+
+function reminderLabel(key: ReminderRuleKey | null) {
+  if (key === "reminder_t24_enabled") return "24 horas antes";
+  if (key === "reminder_morning_enabled") return "às 08h do dia";
+  if (key === "reminder_t180_enabled") return "3 horas antes";
+  if (key === "reminder_t45_enabled") return "45 minutos antes";
+  return null;
 }
 
 function messageDefinitionTitle(key: WhatsAppFixedMessageKey, productKey: ProductKey) {
@@ -212,6 +228,9 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [qrCodeOverride, setQrCodeOverride] = useState<string | null | undefined>(undefined);
   const initialAutomation = { ...defaultAutomationRules, ...status.automation };
   const [automationRules, setAutomationRules] = useState(() => normalizeReminderSelection(initialAutomation));
+  const savedReminderSelection = useRef<ReminderSelection>(reminderSelectionFrom(normalizeReminderSelection(initialAutomation)));
+  const [pendingReminderChange, setPendingReminderChange] = useState<{ count: number; previous: ReminderRuleKey | null; next: ReminderRuleKey | null } | null>(null);
+  const [savingReminderChange, setSavingReminderChange] = useState(false);
   const [messageTemplates, setMessageTemplates] = useState<Record<WhatsAppFixedMessageKey, string>>(() => normalizeConfirmationTemplates(resolveWhatsAppProductTemplates(productKey, status.automation.message_templates)));
   const [editingTemplate, setEditingTemplate] = useState<WhatsAppFixedMessageKey | null>(null);
   const [expandedTemplates, setExpandedTemplates] = useState<Partial<Record<WhatsAppFixedMessageKey, boolean>>>({});
@@ -277,33 +296,73 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     }
   }
 
-  async function persistAutomation() {
-    return runMutation(setMessage, async () => {
+  async function persistAutomation(reminderSelection = reminderSelectionFrom(automationRules)) {
+    const saved = await runMutation(setMessage, async () => {
       await assertResult(await connectedClient().rpc("save_whatsapp_v2_automation_controls", {
         p_organization_id: organizationId,
         p_rules: {
           booking_client_enabled: automationRules.booking_client_enabled,
           booking_staff_enabled: automationRules.booking_staff_enabled,
-          reminder_t24_enabled: automationRules.reminder_t24_enabled,
-          reminder_morning_enabled: automationRules.reminder_morning_enabled,
-          reminder_t180_enabled: automationRules.reminder_t180_enabled,
-          reminder_t45_enabled: automationRules.reminder_t45_enabled,
+          reminder_t24_enabled: reminderSelection.reminder_t24_enabled,
+          reminder_morning_enabled: reminderSelection.reminder_morning_enabled,
+          reminder_t180_enabled: reminderSelection.reminder_t180_enabled,
+          reminder_t45_enabled: reminderSelection.reminder_t45_enabled,
           message_templates: messageTemplates,
         },
         p_custom_messages: customMessages,
       }));
     }, "Automações atualizadas.");
+    if (saved) savedReminderSelection.current = reminderSelection;
+    return saved;
   }
 
   async function saveAutomation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const nextReminderSelection = reminderSelectionFrom(automationRules);
+    const previousReminder = selectedReminder(savedReminderSelection.current);
+    const nextReminder = selectedReminder(nextReminderSelection);
+    if (previousReminder !== nextReminder) {
+      try {
+        const result = await connectedClient().rpc("preview_whatsapp_v2_presence_reminder_change", {
+          p_organization_id: organizationId,
+          p_rules: nextReminderSelection,
+        });
+        await assertResult(result);
+        const count = Number(result.data ?? 0);
+        setPendingReminderChange({
+          count: Number.isFinite(count) ? Math.max(0, count) : 0,
+          previous: previousReminder,
+          next: nextReminder,
+        });
+      } catch (error) {
+        setMessage(humanizeError(error));
+      }
+      return;
+    }
     const saved = await persistAutomation();
     if (saved) setMessage(customReady ? "Automações atualizadas. Mensagens personalizadas respeitarão consentimento, horário e limites de frequência." : "Automações atualizadas. Regras ativas valem somente para novos agendamentos confirmados; mensagens personalizadas continuam salvas sem envio nesta etapa.");
   }
 
+  async function confirmReminderChange() {
+    if (!pendingReminderChange) return;
+    setSavingReminderChange(true);
+    const saved = await persistAutomation(reminderSelectionFrom(automationRules));
+    setSavingReminderChange(false);
+    if (saved) {
+      setPendingReminderChange(null);
+      setMessage("Ativações e fluxos de confirmação de presença atualizados.");
+      router.refresh();
+    }
+  }
+
+  function cancelReminderChange() {
+    setAutomationRules((current) => ({ ...current, ...savedReminderSelection.current }));
+    setPendingReminderChange(null);
+  }
+
   async function saveTemplate(key: WhatsAppFixedMessageKey) {
     if (!schemaReady) return;
-    const saved = await persistAutomation();
+    const saved = await persistAutomation(savedReminderSelection.current);
     if (saved) {
       setEditingTemplate(null);
       setMessage(`Texto de ${messageDefinitionTitle(key, productKey)} salvo.`);
@@ -633,5 +692,23 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     </Panel>}
     {status.runtime && <p role="status">Mensagens pendentes: {status.runtime.pending}. Falhas que precisam de revisão: {status.runtime.failed}.</p>}
     {campaignKey && <WhatsAppCampaignDialog key={`${organizationId}:${campaignKey}`} organizationId={organizationId} messageKey={campaignKey} body={customMessages.find((m) => m.key === campaignKey)?.body ?? ""} onClose={() => { setCampaignKey(null); router.refresh(); }} />}
+    {pendingReminderChange && <div className={styles.modalLayer} role="presentation">
+      <button className={styles.modalBackdrop} type="button" aria-label="Cancelar alteração das confirmações de presença" onClick={cancelReminderChange} disabled={savingReminderChange} />
+      <section className={`${styles.modal} ${styles.reminderChangeModal}`} role="alertdialog" aria-modal="true" aria-labelledby="reminder-change-title" aria-describedby="reminder-change-description">
+        <h2 id="reminder-change-title">{pendingReminderChange.next ? "Alterar confirmação de presença?" : "Cancelar confirmações de presença?"}</h2>
+        {pendingReminderChange.next ? <p id="reminder-change-description">
+          A partir de agora, serão recalculados aproximadamente <strong>{pendingReminderChange.count}</strong> atendimentos futuros elegíveis, de {reminderLabel(pendingReminderChange.previous) ?? "sem aviso"} para {reminderLabel(pendingReminderChange.next)}. Se o novo horário do aviso já tiver passado e o atendimento ainda não tiver começado, a mensagem poderá ser enviada logo após a troca.
+          <br /><br />Atendimentos que já receberam um aviso de presença não receberão outro, a menos que sejam reagendados. Pode haver instabilidade nos primeiros eventos.
+        </p> : <p id="reminder-change-description">
+          A partir de agora, serão cancelados os próximos envios de confirmação de presença de aproximadamente <strong>{pendingReminderChange.count}</strong> atendimentos futuros elegíveis. Pode haver instabilidade nos primeiros eventos.
+        </p>}
+        <div className={styles.reminderChangeActions}>
+          <button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={cancelReminderChange} disabled={savingReminderChange}>Cancelar</button>
+          <button type="button" className={pendingReminderChange.next ? styles.button : `${styles.button} ${styles.buttonDanger}`} onClick={() => void confirmReminderChange()} disabled={savingReminderChange}>
+            {savingReminderChange ? "Salvando…" : pendingReminderChange.next ? "Confirmar alteração" : "Confirmar cancelamento"}
+          </button>
+        </div>
+      </section>
+    </div>}
   </div>;
 }
