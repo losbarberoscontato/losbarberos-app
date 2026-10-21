@@ -11,6 +11,7 @@
 
 - Google OAuth com redirects de preview e produção.
 - Google Calendar: consentimento com conta de teste, conexão do gestor/profissional, evento criado/editado/cancelado e renovação offline; testar visualmente com sessão autenticada e atendimento de teste.
+- Google Auth Platform em `Testing` permite somente test users cadastrados e expira autorizações/tokens Calendar após 7 dias. Para uso geral, publicar o app e concluir a verificação do escopo sensível antes de considerar essa integração validada em produção.
 - Stripe sandbox: Checkout trial, portal, `invoice.paid`, falha e retry.
 - Mercado Pago sandbox: OAuth, pagamento integral, webhook tardio e refund. Carteira e sinal não fazem parte do fluxo novo.
 - Meta: template aprovado, opt-in, entrega, cancelamento em dois passos e opt-out.

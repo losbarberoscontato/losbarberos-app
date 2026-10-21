@@ -1,5 +1,15 @@
 # Handoff — Los Barberos
 
+## Integração Google Calendar — 21/10/2026
+
+- Commit `d2cc9bb` publicado em `main`. Gestores conectam a agenda geral em Configurações > Integrações; profissionais conectam a própria agenda em Perfil. No primeiro acesso com Google Auth, o Perfil inicia consentimento do Calendar se ainda não houver conexão.
+- Eventos seguem `{Sala} | {Cliente} | {Serviço} | {Profissional}`. Criação/edição de atendimento atualiza os eventos; cancelamento os remove. O worker processa a fila via cron a cada minuto.
+- Migration `20261021182357_google_calendar_integration.sql` aplicada no Supabase `bwdjkhqshmppescunwer`. Consulta remota confirmou tabelas, dois triggers e o cron ativo. Functions `google-calendar-oauth-start` v1 (JWT), `google-calendar-oauth-callback` v1 (sem JWT) e `google-calendar-sync` v1 (JWT) estão `ACTIVE`.
+- Credenciais do cliente OAuth separado estão nos secrets das Edge Functions; valores não são armazenados aqui. O cliente usa callback Supabase `/functions/v1/google-calendar-oauth-callback` e escopo sensível `calendar.events.owned`.
+- Vercel deployment `dpl_22yL3N3K8aZyf9hbKRYRPt6fns9U` ficou `READY`, aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`. Smokes: `/`, `/entrar`, `/privacidade`, `/termos` e aliases públicos HTTP 200; `/gestor` HTTP 307 para login.
+- Local: lint sem erros (14 avisos), TypeScript, build, Deno check e Deno fmt dos quatro arquivos novos passaram. `npm.cmd run verify` falhou em 11 testes localmente; na CI `39660940508`, 12 testes falharam — mesma contagem do CI do commit anterior `b03bfb5`. E2E passou. CI `database` falhou no reset por `Cannot audit Kanban price publication without a platform admin`; `edge-functions` falhou apenas na formatação preexistente de `supabase/functions/_shared/whatsapp-templates.ts`. O código novo passou a formatação e checagem Deno focalizadas.
+- **NÃO VALIDADO**: OAuth autenticado com conta real de teste e sincronização real de um atendimento nas agendas do gestor e profissional. O Google Auth Platform permanece em `Testing`; só test users podem autorizar e tokens com escopo Calendar expiram após 7 dias nesse modo. Para uso geral, publicar o app e concluir a verificação do escopo sensível. Até lá, integração funcional real não está validada.
+
 ## Kanban de Atendimentos e regras de assinatura — 20/10/2026
 
 - Commit funcional `c1f5e03` publicado em `main`. Migrations `20261020120000`, `20261020121000` e `20261020122000` aplicadas ao Supabase `bwdjkhqshmppescunwer`; dry-run posterior sem pendências. Function `stripe-kanban-module` ativa, versão 2, com JWT obrigatório.

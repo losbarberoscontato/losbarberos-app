@@ -1,5 +1,9 @@
 # Prompt inicial — próxima conversa Los Barberos
 
+## Google Calendar — 21/10/2026
+
+Commit `d2cc9bb` publicado em `main`; migration `20261021182357_google_calendar_integration.sql` e Functions `google-calendar-oauth-start`, `google-calendar-oauth-callback` e `google-calendar-sync` publicadas no Supabase `bwdjkhqshmppescunwer`. Vercel deployment `dpl_22yL3N3K8aZyf9hbKRYRPt6fns9U` está `READY`. Ver `HANDOFF.md` para detalhes do CI e smokes. Pendentes: autorização OAuth com conta controlada e sincronização autenticada de criação/edição/cancelamento. Google Auth Platform em `Testing` limita a test users e expira tokens após 7 dias; para uso geral, concluir publicação/verificação do escopo Calendar.
+
 ## Kanban de Atendimentos — 20/10/2026
 
 Commit `c1f5e03` publicado em `main`; três migrations e `stripe-kanban-module` publicados no Supabase `bwdjkhqshmppescunwer`. Vercel `dpl_BNFpXL1AuH84VqrG3zUxvYSTBYhA` em `READY`. Kanban permanece inativo em todas as organizações; preços/aditivos ainda não publicados. CI `39486634305` falhou em testes gerais antigos, formato de Functions antigas e fixture financeira pgTAP; E2E passou. Consulte `HANDOFF.md` e `docs/CHECKLIST_VISUAL_KANBAN_ATENDIMENTOS.md`. Conferência autenticada e Stripe teste seguem pendentes.
