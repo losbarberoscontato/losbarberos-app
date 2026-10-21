@@ -230,6 +230,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
   const [automationRules, setAutomationRules] = useState(() => normalizeReminderSelection(initialAutomation));
   const savedReminderSelection = useRef<ReminderSelection>(reminderSelectionFrom(normalizeReminderSelection(initialAutomation)));
   const [pendingReminderChange, setPendingReminderChange] = useState<{ count: number; previous: ReminderRuleKey | null; next: ReminderRuleKey | null } | null>(null);
+  const [previewingReminderChange, setPreviewingReminderChange] = useState(false);
   const [savingReminderChange, setSavingReminderChange] = useState(false);
   const [messageTemplates, setMessageTemplates] = useState<Record<WhatsAppFixedMessageKey, string>>(() => normalizeConfirmationTemplates(resolveWhatsAppProductTemplates(productKey, status.automation.message_templates)));
   const [editingTemplate, setEditingTemplate] = useState<WhatsAppFixedMessageKey | null>(null);
@@ -316,27 +317,40 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
     return saved;
   }
 
+  async function previewReminderChange(nextReminderSelection: ReminderSelection) {
+    const previousReminder = selectedReminder(savedReminderSelection.current);
+    const nextReminder = selectedReminder(nextReminderSelection);
+    if (previousReminder === nextReminder) return;
+
+    setPreviewingReminderChange(true);
+    try {
+      const result = await connectedClient().rpc("preview_whatsapp_v2_presence_reminder_change", {
+        p_organization_id: organizationId,
+        p_rules: nextReminderSelection,
+      });
+      await assertResult(result);
+      const count = Number(result.data ?? 0);
+      setPendingReminderChange({
+        count: Number.isFinite(count) ? Math.max(0, count) : 0,
+        previous: previousReminder,
+        next: nextReminder,
+      });
+    } catch (error) {
+      setAutomationRules((current) => ({ ...current, ...savedReminderSelection.current }));
+      setMessage(humanizeError(error));
+    } finally {
+      setPreviewingReminderChange(false);
+    }
+  }
+
   async function saveAutomation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (previewingReminderChange || pendingReminderChange) return;
     const nextReminderSelection = reminderSelectionFrom(automationRules);
     const previousReminder = selectedReminder(savedReminderSelection.current);
     const nextReminder = selectedReminder(nextReminderSelection);
     if (previousReminder !== nextReminder) {
-      try {
-        const result = await connectedClient().rpc("preview_whatsapp_v2_presence_reminder_change", {
-          p_organization_id: organizationId,
-          p_rules: nextReminderSelection,
-        });
-        await assertResult(result);
-        const count = Number(result.data ?? 0);
-        setPendingReminderChange({
-          count: Number.isFinite(count) ? Math.max(0, count) : 0,
-          previous: previousReminder,
-          next: nextReminder,
-        });
-      } catch (error) {
-        setMessage(humanizeError(error));
-      }
+      await previewReminderChange(nextReminderSelection);
       return;
     }
     const saved = await persistAutomation();
@@ -388,7 +402,13 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
 
   function updateAutomation(key: AutomationToggleKey, enabled: boolean) {
     if (reminderRuleKeys.includes(key as ReminderRuleKey)) {
-      setAutomationRules((current) => selectExclusiveReminder(current, key as ReminderRuleKey, enabled));
+      if (previewingReminderChange || pendingReminderChange) return;
+      const nextRules = selectExclusiveReminder(automationRules, key as ReminderRuleKey, enabled);
+      const nextReminderSelection = reminderSelectionFrom(nextRules);
+      setAutomationRules(nextRules);
+      if (selectedReminder(savedReminderSelection.current) !== selectedReminder(nextReminderSelection)) {
+        void previewReminderChange(nextReminderSelection);
+      }
       return;
     }
     setAutomationRules((current) => ({ ...current, [key]: enabled }));
@@ -510,7 +530,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
         {definition.toggle
           ? <label className={styles.automationSwitch}>
               <span className="sr-only">Ativar {title}</span>
-              <input type="checkbox" checked={automationRules[definition.toggle]} disabled={!schemaReady} onChange={(event) => updateAutomation(definition.toggle!, event.target.checked)} />
+              <input type="checkbox" checked={automationRules[definition.toggle]} disabled={!schemaReady || previewingReminderChange || Boolean(pendingReminderChange)} onChange={(event) => updateAutomation(definition.toggle!, event.target.checked)} />
             </label>
           : <span className={styles.whatsappReplyBadge}>Enviada pelo fluxo</span>}
       </div>
@@ -637,7 +657,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
           <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>{productCopy.bookingGroupTitle}</strong><small>{productCopy.bookingGroupDescription}</small></span></summary>
           <div className={styles.whatsappMessageGroupContent}>
             {bookingAndReminderMessages.map((definition) => fixedMessageCard(definition))}
-            <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady}>Salvar ativações</button></div>
+            <div className={styles.rowActions}><button className={styles.button} type="submit" disabled={!schemaReady || previewingReminderChange || Boolean(pendingReminderChange)}>Salvar ativações</button></div>
           </div>
         </details>
         <details className={styles.whatsappMessageGroup}>

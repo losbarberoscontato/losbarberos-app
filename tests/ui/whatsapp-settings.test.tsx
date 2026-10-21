@@ -200,6 +200,50 @@ describe("WhatsApp settings", () => {
     expect(t45).not.toBeChecked();
   });
 
+  it("avisa imediatamente o gestor do Le Gras ao ativar uma confirmação de presença", async () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Estúdio Le Gras" productKey="le-gras" status={{
+      ...status,
+      automation: { ...status.automation, reminder_morning_enabled: false, reminder_t45_enabled: false },
+    }} />);
+    fireEvent.click(screen.getByText(getWhatsAppProductCopy("le-gras").bookingGroupTitle));
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ativar .*24 horas antes/ }));
+
+    expect(await screen.findByRole("alertdialog", { name: "Alterar confirmação de presença?" })).toBeInTheDocument();
+    expect(screen.getByText(/serão recalculados aproximadamente/)).toBeInTheDocument();
+    expect(rpcMock).toHaveBeenCalledWith("preview_whatsapp_v2_presence_reminder_change", expect.objectContaining({ p_organization_id: "org-1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("checkbox", { name: /Ativar .*24 horas antes/ })).not.toBeChecked();
+    expect(rpcMock).not.toHaveBeenCalledWith("save_whatsapp_v2_automation_controls", expect.anything());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ativar .*24 horas antes/ }));
+    await screen.findByRole("alertdialog", { name: "Alterar confirmação de presença?" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar alteração" }));
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("save_whatsapp_v2_automation_controls", expect.objectContaining({
+      p_organization_id: "org-1",
+      p_rules: expect.objectContaining({ reminder_t24_enabled: true, reminder_morning_enabled: false, reminder_t180_enabled: false, reminder_t45_enabled: false }),
+    })));
+  });
+
+  it("avisa imediatamente o gestor do Le Gras ao desativar a confirmação de presença", async () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Estúdio Le Gras" productKey="le-gras" status={{
+      ...status,
+      automation: { ...status.automation, reminder_t45_enabled: false },
+    }} />);
+    fireEvent.click(screen.getByText(getWhatsAppProductCopy("le-gras").bookingGroupTitle));
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ativar .*8h/ }));
+
+    expect(await screen.findByRole("alertdialog", { name: "Cancelar confirmações de presença?" })).toBeInTheDocument();
+    expect(screen.getByText(/serão cancelados os próximos envios de confirmação de presença/)).toBeInTheDocument();
+    expect(rpcMock).toHaveBeenCalledWith("preview_whatsapp_v2_presence_reminder_change", expect.objectContaining({ p_organization_id: "org-1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith("save_whatsapp_v2_automation_controls", expect.objectContaining({
+      p_organization_id: "org-1",
+      p_rules: expect.objectContaining({ reminder_t24_enabled: false, reminder_morning_enabled: false, reminder_t180_enabled: false, reminder_t45_enabled: false }),
+    })));
+  });
+
   it("não expõe campos de token ou segredo", () => {
     render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
 
