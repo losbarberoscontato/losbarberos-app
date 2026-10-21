@@ -459,6 +459,9 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .leGrasWhatsApp .whatsappFixedReply p { color: #756b7c; }
 .leGrasWhatsApp .button { border-color: #59366f; background: #59366f; }
 .leGrasWhatsApp .button:hover:not(:disabled) { background: #29143d; }
+.leGrasWhatsApp .providerCard .rowActions > .button,
+.proSteticWhatsApp .providerCard .rowActions > .button,
+.musicProWhatsApp .providerCard .rowActions > .button { color: #fff; }
 .proSteticWhatsApp .providerCard { border-color: #e8ddea; background: #fffaff; }
 .proSteticWhatsApp .providerCardActive { border-color: #805793; background: #f8f2fa; box-shadow: 0 0 0 2px rgb(128 87 147 / 14%); }
 .proSteticWhatsApp .providerIcon,
