@@ -22,7 +22,7 @@ const data: ServiceKanbanData = {
   comments: [{ id: "comment-1", card_id: "card-1", body: "Confirmar referência com cliente.", author_user_id: "user-1", author_name: "Ana", created_at: "2026-10-20T11:00:00Z", updated_at: "2026-10-20T11:00:00Z" }],
   links: [{ id: "link-1", card_id: "card-1", label: "Referência", url: "https://example.com", created_by_user_id: "user-1", created_by_role: "OWNER", created_at: "2026-10-20T11:00:00Z" }],
   barbers: [{ id: "barber-1", display_name: "Ana" }, { id: "barber-2", display_name: "Bruno" }],
-  customers: [{ id: "customer-1", full_name: "Cliente Exemplo" }], services: [],
+  customers: [{ id: "customer-1", full_name: "Cliente Exemplo", phone_e164: "+5511998765432" }], services: [],
 };
 
 describe("Kanban de atendimentos", () => {
@@ -95,8 +95,11 @@ describe("Kanban de atendimentos", () => {
     fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "Conferir fotos" } });
     fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Separar as fotos escolhidas pelo cliente." } });
     fireEvent.change(within(dialog).getByLabelText("Responsável"), { target: { value: "barber-1" } });
+    fireEvent.change(within(dialog).getByLabelText("Buscar cliente"), { target: { value: "11998765432" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Selecionar Cliente Exemplo" }));
+    expect(within(dialog).getByText("Cliente Exemplo selecionado")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Criar card" }));
-    await waitFor(() => expect(rpc).toHaveBeenCalledWith("create_manual_service_kanban_card", expect.objectContaining({ p_title: "Conferir fotos", p_description: "Separar as fotos escolhidas pelo cliente.", p_responsible_barber_id: "barber-1" })));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("create_manual_service_kanban_card", expect.objectContaining({ p_title: "Conferir fotos", p_description: "Separar as fotos escolhidas pelo cliente.", p_responsible_barber_id: "barber-1", p_customer_id: "customer-1" })));
     expect(screen.getByText("Descrição salva")).toBeInTheDocument();
   });
 

@@ -22,7 +22,7 @@ export type ServiceKanbanData = {
   comments: ServiceKanbanCardComment[];
   links: ServiceKanbanCardLink[];
   barbers: { id: string; display_name: string }[];
-  customers: { id: string; full_name: string }[];
+  customers: { id: string; full_name: string; phone_e164: string | null }[];
   services: { id: string; name: string }[];
 };
 
@@ -47,12 +47,15 @@ async function load(organizationId: string, manager: boolean): Promise<ServiceKa
   for (const result of [boards, cards, barbers, services]) if (result.error) throw new Error(result.error.message);
   const cardIds = (cards.data ?? []).map((card) => card.id);
   const customerIds = [...new Set((cards.data ?? []).map((card) => card.customer_id).filter((id): id is string => Boolean(id)))];
-  const [comments, links, customers] = await Promise.all([
+  const [comments, links, customerDirectory, cardCustomers] = await Promise.all([
     cardIds.length ? supabase.from("service_kanban_card_comments").select("id,card_id,body,author_user_id,author_name,created_at,updated_at").eq("organization_id", organizationId).in("card_id", cardIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
     cardIds.length ? supabase.from("service_kanban_card_links").select("id,card_id,label,url,created_by_user_id,created_by_role,created_at").eq("organization_id", organizationId).in("card_id", cardIds).order("created_at") : Promise.resolve({ data: [], error: null }),
-    customerIds.length ? supabase.from("customers").select("id,full_name").eq("organization_id", organizationId).in("id", customerIds).order("full_name") : Promise.resolve({ data: [], error: null }),
+    manager ? supabase.from("customers").select("id,full_name,phone_e164").eq("organization_id", organizationId).eq("active", true).is("merged_into_customer_id", null).order("full_name").limit(1_000) : Promise.resolve({ data: [], error: null }),
+    customerIds.length ? supabase.from("customers").select("id,full_name,phone_e164").eq("organization_id", organizationId).in("id", customerIds).order("full_name") : Promise.resolve({ data: [], error: null }),
   ]);
-  for (const result of [comments, links, customers]) if (result.error) throw new Error(result.error.message);
+  for (const result of [comments, links, customerDirectory, cardCustomers]) if (result.error) throw new Error(result.error.message);
+  const customerMap = new Map<string, { id: string; full_name: string; phone_e164: string | null }>();
+  for (const customer of [...(customerDirectory.data ?? []), ...(cardCustomers.data ?? [])]) customerMap.set(customer.id, customer);
   return {
     organizationId, actorUserId, manager, enabled,
     boards: (boards.data ?? []) as ServiceKanbanBoard[],
@@ -60,7 +63,7 @@ async function load(organizationId: string, manager: boolean): Promise<ServiceKa
     comments: (comments.data ?? []) as ServiceKanbanCardComment[],
     links: (links.data ?? []) as ServiceKanbanCardLink[],
     barbers: (barbers.data ?? []) as { id: string; display_name: string }[],
-    customers: (customers.data ?? []) as { id: string; full_name: string }[],
+    customers: [...customerMap.values()].sort((a, b) => a.full_name.localeCompare(b.full_name, "pt-BR")),
     services: (services.data ?? []) as { id: string; name: string }[],
   };
 }

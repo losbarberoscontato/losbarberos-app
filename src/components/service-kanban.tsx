@@ -1,8 +1,8 @@
 "use client";
 
-import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ExternalLink, MessageSquare, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { Archive, Check, ExternalLink, MessageSquare, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { assertResult, connectedClient, runMutation } from "@/components/connected-manager/mutation-utils";
 import { ActionMessage, Field, Panel } from "@/components/connected-manager/shared";
@@ -18,6 +18,7 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
   const [newBoardOpen, setNewBoardOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [detailTitle, setDetailTitle] = useState("");
   const [detailDescription, setDetailDescription] = useState("");
@@ -43,6 +44,12 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
   const professionalName = (id: string | null) => data.barbers.find((item) => item.id === id)?.display_name ?? "Profissional";
   const canReceive = (board: ServiceKanbanBoard) => board.system_key === "WAITING" || Boolean(board.responsible_barber_id);
   const dateTimeLabel = (value: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  const matchingCustomers = useMemo(() => {
+    const query = customerQuery.trim().toLocaleLowerCase("pt-BR");
+    if (!query) return [];
+    return data.customers.filter((item) => `${item.full_name} ${item.phone_e164 ?? ""}`.toLocaleLowerCase("pt-BR").includes(query));
+  }, [customerQuery, data.customers]);
+  const selectedCustomer = data.customers.find((item) => item.id === customer) ?? null;
 
   function openCard(card: ServiceKanbanCard) {
     setSelectedCardId(card.id);
@@ -150,6 +157,7 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
     if (saved) {
       setTitle("");
       setDescription("");
+      setCustomerQuery("");
       setResponsible("");
       setCustomer("");
       setService("");
@@ -311,7 +319,12 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
       <form className={styles.form} onSubmit={(event) => void createCard(event)}>
         <Field label="Título"><input value={title} onChange={(event) => setTitle(event.target.value)} minLength={2} maxLength={160} required autoFocus placeholder="Ex.: Preparar fotos do cliente" /></Field>
         <Field label="Responsável"><select value={responsible} onChange={(event) => setResponsible(event.target.value)} required><option value="">Selecione</option>{data.barbers.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></Field>
-        <Field label="Cliente (opcional)"><select value={customer} onChange={(event) => setCustomer(event.target.value)}><option value="">Sem cliente</option>{data.customers.map((item) => <option value={item.id} key={item.id}>{item.full_name}</option>)}</select></Field>
+        <div className={styles.field}>
+          <span>Cliente (opcional)</span>
+          <input aria-label="Buscar cliente" value={selectedCustomer?.full_name ?? customerQuery} onChange={(event) => { setCustomer(""); setCustomerQuery(event.target.value); }} placeholder="Buscar por nome ou telefone" autoComplete="off" />
+          {customerQuery.trim() && !selectedCustomer && <div className="customer-search-results">{matchingCustomers.map((item) => <button className="customer-search-result" key={item.id} type="button" aria-label={`Selecionar ${item.full_name}`} onClick={() => { setCustomer(item.id); setCustomerQuery(""); }}><strong>{item.full_name}</strong><small>{item.phone_e164 ?? "Sem telefone"}</small></button>)}{matchingCustomers.length === 0 && <p className="customer-search-selected">Nenhum cliente encontrado.</p>}</div>}
+          {selectedCustomer && <p className="customer-search-selected"><Check size={15} /> {selectedCustomer.full_name} selecionado</p>}
+        </div>
         <Field label="Serviço (opcional)"><select value={service} onChange={(event) => setService(event.target.value)}><option value="">Sem serviço</option>{data.services.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
         <Field label="Descrição" wide><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} placeholder="Detalhes para orientar a execução do card (opcional)." /></Field>
         <footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setCreateCardOpen(false)}>Cancelar</button><button className={styles.button} type="submit"><Plus size={15} /> Criar card</button></footer>
