@@ -192,6 +192,16 @@ export function CustomersManager({
     const subscription = subscriptionId
       ? subscriptions.find((item) => String(item.id) === subscriptionId)
       : null;
+    if (customer && params.get("aba") === "assinaturas") {
+      queueMicrotask(() => {
+        setEditing(null);
+        setFormOpen(false);
+        setHistoryCustomer(customer);
+        setHistoryTab("SUBSCRIPTIONS");
+        setSubscriptionControlId(null);
+      });
+      return;
+    }
     if (customer && subscription) {
       queueMicrotask(() => {
         setEditing(null);
