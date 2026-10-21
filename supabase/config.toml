@@ -44,6 +44,12 @@ verify_jwt = false
 [functions.mercado-pago-oauth-callback]
 verify_jwt = false
 
+[functions.google-calendar-oauth-callback]
+verify_jwt = false
+
+[functions.google-calendar-sync]
+verify_jwt = true
+
 [functions.mercado-pago-webhook]
 verify_jwt = false
 

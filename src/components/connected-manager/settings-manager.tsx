@@ -18,7 +18,7 @@ import { DateBlocksEditor } from "./date-blocks-editor";
 import styles from "./connected-manager.module.css";
 
 type SettingsData = AwaitedReturn<typeof loadSettingsData>;
-type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professionalFunctions" | "professionalFunctionsAvailable" | "dateBlocks" | "organizationAudiences"> & {
+type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professionalFunctions" | "professionalFunctionsAvailable" | "dateBlocks" | "organizationAudiences" | "googleCalendar"> & {
   productKey?: ProductKey;
   environments?: SettingsData["environments"];
   environmentIssues?: SettingsData["environmentIssues"];
@@ -26,6 +26,7 @@ type Props = Omit<SettingsData, "environments" | "environmentIssues" | "professi
   professionalFunctionsAvailable?: boolean;
   dateBlocks?: SettingsData["dateBlocks"];
   organizationAudiences?: SettingsData["organizationAudiences"];
+  googleCalendar?: SettingsData["googleCalendar"];
 };
 
 export function SettingsManager(props: Props) {
@@ -235,6 +236,22 @@ export function SettingsManager(props: Props) {
     }
   }
 
+  async function connectGoogleCalendar() {
+    setConnecting(true);
+    setMessage("Abrindo autorização do Google Agenda…");
+    try {
+      const { data, error } = await connectedClient().functions.invoke("google-calendar-oauth-start", {
+        body: { organizationId: props.organizationId, targetType: "ORGANIZATION", returnPath: "/gestor/configuracoes" },
+      });
+      const authorizationUrl = data && typeof data === "object" && "authorizationUrl" in data ? data.authorizationUrl : null;
+      if (error || typeof authorizationUrl !== "string") throw new Error(error?.message ?? "URL de autorização não recebida.");
+      window.location.assign(authorizationUrl);
+    } catch (error) {
+      setConnecting(false);
+      setMessage(humanizeError(error));
+    }
+  }
+
   async function exportRetentionData() {
     if (props.billingStatus !== "CANCELED_RETENTION") return;
     setExporting(true);
@@ -262,6 +279,7 @@ export function SettingsManager(props: Props) {
   }
 
   const mpConnected = props.merchant?.status === "CONNECTED";
+  const googleCalendarConnected = props.googleCalendar?.status === "CONNECTED";
   const whatsappConnected = props.whatsapp?.connections.some((connection) =>
     connection.is_active && connection.status === "CONNECTED" &&
     (!connection.health_status || connection.health_status === "OK")
@@ -358,6 +376,7 @@ export function SettingsManager(props: Props) {
       <div className={styles.list}>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Gerenciar minha assinatura</strong><StatusChip active={["TRIALING", "ACTIVE", "GRACE"].includes(props.subscription?.status ?? "")} label={props.subscription?.status ?? "NÃO INICIADO"} /></span><p>Assinatura, trial, carência e cobrança geridos pelo Stripe.</p></div><span className={styles.toolbarGroup}><Link className={`${styles.button} ${styles.buttonSoft}`} href={billingPath}>Abrir cobrança</Link><Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/configuracoes/modulos">Módulos</Link></span></article>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Mercado Pago</strong><StatusChip active={mpConnected} label={props.merchant?.status ?? "NÃO CONECTADO"} /></span><p>{props.merchant?.external_account_id ? `Conta ${props.merchant.external_account_id}` : "OAuth por tenant; credenciais nunca chegam ao navegador."}</p></div><button className={styles.button} type="button" onClick={connectMercadoPago} disabled={connecting}>{connecting ? "Abrindo…" : mpConnected ? "Reconectar" : "Conectar conta"}</button></article>
+        <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>Google Agenda do estabelecimento</strong><StatusChip active={googleCalendarConnected} label={props.googleCalendar?.status ?? "NÃO CONECTADO"} /></span><p>{props.googleCalendar?.google_account_email ? `${props.googleCalendar.google_account_email} · recebe todos os agendamentos, alterações e cancelamentos.` : "Sincroniza todos os agendamentos do estabelecimento com a agenda do gestor."}</p></div><button className={styles.button} type="button" onClick={connectGoogleCalendar} disabled={connecting}>{connecting ? "Abrindo…" : googleCalendarConnected ? "Reconectar conta" : "Conectar Google Agenda"}</button></article>
         <article className={styles.integration}><div className={styles.integrationInfo}><span className={styles.toolbarGroup}><strong>WhatsApp</strong><StatusChip active={whatsappConnected} label={whatsappConnected ? "CONECTADO" : "PENDENTE"} /></span><p>{whatsappConnected ? "Integração ativa para confirmações, lembretes e ações seguras." : "Configure Meta Cloud API ou QR Web na página exclusiva da integração."}</p></div><Link className={`${styles.button} ${styles.buttonSoft}`} href="/gestor/configuracoes/whatsapp">Abrir integração</Link></article>
       </div>
     </Panel>

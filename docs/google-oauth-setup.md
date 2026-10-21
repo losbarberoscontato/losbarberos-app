@@ -1,10 +1,24 @@
 # Google OAuth — configuração do Los Barberos
 
+## Integração com Google Calendar
+
+O login Google do Supabase Auth continua usando seu cliente OAuth existente. A sincronização do Calendar usa um segundo cliente **Web application** no mesmo projeto Google Cloud (`DisplaySH`), identificado como `DisplaySH Google Calendar`. O cliente separado mantém redirects e segredo próprios sem alterar o login.
+
+No Google Auth Platform, declare o escopo sensível `https://www.googleapis.com/auth/calendar.events.owned`. O app em modo **Testing** só autoriza os usuários de teste cadastrados. O callback autorizado no cliente Calendar deve ser exatamente:
+
+```text
+https://bwdjkhqshmppescunwer.supabase.co/functions/v1/google-calendar-oauth-callback
+```
+
+No Supabase, os secrets das Edge Functions são `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET` e `GOOGLE_CALENDAR_REDIRECT_URI`. `APP_URL` precisa apontar para a origem pública atual do app para o callback retornar à tela correta. Não registre os valores em arquivos, Git ou navegador.
+
+O gestor pode conectar a agenda do estabelecimento em **Configurações > Integrações**. Cada profissional conecta a própria agenda no **Perfil**; no primeiro acesso com Google Auth, o app inicia o consentimento do Calendar quando ainda não existe conexão. A agenda do gestor recebe todos os atendimentos; a agenda do profissional recebe os seus. Eventos usam o formato `{Sala} | {Cliente} | {Serviço} | {Profissional}`. Edição atualiza o evento e cancelamento o remove.
+
 Este guia conecta o mesmo provedor Google ao acesso de gestor e cliente. O Google fornece identidade básica; autorização de gestor e tenant scope continuam sendo decididos pelo banco. No primeiro acesso do cliente, o app exige WhatsApp, data de nascimento e aceite dos termos antes de criar `client_accounts`.
 
 ## 1. Google Auth Platform
 
-1. No Google Cloud Console, crie ou selecione o projeto `Los Barberos`.
+1. No Google Cloud Console, crie ou selecione o projeto `DisplaySH`.
 2. Abra **Google Auth Platform > Branding** e informe nome, e-mail de suporte, logo e contatos do desenvolvedor.
 3. Em **Audience**, selecione **External**. Durante homologação, mantenha **Testing** e cadastre os e-mails de teste.
 4. Em **Data Access**, mantenha apenas os escopos básicos:

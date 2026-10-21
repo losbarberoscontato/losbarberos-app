@@ -1760,6 +1760,7 @@ export async function loadSettingsData() {
     organization,
     locations,
     merchant,
+    googleCalendar,
     subscription,
     whatsappResult,
     environments,
@@ -1784,6 +1785,12 @@ export async function loadSettingsData() {
       .select("status,external_account_id,connected_at,token_expires_at")
       .eq("organization_id", organizationId)
       .eq("provider", "MERCADO_PAGO")
+      .maybeSingle(),
+    supabase
+      .from("google_calendar_connections")
+      .select("id,google_account_email,status,connected_at,last_sync_at,last_error")
+      .eq("organization_id", organizationId)
+      .eq("target_type", "ORGANIZATION")
       .maybeSingle(),
     supabase
       .from("saas_subscriptions")
@@ -1845,6 +1852,10 @@ export async function loadSettingsData() {
       merchant,
       "Mercado Pago",
     ) as MerchantAccountRecord | null,
+    googleCalendar: requireData(googleCalendar, "Google Agenda") as {
+      id: string; google_account_email: string; status: string; connected_at: string;
+      last_sync_at: string | null; last_error: string | null;
+    } | null,
     subscription: requireData(
       subscription,
       "Assinatura",

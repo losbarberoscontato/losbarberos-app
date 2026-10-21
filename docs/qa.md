@@ -10,6 +10,7 @@
 ## Gates externos
 
 - Google OAuth com redirects de preview e produção.
+- Google Calendar: consentimento com conta de teste, conexão do gestor/profissional, evento criado/editado/cancelado e renovação offline; testar visualmente com sessão autenticada e atendimento de teste.
 - Stripe sandbox: Checkout trial, portal, `invoice.paid`, falha e retry.
 - Mercado Pago sandbox: OAuth, pagamento integral, webhook tardio e refund. Carteira e sinal não fazem parte do fluxo novo.
 - Meta: template aprovado, opt-in, entrega, cancelamento em dois passos e opt-out.
