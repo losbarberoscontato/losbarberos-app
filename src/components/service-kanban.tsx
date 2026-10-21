@@ -232,9 +232,6 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
                 {lastComment && <p className={styles.kanbanCardComment}><span>Último comentário</span>{lastComment.body}</p>}
                 <p className={styles.kanbanCardDescription}>Responsável: {professionalName(card.responsible_barber_id)}</p>
                 {card.service_id && <small className={styles.kanbanCardContext}>Serviço: {data.services.find((item) => item.id === card.service_id)?.name ?? "—"}</small>}
-                <label className={styles.kanbanResponsible} onDoubleClick={(event) => event.stopPropagation()}><span>Mover para</span><select aria-label={`Mover ${card.title}`} value={card.board_id} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => { const destination = orderedBoards.find((item) => item.id === event.target.value); if (destination) moveCardToBoard(card, destination); }}>
-                  {orderedBoards.map((destination) => <option key={destination.id} value={destination.id} disabled={!canReceive(destination)}>{destination.name}</option>)}
-                </select></label>
                 <div className={styles.toolbarGroup}>
                   <button className={styles.button} type="button" onDoubleClick={(event) => event.stopPropagation()} onClick={() => void mutateCard(card, "COMPLETED")}>Concluir</button>
                 </div>

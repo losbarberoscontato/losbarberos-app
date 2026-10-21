@@ -52,6 +52,8 @@ describe("Kanban de atendimentos", () => {
     expect(card).not.toBeNull();
     expect(within(card!).getByText("Último comentário")).toBeInTheDocument();
     expect(within(card!).getByLabelText("Data prazo de Cliente Exemplo")).toHaveValue("2026-10-25");
+    expect(within(card!).queryByText("Mover para")).not.toBeInTheDocument();
+    expect(within(card!).queryByRole("combobox", { name: "Mover Cliente Exemplo" })).not.toBeInTheDocument();
     fireEvent.change(within(card!).getByLabelText("Data prazo de Cliente Exemplo"), { target: { value: "2026-10-27" } });
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("save_service_kanban_card_details", expect.objectContaining({ p_card_id: "card-1", p_due_on: "2026-10-27" })));
     fireEvent.doubleClick(card!);
