@@ -46,6 +46,7 @@ beforeAll(async () => {
     set test.actor='${manager}'; set test.owner_org='${org}';
   `);
   await db.exec(readFileSync("supabase/migrations/20261020121000_service_kanban.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261021125326_service_kanban_card_description.sql", "utf8"));
   await db.exec(`insert into organization_module_entitlements values('${org}','kanban',true)`);
 }, 60_000);
 
@@ -73,6 +74,15 @@ describe("Kanban de atendimentos no PostgreSQL", () => {
     await db.exec(`update appointments set status='COMPLETED' where id='${appointment}';
       update appointments set status='IN_SERVICE' where id='${appointment}';`);
     expect((await db.query("select id from service_kanban_cards where appointment_id=$1", [appointment])).rows).toHaveLength(1);
+  });
+
+  it("persiste descrição em card manual", async () => {
+    const created = await db.query<{ id: string }>(
+      "select create_manual_service_kanban_card($1,$2,$3,$4,$5,$6) as id",
+      [org, "Editar álbum", barber, customer, null, "Selecionar fotos para edição."],
+    );
+    const card = await db.query<{ description: string | null }>("select description from service_kanban_cards where id=$1", [created.rows[0].id]);
+    expect(card.rows[0].description).toBe("Selecionar fotos para edição.");
   });
 
   it("move para responsável do quadro, retorna ao original e arquiva sem tocar na agenda", async () => {
@@ -109,10 +119,14 @@ describe("Kanban de atendimentos no PostgreSQL", () => {
     const otherCard = (await db.query<{ create_manual_service_kanban_card: string }>("select create_manual_service_kanban_card($1,'Card de outro profissional',$2,null,null)", [org,secondBarber])).rows[0].create_manual_service_kanban_card;
     await db.exec(`set test.actor='${barberUser}'; set test.owner_org=''; set role authenticated;`);
     const visible = await db.query<{ id: string; appointment_id: string | null }>("select id,appointment_id from service_kanban_cards");
-    expect(visible.rows.map((item) => item.appointment_id)).toEqual([appointment]);
+    expect(visible.rows.map((item) => item.appointment_id)).toContain(appointment);
+    expect(visible.rows.some((item) => item.appointment_id === null)).toBe(true);
+    expect(visible.rows.map((item) => item.id)).not.toContain(otherCard);
     await expect(db.query("select mutate_service_kanban_card($1,$2,'COMPLETED',null,null)", [org,otherCard]))
       .rejects.toThrow("kanban card access denied");
-    await db.query("select mutate_service_kanban_card($1,$2,'COMPLETED',null,null)", [org,visible.rows[0].id]);
+    for (const card of visible.rows) {
+      await db.query("select mutate_service_kanban_card($1,$2,'COMPLETED',null,null)", [org,card.id]);
+    }
     expect((await db.query("select id from service_kanban_cards")).rows).toHaveLength(0);
     await db.exec(`reset role; set test.actor='${manager}'; set test.owner_org='${org}';`);
   });

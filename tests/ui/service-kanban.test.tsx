@@ -18,7 +18,7 @@ const data: ServiceKanbanData = {
     { id: "waiting", name: "Aguardando", position: 0, system_key: "WAITING", responsible_barber_id: null },
     { id: "doing", name: "Fazendo", position: 1, system_key: null, responsible_barber_id: "barber-2" },
   ],
-  cards: [{ id: "card-1", board_id: "waiting", appointment_id: "appointment-1", customer_id: "customer-1", service_id: null, title: "Cliente Exemplo", origin_barber_id: "barber-1", responsible_barber_id: "barber-1", archived_at: null, created_at: "2026-10-20T00:00:00Z" }],
+  cards: [{ id: "card-1", board_id: "waiting", appointment_id: "appointment-1", customer_id: "customer-1", service_id: null, title: "Cliente Exemplo", description: "Descrição salva", origin_barber_id: "barber-1", responsible_barber_id: "barber-1", archived_at: null, created_at: "2026-10-20T00:00:00Z" }],
   barbers: [{ id: "barber-1", display_name: "Ana" }, { id: "barber-2", display_name: "Bruno" }],
   customers: [{ id: "customer-1", full_name: "Cliente Exemplo" }], services: [],
 };
@@ -50,9 +50,11 @@ describe("Kanban de atendimentos", () => {
     fireEvent.click(screen.getByRole("button", { name: "Criar Card" }));
     const dialog = screen.getByRole("dialog", { name: "Criar card manual" });
     fireEvent.change(within(dialog).getByLabelText("Título"), { target: { value: "Conferir fotos" } });
+    fireEvent.change(within(dialog).getByLabelText("Descrição"), { target: { value: "Separar as fotos escolhidas pelo cliente." } });
     fireEvent.change(within(dialog).getByLabelText("Responsável"), { target: { value: "barber-1" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Criar card" }));
-    await waitFor(() => expect(rpc).toHaveBeenCalledWith("create_manual_service_kanban_card", expect.objectContaining({ p_title: "Conferir fotos", p_responsible_barber_id: "barber-1" })));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("create_manual_service_kanban_card", expect.objectContaining({ p_title: "Conferir fotos", p_description: "Separar as fotos escolhidas pelo cliente.", p_responsible_barber_id: "barber-1" })));
+    expect(screen.getByText("Descrição salva")).toBeInTheDocument();
   });
 
   it("cria quadro pelo modo de edição, em diálogo", async () => {

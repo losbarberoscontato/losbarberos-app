@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Archive, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { assertResult, connectedClient, runMutation } from "@/components/connected-manager/mutation-utils";
-import { ActionMessage, Panel } from "@/components/connected-manager/shared";
+import { ActionMessage, Field, Panel } from "@/components/connected-manager/shared";
 import type { ServiceKanbanData, ServiceKanbanBoard, ServiceKanbanCard } from "@/lib/service-kanban-server";
 import styles from "@/components/connected-manager/connected-manager.module.css";
 
@@ -17,6 +17,7 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
   const [createCardOpen, setCreateCardOpen] = useState(false);
   const [newBoardOpen, setNewBoardOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [responsible, setResponsible] = useState("");
   const [customer, setCustomer] = useState("");
   const [service, setService] = useState("");
@@ -78,10 +79,12 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
       await assertResult(await connectedClient().rpc("create_manual_service_kanban_card", {
         p_organization_id: data.organizationId, p_title: title.trim(),
         p_responsible_barber_id: responsible, p_customer_id: customer || null, p_service_id: service || null,
+        p_description: description.trim() || null,
       }));
     }, "Card manual criado em Aguardando.");
     if (saved) {
       setTitle("");
+      setDescription("");
       setResponsible("");
       setCustomer("");
       setService("");
@@ -155,6 +158,7 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
               {cards.map((card) => <article className={styles.kanbanCard} key={card.id} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", card.id); setDragging(card.id); }} onDragEnd={() => { setDragging(null); setDragOverBoardId(null); }} data-dragging={dragging === card.id ? "true" : undefined}>
                 <small className={styles.kanbanCardContext}>{card.customer_id ? data.customers.find((item) => item.id === card.customer_id)?.full_name ?? "Atendimento" : "Card manual"}</small>
                 <strong>{card.title}</strong>
+                {card.description && <p className={styles.kanbanCardDescription}>{card.description}</p>}
                 <p className={styles.kanbanCardDescription}>Responsável: {professionalName(card.responsible_barber_id)}</p>
                 {card.service_id && <small className={styles.kanbanCardContext}>Serviço: {data.services.find((item) => item.id === card.service_id)?.name ?? "—"}</small>}
                 <label className={styles.kanbanResponsible}><span>Mover para</span><select aria-label={`Mover ${card.title}`} value={card.board_id} onChange={(event) => { const destination = orderedBoards.find((item) => item.id === event.target.value); if (destination) moveCardToBoard(card, destination); }}>
@@ -176,6 +180,7 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
       {archivedCards.length === 0 ? <p>Nenhum card arquivado.</p> : <div className={styles.kanban}>{archivedCards.map((card) => <article key={card.id} className={styles.kanbanCard}>
         <small className={styles.kanbanCardContext}>{data.customers.find((item) => item.id === card.customer_id)?.full_name ?? "Card manual"}</small>
         <strong>{card.title}</strong>
+        {card.description && <p className={styles.kanbanCardDescription}>{card.description}</p>}
         <small>{orderedBoards.find((board) => board.id === card.board_id)?.name ?? "Quadro"}</small>
         <button className={styles.button} type="button" onClick={() => void mutateCard(card, "REOPENED")}>Reabrir</button>
       </article>)}</div>}
@@ -192,10 +197,11 @@ export function ServiceKanban({ data }: { data: ServiceKanbanData }) {
     {data.manager && createCardOpen && <ServiceKanbanDialog title="Criar card manual" wide onClose={() => setCreateCardOpen(false)}>
       <p className={styles.muted}>Cards manuais não geram cobrança ou comissão.</p>
       <form className={styles.form} onSubmit={(event) => void createCard(event)}>
-        <label>Título<input value={title} onChange={(event) => setTitle(event.target.value)} minLength={2} maxLength={160} required autoFocus /></label>
-        <label>Responsável<select value={responsible} onChange={(event) => setResponsible(event.target.value)} required><option value="">Selecione</option>{data.barbers.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></label>
-        <label>Cliente (opcional)<select value={customer} onChange={(event) => setCustomer(event.target.value)}><option value="">Sem cliente</option>{data.customers.map((item) => <option value={item.id} key={item.id}>{item.full_name}</option>)}</select></label>
-        <label>Serviço (opcional)<select value={service} onChange={(event) => setService(event.target.value)}><option value="">Sem serviço</option>{data.services.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+        <Field label="Título"><input value={title} onChange={(event) => setTitle(event.target.value)} minLength={2} maxLength={160} required autoFocus placeholder="Ex.: Preparar fotos do cliente" /></Field>
+        <Field label="Responsável"><select value={responsible} onChange={(event) => setResponsible(event.target.value)} required><option value="">Selecione</option>{data.barbers.map((barber) => <option value={barber.id} key={barber.id}>{barber.display_name}</option>)}</select></Field>
+        <Field label="Cliente (opcional)"><select value={customer} onChange={(event) => setCustomer(event.target.value)}><option value="">Sem cliente</option>{data.customers.map((item) => <option value={item.id} key={item.id}>{item.full_name}</option>)}</select></Field>
+        <Field label="Serviço (opcional)"><select value={service} onChange={(event) => setService(event.target.value)}><option value="">Sem serviço</option>{data.services.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
+        <Field label="Descrição" wide><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} placeholder="Detalhes para orientar a execução do card (opcional)." /></Field>
         <footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setCreateCardOpen(false)}>Cancelar</button><button className={styles.button} type="submit"><Plus size={15} /> Criar card</button></footer>
       </form>
     </ServiceKanbanDialog>}
