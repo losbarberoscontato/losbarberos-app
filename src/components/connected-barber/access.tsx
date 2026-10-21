@@ -13,16 +13,16 @@ function initials(value: string) {
 export function BarberConnectionScreen({ organizations }: { organizations: BarberAppContext[] }) {
   return (
     <main className={styles.page}>
-      <header className={styles.header}><Brand light /></header>
+      <header className={styles.header}><Brand light name="Display SH" tagline="Sua equipe, conectada" mark="DS" /></header>
       <section className={styles.panel} aria-labelledby="barber-connection-title">
         <div className={styles.panelHeading}>
           <span className={styles.headingIcon}><Building2 size={24} /></span>
           <div>
-            <h1 id="barber-connection-title">Escolha uma barbearia</h1>
-            <p>Você está conectado a {organizations.length} barbearias. Entre no ambiente que deseja operar agora.</p>
+            <h1 id="barber-connection-title">Escolha um estabelecimento</h1>
+            <p>Você está conectado a {organizations.length} estabelecimentos. Escolha qual deseja acessar.</p>
           </div>
         </div>
-        <ul className={styles.organizationList} aria-label="Barbearias conectadas">
+        <ul className={styles.organizationList} aria-label="Estabelecimentos conectados">
           {organizations.map((organization) => (
             <li className={styles.organizationItem} key={organization.organization_id}>
               {organization.organization_logo_url ? (
@@ -45,13 +45,13 @@ export function BarberConnectionScreen({ organizations }: { organizations: Barbe
 export function BarberDisconnectedScreen({ profile, email }: { profile: BarberAccountProfile; email: string | null }) {
   return (
     <main className={styles.page}>
-      <header className={styles.header}><Brand light /></header>
+      <header className={styles.header}><Brand light name="Display SH" tagline="Sua equipe, conectada" mark="DS" /></header>
       <section className={`${styles.panel} ${styles.disconnectedPanel}`} aria-labelledby="barber-disconnected-title">
         <div className={styles.panelHeading}>
           <span className={styles.headingIcon}><ShieldCheck size={24} /></span>
           <div>
-            <h1 id="barber-disconnected-title">Você não está conectado a nenhuma barbearia no momento.</h1>
-            <p>Quando um gestor liberar seu acesso novamente, a barbearia aparecerá aqui.</p>
+            <h1 id="barber-disconnected-title">Você não está conectado a nenhum estabelecimento.</h1>
+            <p>Quando um gestor liberar seu acesso, o estabelecimento aparecerá aqui.</p>
           </div>
         </div>
         <BarberAccountProfileForm profile={profile} email={email} />

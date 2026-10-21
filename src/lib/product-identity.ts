@@ -133,6 +133,7 @@ export function productIdentityStyle(identity?: ProductIdentityConfig | null): C
     "--amber-400": colors.accent,
     "--paper": colors.background,
     "--paper-2": colors.background,
+    "--page-canvas": colors.background,
     "--surface": colors.surface,
     "--white": colors.surface,
     "--ink": colors.text,

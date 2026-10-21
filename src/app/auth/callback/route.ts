@@ -5,6 +5,7 @@ import { barberAuthDestination } from "@/lib/barber-auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveSystemAuthDestination } from "@/lib/system-auth";
 import { parseProductKey, setProductContextCookie } from "@/lib/product-context";
+import { productLoginPath } from "@/lib/product-routes";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -47,7 +48,8 @@ export async function GET(request: NextRequest) {
       params.set("next", destination);
     }
     const loginPath = isClientDestination ? "/cliente/entrar"
-      : requestedProduct === "le-gras" ? "/le-gras/entrar" : requestedProduct === "music-pro" ? "/music-pro/entrar" : "/los-barberos/entrar";
+      : isBarberDestination ? "/barbeiro/entrar" : productLoginPath(selectedProduct);
+    if (isBarberDestination && requestedSlug) params.set("barbearia", requestedSlug);
     return NextResponse.redirect(new URL(`${loginPath}?${params.toString()}`, url.origin));
   }
 
@@ -59,7 +61,8 @@ export async function GET(request: NextRequest) {
       params.set("next", destination);
     }
     const loginPath = isClientDestination ? "/cliente/entrar"
-      : requestedProduct === "le-gras" ? "/le-gras/entrar" : requestedProduct === "music-pro" ? "/music-pro/entrar" : "/los-barberos/entrar";
+      : isBarberDestination ? "/barbeiro/entrar" : productLoginPath(selectedProduct);
+    if (isBarberDestination && requestedSlug) params.set("barbearia", requestedSlug);
     return NextResponse.redirect(new URL(`${loginPath}?${params.toString()}`, url.origin));
   }
 

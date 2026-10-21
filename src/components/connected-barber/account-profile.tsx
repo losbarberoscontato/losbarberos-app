@@ -72,7 +72,7 @@ export function BarberAccountProfileForm({ profile, email }: { profile: BarberAc
         </span>
         <div>
           <strong>Meu perfil</strong>
-          <span>{email ?? "Conta do Barbeiro"}</span>
+          <span>{email ?? "Conta profissional"}</span>
         </div>
         <button className={styles.photoButton} type="button" onClick={() => input.current?.click()}>
           <Camera size={16} /> Trocar foto

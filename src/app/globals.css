@@ -1661,6 +1661,7 @@
   .brand__mark::after { content: ""; position: absolute; inset: 6px; border: 1px solid currentColor; border-radius: 9px; opacity: .38; }
   .brand__mark span { position: relative; z-index: 1; font: 800 15px/1 var(--font-display); letter-spacing: -.08em; }
   .brand__wordmark { display: flex; flex-direction: column; line-height: 1; }
+  .brand__wordmark-image { display: block; width: min(176px, 40vw); height: 40px; background-position: left center; background-repeat: no-repeat; background-size: contain; }
   .brand__wordmark strong { font: 700 19px/1 var(--font-display); letter-spacing: -.025em; }
   .brand__wordmark small { margin-top: 5px; color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
   .brand--light { color: #fff; }

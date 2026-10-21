@@ -1,3 +1,6 @@
+import type { ProductKey } from "@/lib/product-context";
+import type { ProductIdentityConfig } from "@/lib/product-identity";
+
 export type BarberAgendaScope = "OWN" | "FULL";
 export type BarberCashSessionStatus = "OPEN" | "RECONCILED";
 
@@ -7,6 +10,8 @@ export type BarberAppContext = {
   organization_slug: string;
   organization_logo_path: string | null;
   organization_logo_url?: string | null;
+  product_key: ProductKey;
+  product_identity?: ProductIdentityConfig | null;
   timezone: string;
   barber_id: string;
   barber_name: string;

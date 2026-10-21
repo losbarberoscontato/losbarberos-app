@@ -18,6 +18,9 @@ import type {
   BarberProjectLink,
 } from "@/components/connected-barber/types";
 import { normalizeTenantSlug } from "@/components/connected-client/format";
+import { parseProductKey } from "@/lib/product-context";
+import { getPublishedProductIdentity } from "@/lib/product-identity-server";
+import type { ProductKey } from "@/lib/product-context";
 
 function rows<T>(value: T[] | null | undefined): T[] {
   return value ?? [];
@@ -30,19 +33,47 @@ async function listBarberContexts(slug?: string | null): Promise<BarberAppContex
     p_organization_slug: slug ?? null,
   });
   if (error) return [];
-  const organizationIds = rows(data as BarberAppContext[]).map((context) => context.organization_id);
+  const contexts = rows(data as Omit<BarberAppContext, "product_key" | "product_identity">[]);
+  const organizationIds = contexts.map((context) => context.organization_id);
   const { data: kanbanEntitlements } = organizationIds.length
     ? await supabase.from("organization_module_entitlements").select("organization_id,enabled")
       .eq("module_key", "kanban").in("organization_id", organizationIds)
     : { data: [] };
   const kanbanEnabled = new Set((kanbanEntitlements ?? []).filter((item) => item.enabled).map((item) => item.organization_id));
-  return rows(data as BarberAppContext[]).map((context) => ({
+  const productContexts = await Promise.all(contexts.map(async (context) => {
+    const { data: publicEntry } = await supabase.rpc("get_public_client_entry_context", {
+      p_booking_public_id: null,
+      p_organization_slug: context.organization_slug,
+    });
+    const entry = publicEntry as { product_key?: unknown } | null;
+    return { context, productKey: parseProductKey(entry?.product_key) ?? "los-barberos" };
+  }));
+  const identities = new Map<ProductKey, Awaited<ReturnType<typeof getPublishedProductIdentity>>>();
+  await Promise.all([...new Set(productContexts.map(({ productKey }) => productKey))].map(async (productKey) => {
+    identities.set(productKey, await getPublishedProductIdentity(productKey));
+  }));
+  return productContexts.map(({ context, productKey }) => ({
     ...context,
+    product_key: productKey,
+    product_identity: identities.get(productKey) ?? null,
     kanban_access_enabled: kanbanEnabled.has(context.organization_id),
     organization_logo_url: context.organization_logo_path
       ? supabase.storage.from("organization-logos").getPublicUrl(context.organization_logo_path).data.publicUrl
       : null,
   }));
+}
+
+export async function getOrganizationProductKeyBySlug(slug: string | null | undefined): Promise<ProductKey> {
+  const normalizedSlug = normalizeTenantSlug(slug);
+  if (!normalizedSlug) return "los-barberos";
+  const supabase = await getSupabaseServerClient();
+  if (!supabase) return "los-barberos";
+  const { data } = await supabase.rpc("get_public_client_entry_context", {
+    p_booking_public_id: null,
+    p_organization_slug: normalizedSlug,
+  });
+  const entry = data as { product_key?: unknown } | null;
+  return parseProductKey(entry?.product_key) ?? "los-barberos";
 }
 
 export async function getBarberAppContext(slug?: string | null): Promise<BarberAppContext | null> {

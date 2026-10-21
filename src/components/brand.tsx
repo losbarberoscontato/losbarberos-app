@@ -8,9 +8,10 @@ type BrandProps = {
   tagline?: string;
   mark?: string;
   logoUrl?: string;
+  wordmarkUrl?: string;
 };
 
-export function Brand({ href = "/", compact = false, light = false, name = "Los Barberos", tagline = "gestão para barbearias", mark = "LB", logoUrl }: BrandProps) {
+export function Brand({ href = "/", compact = false, light = false, name = "Los Barberos", tagline = "gestão para barbearias", mark = "LB", logoUrl, wordmarkUrl }: BrandProps) {
   return (
     <Link
       href={href}
@@ -22,8 +23,7 @@ export function Brand({ href = "/", compact = false, light = false, name = "Los 
       </span>
       {!compact && (
         <span className="brand__wordmark">
-          <strong>{name}</strong>
-          <small>{tagline}</small>
+          {wordmarkUrl ? <span className="brand__wordmark-image" role="img" aria-label={name} style={{ backgroundImage: `url("${wordmarkUrl}")` }} /> : <><strong>{name}</strong><small>{tagline}</small></>}
         </span>
       )}
     </Link>

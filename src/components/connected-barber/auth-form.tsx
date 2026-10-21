@@ -7,14 +7,20 @@ import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-
 import { barberAuthDestination } from "@/lib/barber-auth";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { GoogleMark } from "@/components/google-mark";
+import type { ProductKey } from "@/lib/product-context";
+import type { ProductIdentityConfig } from "@/lib/product-identity";
+import { productLoginPath } from "@/lib/product-routes";
 
-export function BarberAuthForm({ next, slug, error }: { next?: string | null; slug?: string | null; error?: string | null }) {
+export function BarberAuthForm({ next, slug, error, productKey = "los-barberos", identity }: { next?: string | null; slug?: string | null; error?: string | null; productKey?: ProductKey; identity?: ProductIdentityConfig | null }) {
   const router = useRouter();
   const [message, setMessage] = useState(error ? "Não foi possível concluir o acesso. Faça login novamente." : "");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const destination = barberAuthDestination({ next, slug });
+  const appName = identity?.vocabulary.teamApp ?? "App do Barbeiro";
+  const loginHeading = productKey === "music-pro" ? "Entre na sua escola" : productKey === "le-gras" || productKey === "pro-stetic" ? "Entre no seu estúdio" : "Entre na sua barbearia";
+  const createAccountHref = `${productLoginPath(productKey)}?modo=cadastro&next=${encodeURIComponent(destination)}`;
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,6 +44,7 @@ export function BarberAuthForm({ next, slug, error }: { next?: string | null; sl
     const callback = new URL("/auth/callback", window.location.origin);
     callback.searchParams.set("next", new URL(destination, window.location.origin).pathname);
     callback.searchParams.set("provider", "google");
+    callback.searchParams.set("produto", productKey);
     const slugValue = new URL(destination, window.location.origin).searchParams.get("barbearia");
     if (slugValue) callback.searchParams.set("barbearia", slugValue);
     const { error: authError } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callback.toString() } });
@@ -47,8 +54,8 @@ export function BarberAuthForm({ next, slug, error }: { next?: string | null; sl
   return (
     <div className="login-card">
       <div className="login-card__heading">
-        <h1>Entre na sua barbearia</h1>
-        <p>Acompanhe sua operação em tempo real.</p>
+        <h1>{loginHeading}</h1>
+        <p>Acompanhe seus atendimentos e sua agenda em um só lugar.</p>
       </div>
 
       <button className="google-button" type="button" onClick={() => void signInWithGoogle()} disabled={oauthLoading}>
@@ -58,7 +65,7 @@ export function BarberAuthForm({ next, slug, error }: { next?: string | null; sl
 
       {message && <p className="login-notice" role="status">{message}</p>}
 
-      <form onSubmit={signIn} aria-label="Entrar no App do Barbeiro">
+      <form onSubmit={signIn} aria-label={`Entrar no ${appName}`}>
         <label htmlFor="barber-auth-email">
           E-mail
           <span className="input-shell">
@@ -82,12 +89,12 @@ export function BarberAuthForm({ next, slug, error }: { next?: string | null; sl
         </button>
       </form>
 
-      <Link className="login-mode-switch" href="/entrar?modo=cadastro">
+      <Link className="login-mode-switch" href={createAccountHref}>
         Ainda não tenho conta. Criar conta
       </Link>
 
       <p className="login-security">
-        <ShieldCheck size={16} /> Seus dados protegidos com criptografia e isolamento por barbearia.
+        <ShieldCheck size={16} /> Seus dados protegidos e separados por estabelecimento.
       </p>
     </div>
   );
