@@ -84,6 +84,11 @@
 .hidden { display: none; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
 .toolbarGroup { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.customerToolbar { display: flex; align-items: flex-end; gap: .65rem; margin-bottom: 1rem; }
+.customerToolbar > .customerFilters { flex: 0 0 auto; align-self: flex-end; }
+.customerToolbar > .customerFilters select { min-height: 42px; }
+.customerSearch { flex: 1 1 16rem; min-width: 12rem; margin: 0; }
+.customerToolbar > .button { min-height: 42px; white-space: nowrap; }
 .button { border: 0; border-radius: 999px; padding: .72rem 1rem; display: inline-flex; align-items: center; justify-content: center; gap: .45rem; font: inherit; font-size: .87rem; font-weight: 700; cursor: pointer; background: var(--manager-action-bg, #252b26); color: #fff; text-decoration: none; }
 .button:hover { background: var(--manager-action-bg-hover, #111512); }
 .button:disabled { cursor: not-allowed; opacity: .48; }
@@ -937,6 +942,11 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
   .engagementSessionsHeader, .engagementSessionsRow { min-width: 760px; width: max-content; }
 }
 @media (max-width: 680px) {
+  .customerToolbar { flex-wrap: wrap; align-items: stretch; }
+  .customerToolbar > .customerFilters { width: 100%; }
+  .customerToolbar > .customerFilters select { flex: 1 1 10rem; }
+  .customerSearch { flex-basis: 100%; }
+  .customerToolbar > .button { flex: 1 1 auto; }
   .agendaHeader { align-items: flex-start; flex-direction: column; gap: .35rem; }
   .panel { padding: 1rem; border-radius: 16px; }
   .stats, .cards, .accountBalances, .form, .definition, .commercialToggles { grid-template-columns: 1fr; }

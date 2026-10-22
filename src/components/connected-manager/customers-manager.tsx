@@ -781,7 +781,32 @@ export function CustomersManager({
       />
       <Panel
         title="Base de clientes"
-        titleAdornment={
+        description={subscriptionFilter === "ALL"
+          ? `${customers.filter((item) => item.active).length} ativos`
+          : `${filtered.length} clientes · ${subscriptionFilterLabels[subscriptionFilter]}`}
+        action={
+          <button
+            className={styles.button}
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+          >
+            Novo cliente
+          </button>
+        }
+      >
+        <ActionMessage
+          message={message}
+          tone={
+            message.toLowerCase().includes("erro") ||
+            message.toLowerCase().includes("negado")
+              ? "error"
+              : "info"
+          }
+        />
+        <div className={styles.customerToolbar}>
           <div className={styles.customerFilters}>
             <select
               aria-label="Filtro de clientes"
@@ -809,34 +834,15 @@ export function CustomersManager({
               </select>
             )}
           </div>
-        }
-        description={subscriptionFilter === "ALL"
-          ? `${customers.filter((item) => item.active).length} ativos`
-          : `${filtered.length} clientes · ${subscriptionFilterLabels[subscriptionFilter]}`}
-        action={
-          <button
-            className={styles.button}
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            Novo cliente
-          </button>
-        }
-      >
-        <ActionMessage
-          message={message}
-          tone={
-            message.toLowerCase().includes("erro") ||
-            message.toLowerCase().includes("negado")
-              ? "error"
-              : "info"
-          }
-        />
-        {customers.length > 1 && (
-          <div className={styles.toolbarGroup}>
+          <label className={`${styles.field} ${styles.customerSearch}`}>
+            <span>Buscar</span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Nome, telefone ou e-mail"
+            />
+          </label>
+          {customers.length > 1 && (
             <button
               className={`${styles.button} ${styles.buttonSoft}`}
               type="button"
@@ -844,8 +850,8 @@ export function CustomersManager({
             >
               Mesclar cadastros
             </button>
-          </div>
-        )}
+          )}
+        </div>
         {mergeOpen && (
           <form className={styles.form} onSubmit={merge}>
             <Field label="Cadastro de origem">
@@ -1015,16 +1021,6 @@ export function CustomersManager({
             </form>
           </div>
         )}
-        <div className={styles.toolbar}>
-          <label className={styles.field}>
-            <span>Buscar</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Nome, telefone ou e-mail"
-            />
-          </label>
-        </div>
         {filtered.length === 0 ? (
           <EmptyState
             title={
