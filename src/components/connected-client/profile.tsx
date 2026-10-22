@@ -48,12 +48,12 @@ function ProfileContent() {
   const [confirmDeletion, setConfirmDeletion] = useState(false);
   const [searchSlug, setSearchSlug] = useState("");
   const [cpfCnpj, setCpfCnpj] = useState("");
-  const [personalOpen, setPersonalOpen] = useState(true);
+  const [personalOpen, setPersonalOpen] = useState(false);
   const [dependents, setDependents] = useState<CustomerDependent[]>([]);
   const [dependentsOpen, setDependentsOpen] = useState(false);
-  const [establishmentsOpen, setEstablishmentsOpen] = useState(true);
-  const [communicationOpen, setCommunicationOpen] = useState(true);
-  const [privacyOpen, setPrivacyOpen] = useState(true);
+  const [establishmentsOpen, setEstablishmentsOpen] = useState(false);
+  const [communicationOpen, setCommunicationOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [dependentDraft, setDependentDraft] = useState<{ id?: string; fullName: string; birthDate: string; relationship: CustomerDependent["relationship"] }>({ fullName: "", birthDate: "", relationship: "CHILD" });
 
   useEffect(() => {
@@ -209,7 +209,6 @@ function ProfileContent() {
     }
   }
 
-  const displayName = (customer?.full_name ?? fullName) || "Cliente";
   const exportPending = requests.some((request) => request.kind === "EXPORT" && ["OPEN", "IN_PROGRESS"].includes(request.status));
   const deletionPending = requests.some((request) => request.kind === "DELETION" && ["OPEN", "IN_PROGRESS"].includes(request.status));
   const logoUrl = (path: string | null | undefined) => path
@@ -221,32 +220,28 @@ function ProfileContent() {
       {notice && <div className={styles.notice} role="status"><Check size={17} /><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Fechar aviso"><X size={15} /></button></div>}
       {error && <div className={styles.errorBox} role="alert"><strong>Ação não concluída</strong><span>{error}</span></div>}
       <div className={styles.profileGrid}>
-        <aside className={styles.profileAside}>
-          <span className={styles.profileAvatar}>{initials(displayName)}</span>
-          <h2>{displayName}</h2>
-          <p>{user.email}</p>
-          <dl><div><dt>Estabelecimento</dt><dd>{context.organization.name}</dd></div><div><dt>Unidade</dt><dd>{context.location?.name ?? "Unidade"}</dd></div><div><dt>Endereço</dt><dd>{locationLabel(context.location?.address)}</dd></div></dl>
-          <button type="button" className={styles.signOut} onClick={() => void signOut()}><LogOut size={16} /> Sair</button>
-        </aside>
         <div className={styles.profileMain}>
           <section className={`${styles.panel} ${styles.collapsiblePanel}`}>
             <button type="button" className={styles.sectionToggle} onClick={() => setPersonalOpen((value) => !value)} aria-expanded={personalOpen} aria-controls="client-personal-data"><span className={styles.sectionIcon}><UserRound size={18} /></span><span><strong>Dados pessoais</strong></span><ChevronRight size={17} className={personalOpen ? styles.sectionToggleOpen : ""} /></button>
-            {personalOpen && <div id="client-personal-data" className={styles.collapsibleContent}><div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>CPF/CNPJ<input value={cpfCnpj} onChange={(event) => setCpfCnpj(formatCpfCnpj(event.target.value))} placeholder="CPF ou CNPJ" inputMode="numeric" /></label><label>Telefone/Whatsapp<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Data de nascimento <small>opcional · DD/MM/AAAA</small><input type="text" value={birthDate} onChange={(event) => setBirthDate(normalizeBirthDateInput(event.target.value))} placeholder="DD/MM/AAAA" inputMode="numeric" autoComplete="bday" maxLength={10} /></label></div><button type="button" className={styles.primaryButton} disabled={busy} onClick={() => void saveProfile()}><Save size={16} /> {busy ? "Salvando…" : "Salvar dados"}</button></div>}
-          </section>
-          <section className={`${styles.panel} ${styles.dependentsPanel} ${styles.collapsiblePanel}`}>
-            <button type="button" className={styles.sectionToggle} onClick={() => setDependentsOpen((value) => !value)} aria-expanded={dependentsOpen} aria-controls="client-dependents"><span className={styles.sectionIcon}><UserPlus size={18} /></span><span><strong>Dependentes</strong></span><ChevronRight size={17} className={dependentsOpen ? styles.sectionToggleOpen : ""} /></button>
-            {dependentsOpen && <div id="client-dependents" className={styles.dependentsContent}>
-              <div className={styles.dependentsForm}>
-                <label>Nome<input value={dependentDraft.fullName} onChange={(event) => setDependentDraft((d) => ({ ...d, fullName: event.target.value }))} placeholder="Nome completo" /></label>
-                <label>Data de nascimento<input aria-label="Data de nascimento do dependente" type="date" value={dependentDraft.birthDate} onChange={(event) => setDependentDraft((d) => ({ ...d, birthDate: event.target.value }))} /></label>
-                <span className={styles.dependentAge}><small>Idade calculada</small><strong>{dependentDraft.birthDate ? `${dependentAge(dependentDraft.birthDate)} anos` : "—"}</strong></span>
-                <label>Parentesco<select value={dependentDraft.relationship} onChange={(event) => setDependentDraft((d) => ({ ...d, relationship: event.target.value as CustomerDependent["relationship"] }))}><option value="CHILD">Filho(a)</option><option value="SPOUSE">Cônjuge</option><option value="EMPLOYEE">Funcionário</option><option value="PARENT">Pai/Mãe</option><option value="OTHER">Outros</option></select></label>
-                <button type="button" className={styles.primaryButton} disabled={busy || dependents.length >= 8 && !dependentDraft.id} onClick={() => void saveDependent()}><Save size={16} /> {dependentDraft.id ? "Salvar alteração" : "Adicionar dependente"}</button>
-              </div>
-              {dependents.length > 0 ? <div className={styles.dependentsTable} role="table" aria-label="Dependentes cadastrados">
-                <div className={styles.dependentsTableHead} role="row"><span>Nome</span><span>Nascimento</span><span>Idade</span><span>Parentesco</span><span className="sr-only">Ações</span></div>
-                {dependents.map((item) => <div className={styles.dependentsTableRow} role="row" key={item.id}><span><strong>{item.full_name}</strong></span><span>{item.birth_date}</span><span>{dependentAge(item.birth_date)} anos</span><span>{({ CHILD: "Filho(a)", SPOUSE: "Cônjuge", EMPLOYEE: "Funcionário", PARENT: "Pai/Mãe", OTHER: "Outros" } as Record<string, string>)[item.relationship]}</span><span className={styles.dependentActions}><button type="button" className={styles.iconButtonSmall} aria-label={`Editar ${item.full_name}`} onClick={() => setDependentDraft({ id: item.id, fullName: item.full_name, birthDate: item.birth_date, relationship: item.relationship })}><Pencil size={15} /></button><button type="button" className={`${styles.iconButtonSmall} ${styles.iconButtonDanger}`} aria-label={`Excluir ${item.full_name}`} onClick={() => void removeDependent(item.id)}><Trash2 size={15} /></button></span></div>)}
-              </div> : <div className={styles.dependentsEmpty}><UserPlus size={19} /><span><strong>Nenhum dependente cadastrado</strong><small>Adicione alguém que poderá ser atendido no lugar do cliente.</small></span></div>}
+            {personalOpen && <div id="client-personal-data" className={styles.collapsibleContent}>
+              <div className={styles.formGrid}><label>Nome completo<input value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label><label>CPF/CNPJ<input value={cpfCnpj} onChange={(event) => setCpfCnpj(formatCpfCnpj(event.target.value))} placeholder="CPF ou CNPJ" inputMode="numeric" /></label><label>Telefone/Whatsapp<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+5511999999999" inputMode="tel" autoComplete="tel" /></label><label>E-mail <small>gerenciado pela autenticação</small><input type="email" value={user.email ?? ""} disabled autoComplete="email" /></label><label>Data de nascimento <small>opcional · DD/MM/AAAA</small><input type="text" value={birthDate} onChange={(event) => setBirthDate(normalizeBirthDateInput(event.target.value))} placeholder="DD/MM/AAAA" inputMode="numeric" autoComplete="bday" maxLength={10} /></label></div>
+              <button type="button" className={`${styles.primaryButton} ${styles.profileSaveButton}`} disabled={busy} onClick={() => void saveProfile()}><Save size={16} /> {busy ? "Salvando…" : "Salvar dados"}</button>
+              <section className={`${styles.dependentsPanel} ${styles.collapsiblePanel} ${styles.profileSubcard}`}>
+                <button type="button" className={styles.sectionToggle} onClick={() => setDependentsOpen((value) => !value)} aria-expanded={dependentsOpen} aria-controls="client-dependents"><span className={styles.sectionIcon}><UserPlus size={18} /></span><span><strong>Dependentes</strong></span><ChevronRight size={17} className={dependentsOpen ? styles.sectionToggleOpen : ""} /></button>
+                {dependentsOpen && <div id="client-dependents" className={styles.dependentsContent}>
+                  <div className={styles.dependentsForm}>
+                    <label>Nome<input value={dependentDraft.fullName} onChange={(event) => setDependentDraft((d) => ({ ...d, fullName: event.target.value }))} placeholder="Nome completo" /></label>
+                    <label>Data de nascimento<input aria-label="Data de nascimento do dependente" type="date" value={dependentDraft.birthDate} onChange={(event) => setDependentDraft((d) => ({ ...d, birthDate: event.target.value }))} /></label>
+                    <span className={styles.dependentAge}><small>Idade calculada</small><strong>{dependentDraft.birthDate ? `${dependentAge(dependentDraft.birthDate)} anos` : "—"}</strong></span>
+                    <label>Parentesco<select value={dependentDraft.relationship} onChange={(event) => setDependentDraft((d) => ({ ...d, relationship: event.target.value as CustomerDependent["relationship"] }))}><option value="CHILD">Filho(a)</option><option value="SPOUSE">Cônjuge</option><option value="EMPLOYEE">Funcionário</option><option value="PARENT">Pai/Mãe</option><option value="OTHER">Outros</option></select></label>
+                    <button type="button" className={styles.primaryButton} disabled={busy || dependents.length >= 8 && !dependentDraft.id} onClick={() => void saveDependent()}><Save size={16} /> {dependentDraft.id ? "Salvar alteração" : "Adicionar dependente"}</button>
+                  </div>
+                  {dependents.length > 0 ? <div className={styles.dependentsTable} role="table" aria-label="Dependentes cadastrados">
+                    <div className={styles.dependentsTableHead} role="row"><span>Nome</span><span>Nascimento</span><span>Idade</span><span>Parentesco</span><span className="sr-only">Ações</span></div>
+                    {dependents.map((item) => <div className={styles.dependentsTableRow} role="row" key={item.id}><span><strong>{item.full_name}</strong></span><span>{item.birth_date}</span><span>{dependentAge(item.birth_date)} anos</span><span>{({ CHILD: "Filho(a)", SPOUSE: "Cônjuge", EMPLOYEE: "Funcionário", PARENT: "Pai/Mãe", OTHER: "Outros" } as Record<string, string>)[item.relationship]}</span><span className={styles.dependentActions}><button type="button" className={styles.iconButtonSmall} aria-label={`Editar ${item.full_name}`} onClick={() => setDependentDraft({ id: item.id, fullName: item.full_name, birthDate: item.birth_date, relationship: item.relationship })}><Pencil size={15} /></button><button type="button" className={`${styles.iconButtonSmall} ${styles.iconButtonDanger}`} aria-label={`Excluir ${item.full_name}`} onClick={() => void removeDependent(item.id)}><Trash2 size={15} /></button></span></div>)}
+                  </div> : <div className={styles.dependentsEmpty}><UserPlus size={19} /><span><strong>Nenhum dependente cadastrado</strong><small>Adicione alguém que poderá ser atendido no lugar do cliente.</small></span></div>}
+                </div>}
+              </section>
             </div>}
           </section>
           <section className={`${styles.panel} ${styles.collapsiblePanel}`}>
@@ -281,6 +276,7 @@ function ProfileContent() {
             {loadingPrivacy ? <p className={styles.loadingLine}><LoaderCircle className={styles.spin} /> Carregando solicitações…</p> : requests.length > 0 && <div className={styles.requestList}><h3>Solicitações</h3>{requests.map((request) => <article key={request.id}><span>{request.kind}</span><strong>{request.status.replaceAll("_", " ")}</strong><small>{formatInstant(request.requested_at, context.organization.timezone)}</small></article>)}</div>}
             </div>}
           </section>
+          <button type="button" className={styles.signOut} onClick={() => void signOut()}><LogOut size={16} /> Sair</button>
         </div>
       </div>
       {confirmDeletion && <div className={styles.modalLayer}><button type="button" className={styles.backdrop} onClick={() => setConfirmDeletion(false)} aria-label="Fechar confirmação" /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="delete-request-title"><button type="button" className={styles.modalClose} onClick={() => setConfirmDeletion(false)} aria-label="Fechar"><X /></button><Trash2 className={styles.warning} /><h2 id="delete-request-title">Solicitar exclusão?</h2><p>Isso abre pedido LGPD. Retenção legal e compromissos ativos serão avaliados; exclusão não ocorre neste clique.</p><footer><button type="button" className={styles.secondaryButton} onClick={() => setConfirmDeletion(false)}>Voltar</button><button type="button" className={styles.dangerButton} disabled={busy} onClick={() => void requestPrivacy("DELETION")}>Abrir solicitação</button></footer></section></div>}

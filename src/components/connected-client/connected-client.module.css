@@ -510,18 +510,11 @@
 .rescheduleCatalog small { color: #777d76; font-size: 8px; }
 .modal > footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
-.profileGrid { display: grid; grid-template-columns: 265px minmax(0, 1fr); align-items: start; gap: 15px; }
-.profileAside { position: sticky; top: 124px; display: flex; flex-direction: column; align-items: center; padding: 25px; border: 1px solid #ded8cc; border-radius: 18px; background: #fffefa; text-align: center; }
-.profileAvatar { width: 74px; height: 74px; display: grid; place-items: center; border-radius: 50%; background: #173f35; color: #fff; font-size: 19px; font-weight: 850; }
-.profileAside h2 { margin-top: 12px; font-size: 18px; }
-.profileAside > p { margin-top: 3px; color: #7d827b; font-size: 9px; }
-.profileAside dl { width: 100%; display: grid; gap: 10px; margin-top: 20px; padding-top: 18px; border-top: 1px solid #e7e1d7; text-align: left; }
-.profileAside dl > div { display: grid; gap: 2px; }
-.profileAside dt { color: #8a8e87; font-size: 8px; text-transform: uppercase; }
-.profileAside dd { font-size: 9px; line-height: 1.4; }
-.signOut { width: 100%; min-height: 39px; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 20px; border: 1px solid #e2c3bd; border-radius: 9px; background: #fff; color: #8d4036; font-size: 9px; font-weight: 850; }
+.profileGrid { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.signOut { width: fit-content; min-width: 180px; min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 7px; margin: 10px auto 4px; padding: 0 22px; border: 1px solid #e2c3bd; border-radius: 9px; background: #fff; color: #8d4036; font-size: 10px; font-weight: 850; }
 .profileMain { display: grid; gap: 14px; }
-.panel > .primaryButton { margin-top: 16px; }
+.profileSaveButton { width: fit-content; min-height: 44px; display: flex; margin: 16px auto 0; padding: 0 21px; }
+.profileSubcard { margin-top: 18px; border: 1px solid #e5e0d7; border-radius: 13px; background: #fbfaf6; }
 .dependentsPanel { padding: 0; overflow: hidden; }
 .dependentsPanel .sectionToggle { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 11px; padding: 18px 22px; text-align: left; }
 .sectionToggleLead { display: inline-flex; align-items: center; gap: 8px; color: #2b6756; }
@@ -608,9 +601,9 @@
   .locationStrip { align-items: flex-start; justify-content: flex-start; text-align: left; }
   .locationStrip strong { display: none; }
   .main { width: min(100% - 32px, 560px); padding-top: 26px; }
-  .bottomNav { position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; min-height: 72px; display: grid; grid-template-columns: repeat(3, 1fr); padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid #d9d2c7; background: rgb(255 254 250 / 97%); box-shadow: 0 -8px 22px rgb(24 46 38 / 8%); backdrop-filter: blur(14px); }
-  .bottomNav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #616b65; font-size: 10px; font-weight: 750; }
-  .bottomNav a svg { width: 23px; height: 23px; }
+  .bottomNav { position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; min-height: 72px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid #d9d2c7; background: rgb(255 254 250 / 97%); box-shadow: 0 -8px 22px rgb(24 46 38 / 8%); backdrop-filter: blur(14px); }
+  .bottomNav a { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #616b65; font-size: clamp(8px, 2.5vw, 10px); font-weight: 750; white-space: nowrap; }
+  .bottomNav a svg { width: 22px; height: 22px; }
   .bottomNav a.active { color: #23604f; }
   .bottomNav a.active svg { stroke-width: 2.5; }
   .state,
@@ -643,8 +636,7 @@
   .rescheduleCatalog button { min-width: 0; }
   .cards > button { min-height: 130px; }
   .barbers > button { min-height: 85px; }
-  .reviewGrid,
-  .profileGrid { grid-template-columns: 1fr; }
+  .reviewGrid { grid-template-columns: minmax(0, 1fr); }
   .summary { position: static; grid-row: 1; }
   .bookingFooter { min-height: 68px; bottom: 79px; margin-right: -5px; margin-left: -5px; }
   .bookingFooter > span { flex: 1; }
@@ -661,7 +653,6 @@
   .modal { padding: 22px 18px; }
   .modal > footer { flex-direction: column-reverse; }
   .modal > footer button { width: 100%; }
-  .profileAside { position: static; }
   .bookingFooter { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   .requestList article { grid-template-columns: 1fr auto; padding: 7px 0; }
   .requestList small { grid-column: 1 / -1; }
@@ -796,7 +787,7 @@
 .productTheme .closed, .productTheme .homeClosed { color: var(--danger); }
 .productTheme .state, .productTheme .resolver, .productTheme .authPrompt, .productTheme .emptyPage, .productTheme .bookingBlocked,
 .productTheme .homeHero, .productTheme .homePanel, .productTheme .catalog, .productTheme .schedule > section,
-.productTheme .panel, .productTheme .reservationSection, .productTheme .profileAside, .productTheme .modal,
+.productTheme .panel, .productTheme .reservationSection, .productTheme .profileSubcard, .productTheme .modal,
 .productTheme .reservationCard, .productTheme .organizationCard, .productTheme .switchConfirm, .productTheme .tenantMenu {
   border-color: var(--border);
   background: var(--surface);
