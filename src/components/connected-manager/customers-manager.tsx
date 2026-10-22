@@ -1029,7 +1029,7 @@ export function CustomersManager({
                       setHistoryTab("APPOINTMENTS");
                     }}
                   >
-                    Ver Agendamentos
+                    Agendamentos e Assinaturas
                   </button>
                   <button
                     className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`}
