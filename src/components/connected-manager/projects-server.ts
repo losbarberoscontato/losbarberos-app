@@ -247,7 +247,7 @@ export async function loadProjectsData() {
     .maybeSingle();
   if (entitlement.error) throw new Error(`Módulo Projetos: ${entitlement.error.message}`);
 
-  const [projects, packages, steps, engagementsRaw, installments, customers, services, barbers, barberServices, packageServiceAssignments, projectBarbers, costItems, kanbanBoardsRaw, kanbanSectorsRaw, eventCommentsRaw, financialAccounts, chartAccounts, costCenters, tags, sessions, projectAppointments, projectEngagementLinks, environments, internalServices, internalCards] = await Promise.all([
+  const [projects, packages, steps, engagementsRaw, installments, customers, services, barbers, barberServices, packageServiceAssignments, projectBarbers, costItems, kanbanBoardsRaw, kanbanSectorsRaw, eventCommentsRaw, financialAccounts, chartAccounts, costCenters, tags, sessions, projectAppointments, projectEngagementLinks, environments, internalServices, internalCards, cancellationRequests] = await Promise.all([
     supabase.from("projects").select("id,organization_id,name,description,status,starts_on,sales_close_on,ends_on,goal_contracts,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("project_packages").select("id,organization_id,project_id,name,description,price_cents,sessions_count,duration_minutes,fixed_cost_per_hour_cents,extra_costs_cents,extra_costs_description,tax_rate_bps,card_rate_bps,profit_margin_bps,deposit_cents,suggested_price_cents,sort_order,active").eq("organization_id", organizationId).order("sort_order"),
     supabase.from("project_steps").select("id,organization_id,project_id,name,description,position,kind,service_id,commission_rate_bps,active").eq("organization_id", organizationId).order("position"),
@@ -273,6 +273,7 @@ export async function loadProjectsData() {
     supabase.from("agenda_environments").select("id,organization_id,location_id,name,sort_order,active").eq("organization_id", organizationId).eq("active", true).order("sort_order").order("name"),
     supabase.from("project_engagement_internal_services").select("id,organization_id,project_id,engagement_id,internal_card_id,kanban_board_id,package_assignment_id,service_id,service_name,barber_id,commission_cents,delivery_on,status,commission_ledger_entry_id").eq("organization_id", organizationId).order("created_at"),
     supabase.from("project_kanban_internal_cards").select("id,organization_id,project_id,kanban_board_id,title,created_at").eq("organization_id", organizationId).order("created_at"),
+    supabase.from("customer_project_cancellation_requests").select("id,organization_id,engagement_id,customer_id,status,reason,observations,last_session_id,last_installment_id,requested_at").eq("organization_id", organizationId).order("requested_at", { ascending: false }),
   ]);
 
   const installmentRows = installments.error && /project_installment_finance|relation .* does not exist/i.test(installments.error.message)
@@ -325,6 +326,7 @@ export async function loadProjectsData() {
     packages: required(packages, "Pacotes de projetos") as ProjectPackageRecord[],
     steps: required(steps, "Etapas de projetos") as ProjectStepRecord[],
     engagements: required(engagements, "Contratações de projetos") as ProjectEngagementRecord[],
+    cancellationRequests: required(cancellationRequests, "Solicitações de cancelamento de projetos") as Array<{ id: string; organization_id: string; engagement_id: string; customer_id: string; status: "PENDING" | "CONFIRMED"; reason: string; observations: string | null; last_session_id: string | null; last_installment_id: string | null; requested_at: string }>,
     installments: required(installmentRows, "Parcelas de projetos") as ProjectInstallmentRecord[],
     customers: required(customers, "Clientes") as ProjectCustomerRecord[],
     services: required(services, "Serviços") as Array<{ id: string; name: string; price_cents: number; active: boolean; availability?: "CLIENT" | "HIDDEN" | "INTERNAL" }>,

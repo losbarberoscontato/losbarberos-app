@@ -19,6 +19,7 @@ type Props = Omit<
   LoadedProps,
   | "timezone"
   | "subscriptions"
+  | "subscriptionCancellationRequests"
   | "subscriptionCycles"
   | "subscriptionSessions"
   | "subscriptionPlans"
@@ -32,6 +33,7 @@ type Props = Omit<
     Pick<
       LoadedProps,
       | "subscriptions"
+      | "subscriptionCancellationRequests"
       | "timezone"
       | "subscriptionCycles"
       | "subscriptionSessions"
@@ -44,7 +46,7 @@ type Props = Omit<
     >
   >;
 type CustomerFilter = "ACTIVE" | "INACTIVE";
-type SubscriptionDisplayStatus = "pending" | "due" | "finished" | "overdue" | "active" | "declined" | "canceled";
+type SubscriptionDisplayStatus = "pending" | "cancellationPending" | "due" | "finished" | "overdue" | "active" | "declined" | "canceled";
 type SubscriptionFilter = "ALL" | SubscriptionDisplayStatus;
 
 function dateInTimezone(date: Date, timezone: string): string {
@@ -62,7 +64,9 @@ function subscriptionDisplayStatus(
   subscription: { status?: unknown; contract_accepted_at?: unknown },
   cycles: Array<Record<string, unknown>>,
   today: string,
+  cancellationPending = false,
 ): SubscriptionDisplayStatus {
+  if (cancellationPending) return "cancellationPending";
   const status = String(subscription.status);
   if (status === "REQUESTED") return "pending";
   if (status === "DECLINED") return "declined";
@@ -87,6 +91,7 @@ function subscriptionDisplayStatus(
 
 const subscriptionDisplayStatusLabels: Record<SubscriptionDisplayStatus, string> = {
   pending: "Pendente",
+  cancellationPending: "Cancelamento pendente",
   due: "À Vencer",
   finished: "Finalizado",
   overdue: "Em atraso",
@@ -97,6 +102,7 @@ const subscriptionDisplayStatusLabels: Record<SubscriptionDisplayStatus, string>
 
 const subscriptionFilterLabels: Record<SubscriptionFilter, string> = {
   ALL: "Todas as assinaturas",
+  cancellationPending: "Cancelamento pendente",
   active: "Ativas",
   pending: "Pendentes",
   due: "À Vencer",
@@ -117,6 +123,14 @@ const inactivationReasons = [
 type ApprovalDraft = { subscriptionId: string; startDate: string; dueDate: string };
 type FixedEnrollmentDraft = { customerId: string; planId: string; cadenceWeeks: string; startDate: string; localTime: string; barberId: string; serviceIds: string[] };
 type FixedScheduleEditDraft = { subscriptionId: string; cadenceWeeks: string; startDate: string; localTime: string; barberId: string; serviceIds: string[] };
+type SubscriptionCancellationDraft = {
+  subscriptionId: string;
+  requestId: string | null;
+  reason: string;
+  observations: string;
+  lastCycleId: string;
+  lastSessionId: string;
+};
 type SubscriptionBookingTarget = {
   subscriptionId: string;
   sessionId: string;
@@ -166,6 +180,7 @@ export function CustomersManager({
   barbers,
   statusEvents,
   subscriptions = [],
+  subscriptionCancellationRequests = [],
   subscriptionCycles = [],
   subscriptionSessions = [],
   subscriptionPlans = [],
@@ -200,6 +215,7 @@ export function CustomersManager({
   const [fixedEnrollmentDraft, setFixedEnrollmentDraft] = useState<FixedEnrollmentDraft | null>(null);
   const [fixedScheduleEditDraft, setFixedScheduleEditDraft] = useState<FixedScheduleEditDraft | null>(null);
   const [subscriptionControlId, setSubscriptionControlId] = useState<string | null>(null);
+  const [subscriptionCancellationDraft, setSubscriptionCancellationDraft] = useState<SubscriptionCancellationDraft | null>(null);
   const [subscriptionBooking, setSubscriptionBooking] = useState<SubscriptionBookingTarget | null>(null);
   const [subscriptionBookingDate, setSubscriptionBookingDate] = useState("");
   const [subscriptionBookingTime, setSubscriptionBookingTime] = useState("09:00");
@@ -231,11 +247,12 @@ export function CustomersManager({
         subscription,
         cyclesBySubscription.get(String(subscription.id)) ?? [],
         todayInOrganization,
+        subscriptionCancellationRequests.some((request) => String(request.subscription_id) === String(subscription.id)),
       ));
       statusesByCustomer.set(customerId, statuses);
     }
     return statusesByCustomer;
-  }, [subscriptions, subscriptionCycles, todayInOrganization]);
+  }, [subscriptions, subscriptionCycles, subscriptionCancellationRequests, todayInOrganization]);
   const filtered = customers.filter((customer) => {
     const matchesCustomerStatus = customer.active === (customerFilter === "ACTIVE");
     const matchesQuery = `${customer.full_name} ${customer.phone_e164 ?? ""} ${customer.email ?? ""}`
@@ -284,16 +301,6 @@ export function CustomersManager({
     const subscription = subscriptionId
       ? subscriptions.find((item) => String(item.id) === subscriptionId)
       : null;
-    if (customer && params.get("aba") === "assinaturas") {
-      queueMicrotask(() => {
-        setEditing(null);
-        setFormOpen(false);
-        setHistoryCustomer(customer);
-        setHistoryTab("SUBSCRIPTIONS");
-        setSubscriptionControlId(null);
-      });
-      return;
-    }
     if (customer && subscription) {
       queueMicrotask(() => {
         setEditing(null);
@@ -301,6 +308,16 @@ export function CustomersManager({
         setHistoryCustomer(customer);
         setHistoryTab("SUBSCRIPTIONS");
         setSubscriptionControlId(subscriptionId);
+      });
+      return;
+    }
+    if (customer && params.get("aba") === "assinaturas") {
+      queueMicrotask(() => {
+        setEditing(null);
+        setFormOpen(false);
+        setHistoryCustomer(customer);
+        setHistoryTab("SUBSCRIPTIONS");
+        setSubscriptionControlId(null);
       });
       return;
     }
@@ -646,6 +663,36 @@ export function CustomersManager({
     );
     if (saved) {
       setApprovalDraft(null);
+      router.refresh();
+    }
+  }
+
+  async function confirmSubscriptionCancellation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!subscriptionCancellationDraft) return;
+    const draft = subscriptionCancellationDraft;
+    if (!draft.requestId && (!draft.reason || (draft.reason === "OTHER" && !draft.observations.trim()))) {
+      setMessage("Informe o motivo do cancelamento. Para “Outros”, preencha as observações.");
+      return;
+    }
+    const saved = await runMutation(
+      setMessage,
+      async () => {
+        await assertResult(await connectedClient().rpc("confirm_customer_subscription_cancellation", {
+          p_organization_id: organizationId,
+          p_subscription_id: draft.subscriptionId,
+          p_last_cycle_id: draft.lastCycleId && draft.lastCycleId !== "__none__" ? draft.lastCycleId : null,
+          p_last_session_id: draft.lastSessionId || null,
+          p_reason: draft.reason || "OTHER",
+          p_observations: draft.observations || null,
+          p_request_id: draft.requestId,
+        }));
+      },
+      "Cancelamento confirmado. As dívidas existentes foram preservadas até o limite escolhido.",
+    );
+    if (saved) {
+      setSubscriptionCancellationDraft(null);
+      setSubscriptionControlId(null);
       router.refresh();
     }
   }
@@ -1350,6 +1397,7 @@ export function CustomersManager({
                                 subscription,
                                 cycles,
                                 todayInOrganization,
+                                subscriptionCancellationRequests.some((request) => String(request.subscription_id) === String(subscription.id)),
                               );
                               const paymentLabels: Record<string, string> = {
                                 CARD: "Cartão",
@@ -1516,6 +1564,8 @@ export function CustomersManager({
           const upfront = String(subscription.payment_method) === "UPFRONT";
           const paymentLabels: Record<string, string> = { CARD: "Cartão", PIX: "PIX", BOLETO: "Boleto", CASH: "Dinheiro", UPFRONT: "À vista", ONLINE: "Link de pagamento" };
           const firstOpenCycle = openCycles[0];
+          const cancellationRequest = subscriptionCancellationRequests.find((request) => String(request.subscription_id) === subscriptionControlId);
+          const cancellationReasons: Record<string, string> = { FINANCIAL_DIFFICULTY: "Dificuldade Financeira", LACK_OF_TIME: "Falta de tempo", ADDRESS_CHANGE: "Mudança de endereço", OTHER: "Outros" };
           return <div className="modal-layer" role="presentation">
             <button className="modal-layer__backdrop" type="button" aria-label="Fechar controle da assinatura" onClick={() => setSubscriptionControlId(null)} />
             <section className={`${styles.modal} ${styles.modalWide} ${styles.subscriptionControlModal}`} role="dialog" aria-modal="true" aria-labelledby="subscription-control-title">
@@ -1555,8 +1605,46 @@ export function CustomersManager({
                     : Number(cycle.amount_cents ?? version?.price_cents ?? 0);
                   return <article className={styles.subscriptionMonth} key={String(cycle.id)}><div className={styles.subscriptionMonthTitle}><strong>{new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${String(cycle.starts_on)}T12:00:00`))}</strong><small>Vencimento {String(cycle.due_on)} · {cycle.status === "PAID" ? `Pago em ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "—"}` : "Parcela em aberto"}</small></div><div className={styles.subscriptionSessionList}>{cycleSessions.map((session) => { const presentation = sessionPresentation(session, cycleSessions.length || Number(version?.sessions_per_cycle ?? 0)); const chipClass = `${styles.subscriptionSessionChip} ${styles[`subscriptionSessionChip${presentation.tone[0].toUpperCase()}${presentation.tone.slice(1)}`]}`; return session.status === "AVAILABLE" ? <button type="button" className={chipClass} key={String(session.id)} onClick={() => openSubscriptionBooking(subscription, session, cycle)}>{presentation.label}</button> : <span className={chipClass} key={String(session.id)}>{presentation.label}</span>; })}</div><div className={styles.subscriptionInstallment}><span><small>Parcela</small><strong>{formatCents(amount)}</strong><small>{cycle.status === "PAID" ? `${paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)} · ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "Pago"}` : `Venc. ${String(cycle.due_on)}`}</small></span>{showReceive && <button type="button" className={`${styles.button} ${styles.buttonSmall}`} onClick={() => openPaymentDialog(String(subscription.id), { id: cycle.id, amount_cents: amount, due_on: cycle.due_on }, String(subscription.payment_method ?? "CASH"))}>Receber</button>}</div></article>;
                 })}
+                {cancellationRequest && <section className={styles.subscriptionFixedSchedule}>
+                  <strong>Solicitação de cancelamento pendente</strong>
+                  <span>Motivo: {cancellationReasons[String(cancellationRequest.reason)] ?? String(cancellationRequest.reason)}</span>
+                  {Boolean(cancellationRequest.observations) && <span>Observações: {String(cancellationRequest.observations)}</span>}
+                  <span>Última sessão solicitada: {sessions.find((session) => String(session.id) === String(cancellationRequest.last_session_id)) ? `Sessão ${String(sessions.find((session) => String(session.id) === String(cancellationRequest.last_session_id))?.session_number)}` : "Nenhuma sessão adicional"}</span>
+                </section>}
+                {(cancellationRequest || subscription.status === "ACTIVE" || subscription.status === "PENDING_PAYMENT") && <div className={styles.toolbarGroup}>
+                  <button type="button" className={`${styles.button} ${styles.buttonDanger}`} onClick={() => {
+                    setSubscriptionCancellationDraft({
+                      subscriptionId: subscriptionControlId,
+                      requestId: cancellationRequest ? String(cancellationRequest.id) : null,
+                      reason: cancellationRequest ? String(cancellationRequest.reason) : "",
+                      observations: cancellationRequest ? String(cancellationRequest.observations ?? "") : "",
+                      lastCycleId: "",
+                      lastSessionId: "",
+                    });
+                  }}>{cancellationRequest ? "Confirmar cancelamento" : "Cancelar assinatura"}</button>
+                </div>}
               </div>
             </section>
+          </div>;
+        })()}
+        {subscriptionCancellationDraft && (() => {
+          const draft = subscriptionCancellationDraft;
+          const relatedCycles = subscriptionCycles.filter((cycle) => String(cycle.subscription_id) === draft.subscriptionId && cycle.status !== "CANCELED");
+          const relatedSessions = subscriptionSessions.filter((session) => String(session.subscription_id) === draft.subscriptionId && (session.status === "AVAILABLE" || session.status === "SCHEDULED"));
+          const request = draft.requestId ? subscriptionCancellationRequests.find((item) => String(item.id) === draft.requestId) : null;
+          return <div className="modal-layer" role="presentation">
+            <button className="modal-layer__backdrop" type="button" aria-label="Fechar cancelamento" onClick={() => setSubscriptionCancellationDraft(null)} />
+            <form className="form-modal" role="dialog" aria-modal="true" aria-labelledby="subscription-cancellation-manager-title" onSubmit={(event) => void confirmSubscriptionCancellation(event)}>
+              <div className="form-modal__head"><span><small>Controle da assinatura</small><strong id="subscription-cancellation-manager-title">{request ? "Confirmar cancelamento solicitado" : "Cancelar assinatura"}</strong></span><button type="button" className="icon-button" onClick={() => setSubscriptionCancellationDraft(null)} aria-label="Fechar"><X size={19} /></button></div>
+              <div className="form-modal__body">
+                {request && <><p><strong>Motivo:</strong> {{ FINANCIAL_DIFFICULTY: "Dificuldade Financeira", LACK_OF_TIME: "Falta de tempo", ADDRESS_CHANGE: "Mudança de endereço", OTHER: "Outros" }[String(request.reason)] ?? String(request.reason)}</p>{Boolean(request.observations) && <p><strong>Observações:</strong> {String(request.observations)}</p>}<p><strong>Última sessão solicitada:</strong> {relatedSessions.find((session) => String(session.id) === String(request.last_session_id)) ? `Sessão ${String(relatedSessions.find((session) => String(session.id) === String(request.last_session_id))?.session_number)}` : "Nenhuma sessão adicional"}</p></>}
+                {!request && <><label>Motivo do cancelamento<select required value={draft.reason} onChange={(event) => setSubscriptionCancellationDraft((current) => current ? { ...current, reason: event.target.value } : current)}><option value="">Selecione</option><option value="FINANCIAL_DIFFICULTY">Dificuldade Financeira</option><option value="LACK_OF_TIME">Falta de tempo</option><option value="ADDRESS_CHANGE">Mudança de endereço</option><option value="OTHER">Outros</option></select></label>{draft.reason === "OTHER" && <label>Observações<textarea required maxLength={2000} value={draft.observations} onChange={(event) => setSubscriptionCancellationDraft((current) => current ? { ...current, observations: event.target.value } : current)} /></label>}</>}
+                <label>Última cobrança<select required value={draft.lastCycleId} onChange={(event) => setSubscriptionCancellationDraft((current) => current ? { ...current, lastCycleId: event.target.value } : current)}><option value="">Selecione</option><option value="__none__">Sem novas cobranças</option>{relatedCycles.map((cycle) => <option key={String(cycle.id)} value={String(cycle.id)}>Ciclo {String(cycle.cycle_number)} · venc. {String(cycle.due_on)} · {cycle.status === "PAID" ? "Pago" : "Em aberto"}</option>)}</select></label>
+                {!request && <label>Última sessão<select value={draft.lastSessionId} onChange={(event) => setSubscriptionCancellationDraft((current) => current ? { ...current, lastSessionId: event.target.value } : current)}><option value="">Nenhuma sessão adicional</option>{relatedSessions.map((session) => <option key={String(session.id)} value={String(session.id)}>Ciclo {String(relatedCycles.find((cycle) => String(cycle.id) === String(session.cycle_id))?.cycle_number ?? "—")} · Sessão {String(session.session_number)}</option>)}</select></label>}
+                <p>Dívidas já existentes serão preservadas. Cobranças e sessões posteriores aos limites escolhidos serão canceladas.</p>
+              </div>
+              <div className="form-modal__footer"><button type="button" className="button button--ghost" onClick={() => setSubscriptionCancellationDraft(null)}>Cancelar</button><button type="submit" className="button button--dark">Confirmar cancelamento</button></div>
+            </form>
           </div>;
         })()}
         {subscriptionBooking && (() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, BriefcaseBusiness, Calculator, CalendarDays, Check, CheckCircle2, ChevronRight, CircleDollarSign, Clock3, Landmark, LayoutDashboard, Pencil, Plus, Save, Trash2, UserRound, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
@@ -14,13 +14,14 @@ import { formatCpfCnpj } from "@/lib/cpf-cnpj";
 import styles from "./connected-manager.module.css";
 
 type Props = ProjectsPageData;
-type ManagerProps = Omit<Props, "projectBarbers" | "packageServiceAssignments" | "barberServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags" | "projectSessions" | "projectCommissions" | "projectEngagementLinks" | "environments" | "internalServices" | "internalCards"> & { projectBarbers?: Props["projectBarbers"]; packageServiceAssignments?: Props["packageServiceAssignments"]; barberServices?: Props["barberServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectSessions?: Props["projectSessions"]; projectCommissions?: Props["projectCommissions"]; projectEngagementLinks?: Props["projectEngagementLinks"]; environments?: Props["environments"]; internalServices?: Props["internalServices"]; internalCards?: Props["internalCards"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
+type ManagerProps = Omit<Props, "projectBarbers" | "packageServiceAssignments" | "barberServices" | "kanbanSectors" | "engagementLastComments" | "financialAccounts" | "chartAccounts" | "costCenters" | "tags" | "projectSessions" | "projectCommissions" | "projectEngagementLinks" | "environments" | "internalServices" | "internalCards" | "cancellationRequests"> & { projectBarbers?: Props["projectBarbers"]; packageServiceAssignments?: Props["packageServiceAssignments"]; barberServices?: Props["barberServices"]; kanbanSectors?: Props["kanbanSectors"]; engagementLastComments?: Props["engagementLastComments"]; projectSessions?: Props["projectSessions"]; projectCommissions?: Props["projectCommissions"]; projectEngagementLinks?: Props["projectEngagementLinks"]; environments?: Props["environments"]; internalServices?: Props["internalServices"]; internalCards?: Props["internalCards"]; cancellationRequests?: Props["cancellationRequests"]; projectId?: string; financialAccounts?: FinancialAccountRecord[]; chartAccounts?: ChartAccountRecord[]; costCenters?: CostCenterRecord[]; tags?: FinancialTagRecord[] };
 type ProjectTab = "overview" | "investments" | "packages" | "engagements" | "kanban" | "finance";
 type ProjectFilter = "published" | "archived" | "all";
 type CostKind = Exclude<ProjectCostItemRecord["kind"], "VARIABLE">;
 type EngagementScheduleRow = { installment_number: number; due_on: string; amount_cents: number };
 type PackageServiceAssignment = { service_id: string; barber_id: string; commission_cents: number };
 type BookingEnvironmentOption = { id: string; name: string; sort_order: number };
+type ProjectCancellationDraft = { engagementId: string; requestId: string | null; reason: string; observations: string; lastInstallmentId: string; lastSessionId: string };
 type PackageDraft = {
   id: string | null;
   name: string;
@@ -194,6 +195,7 @@ export function ProjectsManager(props: ManagerProps) {
   const [projectFilter, setProjectFilter] = useState<ProjectFilter>("published");
   const [newEngagementOpen, setNewEngagementOpen] = useState(false);
   const [editingEngagementId, setEditingEngagementId] = useState<string | null>(null);
+  const [projectCancellationDraft, setProjectCancellationDraft] = useState<ProjectCancellationDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
@@ -667,7 +669,7 @@ export function ProjectsManager(props: ManagerProps) {
     setNewEngagementOpen(true);
   }
 
-  function openEditEngagementModal(engagement: Props["engagements"][number]) {
+  const openEditEngagementModal = useCallback((engagement: Props["engagements"][number]) => {
     setEditingEngagementId(engagement.id);
     setEngagementCustomerId(engagement.customer_id);
     setEngagementCustomerQuery(customerById.get(engagement.customer_id)?.full_name ?? "");
@@ -685,13 +687,55 @@ export function ProjectsManager(props: ManagerProps) {
     setSigningDate(engagement.accepted_at?.slice(0, 10) ?? "");
     setGeneratedEngagementSchedule(null);
     setNewEngagementOpen(true);
-  }
+  }, [customerById, props.installments]);
+
+  useEffect(() => {
+    const engagementId = new URLSearchParams(window.location.search).get("contrato");
+    const target = engagementId ? props.engagements.find((item) => item.id === engagementId) : null;
+    if (!target) return;
+    const frame = window.requestAnimationFrame(() => {
+      setTab("engagements");
+      openEditEngagementModal(target);
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.delete("contrato");
+      window.history.replaceState(null, "", `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [openEditEngagementModal, props.engagements]);
 
   function closeEngagementModal() {
     setNewEngagementOpen(false);
     setNewEngagementCustomerOpen(false);
     setEditingEngagementId(null);
     setGeneratedEngagementSchedule(null);
+  }
+
+  async function confirmProjectCancellation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const draft = projectCancellationDraft;
+    if (!draft || saving) return;
+    if (!draft.requestId && (!draft.reason || (draft.reason === "OTHER" && !draft.observations.trim()))) {
+      setMessage("Informe o motivo. Para “Outros”, preencha as observações.");
+      return;
+    }
+    setSaving(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("confirm_customer_project_cancellation", {
+        p_organization_id: props.organizationId,
+        p_engagement_id: draft.engagementId,
+        p_last_installment_id: draft.lastInstallmentId && draft.lastInstallmentId !== "__none__" ? draft.lastInstallmentId : null,
+        p_last_session_id: draft.lastSessionId || null,
+        p_reason: draft.reason || "OTHER",
+        p_observations: draft.observations || null,
+        p_request_id: draft.requestId,
+      }));
+    }, "Contrato cancelado. Dívidas anteriores foram preservadas e cobranças posteriores ao limite foram encerradas.");
+    setSaving(false);
+    if (saved) {
+      setProjectCancellationDraft(null);
+      closeEngagementModal();
+      router.refresh();
+    }
   }
 
   function updatePackageDraft(index: number, patch: Partial<PackageDraft>) {
@@ -943,7 +987,7 @@ export function ProjectsManager(props: ManagerProps) {
           {tab === "overview" && <ProjectOverview goalContracts={selectedProject.goal_contracts} projectCostItems={props.costItems.filter((item) => item.project_id === selectedProject.id)} projectPackages={projectPackages} kanbanBoards={projectKanbanBoards} engagements={projectEngagements} customerById={customerById} packageById={packageById} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} />}
           {tab === "investments" && <ProjectInvestments organizationId={props.organizationId} projectId={selectedProject.id} goalContracts={selectedProject.goal_contracts} items={props.costItems.filter((item) => item.project_id === selectedProject.id)} />}
           {tab === "packages" && <ProjectPackages packages={packageDrafts} barbers={props.barbers} barberServices={props.barberServices ?? []} services={props.services} fixedCostCents={projectAllocationCents} savingId={packageSavingId} onAdd={addPackageDraft} onChange={updatePackageDraft} onSave={savePackage} />}
-          {tab === "engagements" && <EngagementsTable engagements={projectEngagements} customerById={customerById} packageById={packageById} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} projectSessions={projectSessions} kanbanBoards={projectKanbanBoards} onEdit={openEditEngagementModal} />}
+          {tab === "engagements" && <EngagementsTable engagements={projectEngagements} customerById={customerById} packageById={packageById} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} projectSessions={projectSessions} kanbanBoards={projectKanbanBoards} cancellationRequests={props.cancellationRequests ?? []} onEdit={openEditEngagementModal} />}
           {tab === "kanban" && <ProjectKanban key={JSON.stringify([projectKanbanBoards, projectEngagements, props.internalCards])} organizationId={props.organizationId} projectId={selectedProject.id} boards={projectKanbanBoards} sectors={kanbanSectors} engagementsWithDueDateOverrides={eventDueDateOverrides} barbers={props.barbers} engagements={projectEngagements} internalCards={(props.internalCards ?? []).filter((card) => card.project_id === selectedProject.id)} packageAssignments={(props.packageServiceAssignments ?? []).filter((assignment) => props.packages.some((pkg) => pkg.id === assignment.project_package_id && pkg.project_id === selectedProject.id))} packages={props.packages.filter((pkg) => pkg.project_id === selectedProject.id)} services={props.services} internalServices={props.internalServices ?? []} customerById={customerById} lastComments={engagementLastComments} onOpenEvent={openEventEditor} onDueDateChange={saveEventDueDate} />}
           {tab === "finance" && <ProjectFinance contractedCents={contractedCents} installments={props.installments.filter((item) => projectEngagements.some((engagement) => engagement.id === item.engagement_id))} commissions={projectCommissions} barbers={props.barbers} />}
         </section> : <Panel title="Projeto não encontrado" description="Este projeto não está disponível para esta barbearia."><EmptyState title="Volte para Projetos"><button className={styles.button} type="button" onClick={() => router.push("/gestor/projetos")}><ArrowLeft size={16} /> Voltar para Projetos</button></EmptyState></Panel> : <Panel className={styles.projectListPanel} title="Projetos em andamento" description="Selecione um projeto para abrir o painel operacional." action={<label className={styles.projectFilter}><span>Exibir</span><select aria-label="Filtrar projetos" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value as ProjectFilter)}><option value="published">Publicados</option><option value="archived">Arquivados</option><option value="all">Todos</option></select></label>}>
@@ -977,7 +1021,7 @@ export function ProjectsManager(props: ManagerProps) {
         {editingEngagementId && <div className={`${styles.formWide} ${styles.contractFinance}`}><button className={styles.sectionToggle} type="button" onClick={() => setSessionsOpen((current) => !current)} aria-expanded={sessionsOpen}><ChevronRight size={16} className={sessionsOpen ? styles.sectionToggleOpen : ""} /> Sessões</button>{sessionsOpen && <div className={`${styles.engagementFinanceTable} ${styles.engagementSessionsTable}`}><div className={`${styles.engagementFinanceHeader} ${styles.engagementSessionsHeader}`}><span>Sessão</span><span>Data</span><span>Hora</span><span>Profissional</span><span>Status</span><span>Ações</span></div>{projectSessions.filter((session) => session.engagement_id === editingEngagementId).map((session) => { const appointment = session.appointment; const barber = props.barbers.find((item) => item.id === session.barber_id); const date = appointment?.service_period ? new Date(appointment.service_period.slice(1, 25)).toLocaleDateString("pt-BR") : "—"; const time = appointment?.service_period ? new Date(appointment.service_period.slice(1, 25)).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"; const statusLabel = appointment?.status === "CANCELED" ? (appointment.cancellation_outcome === "ON_TIME" ? "Cancelado no prazo" : "Cancelado após o prazo") : appointment ? projectAppointmentStatusLabels[appointment.status] ?? appointment.status : projectSessionStatusLabels[session.status]; return <div className={`${styles.engagementFinanceRow} ${styles.engagementSessionsRow}`} key={session.id}><strong>{session.session_number}</strong><span>{date}</span><span>{time}</span><span>{barber?.display_name ?? "—"}</span><StatusChip active={session.status === "COMPLETED"} label={statusLabel} tone={appointment?.status === "CANCELED" || session.status === "CANCELED" ? "danger" : appointment?.status === "IN_SERVICE" ? "warning" : undefined} /><span className={styles.toolbarGroup}>{session.status === "OPEN" && <button className={styles.button} type="button" onClick={() => openProjectSessionBooking(session)}><CalendarDays size={14} /> Agendar</button>}{session.status === "BOOKED" && session.appointment_id && <button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={bookingSaving} onClick={() => void cancelProjectSession(session)}>Cancelar</button>}</span></div>; })}</div>}</div>}
       </div>
       <p className={styles.muted}>{editingEngagementId ? "Modo de edição: altere os dados da contratação do cliente." : "Contrato gera entrada e parcelas no módulo Financeiro, sem cobrança duplicada das sessões."}</p>
-      <footer className={styles.modalActions}>{editingEngagement && <div className={styles.signDateField}><Field label="Data da assinatura"><input aria-label="Data da assinatura" type="date" value={signingDate} onChange={(event) => setSigningDate(event.target.value)} /></Field></div>}<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeEngagementModal}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !engagementCustomerId || !engagementPackageId || !engagementEntryDueOn || !engagementFirstDueOn} onClick={() => void saveEngagement()}>{saving ? "Salvando…" : editingEngagementId ? "Salvar alterações" : "Criar contrato"}</button></footer>
+      <footer className={styles.modalActions}>{editingEngagement && <div className={styles.signDateField}><Field label="Data da assinatura"><input aria-label="Data da assinatura" type="date" value={signingDate} onChange={(event) => setSigningDate(event.target.value)} /></Field></div>}{editingEngagement?.status === "PROPOSAL" && <span className={styles.muted}>O cliente pode recusar esta proposta no app.</span>}{editingEngagement?.status === "ACTIVE" && <button className={`${styles.button} ${styles.buttonDanger}`} type="button" onClick={() => { const request = (props.cancellationRequests ?? []).find((item) => item.engagement_id === editingEngagement.id && item.status === "PENDING"); setProjectCancellationDraft({ engagementId: editingEngagement.id, requestId: request?.id ?? null, reason: request?.reason ?? "", observations: request?.observations ?? "", lastInstallmentId: "", lastSessionId: "" }); }}>{(props.cancellationRequests ?? []).some((item) => item.engagement_id === editingEngagement.id && item.status === "PENDING") ? "Confirmar cancelamento" : "Cancelar contrato"}</button>}{editingEngagement?.status === "CANCELED" && <span className={styles.muted}>Contrato cancelado</span>}<button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={closeEngagementModal}>Cancelar</button><button className={styles.button} type="button" disabled={saving || !engagementCustomerId || !engagementPackageId || !engagementEntryDueOn || !engagementFirstDueOn} onClick={() => void saveEngagement()}>{saving ? "Salvando…" : editingEngagementId ? "Salvar alterações" : "Criar contrato"}</button></footer>
     </Modal>}
     {bookingSession && (() => {
       const bookingEngagement = props.engagements.find((item) => item.id === bookingSession.engagement_id);
@@ -1047,6 +1091,23 @@ export function ProjectsManager(props: ManagerProps) {
       <footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setReceivingInstallment(null)}>Cancelar</button><button className={styles.button} type="submit" disabled={saving}>Confirmar recebimento</button></footer>
     </form></Modal>}
     {editingInstallment && <Modal title="Editar parcela" onClose={() => setEditingInstallment(null)}><form className={styles.form} onSubmit={(event) => { event.preventDefault(); void updateInstallment(event.currentTarget); }}><Field label="Valor"><input name="amount" inputMode="decimal" defaultValue={centsInput(editingInstallment.amount_cents)} /></Field><Field label="Data vencimento"><input name="due_on" type="date" defaultValue={editingInstallment.due_on} /></Field><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setEditingInstallment(null)}>Cancelar</button><button className={styles.button} type="submit">Salvar parcela</button></footer></form></Modal>}
+    {projectCancellationDraft && (() => {
+      const draft = projectCancellationDraft;
+      const installments = props.installments.filter((item) => item.engagement_id === draft.engagementId && item.status !== "CANCELED").sort((a, b) => a.installment_number - b.installment_number);
+      const sessions = projectSessionsData.filter((item) => item.engagement_id === draft.engagementId && ["OPEN", "BOOKED", "COMPLETED"].includes(item.status)).sort((a, b) => a.session_number - b.session_number);
+      const request = draft.requestId ? (props.cancellationRequests ?? []).find((item) => item.id === draft.requestId) : null;
+      const reasonLabels: Record<string, string> = { FINANCIAL_DIFFICULTY: "Dificuldade Financeira", LACK_OF_TIME: "Falta de tempo", ADDRESS_CHANGE: "Mudança de endereço", OTHER: "Outros" };
+      return <Modal title={request ? "Confirmar cancelamento solicitado" : "Cancelar contrato"} onClose={() => setProjectCancellationDraft(null)}>
+        <form className={styles.form} onSubmit={(event) => void confirmProjectCancellation(event)}>
+          {request && <div className={styles.formWide}><p><strong>Motivo:</strong> {reasonLabels[request.reason] ?? request.reason}</p>{request.observations && <p><strong>Observações:</strong> {request.observations}</p>}<p><strong>Última sessão solicitada:</strong> {sessions.find((item) => item.id === request.last_session_id) ? `Sessão ${sessions.find((item) => item.id === request.last_session_id)?.session_number}` : "Nenhuma sessão adicional"}</p></div>}
+          {!request && <><Field label="Motivo do cancelamento" wide><select required value={draft.reason} onChange={(event) => setProjectCancellationDraft((current) => current ? { ...current, reason: event.target.value } : current)}><option value="">Selecione</option><option value="FINANCIAL_DIFFICULTY">Dificuldade Financeira</option><option value="LACK_OF_TIME">Falta de tempo</option><option value="ADDRESS_CHANGE">Mudança de endereço</option><option value="OTHER">Outros</option></select></Field>{draft.reason === "OTHER" && <Field label="Observações" wide><textarea required maxLength={2000} value={draft.observations} onChange={(event) => setProjectCancellationDraft((current) => current ? { ...current, observations: event.target.value } : current)} /></Field>}</>}
+          <Field label="Última cobrança" wide><select required value={draft.lastInstallmentId} onChange={(event) => setProjectCancellationDraft((current) => current ? { ...current, lastInstallmentId: event.target.value } : current)}><option value="">Selecione</option><option value="__none__">Sem novas cobranças</option>{installments.map((item) => <option key={item.id} value={item.id}>Parcela {item.installment_number === 0 ? "Entrada" : item.installment_number} · {dateLabel(item.due_on)} · {formatCents(item.remaining_cents ?? item.amount_cents)} · {item.status === "PAID" ? "Paga" : "Em aberto"}</option>)}</select></Field>
+          {!request && <Field label="Última sessão" wide><select value={draft.lastSessionId} onChange={(event) => setProjectCancellationDraft((current) => current ? { ...current, lastSessionId: event.target.value } : current)}><option value="">Nenhuma sessão adicional</option>{sessions.map((item) => <option key={item.id} value={item.id}>Sessão {item.session_number} · {item.status === "BOOKED" ? "Agendada" : item.status === "COMPLETED" ? "Concluída" : "Disponível"}</option>)}</select></Field>}
+          <p className={styles.formWide}>Dívidas anteriores serão preservadas. Cobranças e sessões posteriores aos limites escolhidos serão encerradas.</p>
+          <footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setProjectCancellationDraft(null)}>Cancelar</button><button className={`${styles.button} ${styles.buttonDanger}`} type="submit" disabled={saving}>{saving ? "Confirmando…" : "Confirmar cancelamento"}</button></footer>
+        </form>
+      </Modal>;
+    })()}
   </div>;
 }
 
@@ -1445,9 +1506,9 @@ function engagementSessionSummary(engagement: Props["engagements"][number], pack
   return { label: `${latest.status === "OPEN" ? 0 : latest.session_number}/${total} ${statusLabel}`, tone };
 }
 
-function EngagementsTable({ engagements, customerById, packageById, installments, projectSessions, kanbanBoards, onEdit }: { engagements: Props["engagements"]; customerById: Map<string, Props["customers"][number]>; packageById: Map<string, Props["packages"][number]>; installments: Props["installments"]; projectSessions: Props["projectSessions"]; kanbanBoards: ProjectKanbanBoardRecord[]; onEdit: (engagement: Props["engagements"][number]) => void }) {
-  const statusLabel = (status: Props["engagements"][number]["status"]) => ({ PROPOSAL: "Aguardando aceite", ACTIVE: "Ativa", COMPLETED: "Concluída", CANCELED: "Cancelada", DECLINED: "Recusada" })[status];
-  return <Panel title="Contratações" description="Uma contratação por cliente. Propostas continuam fora do fluxo ativo até o aceite.">{engagements.length ? <div className={styles.engagementTableWrap}><table className={styles.engagementTable}><thead><tr><th>Cliente</th><th>Pacote</th><th>Entrada</th><th>Parcelas</th><th>Valor</th><th>Vencimento</th><th>Saldo</th><th>Assinatura</th><th>Status</th><th>Kanban</th><th>Sessões</th><th>Ações</th></tr></thead><tbody>{engagements.map((item) => { const financials = engagementFinancials(item, installments); const currentBoard = kanbanBoards.find((board) => board.id === item.kanban_board_id); const customerName = customerById.get(item.customer_id)?.full_name ?? "cliente"; const sessionSummary = engagementSessionSummary(item, packageById, projectSessions); return <tr className={financials.overdue && item.status !== "DECLINED" ? styles.engagementOverdue : undefined} key={item.id}><td>{customerById.get(item.customer_id)?.full_name ?? "Cliente não informado"}</td><td>{packageById.get(item.package_id)?.name ?? "Pacote não informado"}</td><td>{formatCents(financials.entryCents)}</td><td>{financials.paidInstallments}/{financials.totalInstallments}</td><td>{formatCents(financials.installmentAmountCents)}</td><td>{shortDateLabel(financials.nextDueOn)}</td><td>{formatCents(financials.balanceCents)}</td><td>{item.accepted_at ? shortDateLabel(item.accepted_at.slice(0, 10)) : "Não assinada"}</td><td><StatusChip active={item.status === "ACTIVE" || item.status === "COMPLETED"} label={statusLabel(item.status)} tone={item.status === "DECLINED" || item.status === "CANCELED" ? "danger" : item.status === "PROPOSAL" ? "warning" : undefined} /></td><td><span className={`${styles.statusSelect} ${currentBoard ? styles.statusSelectKanban : ""}`} aria-label={`Kanban atual da contratação de ${customerName}`}>{currentBoard?.name ?? "Sem quadro"}</span></td><td><StatusChip active={sessionSummary.tone !== "neutral"} label={sessionSummary.label} tone={sessionSummary.tone} /></td><td>{item.status !== "DECLINED" && <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(item)} aria-label={`Editar contratação de ${customerName}`}><Pencil size={14} /> Editar</button>}</td></tr>; })}</tbody></table></div> : <EmptyState title="Sem contratações">Use “Novo contrato” para criar a primeira contratação.</EmptyState>}</Panel>;
+function EngagementsTable({ engagements, customerById, packageById, installments, projectSessions, kanbanBoards, cancellationRequests, onEdit }: { engagements: Props["engagements"]; customerById: Map<string, Props["customers"][number]>; packageById: Map<string, Props["packages"][number]>; installments: Props["installments"]; projectSessions: Props["projectSessions"]; kanbanBoards: ProjectKanbanBoardRecord[]; cancellationRequests: NonNullable<ManagerProps["cancellationRequests"]>; onEdit: (engagement: Props["engagements"][number]) => void }) {
+  const statusLabel = (status: Props["engagements"][number]["status"]) => ({ PROPOSAL: "Aguardando aceite", ACTIVE: "Ativa", COMPLETED: "Concluída", CANCELED: "Cancelado", DECLINED: "Cliente Recusou" })[status];
+  return <Panel title="Contratações" description="Uma contratação por cliente. Propostas continuam fora do fluxo ativo até o aceite.">{engagements.length ? <div className={styles.engagementTableWrap}><table className={styles.engagementTable}><thead><tr><th>Cliente</th><th>Pacote</th><th>Entrada</th><th>Parcelas</th><th>Valor</th><th>Vencimento</th><th>Saldo</th><th>Assinatura</th><th>Status</th><th>Kanban</th><th>Sessões</th><th>Ações</th></tr></thead><tbody>{engagements.map((item) => { const financials = engagementFinancials(item, installments); const currentBoard = kanbanBoards.find((board) => board.id === item.kanban_board_id); const customerName = customerById.get(item.customer_id)?.full_name ?? "cliente"; const sessionSummary = engagementSessionSummary(item, packageById, projectSessions); const cancellationPending = cancellationRequests.some((request) => request.engagement_id === item.id && request.status === "PENDING"); const displayStatus = cancellationPending ? "Cancelamento pendente" : statusLabel(item.status); return <tr className={financials.overdue && item.status !== "DECLINED" ? styles.engagementOverdue : undefined} key={item.id}><td>{customerById.get(item.customer_id)?.full_name ?? "Cliente não informado"}</td><td>{packageById.get(item.package_id)?.name ?? "Pacote não informado"}</td><td>{formatCents(financials.entryCents)}</td><td>{financials.paidInstallments}/{financials.totalInstallments}</td><td>{formatCents(financials.installmentAmountCents)}</td><td>{shortDateLabel(financials.nextDueOn)}</td><td>{formatCents(financials.balanceCents)}</td><td>{item.accepted_at ? shortDateLabel(item.accepted_at.slice(0, 10)) : "Não assinada"}</td><td><StatusChip active={item.status === "ACTIVE" || item.status === "COMPLETED"} label={displayStatus} tone={cancellationPending || item.status === "PROPOSAL" ? "warning" : item.status === "DECLINED" || item.status === "CANCELED" ? "danger" : undefined} /></td><td><span className={`${styles.statusSelect} ${currentBoard ? styles.statusSelectKanban : ""}`} aria-label={`Kanban atual da contratação de ${customerName}`}>{currentBoard?.name ?? "Sem quadro"}</span></td><td><StatusChip active={sessionSummary.tone !== "neutral"} label={sessionSummary.label} tone={sessionSummary.tone} /></td><td>{item.status !== "DECLINED" && <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(item)} aria-label={`Editar contratação de ${customerName}`}><Pencil size={14} /> Editar</button>}</td></tr>; })}</tbody></table></div> : <EmptyState title="Sem contratações">Use “Novo contrato” para criar a primeira contratação.</EmptyState>}</Panel>;
 }
 
 export function kanbanDeadlineTone(dueOn: string | null | undefined) {

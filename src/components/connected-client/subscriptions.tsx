@@ -46,6 +46,15 @@ type Cycle = {
     appointment?: { status: string; service_period?: string; cancellation_outcome?: string | null; cancelled_at?: string | null } | null;
   }[];
 };
+type CancellationRequest = {
+  id: string;
+  subscription_id: string;
+  status: "PENDING" | "CONFIRMED";
+  reason: string;
+  observations: string | null;
+  last_session_id: string | null;
+};
+type CancellationDraft = { subscriptionId: string; reason: string; observations: string; lastSessionId: string };
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -93,7 +102,13 @@ type FixedScheduleDraft = {
   localTime: string;
   barberId: string;
 };
-type ProjectOffer = { id: string; project_id: string; package_id: string; status: string; contracted_cents: number; created_by: string; project: { name: string; description: string | null } | null; package: { name: string; description: string | null; sessions_count: number } | null };
+type ProjectOffer = { id: string; project_id: string; package_id: string; status: string; contracted_cents: number; created_by: string; accepted_at: string | null; project: { name: string; description: string | null } | null; package: { name: string; description: string | null; sessions_count: number } | null };
+type ProjectInstallment = { id: string; engagement_id: string; installment_number: number; due_on: string; amount_cents: number; status: string; paid_at: string | null };
+type ProjectSession = { id: string; engagement_id: string; session_number: number; status: string; appointment_id: string | null; service_id: string | null; barber_id: string | null; appointment?: { status: string; service_period: string | null } | null };
+type ProjectCancellationRequest = { id: string; engagement_id: string; status: "PENDING" | "CONFIRMED"; reason: string; observations: string | null; last_session_id: string | null; last_installment_id: string | null };
+type ProjectBookingOption = { service_id: string; service_name: string; barber_id: string; barber_name: string };
+type ProjectCancellationDraft = { engagementId: string; reason: string; observations: string; lastSessionId: string };
+type ProjectBookingDraft = { session: ProjectSession; options: ProjectBookingOption[]; barberId: string; serviceId: string; date: string; time: string; environmentId: string; environments: Array<{ id: string; name: string; sort_order: number }>; loading: boolean };
 type PublicProject = { id: string; name: string; description: string | null; starts_on: string | null; sales_close_on: string | null; ends_on: string | null; package: { id: string; name: string; description: string | null; price_cents: number; sessions_count: number }[] };
 type SubscriptionView = "home" | "my-plans" | "my-plan" | "new-plan" | "subscription" | "project" | "subscription-offer" | "project-offer";
 
@@ -110,12 +125,24 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
   const { context, customer, user } = useConnectedClient();
   const [rows, setRows] = useState<Row[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
+  const [subscriptionDetailsLoadedFor, setSubscriptionDetailsLoadedFor] = useState("");
+  const [projectDetailsLoadedFor, setProjectDetailsLoadedFor] = useState("");
+  const [cancellationRequests, setCancellationRequests] = useState<CancellationRequest[]>([]);
+  const [cancellationDraft, setCancellationDraft] = useState<CancellationDraft | null>(null);
   const [plans, setPlans] = useState<AvailablePlan[]>([]);
   const [projectOffers, setProjectOffers] = useState<ProjectOffer[]>([]);
+  const [projectInstallments, setProjectInstallments] = useState<ProjectInstallment[]>([]);
+  const [projectSessions, setProjectSessions] = useState<ProjectSession[]>([]);
+  const [projectCancellationRequests, setProjectCancellationRequests] = useState<ProjectCancellationRequest[]>([]);
+  const [projectCancellationDraft, setProjectCancellationDraft] = useState<ProjectCancellationDraft | null>(null);
+  const [projectBookingDraft, setProjectBookingDraft] = useState<ProjectBookingDraft | null>(null);
   const [publicProjects, setPublicProjects] = useState<PublicProject[]>([]);
   const [contractBody, setContractBody] = useState<string | null>(null);
   const [fixedScheduleDraft, setFixedScheduleDraft] = useState<FixedScheduleDraft | null>(null);
   const [message, setMessage] = useState("Carregando assinaturas…");
+  const customerDetailsKey = context && customer && user ? `${context.organization.id}:${customer.id}:${user.id}` : "";
+  const subscriptionDetailsLoaded = Boolean(customerDetailsKey) && subscriptionDetailsLoadedFor === customerDetailsKey;
+  const projectDetailsLoaded = Boolean(customerDetailsKey) && projectDetailsLoadedFor === customerDetailsKey;
   useEffect(() => {
     const client = getSupabaseBrowserClient();
     if (!client || !context || !customer || !user) {
@@ -132,7 +159,12 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
         )
         .eq("organization_id", context.organization.id)
         .eq("customer_id", customer.id)
-        .in("status", ["REQUESTED", "PENDING_PAYMENT", "ACTIVE", "DECLINED"]),
+        .in("status", ["REQUESTED", "PENDING_PAYMENT", "ACTIVE", "CANCELED", "DECLINED"]),
+      client.from("customer_subscription_cancellation_requests")
+        .select("id,subscription_id,status,reason,observations,last_session_id")
+        .eq("organization_id", context.organization.id)
+        .eq("customer_id", customer.id)
+        .order("requested_at", { ascending: false }),
       client
         .from("subscription_plans")
         .select(
@@ -140,19 +172,55 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
         )
         .eq("organization_id", context.organization.id)
         .eq("active", true),
-      client.from("project_engagements").select("id,project_id,package_id,status,contracted_cents,created_by,project:projects(name,description),package:project_packages(name,description,sessions_count)")
-        .eq("organization_id", context.organization.id).eq("customer_id", customer.id).in("status", ["PROPOSAL", "ACTIVE", "DECLINED"]),
+      client.from("project_engagements").select("id,project_id,package_id,status,contracted_cents,created_by,accepted_at,project:projects(name,description),package:project_packages(name,description,sessions_count)")
+        .eq("organization_id", context.organization.id).eq("customer_id", customer.id).in("status", ["PROPOSAL", "ACTIVE", "DECLINED", "CANCELED", "COMPLETED"]),
+      client.from("customer_project_cancellation_requests")
+        .select("id,engagement_id,status,reason,observations,last_session_id,last_installment_id")
+        .eq("organization_id", context.organization.id).eq("customer_id", customer.id).order("requested_at", { ascending: false }),
       client.from("projects").select("id,name,description,starts_on,sales_close_on,ends_on,package:project_packages(id,name,description,price_cents,sessions_count)")
         .eq("organization_id", context.organization.id).eq("status", "PUBLISHED"),
-    ]).then(async ([subscriptionsResult, plansResult, projectResult, publicProjectResult]) => {
+    ]).then(async ([subscriptionsResult, cancellationResult, plansResult, projectResult, projectCancellationResult, publicProjectResult]) => {
       const { data, error } = subscriptionsResult;
       if (error) {
         setMessage(error.message);
         return;
       }
+      if (projectResult.error || projectCancellationResult.error) {
+        setMessage(projectResult.error?.message ?? projectCancellationResult.error?.message ?? "Não foi possível carregar os planos de projeto.");
+        return;
+      }
       const subscriptions = (data ?? []) as unknown as Row[];
       setRows(subscriptions);
-      setProjectOffers((projectResult.data ?? []) as unknown as ProjectOffer[]);
+      setCancellationRequests((cancellationResult.data ?? []) as CancellationRequest[]);
+      const engagements = (projectResult.data ?? []) as unknown as ProjectOffer[];
+      setProjectOffers(engagements);
+      setProjectCancellationRequests((projectCancellationResult.data ?? []) as ProjectCancellationRequest[]);
+      const engagementIds = engagements.map((item) => item.id);
+      if (engagementIds.length) {
+        const [installmentResult, sessionResult] = await Promise.all([
+          client.from("project_installments").select("id,engagement_id,installment_number,due_on,amount_cents,status,paid_at")
+            .eq("organization_id", context.organization.id).in("engagement_id", engagementIds).order("installment_number"),
+          client.from("project_engagement_sessions").select("id,engagement_id,session_number,status,appointment_id,service_id,barber_id")
+            .eq("organization_id", context.organization.id).in("engagement_id", engagementIds).order("session_number"),
+        ]);
+        if (installmentResult.error) { setMessage(installmentResult.error.message); return; }
+        if (sessionResult.error) { setMessage(sessionResult.error.message); return; }
+        const sessionRows = (sessionResult.data ?? []) as ProjectSession[];
+        const appointmentIds = sessionRows.map((session) => session.appointment_id).filter((id): id is string => Boolean(id));
+        const appointmentResult = appointmentIds.length
+          ? await client.from("appointments").select("id,status,service_period").in("id", appointmentIds)
+          : { data: [] as Array<{ id: string; status: string; service_period: string | null }>, error: null };
+        if (appointmentResult.error) { setMessage(appointmentResult.error.message); return; }
+        setProjectInstallments((installmentResult.data ?? []) as ProjectInstallment[]);
+        setProjectSessions(sessionRows.map((session) => ({
+          ...session,
+          appointment: session.appointment_id ? (appointmentResult.data ?? []).find((appointment) => appointment.id === session.appointment_id) ?? null : null,
+        })));
+      } else {
+        setProjectInstallments([]);
+        setProjectSessions([]);
+      }
+      setProjectDetailsLoadedFor(customerDetailsKey);
       setPublicProjects(((publicProjectResult.data ?? []) as unknown as PublicProject[]).map((project) => ({ ...project, package: Array.isArray(project.package) ? project.package : project.package ? [project.package] : [] })));
       const normalizedPlans = ((plansResult.data ?? []) as unknown as AvailablePlan[]).map((plan) => {
         const versions = Array.isArray(plan.version) ? plan.version : plan.version ? [plan.version] : [];
@@ -184,7 +252,11 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
         .maybeSingle();
       if (!contract.error) setContractBody(contract.data?.body ?? null);
       setMessage("");
-      if (!subscriptions.some((item) => item.status !== "DECLINED")) return;
+      if (!subscriptions.some((item) => item.status !== "DECLINED")) {
+        setCycles([]);
+        setSubscriptionDetailsLoadedFor(customerDetailsKey);
+        return;
+      }
       const { data: cycleRows, error: cycleError } = await client
         .from("customer_subscription_cycles")
         .select("id,subscription_id,cycle_number,starts_on,ends_on,due_on,amount_cents,status")
@@ -222,8 +294,9 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
           appointment: session.appointment_id ? (appointmentResult.data ?? []).find((appointment) => appointment.id === session.appointment_id) ?? { status: "CONFIRMED" } : null,
         })),
       })));
+      setSubscriptionDetailsLoadedFor(customerDetailsKey);
     });
-  }, [context, customer, user]);
+  }, [context, customer, customerDetailsKey, user]);
   async function acceptSubscriptionOffer(id: string) {
     if (!context) return;
     const client = getSupabaseBrowserClient(); if (!client) return;
@@ -335,28 +408,84 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
       window.location.assign(route("/cliente/assinaturas/meus-planos"));
     }
   }
-  async function cancelSubscription(subscriptionId: string) {
-    if (
-      !context ||
-      !window.confirm(
-        "Cancelar no fim do ciclo pago? Parcelas futuras serão canceladas; eventual reembolso proporcional será tratado manualmente.",
-      )
-    )
-      return;
+  async function requestSubscriptionCancellation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!context || !cancellationDraft) return;
     const client = getSupabaseBrowserClient();
     if (!client) return;
-    const { error } = await client.rpc("cancel_customer_subscription", {
+    const draft = cancellationDraft;
+    const { error } = await client.rpc("request_customer_subscription_cancellation", {
       p_organization_id: context.organization.id,
-      p_subscription_id: subscriptionId,
-      p_reason: "Cancelada pelo cliente",
+      p_subscription_id: draft.subscriptionId,
+      p_last_session_id: draft.lastSessionId || null,
+      p_reason: draft.reason,
+      p_observations: draft.reason === "OTHER" ? draft.observations : null,
     });
-    setMessage(
-      error ? error.message : "Cancelamento registrado no fim do ciclo pago.",
-    );
-    if (!error)
-      setRows((current) =>
-        current.filter((item) => item.id !== subscriptionId),
-      );
+    setMessage(error ? error.message : "Solicitação enviada. O cancelamento será concluído após a confirmação do estabelecimento.");
+    if (!error) window.location.reload();
+    else setCancellationDraft(draft);
+  }
+  async function requestProjectCancellation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!context || !projectCancellationDraft) return;
+    const draft = projectCancellationDraft;
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    const { error } = await client.rpc("request_customer_project_cancellation", {
+      p_organization_id: context.organization.id,
+      p_engagement_id: draft.engagementId,
+      p_last_session_id: draft.lastSessionId || null,
+      p_reason: draft.reason,
+      p_observations: draft.reason === "OTHER" ? draft.observations : null,
+    });
+    setMessage(error ? error.message : "Solicitação enviada. O cancelamento será concluído após a confirmação do estabelecimento.");
+    if (!error) window.location.reload();
+  }
+  async function openProjectBooking(session: ProjectSession) {
+    if (!context) return;
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    const { data, error } = await client.rpc("get_customer_project_booking_options", { p_organization_id: context.organization.id, p_session_id: session.id });
+    if (error) { setMessage(error.message); return; }
+    const options = (data ?? []) as ProjectBookingOption[];
+    if (!options.length) { setMessage("Este pacote ainda não possui serviços e profissionais habilitados para agendamento."); return; }
+    const first = options[0];
+    setProjectBookingDraft({ session, options, barberId: first.barber_id, serviceId: first.service_id, date: localToday(context.organization.timezone), time: "09:00", environmentId: "", environments: [], loading: false });
+  }
+  async function refreshProjectBookingEnvironments(draft: ProjectBookingDraft) {
+    if (!context || !draft.barberId || !draft.serviceId || !draft.date || !draft.time) return;
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    setProjectBookingDraft((current) => current ? { ...current, loading: true, environments: [], environmentId: "" } : current);
+    const { data, error } = await client.rpc("get_project_session_environments", {
+      p_organization_id: context.organization.id,
+      p_session_id: draft.session.id,
+      p_barber_id: draft.barberId,
+      p_service_id: draft.serviceId,
+      p_starts_at: new Date(`${draft.date}T${draft.time}:00`).toISOString(),
+    });
+    const environments = (data ?? []) as Array<{ id: string; name: string; sort_order: number }>;
+    setProjectBookingDraft((current) => current ? { ...current, loading: false, environments: error ? [] : environments, environmentId: error ? "" : environments[0]?.id ?? "" } : current);
+    if (error) setMessage(error.message);
+  }
+  async function bookProjectSession(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!context || !projectBookingDraft || projectBookingDraft.loading || !projectBookingDraft.environmentId) return;
+    const draft = projectBookingDraft;
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    const { error } = await client.rpc("create_project_appointment", {
+      p_organization_id: context.organization.id,
+      p_session_id: draft.session.id,
+      p_barber_id: draft.barberId,
+      p_service_id: draft.serviceId,
+      p_starts_at: new Date(`${draft.date}T${draft.time}:00`).toISOString(),
+      p_environment_id: draft.environmentId,
+      p_override_reason: null,
+      p_notes: "Atendimento de projeto agendado pelo cliente",
+    });
+    setMessage(error ? error.message : "Sessão do plano agendada.");
+    if (!error) window.location.reload();
   }
   async function cancelSession(sessionId: string) {
     if (
@@ -385,6 +514,20 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
   const route = (path: string) => `${path}${context?.organization.slug ? `?barbearia=${encodeURIComponent(context.organization.slug)}` : ""}`;
   const money = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
   const subscriptionStatusLabel: Record<string, string> = { REQUESTED: "Aguardando aprovação", PENDING_PAYMENT: "Aguardando pagamento", ACTIVE: "Ativa", CANCELED: "Cancelada", EXPIRED: "Encerrada", DECLINED: "Recusada" };
+  const projectCancellationRequestByEngagement = new Map(projectCancellationRequests.map((request) => [request.engagement_id, request]));
+  const projectCancellationArchiveReady = (engagement: ProjectOffer) => engagement.status === "CANCELED"
+    && projectDetailsLoaded
+    && !projectInstallments.some((item) => item.engagement_id === engagement.id && item.status === "OPEN")
+    && !projectSessions.some((item) => item.engagement_id === engagement.id && ["OPEN", "BOOKED"].includes(item.status));
+  const projectSessionLabel = (session: ProjectSession) => session.status === "BOOKED" ? "Agendada" : session.status === "COMPLETED" ? "Concluída" : session.status === "CANCELED" ? "Cancelada" : "Disponível";
+  const cancellationRequestBySubscription = new Map(cancellationRequests.map((request) => [request.subscription_id, request]));
+  const subscriptionHasPendingCancellation = (id: string) => cancellationRequestBySubscription.get(id)?.status === "PENDING";
+  const cancellationArchiveReady = (row: Row) => {
+    if (row.status !== "CANCELED" || !subscriptionDetailsLoaded) return false;
+    const rowCycles = cycles.filter((cycle) => cycle.subscription_id === row.id);
+    return !rowCycles.some((cycle) => cycle.status === "OPEN" || cycle.status === "OVERDUE")
+      && !rowCycles.some((cycle) => cycle.sessions.some((session) => session.status === "AVAILABLE" || session.status === "SCHEDULED"));
+  };
   const dateRange = (start: string | null, end: string | null) => start || end ? `${start ? formatDate(start) : "—"} a ${end ? formatDate(end) : "—"}` : null;
   const requestedOffers = rows.filter((row) => row.status === "REQUESTED" && !row.contract_accepted_at && row.created_by !== user?.id);
   const pendingProjectOffers = projectOffers.filter((offer) => offer.status === "PROPOSAL" && offer.created_by !== user?.id);
@@ -392,7 +535,8 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
   const selectedProject = publicProjects.find((project) => project.id === itemId);
   const selectedSubscriptionOffer = requestedOffers.find((row) => row.id === itemId);
   const selectedProjectOffer = pendingProjectOffers.find((offer) => offer.id === itemId);
-  const selectedCustomerSubscription = rows.find((row) => row.id === itemId && row.status !== "DECLINED");
+  const selectedCustomerProject = projectOffers.find((offer) => offer.id === itemId && offer.status !== "DECLINED" && !projectCancellationArchiveReady(offer));
+  const selectedCustomerSubscription = rows.find((row) => row.id === itemId && row.status !== "DECLINED" && !cancellationArchiveReady(row));
 
   if (view === "home") return <section className={styles.subscriptionStack}>
     <header><h1>Assinaturas</h1><p>Consulte seus planos e encontre novas opções deste estabelecimento.</p></header>
@@ -478,10 +622,52 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
 
   if (view === "project-offer" && selectedProjectOffer) return <section className={styles.subscriptionStack}>
     <header><Link href={route("/cliente/assinaturas")} className={styles.subscriptionBack}>← Assinaturas</Link><span className={styles.planKind}>Plano enviado pelo gestor</span><h1>{selectedProjectOffer.project?.name ?? "Plano"} · {selectedProjectOffer.package?.name ?? "Pacote"}</h1><p>{selectedProjectOffer.project?.description ?? selectedProjectOffer.package?.description ?? "Confira os detalhes antes de aceitar ou recusar."}</p></header>
-    <article className={styles.subscriptionCard}><p>{selectedProjectOffer.package?.description ?? "Pacote selecionado pelo gestor."}</p><small>{selectedProjectOffer.package?.sessions_count ?? 0} sessão(ões)</small><strong>{money(selectedProjectOffer.contracted_cents)}</strong><div className={styles.planActions}><button className={styles.subscriptionAction} type="button" onClick={() => void acceptProjectOffer(selectedProjectOffer)}>Confirmar assinatura</button><button className={styles.subscriptionSecondary} type="button" onClick={() => void declineProjectOffer(selectedProjectOffer)}>Recusar</button></div></article>
+    <article className={styles.subscriptionCard}><p>{selectedProjectOffer.package?.description ?? "Pacote selecionado pelo gestor."}</p><small>{selectedProjectOffer.package?.sessions_count ?? 0} sessão(ões)</small><strong>{money(selectedProjectOffer.contracted_cents)}</strong><div className={styles.planActions}><button className={styles.subscriptionAction} type="button" onClick={() => void acceptProjectOffer(selectedProjectOffer)}>Confirmar assinatura</button><button className={styles.subscriptionSecondary} type="button" onClick={() => void declineProjectOffer(selectedProjectOffer)}>Recusar contrato</button></div></article>
   </section>;
 
-  if (view === "my-plan" && !selectedCustomerSubscription) return <section className={styles.subscriptionStack}><Link href={route("/cliente/assinaturas/meus-planos")} className={styles.subscriptionBack}>← Meus Planos</Link><h1>{message ? "Carregando plano…" : "Plano indisponível"}</h1>{message && <p>{message}</p>}</section>;
+  if (view === "my-plan" && !selectedCustomerSubscription && !selectedCustomerProject) return <section className={styles.subscriptionStack}><Link href={route("/cliente/assinaturas/meus-planos")} className={styles.subscriptionBack}>← Meus Planos</Link><h1>{message ? "Carregando plano…" : "Plano indisponível"}</h1>{message && <p>{message}</p>}</section>;
+
+  if (view === "my-plan" && selectedCustomerProject) {
+    const engagement = selectedCustomerProject;
+    const request = projectCancellationRequestByEngagement.get(engagement.id);
+    const installments = projectInstallments.filter((item) => item.engagement_id === engagement.id).sort((a, b) => a.installment_number - b.installment_number);
+    const sessions = projectSessions.filter((item) => item.engagement_id === engagement.id).sort((a, b) => a.session_number - b.session_number);
+    const canBook = (session: ProjectSession) => session.status === "OPEN" && (engagement.status === "ACTIVE"
+      ? request?.status !== "PENDING" || Boolean(request.last_session_id && session.session_number <= (sessions.find((item) => item.id === request.last_session_id)?.session_number ?? 0))
+      : request?.status === "CONFIRMED" && request.last_session_id === session.id);
+    return <section className={styles.subscriptionStack}>
+      <header><Link href={route("/cliente/assinaturas/meus-planos")} className={styles.subscriptionBack}>← Meus Planos</Link><span className={styles.planKind}>Plano de projeto</span><h1>{engagement.project?.name ?? "Projeto"} · {engagement.package?.name ?? "Pacote"}</h1><p>{engagement.project?.description ?? engagement.package?.description ?? "Detalhes do plano contratado."}</p></header>
+      <article className={styles.subscriptionCard}>
+        {request?.status === "PENDING" && <span className={styles.planStatus}>Cancelamento pendente · aguarde confirmação</span>}
+        {engagement.status === "CANCELED" && <span className={styles.planStatus}>Cancelado · finalizando pendências</span>}
+        <p>{engagement.package?.description ?? "Pacote selecionado para este projeto."}</p><strong>{money(engagement.contracted_cents)}</strong>
+        <small>{engagement.status === "PROPOSAL" ? "Solicitação enviada · aguardando retorno" : engagement.status === "CANCELED" ? "Contrato cancelado" : engagement.status === "COMPLETED" ? "Plano concluído" : "Plano ativo"} · {engagement.package?.sessions_count ?? sessions.length} sessão(ões)</small>
+        <div className={styles.subscriptionStack}><h2>Parcelas</h2>{installments.length ? installments.map((installment) => <div className={styles.subscriptionCycle} key={installment.id}><p><strong>{installment.installment_number === 0 ? "Entrada" : `Parcela ${installment.installment_number}`}</strong> · venc. {formatDate(installment.due_on)}</p><strong>{money(installment.amount_cents)}</strong><small>{installment.status === "PAID" ? `Pago${installment.paid_at ? ` em ${formatDate(installment.paid_at.slice(0, 10))}` : ""}` : installment.status === "CANCELED" ? "Cobrança encerrada" : installment.due_on < new Date().toISOString().slice(0, 10) ? "Em atraso · em aberto" : "Em aberto"}</small></div>) : <p>Sem parcelas cadastradas.</p>}</div>
+        <div className={styles.subscriptionStack}><h2>Sessões do plano</h2>{sessions.length ? sessions.map((session) => <div className={styles.subscriptionCycle} key={session.id}><p><strong>Sessão {session.session_number}</strong> · {projectSessionLabel(session)}{session.appointment?.service_period ? ` · ${sessionDate(session.appointment.service_period)}` : ""}</p>{canBook(session) && <button className={styles.subscriptionAction} type="button" onClick={() => void openProjectBooking(session)}>Agendar sessão</button>}</div>) : <p>As sessões serão liberadas após a confirmação do contrato.</p>}</div>
+        <div className={styles.planActions}>
+          {engagement.status === "ACTIVE" && request?.status !== "PENDING" && <button className={styles.subscriptionSecondary} type="button" onClick={() => setProjectCancellationDraft({ engagementId: engagement.id, reason: "", observations: "", lastSessionId: "" })}>Solicitar cancelamento</button>}
+          {request?.status === "PENDING" && <span className={styles.planStatus}>Solicitação aguardando confirmação do estabelecimento</span>}
+        </div>
+      </article>
+      {projectCancellationDraft && projectCancellationDraft.engagementId === engagement.id && <div className={styles.modalLayer} role="presentation"><button className={styles.backdrop} type="button" aria-label="Fechar solicitação de cancelamento" onClick={() => setProjectCancellationDraft(null)} /><form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="project-cancellation-title" onSubmit={(event) => void requestProjectCancellation(event)}>
+        <h2 id="project-cancellation-title">Solicitar cancelamento</h2><p>O cancelamento será concluído após o estabelecimento confirmar o contrato.</p>
+        <label>Motivo do cancelamento<select required value={projectCancellationDraft.reason} onChange={(event) => setProjectCancellationDraft((current) => current ? { ...current, reason: event.target.value } : current)}><option value="">Selecione</option><option value="FINANCIAL_DIFFICULTY">Dificuldade Financeira</option><option value="LACK_OF_TIME">Falta de tempo</option><option value="ADDRESS_CHANGE">Mudança de endereço</option><option value="OTHER">Outros</option></select></label>
+        {projectCancellationDraft.reason === "OTHER" && <label>Observações<textarea required maxLength={2000} value={projectCancellationDraft.observations} onChange={(event) => setProjectCancellationDraft((current) => current ? { ...current, observations: event.target.value } : current)} /></label>}
+        <label>Última sessão que pretende comparecer<select value={projectCancellationDraft.lastSessionId} onChange={(event) => setProjectCancellationDraft((current) => current ? { ...current, lastSessionId: event.target.value } : current)}><option value="">Nenhuma sessão adicional</option>{sessions.filter((session) => session.status === "OPEN" || session.status === "BOOKED").map((session) => <option key={session.id} value={session.id}>Sessão {session.session_number} · {projectSessionLabel(session)}</option>)}</select></label>
+        <footer><button className={styles.subscriptionSecondary} type="button" onClick={() => setProjectCancellationDraft(null)}>Cancelar</button><button className={styles.subscriptionAction} type="submit">Enviar solicitação</button></footer>
+      </form></div>}
+      {projectBookingDraft && projectBookingDraft.session.engagement_id === engagement.id && <div className={styles.modalLayer} role="presentation"><button className={styles.backdrop} type="button" aria-label="Fechar agendamento" onClick={() => setProjectBookingDraft(null)} /><form className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="project-booking-title" onSubmit={(event) => void bookProjectSession(event)}>
+        <h2 id="project-booking-title">Agendar sessão {projectBookingDraft.session.session_number}</h2>
+        <label>Profissional<select value={projectBookingDraft.barberId} onChange={(event) => setProjectBookingDraft((current) => current ? { ...current, barberId: event.target.value, environmentId: "", environments: [] } : current)}>{[...new Map(projectBookingDraft.options.map((option) => [option.barber_id, option.barber_name])).entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+        <label>Serviço<select value={projectBookingDraft.serviceId} onChange={(event) => setProjectBookingDraft((current) => current ? { ...current, serviceId: event.target.value, environmentId: "", environments: [] } : current)}>{projectBookingDraft.options.filter((option) => option.barber_id === projectBookingDraft.barberId).map((option) => <option key={option.service_id} value={option.service_id}>{option.service_name}</option>)}</select></label>
+        <label>Data<input required type="date" min={context ? localToday(context.organization.timezone) : undefined} value={projectBookingDraft.date} onChange={(event) => setProjectBookingDraft((current) => current ? { ...current, date: event.target.value, environmentId: "", environments: [] } : current)} /></label>
+        <label>Horário<input required type="time" step={900} value={projectBookingDraft.time} onChange={(event) => setProjectBookingDraft((current) => current ? { ...current, time: event.target.value, environmentId: "", environments: [] } : current)} /></label>
+        <button className={styles.subscriptionSecondary} type="button" disabled={projectBookingDraft.loading} onClick={() => void refreshProjectBookingEnvironments(projectBookingDraft)}>{projectBookingDraft.loading ? "Consultando…" : "Ver horários disponíveis"}</button>
+        <label>Ambiente<select required value={projectBookingDraft.environmentId} onChange={(event) => setProjectBookingDraft((current) => current ? { ...current, environmentId: event.target.value } : current)}><option value="">{projectBookingDraft.environments.length ? "Selecione" : "Consulte os horários"}</option>{projectBookingDraft.environments.map((environment) => <option key={environment.id} value={environment.id}>{environment.name}</option>)}</select></label>
+        <footer><button className={styles.subscriptionSecondary} type="button" onClick={() => setProjectBookingDraft(null)}>Cancelar</button><button className={styles.subscriptionAction} type="submit" disabled={!projectBookingDraft.environmentId || projectBookingDraft.loading}>Agendar sessão</button></footer>
+      </form></div>}
+    </section>;
+  }
 
   if (view === "subscription" || view === "project" || view === "subscription-offer" || view === "project-offer") return <section className={styles.subscriptionStack}><Link href={route(view === "subscription" || view === "project" ? "/cliente/assinaturas/novo-plano" : "/cliente/assinaturas")} className={styles.subscriptionBack}>← Voltar</Link><h1>Plano indisponível</h1><p>Este plano não está mais disponível neste estabelecimento.</p></section>;
 
@@ -497,22 +683,28 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
         <h2>Histórico · recusados</h2>
         {rows.filter((row) => row.status === "DECLINED").map((row) => <article className={styles.subscriptionCard} key={`declined-${row.id}`}><span className={styles.planStatus}>Recusado</span><h3>{row.plan?.name ?? "Plano"}</h3><p>Oferta recusada e arquivada.</p></article>)}
       </div>}
-      {view === "my-plans" && projectOffers.filter((offer) => offer.created_by === user?.id || offer.status === "ACTIVE" || offer.status === "DECLINED").length > 0 && <div className={styles.subscriptionStack}>
+      {view === "my-plans" && projectOffers.some((offer) => !projectCancellationArchiveReady(offer) && (offer.created_by === user?.id || ["ACTIVE", "COMPLETED", "CANCELED", "DECLINED"].includes(offer.status))) && <div className={styles.subscriptionStack}>
         <h2>Planos vinculados</h2>
-        {projectOffers.filter((offer) => offer.created_by === user?.id || offer.status === "ACTIVE" || offer.status === "DECLINED").map((offer) => {
+        {projectOffers.filter((offer) => !projectCancellationArchiveReady(offer) && (offer.created_by === user?.id || ["ACTIVE", "COMPLETED", "CANCELED", "DECLINED"].includes(offer.status))).map((offer) => {
           const customerRequested = offer.created_by === user?.id;
-          return <article className={styles.subscriptionCard} key={offer.id}>
+          if (offer.status === "DECLINED") return <article className={styles.subscriptionCard} key={offer.id}><span className={styles.planStatus}>Cliente Recusou</span><h3>{offer.project?.name ?? "Projeto"} · {offer.package?.name ?? "Pacote"}</h3><p>Contrato recusado e arquivado.</p></article>;
+          return <Link className={`${styles.subscriptionCard} ${styles.subscriptionCardLink}`} href={route(`/cliente/assinaturas/meus-planos/${offer.id}`)} key={offer.id}>
+            {projectCancellationRequestByEngagement.get(offer.id)?.status === "PENDING" && <span className={styles.planStatus}>Cancelamento pendente</span>}
+            {offer.status === "CANCELED" && <span className={styles.planStatus}>Cancelado · finalizando pendências</span>}
             <h3>{offer.project?.name ?? "Projeto"} · {offer.package?.name ?? "Pacote"}</h3>
             <p>{offer.package?.description ?? (customerRequested ? "Solicitação enviada; aguarde o gestor." : "Plano de projeto contratado.")}</p>
             <strong>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(offer.contracted_cents / 100)}</strong>
             {offer.status === "PROPOSAL" && customerRequested && <small>Solicitação enviada · aguardando retorno</small>}
-            {offer.status === "ACTIVE" && <small>Plano confirmado</small>}
-            {offer.status === "DECLINED" && <span className={styles.planStatus}>Recusado · arquivado</span>}
-          </article>;
+            {offer.status === "ACTIVE" && <small>Plano ativo · {projectInstallments.filter((row) => row.engagement_id === offer.id).length} cobrança(s) · {projectSessions.filter((row) => row.engagement_id === offer.id).length} sessão(ões)</small>}
+            {offer.status === "COMPLETED" && <small>Plano concluído</small>}
+            <span>Ver detalhes do plano</span>
+          </Link>;
         })}
       </div>}
-      {(view === "my-plan" ? rows.filter((row) => row.id === itemId && row.status !== "DECLINED") : rows.filter((row) => row.status !== "DECLINED" && !(row.status === "REQUESTED" && !row.contract_accepted_at && row.created_by !== user?.id))).map((row) => view === "my-plan" ? (
+      {(view === "my-plan" ? rows.filter((row) => row.id === itemId && row.status !== "DECLINED" && !cancellationArchiveReady(row)) : rows.filter((row) => row.status !== "DECLINED" && !cancellationArchiveReady(row) && !(row.status === "REQUESTED" && !row.contract_accepted_at && row.created_by !== user?.id))).map((row) => view === "my-plan" ? (
         <article className={styles.subscriptionCard} key={row.id}>
+          {subscriptionHasPendingCancellation(row.id) && <span className={styles.planStatus}>Cancelamento pendente</span>}
+          {row.status === "CANCELED" && <span className={styles.planStatus}>Cancelada · finalizando pendências</span>}
           <h2>{row.plan?.name ?? "Plano"}</h2>
           <p>{row.plan?.description ?? "Sem descrição"}</p>
           <strong>
@@ -604,30 +796,24 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
                 </div>
               ))}
           </div>
-          {contractBody && (
-            <button className={styles.subscriptionSecondary} type="button" onClick={() => window.alert(row.contract_body_snapshot ?? contractBody)}>
-              Acessar contrato
-            </button>
-          )}
-          {row.status === "ACTIVE" && (
-            <button className={styles.subscriptionSecondary}
-              type="button"
-              onClick={() => void cancelSubscription(row.id)}
-            >
-              Cancelar assinatura
-            </button>
-          )}
+          <div className={styles.planActions}>
+            {contractBody && <button className={styles.subscriptionSecondary} type="button" onClick={() => window.alert(row.contract_body_snapshot ?? contractBody)}>Acessar contrato</button>}
+            {(row.status === "ACTIVE" || row.status === "PENDING_PAYMENT") && !subscriptionHasPendingCancellation(row.id) && <button className={styles.subscriptionSecondary} type="button" onClick={() => setCancellationDraft({ subscriptionId: row.id, reason: "", observations: "", lastSessionId: "" })}>Solicitar cancelamento</button>}
+            {subscriptionHasPendingCancellation(row.id) && <span className={styles.planStatus} role="status">Cancelamento pendente · aguarde confirmação</span>}
+          </div>
         </article>
       ) : (
         <Link className={`${styles.subscriptionCard} ${styles.subscriptionCardLink}`} href={route(`/cliente/assinaturas/meus-planos/${row.id}`)} key={row.id}>
           <h2>{row.plan?.name ?? "Plano"}</h2>
+          {subscriptionHasPendingCancellation(row.id) && <span className={styles.planStatus}>Cancelamento pendente</span>}
+          {row.status === "CANCELED" && <span className={styles.planStatus}>Cancelada · finalizando pendências</span>}
           <p>{row.plan?.description ?? "Sem descrição"}</p>
           <strong>{row.plan_version ? money(row.plan_version.price_cents) : "—"}</strong>
           <small className={styles.subscriptionMeta}>{row.plan_version?.billing_period === "BIWEEKLY" ? "Quinzenal" : "Mensal"} · venc. {formatDate(row.first_due_date)} · pagamento: {paymentMethodLabel[row.payment_method] ?? row.payment_method} · {subscriptionStatusLabel[row.status] ?? row.status}</small>
           <span>Ver detalhes do plano</span>
         </Link>
       ))}
-      {!rows.some((row) => row.status !== "DECLINED" && !(row.status === "REQUESTED" && !row.contract_accepted_at && row.created_by !== user?.id)) && !projectOffers.some((offer) => offer.created_by === user?.id || offer.status === "ACTIVE" || offer.status === "DECLINED") && <p>Você ainda não possui planos neste estabelecimento.</p>}
+      {!rows.some((row) => row.status !== "DECLINED" && !cancellationArchiveReady(row) && !(row.status === "REQUESTED" && !row.contract_accepted_at && row.created_by !== user?.id)) && !projectOffers.some((offer) => offer.created_by === user?.id || offer.status === "ACTIVE" || offer.status === "DECLINED") && <p>Você ainda não possui planos neste estabelecimento.</p>}
       {fixedScheduleDraft && context && (() => {
         const eligibleBarbers = context.barbers.filter((barber) => barberSupportsServices(fixedScheduleDraft.plan.service_ids, barber.service_ids)
           && (barber.subscription_plan_ids === undefined || barber.subscription_plan_ids.includes(fixedScheduleDraft.plan.id)));
@@ -641,6 +827,23 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
             <label>Horário<input required type="time" step={900} value={fixedScheduleDraft.localTime} onChange={(event) => setFixedScheduleDraft((draft) => draft ? { ...draft, localTime: event.target.value } : draft)} /></label>
             <label>Profissional<select required value={fixedScheduleDraft.barberId} onChange={(event) => setFixedScheduleDraft((draft) => draft ? { ...draft, barberId: event.target.value } : draft)}><option value="">Selecione</option>{eligibleBarbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.name}</option>)}</select></label>
             <footer><button type="button" className={styles.subscriptionSecondary} onClick={() => setFixedScheduleDraft(null)}>Cancelar</button><button type="submit" className={styles.subscriptionAction}>Solicitar plano</button></footer>
+          </form>
+        </div>;
+      })()}
+      {cancellationDraft && (() => {
+        const rowCycles = cycles.filter((cycle) => cycle.subscription_id === cancellationDraft.subscriptionId);
+        const finalSessions = rowCycles.flatMap((cycle) => cycle.sessions
+          .filter((session) => session.status === "AVAILABLE" || session.status === "SCHEDULED")
+          .map((session) => ({ ...session, cycleNumber: cycle.cycle_number })));
+        return <div className={styles.modalLayer} role="presentation">
+          <button className={styles.backdrop} type="button" aria-label="Fechar solicitação de cancelamento" onClick={() => setCancellationDraft(null)} />
+          <form className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-labelledby="subscription-cancellation-title" onSubmit={(event) => void requestSubscriptionCancellation(event)}>
+            <h2 id="subscription-cancellation-title">Solicitar cancelamento</h2>
+            <p>O cancelamento será concluído somente após a confirmação do estabelecimento.</p>
+            <label>Motivo do cancelamento<select required value={cancellationDraft.reason} onChange={(event) => setCancellationDraft((draft) => draft ? { ...draft, reason: event.target.value } : draft)}><option value="">Selecione</option><option value="FINANCIAL_DIFFICULTY">Dificuldade Financeira</option><option value="LACK_OF_TIME">Falta de tempo</option><option value="ADDRESS_CHANGE">Mudança de endereço</option><option value="OTHER">Outros</option></select></label>
+            {cancellationDraft.reason === "OTHER" && <label>Observações<textarea required maxLength={2000} value={cancellationDraft.observations} onChange={(event) => setCancellationDraft((draft) => draft ? { ...draft, observations: event.target.value } : draft)} /></label>}
+            <label>Última sessão que pretende comparecer<select value={cancellationDraft.lastSessionId} onChange={(event) => setCancellationDraft((draft) => draft ? { ...draft, lastSessionId: event.target.value } : draft)}><option value="">Nenhuma sessão adicional</option>{finalSessions.map((session) => <option key={session.id} value={session.id}>Ciclo {session.cycleNumber} · Sessão {session.session_number}</option>)}</select></label>
+            <footer><button type="button" className={styles.subscriptionSecondary} onClick={() => setCancellationDraft(null)}>Cancelar</button><button type="submit" className={styles.subscriptionAction} disabled={!cancellationDraft.reason}>Enviar solicitação</button></footer>
           </form>
         </div>;
       })()}

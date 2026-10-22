@@ -94,6 +94,7 @@ export async function loadCustomersData() {
     statusEvents,
     consents,
     subscriptions,
+    subscriptionCancellationRequests,
     subscriptionCycles,
     subscriptionSessions,
     subscriptionPlans,
@@ -171,6 +172,13 @@ export async function loadCustomersData() {
       )
       .eq("organization_id", organizationId)
       .in("status", ["REQUESTED", "PENDING_PAYMENT", "ACTIVE", "CANCELED", "EXPIRED", "DECLINED"])
+      .limit(MANAGER_ROW_LIMIT),
+    supabase
+      .from("customer_subscription_cancellation_requests")
+      .select("id,organization_id,subscription_id,customer_id,status,reason,observations,last_session_id,last_cycle_id,requested_at")
+      .eq("organization_id", organizationId)
+      .eq("status", "PENDING")
+      .order("requested_at", { ascending: false })
       .limit(MANAGER_ROW_LIMIT),
     supabase
       .from("customer_subscription_cycles")
@@ -271,6 +279,9 @@ export async function loadCustomersData() {
       : (requireData(subscriptions, "Assinaturas") as Array<
           Record<string, unknown>
         >),
+    subscriptionCancellationRequests: subscriptionCancellationRequests.error
+      ? []
+      : (requireData(subscriptionCancellationRequests, "Solicitações de cancelamento") as Array<Record<string, unknown>>),
     subscriptionCycles: subscriptionCycles.error
       ? []
       : (requireData(subscriptionCycles, "Ciclos de assinatura") as Array<
