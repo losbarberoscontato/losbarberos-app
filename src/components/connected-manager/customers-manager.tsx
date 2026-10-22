@@ -1210,7 +1210,7 @@ export function CustomersManager({
                     type="button"
                     onClick={() => setHistoryTab("SUBSCRIPTIONS")}
                   >
-                    Assinaturas Ativas
+                    Assinaturas
                   </button>
                 </div>
                 {historyTab === "APPOINTMENTS" &&
