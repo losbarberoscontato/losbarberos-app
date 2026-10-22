@@ -857,3 +857,12 @@
 .offerPulse { animation: client-offer-pulse 1.2s ease-in-out infinite; }
 @keyframes client-offer-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--forest-900, #245f50) 18%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .offerPulse { animation: none; outline: 2px solid var(--forest-900, #245f50); } }
+.planMenu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.planMenu a { display: grid; gap: 7px; padding: 22px; border: 1px solid #ded8cc; border-radius: 18px; background: linear-gradient(145deg, #fffefa, #f7fbf7); color: #173c31; text-decoration: none; box-shadow: 0 10px 25px rgb(25 47 39 / 5%); }
+.planMenu a strong { font-size: 19px; }
+.planMenu a span, .subscriptionBack { color: #59655e; }
+.subscriptionBack { width: fit-content; font-weight: 700; text-decoration: none; }
+.planKind { width: fit-content; color: #8d5b2e; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.planStatus { width: fit-content; padding: 5px 9px; border-radius: 999px; background: #fff2db; color: #775314; font-size: 12px; font-weight: 750; }
+.planActions { display: flex; flex-wrap: wrap; gap: 10px; }
+@media (max-width: 620px) { .planMenu { grid-template-columns: 1fr; } }

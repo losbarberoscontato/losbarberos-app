@@ -266,8 +266,8 @@ export function ProjectsManager(props: ManagerProps) {
   const activeProjectIds = useMemo(() => new Set(activeProjects.map((project) => project.id)), [activeProjects]);
   const activeProjectEngagements = useMemo(() => props.engagements.filter((engagement) => activeProjectIds.has(engagement.project_id)), [activeProjectIds, props.engagements]);
   const activeProjectContractsCount = activeProjectEngagements.filter(projectContractIsActive).length;
-  const activeProjectContractedCents = activeProjectEngagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
-  const activeProjectEngagementIds = new Set(activeProjectEngagements.filter((item) => item.status !== "CANCELED").map((item) => item.id));
+  const activeProjectContractedCents = activeProjectEngagements.filter((item) => item.status !== "CANCELED" && item.status !== "DECLINED").reduce((sum, item) => sum + item.contracted_cents, 0);
+  const activeProjectEngagementIds = new Set(activeProjectEngagements.filter((item) => item.status !== "CANCELED" && item.status !== "DECLINED").map((item) => item.id));
   const activeProjectReceivedCents = props.installments.filter((item) => activeProjectEngagementIds.has(item.engagement_id)).reduce((sum, item) => sum + installmentReceivedCents(item), 0);
   const visibleProjects = useMemo(() => {
     if (projectFilter === "published") return props.projects.filter((project) => project.status === "PUBLISHED");
@@ -293,7 +293,7 @@ export function ProjectsManager(props: ManagerProps) {
   const selectedEngagementCustomer = engagementCustomers.find((customer) => customer.id === engagementCustomerId) ?? null;
   const editingEngagement = editingEngagementId ? projectEngagements.find((item) => item.id === editingEngagementId) ?? null : null;
   const packageById = useMemo(() => new Map(props.packages.map((item) => [item.id, item])), [props.packages]);
-  const contractedCents = projectEngagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
+  const contractedCents = projectEngagements.filter((item) => item.status !== "CANCELED" && item.status !== "DECLINED").reduce((sum, item) => sum + item.contracted_cents, 0);
   const projectSessions = useMemo(() => projectSessionsData.filter((session) => projectEngagements.some((engagement) => engagement.id === session.engagement_id)), [projectEngagements, projectSessionsData]);
   const projectCommissions = useMemo(() => projectCommissionsData.filter((commission) => commission.project_id === selectedProject?.id), [projectCommissionsData, selectedProject?.id]);
   const engagementSchedule = useMemo(() => {
@@ -681,7 +681,7 @@ export function ProjectsManager(props: ManagerProps) {
     setEngagementInstallments(String(Math.max(1, paidRows.length)));
     setEngagementEntryDueOn(entry?.due_on ?? new Date().toISOString().slice(0, 10));
     setEngagementFirstDueOn(firstInstallment?.due_on ?? new Date().toISOString().slice(0, 10));
-    setEngagementStatus(engagement.status === "CANCELED" ? "PROPOSAL" : engagement.status);
+    setEngagementStatus(engagement.status === "CANCELED" || engagement.status === "DECLINED" ? "PROPOSAL" : engagement.status);
     setSigningDate(engagement.accepted_at?.slice(0, 10) ?? "");
     setGeneratedEngagementSchedule(null);
     setNewEngagementOpen(true);
@@ -949,7 +949,7 @@ export function ProjectsManager(props: ManagerProps) {
         </section> : <Panel title="Projeto não encontrado" description="Este projeto não está disponível para esta barbearia."><EmptyState title="Volte para Projetos"><button className={styles.button} type="button" onClick={() => router.push("/gestor/projetos")}><ArrowLeft size={16} /> Voltar para Projetos</button></EmptyState></Panel> : <Panel className={styles.projectListPanel} title="Projetos em andamento" description="Selecione um projeto para abrir o painel operacional." action={<label className={styles.projectFilter}><span>Exibir</span><select aria-label="Filtrar projetos" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value as ProjectFilter)}><option value="published">Publicados</option><option value="archived">Arquivados</option><option value="all">Todos</option></select></label>}>
           <div className={styles.projectList}>
             {visibleProjects.length === 0 ? <EmptyState title={projectFilter === "archived" ? "Nenhum projeto arquivado" : "Nenhum projeto publicado"}>{projectFilter === "archived" ? "Arquive um projeto para encontrá-lo nesta lista." : "Crie e publique um projeto para começar."}</EmptyState> : visibleProjects.map((project) => {
-              const count = props.engagements.filter((item) => item.project_id === project.id && item.status !== "CANCELED").length;
+              const count = props.engagements.filter((item) => item.project_id === project.id && item.status !== "CANCELED" && item.status !== "DECLINED").length;
               return <div className={styles.projectCardRow} key={project.id}><button type="button" className={styles.projectCard} onClick={() => router.push(`/gestor/projetos/${project.id}`)} aria-label={`Abrir projeto ${project.name}`}>
                 <span className={styles.projectCardIcon}><BriefcaseBusiness size={17} /></span><span className={styles.rowTitle}><strong>{project.name}</strong><small>{dateLabel(project.starts_on)} — {dateLabel(project.ends_on)}</small></span><span className={styles.projectCardMeta}><strong>{count}{project.goal_contracts ? ` / ${project.goal_contracts}` : ""}</strong><small>contratações</small></span><StatusChip active={project.status === "PUBLISHED"} label={projectStatusLabels[project.status]} tone={project.status === "PAUSED" ? "warning" : project.status === "CLOSED" || project.status === "ARCHIVED" ? "neutral" : undefined} /><ArrowRight size={16} /></button><button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.iconButton}`} onClick={() => openEditProjectModal(project)} aria-label={`Editar projeto ${project.name}`} title="Editar projeto"><Pencil size={16} /></button></div>;
             })}
@@ -1227,7 +1227,7 @@ function ProjectPackages({ packages, barbers, barberServices, services, fixedCos
 }
 
 function projectContractIsActive(engagement: Props["engagements"][number]) {
-  return engagement.status !== "CANCELED" && Boolean(engagement.accepted_at);
+  return engagement.status !== "CANCELED" && engagement.status !== "DECLINED" && Boolean(engagement.accepted_at);
 }
 
 function installmentReceivedCents(installment: Props["installments"][number]) {
@@ -1245,8 +1245,8 @@ function projectContractCostsCents(engagement: Props["engagements"][number], pac
 
 function ProjectOverview({ goalContracts, projectCostItems, projectPackages, kanbanBoards, engagements, customerById, packageById, installments }: { goalContracts: number | null; projectCostItems: ProjectCostItemRecord[]; projectPackages: Props["packages"]; kanbanBoards: ProjectKanbanBoardRecord[]; engagements: Props["engagements"]; customerById: Map<string, Props["customers"][number]>; packageById: Map<string, Props["packages"][number]>; installments: Props["installments"] }) {
   const activeContracts = engagements.filter(projectContractIsActive);
-  const soldCents = engagements.filter((item) => item.status !== "CANCELED").reduce((sum, item) => sum + item.contracted_cents, 0);
-  const receivedCents = installments.filter((item) => engagements.some((engagement) => engagement.id === item.engagement_id && engagement.status !== "CANCELED")).reduce((sum, item) => sum + installmentReceivedCents(item), 0);
+  const soldCents = engagements.filter((item) => item.status !== "CANCELED" && item.status !== "DECLINED").reduce((sum, item) => sum + item.contracted_cents, 0);
+  const receivedCents = installments.filter((item) => engagements.some((engagement) => engagement.id === item.engagement_id && engagement.status !== "CANCELED" && engagement.status !== "DECLINED")).reduce((sum, item) => sum + installmentReceivedCents(item), 0);
   const projectedCents = goalContracts && projectPackages[0] ? goalContracts * projectPackages[0].price_cents : 0;
   const investmentCents = projectCostItems.filter((item) => item.active).reduce((sum, item) => sum + item.amount_cents, 0);
   const activeContractCostsCents = activeContracts.reduce((sum, item) => sum + projectContractCostsCents(item, packageById), 0);
@@ -1263,7 +1263,7 @@ function ProjectOverview({ goalContracts, projectCostItems, projectPackages, kan
 function PackageClientSummary({ packages, engagements }: { packages: Props["packages"]; engagements: Props["engagements"] }) {
   const rows = packages.map((item) => ({
     ...item,
-    clientCount: engagements.filter((engagement) => engagement.package_id === item.id && engagement.status !== "CANCELED").length,
+    clientCount: engagements.filter((engagement) => engagement.package_id === item.id && engagement.status !== "CANCELED" && engagement.status !== "DECLINED").length,
   }));
   const maxCount = Math.max(1, ...rows.map((row) => row.clientCount));
 
@@ -1446,7 +1446,8 @@ function engagementSessionSummary(engagement: Props["engagements"][number], pack
 }
 
 function EngagementsTable({ engagements, customerById, packageById, installments, projectSessions, kanbanBoards, onEdit }: { engagements: Props["engagements"]; customerById: Map<string, Props["customers"][number]>; packageById: Map<string, Props["packages"][number]>; installments: Props["installments"]; projectSessions: Props["projectSessions"]; kanbanBoards: ProjectKanbanBoardRecord[]; onEdit: (engagement: Props["engagements"][number]) => void }) {
-  return <Panel title="Contratações" description="Uma contratação por cliente. Propostas continuam fora do fluxo ativo até o aceite.">{engagements.length ? <div className={styles.engagementTableWrap}><table className={styles.engagementTable}><thead><tr><th>Cliente</th><th>Pacote</th><th>Entrada</th><th>Parcelas</th><th>Valor</th><th>Vencimento</th><th>Saldo</th><th>Assinatura</th><th>Kanban</th><th>Sessões</th><th>Ações</th></tr></thead><tbody>{engagements.map((item) => { const financials = engagementFinancials(item, installments); const currentBoard = kanbanBoards.find((board) => board.id === item.kanban_board_id); const customerName = customerById.get(item.customer_id)?.full_name ?? "cliente"; const sessionSummary = engagementSessionSummary(item, packageById, projectSessions); return <tr className={financials.overdue ? styles.engagementOverdue : undefined} key={item.id}><td>{customerById.get(item.customer_id)?.full_name ?? "Cliente não informado"}</td><td>{packageById.get(item.package_id)?.name ?? "Pacote não informado"}</td><td>{formatCents(financials.entryCents)}</td><td>{financials.paidInstallments}/{financials.totalInstallments}</td><td>{formatCents(financials.installmentAmountCents)}</td><td>{shortDateLabel(financials.nextDueOn)}</td><td>{formatCents(financials.balanceCents)}</td><td>{item.accepted_at ? shortDateLabel(item.accepted_at.slice(0, 10)) : "Não assinada"}</td><td><span className={`${styles.statusSelect} ${currentBoard ? styles.statusSelectKanban : ""}`} aria-label={`Kanban atual da contratação de ${customerName}`}>{currentBoard?.name ?? "Sem quadro"}</span></td><td><StatusChip active={sessionSummary.tone !== "neutral"} label={sessionSummary.label} tone={sessionSummary.tone} /></td><td><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(item)} aria-label={`Editar contratação de ${customerName}`}><Pencil size={14} /> Editar</button></td></tr>; })}</tbody></table></div> : <EmptyState title="Sem contratações">Use “Novo contrato” para criar a primeira contratação.</EmptyState>}</Panel>;
+  const statusLabel = (status: Props["engagements"][number]["status"]) => ({ PROPOSAL: "Aguardando aceite", ACTIVE: "Ativa", COMPLETED: "Concluída", CANCELED: "Cancelada", DECLINED: "Recusada" })[status];
+  return <Panel title="Contratações" description="Uma contratação por cliente. Propostas continuam fora do fluxo ativo até o aceite.">{engagements.length ? <div className={styles.engagementTableWrap}><table className={styles.engagementTable}><thead><tr><th>Cliente</th><th>Pacote</th><th>Entrada</th><th>Parcelas</th><th>Valor</th><th>Vencimento</th><th>Saldo</th><th>Assinatura</th><th>Status</th><th>Kanban</th><th>Sessões</th><th>Ações</th></tr></thead><tbody>{engagements.map((item) => { const financials = engagementFinancials(item, installments); const currentBoard = kanbanBoards.find((board) => board.id === item.kanban_board_id); const customerName = customerById.get(item.customer_id)?.full_name ?? "cliente"; const sessionSummary = engagementSessionSummary(item, packageById, projectSessions); return <tr className={financials.overdue && item.status !== "DECLINED" ? styles.engagementOverdue : undefined} key={item.id}><td>{customerById.get(item.customer_id)?.full_name ?? "Cliente não informado"}</td><td>{packageById.get(item.package_id)?.name ?? "Pacote não informado"}</td><td>{formatCents(financials.entryCents)}</td><td>{financials.paidInstallments}/{financials.totalInstallments}</td><td>{formatCents(financials.installmentAmountCents)}</td><td>{shortDateLabel(financials.nextDueOn)}</td><td>{formatCents(financials.balanceCents)}</td><td>{item.accepted_at ? shortDateLabel(item.accepted_at.slice(0, 10)) : "Não assinada"}</td><td><StatusChip active={item.status === "ACTIVE" || item.status === "COMPLETED"} label={statusLabel(item.status)} tone={item.status === "DECLINED" || item.status === "CANCELED" ? "danger" : item.status === "PROPOSAL" ? "warning" : undefined} /></td><td><span className={`${styles.statusSelect} ${currentBoard ? styles.statusSelectKanban : ""}`} aria-label={`Kanban atual da contratação de ${customerName}`}>{currentBoard?.name ?? "Sem quadro"}</span></td><td><StatusChip active={sessionSummary.tone !== "neutral"} label={sessionSummary.label} tone={sessionSummary.tone} /></td><td>{item.status !== "DECLINED" && <button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => onEdit(item)} aria-label={`Editar contratação de ${customerName}`}><Pencil size={14} /> Editar</button>}</td></tr>; })}</tbody></table></div> : <EmptyState title="Sem contratações">Use “Novo contrato” para criar a primeira contratação.</EmptyState>}</Panel>;
 }
 
 export function kanbanDeadlineTone(dueOn: string | null | undefined) {
@@ -1500,7 +1501,7 @@ function GeneralProjectKanban({ organizationId, sectors: initialSectors, boards,
   const visibleEngagements = generalEngagements.filter((engagement) => {
     const board = boardById.get(engagement.kanban_board_id);
     const sector = sectors.find((item) => item.id === board?.sector_id);
-    return publishedProjectIds.has(engagement.project_id) && Boolean(board?.sector_id) && (projectFilter === "ALL" || engagement.project_id === projectFilter) && (responsibleFilter === "ALL" || sector?.responsible_barber_id === responsibleFilter);
+    return engagement.status !== "DECLINED" && publishedProjectIds.has(engagement.project_id) && Boolean(board?.sector_id) && (projectFilter === "ALL" || engagement.project_id === projectFilter) && (responsibleFilter === "ALL" || sector?.responsible_barber_id === responsibleFilter);
   });
 
   function cardsForSector(sector: ProjectKanbanSectorRecord) {
@@ -1606,7 +1607,7 @@ function ProjectKanban({ organizationId, projectId, boards: initialBoards, secto
   const [openInternalCard, setOpenInternalCard] = useState<ProjectKanbanInternalCardRecord | null>(null);
   const [pendingDeleteInternalCard, setPendingDeleteInternalCard] = useState<ProjectKanbanInternalCardRecord | null>(null);
   const orderedBoards = [...boards].sort((a, b) => a.position - b.position);
-  const cardsForBoard = (board: KanbanBoardDraft) => kanbanEngagements.filter((item) => item.kanban_board_id === board.id || (!item.kanban_board_id && item.status === board.system_key)).map((engagement) => eventWithDueDateOverride(engagement, engagementsWithDueDateOverrides));
+  const cardsForBoard = (board: KanbanBoardDraft) => kanbanEngagements.filter((item) => item.status !== "DECLINED" && (item.kanban_board_id === board.id || (!item.kanban_board_id && item.status === board.system_key))).map((engagement) => eventWithDueDateOverride(engagement, engagementsWithDueDateOverrides));
   const internalCardsForBoard = (board: KanbanBoardDraft) => internalCards.filter((card) => card.kanban_board_id === board.id);
 
   function requestDelete(board: KanbanBoardDraft) {

@@ -47,12 +47,6 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     const timer = window.setInterval(() => void load(), 30_000);
     return () => { active = false; window.clearInterval(timer); };
   }, [context, customer, supabase, user]);
-  async function acknowledgeCommercialOffers() {
-    if (!supabase || !context || !customer) return;
-    setCommercialOfferUnread(false);
-    await supabase.from("customer_in_app_notifications").update({ read_at: new Date().toISOString() })
-      .eq("organization_id", context.organization.id).eq("customer_id", customer.id).is("read_at", null);
-  }
   useEffect(() => {
     let active = true;
     if (!supabase || !context || !customer) {
@@ -121,7 +115,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
               const Icon = item.icon;
               const active = pathname.startsWith(item.href);
                 return (
-                <Link key={item.href} href={`${item.href}${suffix}`} aria-current={active ? "page" : undefined} className={`${active ? styles.active : ""} ${item.href === "/cliente/assinaturas" && commercialOfferUnread ? styles.offerPulse : ""}`} onClick={item.href === "/cliente/assinaturas" ? () => void acknowledgeCommercialOffers() : undefined}>
+                <Link key={item.href} href={`${item.href}${suffix}`} aria-current={active ? "page" : undefined} className={`${active ? styles.active : ""} ${item.href === "/cliente/assinaturas" && commercialOfferUnread ? styles.offerPulse : ""}`}>
                   <Icon size={17} aria-hidden="true" />
                   {item.label}
                 </Link>
@@ -187,7 +181,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
           const Icon = item.icon;
           const active = pathname.startsWith(item.href);
           return (
-            <Link key={item.href} href={`${item.href}${suffix}`} aria-current={active ? "page" : undefined} className={`${active ? styles.active : ""} ${item.href === "/cliente/assinaturas" && commercialOfferUnread ? styles.offerPulse : ""}`} onClick={item.href === "/cliente/assinaturas" ? () => void acknowledgeCommercialOffers() : undefined}>
+            <Link key={item.href} href={`${item.href}${suffix}`} aria-current={active ? "page" : undefined} className={`${active ? styles.active : ""} ${item.href === "/cliente/assinaturas" && commercialOfferUnread ? styles.offerPulse : ""}`}>
               <Icon size={21} aria-hidden="true" />
               <span>{item.label}</span>
             </Link>
