@@ -23,6 +23,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { cpfCnpjDigits, formatCpfCnpj, isCpfCnpjValid } from "@/lib/cpf-cnpj";
 import { clientVocabulary } from "@/components/connected-client/vocabulary";
 import { normalizePhoneE164 } from "@/lib/phone";
+import { notifyClientAccountSaved } from "@/components/connected-client/account-events";
 
 export function ConnectedProfile() {
   return <ConnectedClientGate><ProfileContent /></ConnectedClientGate>;
@@ -134,6 +135,9 @@ function ProfileContent() {
         termsPolicyVersion: account.terms_policy_version,
         cpfCnpj: cpfCnpjDigits(cpfCnpj) || null,
       });
+      setFullName(fullName.trim());
+      setPhone(phoneE164);
+      notifyClientAccountSaved();
       await reloadCustomer();
       setNotice("Perfil atualizado.");
     } catch (cause: unknown) {

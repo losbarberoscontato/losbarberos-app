@@ -145,7 +145,7 @@ function installProviderClient({
   const user = authenticated
     ? { id: "user-1", email: "ana@example.com", user_metadata: { full_name: "Ana Souza" } }
     : null;
-  const account = {
+  let account = {
     auth_user_id: "user-1",
     full_name: "Ana Souza",
     phone_e164: "+5511999999999",
@@ -222,7 +222,7 @@ function installProviderClient({
         };
       })
     : null;
-  const rpc = vi.fn(async (name: string) => {
+  const rpc = vi.fn(async (name: string, args?: Record<string, unknown>) => {
     if (name === "get_public_client_entry_context") return { data: {
       organization_id: context.organization.id,
       organization_slug: canonicalSlug ?? context.organization.slug,
@@ -304,6 +304,12 @@ function installProviderClient({
     }
     if (name === "upsert_my_client_account") {
       if (accountAvailableAfterUpsert) accountVisible = true;
+      account = {
+        ...account,
+        full_name: String(args?.p_full_name ?? account.full_name),
+        phone_e164: String(args?.p_phone_e164 ?? account.phone_e164),
+        birth_date: args?.p_birth_date as string | null ?? account.birth_date,
+      };
       return { data: "user-1", error: null };
     }
     throw new Error(`RPC inesperada: ${name}`);
@@ -891,14 +897,17 @@ describe("cliente conectado", () => {
     expect(await screen.findByDisplayValue("ana@example.com")).toBeDisabled();
     expect(screen.getByLabelText(/Data de nascimento/u)).toHaveValue("10/02/1990");
     fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Ana Atualizada" } });
+    fireEvent.change(screen.getByLabelText(/Telefone\/Whatsapp/u), { target: { value: "47992658897" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar dados" }));
 
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("upsert_my_client_account", {
       p_full_name: "Ana Atualizada",
-      p_phone_e164: "+5511999999999",
+      p_phone_e164: "+5547992658897",
       p_birth_date: "1990-02-10",
       p_terms_policy_version: "client-access-2026-08",
     }));
+    await waitFor(() => expect(screen.getByLabelText(/Telefone\/Whatsapp/u)).toHaveValue("+5547992658897"));
+    expect(await screen.findByText("Perfil atualizado.")).toBeInTheDocument();
     expect(rpc.mock.calls.some(([name]) => name === "upsert_my_customer")).toBe(false);
   });
 
