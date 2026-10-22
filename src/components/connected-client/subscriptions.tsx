@@ -95,7 +95,7 @@ type FixedScheduleDraft = {
 };
 type ProjectOffer = { id: string; project_id: string; package_id: string; status: string; contracted_cents: number; created_by: string; project: { name: string; description: string | null } | null; package: { name: string; description: string | null; sessions_count: number } | null };
 type PublicProject = { id: string; name: string; description: string | null; starts_on: string | null; sales_close_on: string | null; ends_on: string | null; package: { id: string; name: string; description: string | null; price_cents: number; sessions_count: number }[] };
-type SubscriptionView = "home" | "my-plans" | "new-plan" | "subscription" | "project" | "subscription-offer" | "project-offer";
+type SubscriptionView = "home" | "my-plans" | "my-plan" | "new-plan" | "subscription" | "project" | "subscription-offer" | "project-offer";
 
 const paymentMethodLabel: Record<string, string> = {
   CARD: "Cartão de crédito",
@@ -392,6 +392,7 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
   const selectedProject = publicProjects.find((project) => project.id === itemId);
   const selectedSubscriptionOffer = requestedOffers.find((row) => row.id === itemId);
   const selectedProjectOffer = pendingProjectOffers.find((offer) => offer.id === itemId);
+  const selectedCustomerSubscription = rows.find((row) => row.id === itemId && row.status !== "DECLINED");
 
   if (view === "home") return <section className={styles.subscriptionStack}>
     <header><h1>Assinaturas</h1><p>Consulte seus planos e encontre novas opções deste estabelecimento.</p></header>
@@ -480,21 +481,23 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
     <article className={styles.subscriptionCard}><p>{selectedProjectOffer.package?.description ?? "Pacote selecionado pelo gestor."}</p><small>{selectedProjectOffer.package?.sessions_count ?? 0} sessão(ões)</small><strong>{money(selectedProjectOffer.contracted_cents)}</strong><div className={styles.planActions}><button className={styles.subscriptionAction} type="button" onClick={() => void acceptProjectOffer(selectedProjectOffer)}>Confirmar assinatura</button><button className={styles.subscriptionSecondary} type="button" onClick={() => void declineProjectOffer(selectedProjectOffer)}>Recusar</button></div></article>
   </section>;
 
+  if (view === "my-plan" && !selectedCustomerSubscription) return <section className={styles.subscriptionStack}><Link href={route("/cliente/assinaturas/meus-planos")} className={styles.subscriptionBack}>← Meus Planos</Link><h1>{message ? "Carregando plano…" : "Plano indisponível"}</h1>{message && <p>{message}</p>}</section>;
+
   if (view === "subscription" || view === "project" || view === "subscription-offer" || view === "project-offer") return <section className={styles.subscriptionStack}><Link href={route(view === "subscription" || view === "project" ? "/cliente/assinaturas/novo-plano" : "/cliente/assinaturas")} className={styles.subscriptionBack}>← Voltar</Link><h1>Plano indisponível</h1><p>Este plano não está mais disponível neste estabelecimento.</p></section>;
 
   return (
     <section className={styles.subscriptionStack}>
       <header>
-        <Link href={route("/cliente/assinaturas")} className={styles.subscriptionBack}>← Assinaturas</Link>
-        <h1>Meus Planos</h1>
-        <p>Planos ativos, solicitações e histórico deste estabelecimento.</p>
+        <Link href={route(view === "my-plan" ? "/cliente/assinaturas/meus-planos" : "/cliente/assinaturas")} className={styles.subscriptionBack}>← {view === "my-plan" ? "Meus Planos" : "Assinaturas"}</Link>
+        <h1>{view === "my-plan" ? selectedCustomerSubscription?.plan?.name ?? "Detalhes do plano" : "Meus Planos"}</h1>
+        {view === "my-plans" && <p>Planos ativos, solicitações e histórico deste estabelecimento.</p>}
       </header>
       {message && <p>{message}</p>}
-      {rows.filter((row) => row.status === "DECLINED").length > 0 && <div className={styles.subscriptionStack}>
+      {view === "my-plans" && rows.filter((row) => row.status === "DECLINED").length > 0 && <div className={styles.subscriptionStack}>
         <h2>Histórico · recusados</h2>
         {rows.filter((row) => row.status === "DECLINED").map((row) => <article className={styles.subscriptionCard} key={`declined-${row.id}`}><span className={styles.planStatus}>Recusado</span><h3>{row.plan?.name ?? "Plano"}</h3><p>Oferta recusada e arquivada.</p></article>)}
       </div>}
-      {projectOffers.filter((offer) => offer.created_by === user?.id || offer.status === "ACTIVE" || offer.status === "DECLINED").length > 0 && <div className={styles.subscriptionStack}>
+      {view === "my-plans" && projectOffers.filter((offer) => offer.created_by === user?.id || offer.status === "ACTIVE" || offer.status === "DECLINED").length > 0 && <div className={styles.subscriptionStack}>
         <h2>Planos vinculados</h2>
         {projectOffers.filter((offer) => offer.created_by === user?.id || offer.status === "ACTIVE" || offer.status === "DECLINED").map((offer) => {
           const customerRequested = offer.created_by === user?.id;
@@ -508,7 +511,7 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
           </article>;
         })}
       </div>}
-      {rows.filter((row) => row.status !== "DECLINED" && !(row.status === "REQUESTED" && !row.contract_accepted_at && row.created_by !== user?.id)).map((row) => (
+      {(view === "my-plan" ? rows.filter((row) => row.id === itemId && row.status !== "DECLINED") : rows.filter((row) => row.status !== "DECLINED" && !(row.status === "REQUESTED" && !row.contract_accepted_at && row.created_by !== user?.id))).map((row) => view === "my-plan" ? (
         <article className={styles.subscriptionCard} key={row.id}>
           <h2>{row.plan?.name ?? "Plano"}</h2>
           <p>{row.plan?.description ?? "Sem descrição"}</p>
@@ -615,6 +618,14 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
             </button>
           )}
         </article>
+      ) : (
+        <Link className={`${styles.subscriptionCard} ${styles.subscriptionCardLink}`} href={route(`/cliente/assinaturas/meus-planos/${row.id}`)} key={row.id}>
+          <h2>{row.plan?.name ?? "Plano"}</h2>
+          <p>{row.plan?.description ?? "Sem descrição"}</p>
+          <strong>{row.plan_version ? money(row.plan_version.price_cents) : "—"}</strong>
+          <small className={styles.subscriptionMeta}>{row.plan_version?.billing_period === "BIWEEKLY" ? "Quinzenal" : "Mensal"} · venc. {formatDate(row.first_due_date)} · pagamento: {paymentMethodLabel[row.payment_method] ?? row.payment_method} · {subscriptionStatusLabel[row.status] ?? row.status}</small>
+          <span>Ver detalhes do plano</span>
+        </Link>
       ))}
       {!rows.some((row) => row.status !== "DECLINED" && !(row.status === "REQUESTED" && !row.contract_accepted_at && row.created_by !== user?.id)) && !projectOffers.some((offer) => offer.created_by === user?.id || offer.status === "ACTIVE" || offer.status === "DECLINED") && <p>Você ainda não possui planos neste estabelecimento.</p>}
       {fixedScheduleDraft && context && (() => {

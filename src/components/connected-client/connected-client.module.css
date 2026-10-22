@@ -319,6 +319,8 @@
 .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .subscriptionStack { display: grid; gap: 16px; }
 .subscriptionCard { display: grid; gap: 10px; padding: 20px; border: 1px solid var(--border, #ded8cc); border-radius: 18px; background: var(--surface, #fffefa); color: var(--ink, #173c31); box-shadow: 0 10px 25px color-mix(in srgb, var(--forest-900, #173c31) 5%, transparent); }
+.subscriptionCardLink { color: inherit; text-decoration: none; transition: border-color .15s ease, box-shadow .15s ease; }
+.subscriptionCardLink:hover, .subscriptionCardLink:focus-visible { border-color: var(--forest-900, #173c31); box-shadow: 0 0 0 3px color-mix(in srgb, var(--forest-900, #173c31) 12%, transparent); outline: none; }
 .subscriptionCard h2, .subscriptionCard h3 { color: var(--forest-900, #173c31); }
 .subscriptionMeta { color: var(--muted, #59655e); line-height: 1.5; }
 .subscriptionCycle { display: grid; gap: 8px; margin-top: 7px; padding: 13px; border: 1px solid var(--border, #e1e7df); border-radius: 13px; background: var(--surface, #fff); }
