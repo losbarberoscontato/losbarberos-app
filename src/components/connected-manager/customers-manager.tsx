@@ -44,7 +44,8 @@ type Props = Omit<
     >
   >;
 type CustomerFilter = "ACTIVE" | "INACTIVE";
-type SubscriptionDisplayStatus = "pending" | "due" | "finished" | "overdue" | "active";
+type SubscriptionDisplayStatus = "pending" | "due" | "finished" | "overdue" | "active" | "declined" | "canceled";
+type SubscriptionFilter = "ALL" | SubscriptionDisplayStatus;
 
 function dateInTimezone(date: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -62,7 +63,10 @@ function subscriptionDisplayStatus(
   cycles: Array<Record<string, unknown>>,
   today: string,
 ): SubscriptionDisplayStatus {
-  if (String(subscription.status) === "REQUESTED") return "pending";
+  const status = String(subscription.status);
+  if (status === "REQUESTED") return "pending";
+  if (status === "DECLINED") return "declined";
+  if (status === "CANCELED") return "canceled";
 
   const billableCycles = cycles.filter((cycle) => String(cycle.status) !== "CANCELED");
   if (billableCycles.some((cycle) => {
@@ -87,6 +91,19 @@ const subscriptionDisplayStatusLabels: Record<SubscriptionDisplayStatus, string>
   finished: "Finalizado",
   overdue: "Em atraso",
   active: "Ativo",
+  declined: "Recusada",
+  canceled: "Cancelada",
+};
+
+const subscriptionFilterLabels: Record<SubscriptionFilter, string> = {
+  ALL: "Todas as assinaturas",
+  active: "Ativas",
+  pending: "Pendentes",
+  due: "À Vencer",
+  finished: "Finalizadas",
+  overdue: "Em Atraso",
+  declined: "Recusadas",
+  canceled: "Canceladas",
 };
 
 const inactivationReasons = [
@@ -173,6 +190,8 @@ export function CustomersManager({
   >("APPOINTMENTS");
   const [customerFilter, setCustomerFilter] =
     useState<CustomerFilter>("ACTIVE");
+  const [subscriptionFilter, setSubscriptionFilter] =
+    useState<SubscriptionFilter>("ALL");
   const [pendingInactivation, setPendingInactivation] =
     useState<CustomerRecord | null>(null);
   const [inactivationReason, setInactivationReason] = useState("");
@@ -194,13 +213,38 @@ export function CustomersManager({
   const [dependentsOpen, setDependentsOpen] = useState(true);
   const [dependentDraft, setDependentDraft] = useState<{ id?: string; fullName: string; birthDate: string; relationship: "CHILD" | "SPOUSE" | "EMPLOYEE" | "PARENT" | "OTHER" }>({ fullName: "", birthDate: "", relationship: "CHILD" });
   const [todayTimestamp] = useState(() => Date.now());
-  const filtered = customers.filter(
-    (customer) =>
-      customer.active === (customerFilter === "ACTIVE") &&
-      `${customer.full_name} ${customer.phone_e164 ?? ""} ${customer.email ?? ""}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
-  );
+  const subscriptionStatusesByCustomer = useMemo(() => {
+    const cyclesBySubscription = new Map<string, Array<Record<string, unknown>>>();
+    for (const cycle of subscriptionCycles) {
+      const subscriptionId = String(cycle.subscription_id ?? "");
+      const relatedCycles = cyclesBySubscription.get(subscriptionId) ?? [];
+      relatedCycles.push(cycle);
+      cyclesBySubscription.set(subscriptionId, relatedCycles);
+    }
+
+    const statusesByCustomer = new Map<string, Set<SubscriptionDisplayStatus>>();
+    for (const subscription of subscriptions) {
+      const customerId = String(subscription.customer_id ?? "");
+      if (!customerId) continue;
+      const statuses = statusesByCustomer.get(customerId) ?? new Set<SubscriptionDisplayStatus>();
+      statuses.add(subscriptionDisplayStatus(
+        subscription,
+        cyclesBySubscription.get(String(subscription.id)) ?? [],
+        todayInOrganization,
+      ));
+      statusesByCustomer.set(customerId, statuses);
+    }
+    return statusesByCustomer;
+  }, [subscriptions, subscriptionCycles, todayInOrganization]);
+  const filtered = customers.filter((customer) => {
+    const matchesCustomerStatus = customer.active === (customerFilter === "ACTIVE");
+    const matchesQuery = `${customer.full_name} ${customer.phone_e164 ?? ""} ${customer.email ?? ""}`
+      .toLowerCase()
+      .includes(query.toLowerCase());
+    const matchesSubscriptionStatus = subscriptionFilter === "ALL" ||
+      subscriptionStatusesByCustomer.get(customer.id)?.has(subscriptionFilter) === true;
+    return matchesCustomerStatus && matchesQuery && matchesSubscriptionStatus;
+  });
   const itemsByAppointment = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const item of [...appointmentItems].sort(
@@ -738,19 +782,37 @@ export function CustomersManager({
       <Panel
         title="Base de clientes"
         titleAdornment={
-          <select
-            aria-label="Filtro de clientes"
-            className="customer-filter"
-            value={customerFilter}
-            onChange={(event) =>
-              setCustomerFilter(event.target.value as CustomerFilter)
-            }
-          >
-            <option value="ACTIVE">Ativos</option>
-            <option value="INACTIVE">Inativos</option>
-          </select>
+          <div className={styles.customerFilters}>
+            <select
+              aria-label="Filtro de clientes"
+              className="customer-filter"
+              value={customerFilter}
+              onChange={(event) =>
+                setCustomerFilter(event.target.value as CustomerFilter)
+              }
+            >
+              <option value="ACTIVE">Ativos</option>
+              <option value="INACTIVE">Inativos</option>
+            </select>
+            {subscriptionModuleEnabled && (
+              <select
+                aria-label="Filtro de assinaturas"
+                className={`${styles.customerSubscriptionFilter} customer-filter`}
+                value={subscriptionFilter}
+                onChange={(event) =>
+                  setSubscriptionFilter(event.target.value as SubscriptionFilter)
+                }
+              >
+                {(Object.entries(subscriptionFilterLabels) as [SubscriptionFilter, string][]).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            )}
+          </div>
         }
-        description={`${customers.filter((item) => item.active).length} ativos`}
+        description={subscriptionFilter === "ALL"
+          ? `${customers.filter((item) => item.active).length} ativos`
+          : `${filtered.length} clientes · ${subscriptionFilterLabels[subscriptionFilter]}`}
         action={
           <button
             className={styles.button}
@@ -972,7 +1034,7 @@ export function CustomersManager({
             }
           >
             {customers.length
-              ? "Ajuste a busca ou altere o filtro."
+              ? "Ajuste a busca ou altere os filtros."
               : "Clientes manuais podem ser criados sem login e vinculados depois."}
           </EmptyState>
         ) : (
@@ -1269,8 +1331,8 @@ export function CustomersManager({
                     return (
                       <div className={styles.stack}>
                         {active.length === 0 ? (
-                          <EmptyState title="Sem assinaturas ativas">
-                            Este cliente não possui planos ativos ou pendentes.
+                          <EmptyState title="Sem assinaturas">
+                            Este cliente não possui assinaturas ativas, pendentes ou arquivadas.
                           </EmptyState>
                         ) : (
                           <div className={styles.list}>

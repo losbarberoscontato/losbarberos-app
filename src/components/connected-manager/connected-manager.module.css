@@ -165,6 +165,10 @@
 .subscriptionSummaryStatusDue { background: #ffe500; color: #4d3b00; }
 .subscriptionSummaryStatusFinished { background: #5b2a86; color: #fff; }
 .subscriptionSummaryStatusOverdue { background: #a51d2d; color: #fff; }
+.subscriptionSummaryStatusDeclined { background: #ece8ef; color: #54445e; }
+.subscriptionSummaryStatusCanceled { background: #fbe8e6; color: #8f2f2a; }
+.customerFilters { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .45rem; }
+.customerSubscriptionFilter { min-width: 12rem; }
 .subscriptionLegacyAction { display: none; }
 .subscriptionControlModal { width: min(100%, 58rem); padding: 0; overflow: hidden; }
 .subscriptionControlModal .modalHeader { padding: 1.35rem 1.5rem; border-bottom: 1px solid #e7ebe5; background: #fffdf8; }
