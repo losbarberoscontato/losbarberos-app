@@ -17,6 +17,7 @@ import { cpfCnpjDigits, formatCpfCnpj, isCpfCnpjValid } from "@/lib/cpf-cnpj";
 type LoadedProps = AwaitedReturn<typeof loadCustomersData>;
 type Props = Omit<
   LoadedProps,
+  | "timezone"
   | "subscriptions"
   | "subscriptionCycles"
   | "subscriptionSessions"
@@ -31,6 +32,7 @@ type Props = Omit<
     Pick<
       LoadedProps,
       | "subscriptions"
+      | "timezone"
       | "subscriptionCycles"
       | "subscriptionSessions"
       | "subscriptionPlans"
@@ -42,6 +44,50 @@ type Props = Omit<
     >
   >;
 type CustomerFilter = "ACTIVE" | "INACTIVE";
+type SubscriptionDisplayStatus = "pending" | "due" | "finished" | "overdue" | "active";
+
+function dateInTimezone(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function subscriptionDisplayStatus(
+  subscription: { status?: unknown; contract_accepted_at?: unknown },
+  cycles: Array<Record<string, unknown>>,
+  today: string,
+): SubscriptionDisplayStatus {
+  if (String(subscription.status) === "REQUESTED") return "pending";
+
+  const billableCycles = cycles.filter((cycle) => String(cycle.status) !== "CANCELED");
+  if (billableCycles.some((cycle) => {
+    const status = String(cycle.status);
+    return status === "OVERDUE" ||
+      (status === "OPEN" && typeof cycle.due_on === "string" && cycle.due_on < today);
+  })) return "overdue";
+
+  if (billableCycles.length > 0 && billableCycles.every((cycle) => String(cycle.status) === "PAID")) {
+    return "finished";
+  }
+
+  const unpaidCycles = billableCycles.filter((cycle) =>
+    String(cycle.status) === "OPEN" || String(cycle.status) === "OVERDUE",
+  );
+  return unpaidCycles.length === 1 ? "due" : "active";
+}
+
+const subscriptionDisplayStatusLabels: Record<SubscriptionDisplayStatus, string> = {
+  pending: "Pendente",
+  due: "À Vencer",
+  finished: "Finalizado",
+  overdue: "Em atraso",
+  active: "Ativo",
+};
 
 const inactivationReasons = [
   ["NEIGHBORHOOD_CHANGE", "Mudança de bairro"],
@@ -95,6 +141,7 @@ function birthdayReminder(birthDate: string | null): string | null {
 
 export function CustomersManager({
   organizationId,
+  timezone = "America/Sao_Paulo",
   customers,
   appointments,
   appointmentItems,
@@ -112,6 +159,7 @@ export function CustomersManager({
   subscriptionModuleEnabled = false,
 }: Props) {
   const router = useRouter();
+  const todayInOrganization = dateInTimezone(new Date(), timezone);
   const [formOpen, setFormOpen] = useState(customers.length === 0);
   const [editing, setEditing] = useState<CustomerRecord | null>(null);
   const [query, setQuery] = useState("");
@@ -1240,6 +1288,11 @@ export function CustomersManager({
                                 (cycle) =>
                                   cycle.subscription_id === subscription.id,
                               );
+                              const displayStatus = subscriptionDisplayStatus(
+                                subscription,
+                                cycles,
+                                todayInOrganization,
+                              );
                               const paymentLabels: Record<string, string> = {
                                 CARD: "Cartão",
                                 PIX: "PIX",
@@ -1272,7 +1325,9 @@ export function CustomersManager({
                                         subscription.payment_method ?? "—",
                                       )}
                                   </span>
-                                  <span className={styles.subscriptionSummaryStatus}>{String(subscription.status) === "ACTIVE" ? "Ativo" : String(subscription.status) === "PENDING_PAYMENT" ? "Pendente" : "Solicitado"}</span>
+                                  <span className={`${styles.subscriptionSummaryStatus} ${styles[`subscriptionSummaryStatus${displayStatus[0].toUpperCase()}${displayStatus.slice(1)}`]}`}>
+                                    {subscriptionDisplayStatusLabels[displayStatus]}
+                                  </span>
                                   <span className={styles.rowActions}>
                                     {subscription.status === "REQUESTED" && Boolean(subscription.contract_accepted_at) && (
                                       <button

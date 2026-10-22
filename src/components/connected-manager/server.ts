@@ -102,6 +102,7 @@ export async function loadCustomersData() {
     chartAccounts,
     financialAccounts,
     subscriptionModule,
+    organizationTimezone,
   ] = await Promise.all([
     supabase
       .from("customers")
@@ -224,6 +225,11 @@ export async function loadCustomersData() {
       .eq("organization_id", organizationId)
       .eq("module_key", "subscription_plans")
       .maybeSingle(),
+    supabase
+      .from("organizations")
+      .select("timezone")
+      .eq("id", organizationId)
+      .single(),
   ]);
   const latestConsentByCustomer = new Map<string, "GRANTED" | "REVOKED">();
   for (const event of requireData(consents, "Consentimentos WhatsApp") as {
@@ -237,6 +243,7 @@ export async function loadCustomersData() {
   const dependentRows = dependents.error ? [] : (requireData(dependents, "Dependentes") as NonNullable<CustomerRecord["dependents"]>);
   return {
     organizationId,
+    timezone: organizationTimezone.data?.timezone ?? DEFAULT_FINANCIAL_TIMEZONE,
     billingStatus: context.billingStatus,
     subscriptionModuleEnabled: subscriptionModule.error ? false : Boolean(subscriptionModule.data?.enabled),
     customers: customerRows.map((customer) => ({

@@ -161,6 +161,10 @@
 .subscriptionLink:focus-visible { outline: 3px solid rgb(47 107 93 / 24%); outline-offset: 3px; border-radius: 4px; }
 .subscriptionSummaryPayment, .subscriptionSummaryStats { color: #59655e; font-size: .8rem; line-height: 1.45; }
 .subscriptionSummaryStatus { width: fit-content; padding: .25rem .5rem; border-radius: 999px; background: #eaf4e8; color: #347542; font-size: .72rem; font-weight: 850; }
+.subscriptionSummaryStatusPending { background: #fff0db; color: #8a4300; }
+.subscriptionSummaryStatusDue { background: #ffe500; color: #4d3b00; }
+.subscriptionSummaryStatusFinished { background: #5b2a86; color: #fff; }
+.subscriptionSummaryStatusOverdue { background: #a51d2d; color: #fff; }
 .subscriptionLegacyAction { display: none; }
 .subscriptionControlModal { width: min(100%, 58rem); padding: 0; overflow: hidden; }
 .subscriptionControlModal .modalHeader { padding: 1.35rem 1.5rem; border-bottom: 1px solid #e7ebe5; background: #fffdf8; }
