@@ -6,7 +6,7 @@
 - O sininho do gestor consulta somente `manager_notifications` com `read_at IS NULL`. Ao abrir uma notificação, o app grava `read_at`, remove o item da lista local e redireciona. O badge e a contagem refletem apenas notificações pendentes; leitura já registrada por outro fluxo também remove o item na próxima consulta.
 - Alteração compartilhada no `ManagerShell`, portanto vale para os produtos Display que usam o shell de gestão. Não exigiu migration nem Edge Function: a tabela já tinha `read_at` e RLS de atualização restrita ao gestor da própria organização.
 - Typecheck e build passaram; lint passou com 14 avisos fora do arquivo alterado. Testes não foram executados. Após publicar, validar leitura individual, atualização do badge e navegação em sessão autenticada.
-- CI `40013078266` ainda em execução: `edge-functions` falhou no `deno fmt --check` de `supabase/functions/_shared/whatsapp-templates.ts`; `database`, `verify` e `e2e` ainda não finalizaram na última consulta. Não declarar CI verde.
+- CI `40013279262` concluída com falha: `e2e` passou; `verify` falhou em 19 testes de 10 arquivos (730 passaram, 1 ignorado); `database` falhou ao iniciar/resetar por `Cannot audit Kanban price publication without a platform admin`; `edge-functions` falhou no `deno fmt --check` de `supabase/functions/_shared/whatsapp-templates.ts`. São falhas em áreas distintas do componente alterado; não declarar CI verde.
 
 ## Exclusão de parcela em assinatura — 23/10/2026
 
