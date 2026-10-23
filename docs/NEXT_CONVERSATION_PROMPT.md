@@ -1,5 +1,7 @@
 # Projetos e Planos Encerrados — 23/10/2026
 
+Atualização posterior: commit `ad8cbdbd54433579c07db9a4cabddaac7165d180` adicionou exclusão segura de ciclo não pago no Controle da assinatura; migration `20261023175631_delete_open_subscription_cycle.sql` está aplicada e Vercel `dpl_BNz5nHkpXAiqQhtD8DHk5tS8i94M` `READY`. CI `39999912241` vermelha (E2E passou; verify/database/edge-functions falharam em testes antigos, seed do Kanban sem platform admin e formatação de `whatsapp-templates.ts`). Typecheck, build e lint locais passaram; testes locais e validação visual autenticada não foram feitos. Consulte `HANDOFF.md` antes de continuar.
+
 Commit `4ae4e740841a0fa32d59c2b03f4d8e869554bd04` em `main`; migration `20261023172902_archive_closed_customer_plans_and_delete_project_installment.sql` aplicada; Vercel `dpl_GeHMJDnxztuwLX5LqSixSS6jHEZ4` `READY`. CI `39996560127`: `database`, `verify` e `edge-functions` falharam; E2E ainda em andamento. Não declarar CI verde. Fazer validação visual autenticada de cancelamentos e arquivo de planos e consultar logs finais do CI. Consulte `HANDOFF.md`.
 
 # Prompt inicial — próxima conversa Los Barberos

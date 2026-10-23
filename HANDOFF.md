@@ -1,5 +1,14 @@
 # Handoff — Los Barberos
 
+## Exclusão de parcela em assinatura — 23/10/2026
+
+- Commit `ad8cbdbd54433579c07db9a4cabddaac7165d180` publicado em `main`; migration `20261023175631_delete_open_subscription_cycle.sql` aplicada e sincronizada no Supabase `bwdjkhqshmppescunwer`.
+- Modal Controle da assinatura tem ação de lixeira ao lado de Receber, com confirmação. A RPC `delete_open_subscription_cycle` permite excluir somente ciclos sem pagamento; preserva o histórico financeiro cancelando a entrada, cancela sessões ainda disponíveis e impede exclusão quando há pagamento/baixa ou sessão agendada/concluída. Requisições repetidas são seguras. Escopo compartilhado do módulo atende os sistemas Display que o utilizam.
+- Supabase confirmou a RPC como `SECURITY DEFINER`, EXECUTE para `authenticated`, sem EXECUTE para `anon`; advisor de segurança sem erros. Nenhuma Edge Function foi alterada.
+- Typecheck, build e lint locais passaram (14 avisos no lint); não rodei testes locais. Deploy Vercel do código `dpl_BNz5nHkpXAiqQhtD8DHk5tS8i94M` ficou `READY` nos aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`; smoke público `/` = 200 e `/gestor/clientes` = 307 para autenticação. UX autenticada/visual continua **NÃO VALIDADA**.
+- CI `39999912241`: E2E passou; `verify` falhou em 19 testes distribuídos por 10 arquivos (incluindo expectativas antigas de domínio, cliente, navegação e Kanban); `database` falhou no reset local por `Cannot audit Kanban price publication without a platform admin`; `edge-functions` falhou em `deno fmt --check` para `supabase/functions/_shared/whatsapp-templates.ts`. Não declarar CI verde. Reavaliar essas falhas separadamente antes de atribuí-las a esta alteração.
+- Próximo passo: validar visualmente com sessão autenticada, confirmar os estados pago, vencido, ciclo com sessão disponível e ciclo com sessão agendada; preservar o `tmp/` não rastreado.
+
 ## Projetos e planos encerrados — 23/10/2026
 
 - Commit `4ae4e740841a0fa32d59c2b03f4d8e869554bd04` publicado em `main`; Vercel `dpl_GeHMJDnxztuwLX5LqSixSS6jHEZ4` está `READY` nos aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`.

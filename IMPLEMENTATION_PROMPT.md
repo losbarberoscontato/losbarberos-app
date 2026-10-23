@@ -1,6 +1,7 @@
 # Continuidade atual — 23/10/2026
 
-Commit `4ae4e740841a0fa32d59c2b03f4d8e869554bd04` publicado em `main`; migration `20261023172902_archive_closed_customer_plans_and_delete_project_installment.sql` aplicada no Supabase; Vercel `dpl_GeHMJDnxztuwLX5LqSixSS6jHEZ4` `READY`. CI `39996560127` permanece pendente: três jobs falharam e E2E continua instalando Chromium. Validar os erros finais antes de classificar como preexistentes. Fluxos autenticados/visuais continuam não validados. Detalhes no topo de `HANDOFF.md`.
+Última entrega: commit `ad8cbdbd54433579c07db9a4cabddaac7165d180` em `main`, botão de lixeira com confirmação no modal Controle da assinatura, migration `20261023175631_delete_open_subscription_cycle.sql` aplicada ao Supabase e deploy `dpl_BNz5nHkpXAiqQhtD8DHk5tS8i94M` `READY`. RPC só cancela ciclo OPEN/OVERDUE sem pagamentos/baixas e sem sessões agendadas/concluídas; preserva trilha contábil e cancela sessões disponíveis. CI `39999912241` vermelha: E2E passou; verify (19 falhas em 10 arquivos), database (seed exige platform admin) e edge-functions (formatação preexistente de `whatsapp-templates.ts`) falharam. Testes locais não rodados; lint/typecheck/build passaram. Ver detalhes e limites de prova no topo de `HANDOFF.md`. Próximo: validação visual autenticada do modal e comportamento de exclusão.
+
 
 # Prompt inicial — próxima conversa Los Barberos
 
