@@ -844,6 +844,7 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 }
 .financeReportModalBody { display: grid; gap: .8rem; padding: 0 1.25rem 1.25rem; }
 .modalLayer { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 1rem; background: rgba(22, 32, 25, .46); }
+.subscriptionCancellationLayer { z-index: 120; }
 .modalBackdrop { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
 .modal { position: relative; z-index: 1; width: min(680px, 100%); max-height: min(90vh, 760px); overflow: auto; border: 1px solid rgba(36, 42, 38, .12); border-radius: 20px; background: #fff; box-shadow: 0 24px 70px rgba(20, 31, 23, .22); }
 .modalProjectWide { width: min(1100px, 100%); max-height: min(92vh, 900px); }

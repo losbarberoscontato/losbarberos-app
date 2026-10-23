@@ -1632,7 +1632,7 @@ export function CustomersManager({
           const relatedCycles = subscriptionCycles.filter((cycle) => String(cycle.subscription_id) === draft.subscriptionId && cycle.status !== "CANCELED");
           const relatedSessions = subscriptionSessions.filter((session) => String(session.subscription_id) === draft.subscriptionId && (session.status === "AVAILABLE" || session.status === "SCHEDULED"));
           const request = draft.requestId ? subscriptionCancellationRequests.find((item) => String(item.id) === draft.requestId) : null;
-          return <div className={styles.modalLayer} role="presentation">
+          return <div className={`${styles.modalLayer} ${styles.subscriptionCancellationLayer}`} role="presentation">
             <button className={styles.modalBackdrop} type="button" aria-label="Fechar cancelamento" onClick={() => setSubscriptionCancellationDraft(null)} />
             <section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="subscription-cancellation-manager-title">
               <header className={styles.modalHeader}><div><small>Controle da assinatura</small><h2 id="subscription-cancellation-manager-title">{request ? "Confirmar cancelamento solicitado" : "Cancelar assinatura"}</h2></div><button className={styles.modalClose} type="button" onClick={() => setSubscriptionCancellationDraft(null)} aria-label="Fechar"><X size={18} /></button></header>
