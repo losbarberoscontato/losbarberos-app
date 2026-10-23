@@ -215,6 +215,8 @@ export function CustomersManager({
   const [fixedEnrollmentDraft, setFixedEnrollmentDraft] = useState<FixedEnrollmentDraft | null>(null);
   const [fixedScheduleEditDraft, setFixedScheduleEditDraft] = useState<FixedScheduleEditDraft | null>(null);
   const [subscriptionControlId, setSubscriptionControlId] = useState<string | null>(null);
+  const [subscriptionCycleDeleteTarget, setSubscriptionCycleDeleteTarget] = useState<Record<string, unknown> | null>(null);
+  const [deletingSubscriptionCycle, setDeletingSubscriptionCycle] = useState(false);
   const [subscriptionCancellationDraft, setSubscriptionCancellationDraft] = useState<SubscriptionCancellationDraft | null>(null);
   const [subscriptionBooking, setSubscriptionBooking] = useState<SubscriptionBookingTarget | null>(null);
   const [subscriptionBookingDate, setSubscriptionBookingDate] = useState("");
@@ -693,6 +695,24 @@ export function CustomersManager({
     if (saved) {
       setSubscriptionCancellationDraft(null);
       setSubscriptionControlId(null);
+      router.refresh();
+    }
+  }
+
+  async function deleteSubscriptionCycle() {
+    const cycle = subscriptionCycleDeleteTarget;
+    if (!cycle || deletingSubscriptionCycle) return;
+    setDeletingSubscriptionCycle(true);
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("delete_open_subscription_cycle", {
+        p_organization_id: organizationId,
+        p_subscription_id: String(cycle.subscription_id),
+        p_cycle_id: String(cycle.id),
+      }));
+    }, "Parcela excluída. Sessões disponíveis deste ciclo foram canceladas.");
+    setDeletingSubscriptionCycle(false);
+    if (saved) {
+      setSubscriptionCycleDeleteTarget(null);
       router.refresh();
     }
   }
@@ -1566,10 +1586,11 @@ export function CustomersManager({
           const firstOpenCycle = openCycles[0];
           const cancellationRequest = subscriptionCancellationRequests.find((request) => String(request.subscription_id) === subscriptionControlId);
           const cancellationReasons: Record<string, string> = { FINANCIAL_DIFFICULTY: "Dificuldade Financeira", LACK_OF_TIME: "Falta de tempo", ADDRESS_CHANGE: "Mudança de endereço", OTHER: "Outros" };
-          return <div className="modal-layer" role="presentation">
-            <button className="modal-layer__backdrop" type="button" aria-label="Fechar controle da assinatura" onClick={() => setSubscriptionControlId(null)} />
+          return <>
+          <div className="modal-layer" role="presentation">
+            <button className="modal-layer__backdrop" type="button" aria-label="Fechar controle da assinatura" onClick={() => { setSubscriptionCycleDeleteTarget(null); setSubscriptionControlId(null); }} />
             <section className={`${styles.modal} ${styles.modalWide} ${styles.subscriptionControlModal}`} role="dialog" aria-modal="true" aria-labelledby="subscription-control-title">
-              <header className={styles.modalHeader}><div><small>Controle da assinatura</small><h2 id="subscription-control-title">{plan?.name ?? "Plano"}</h2><p>{formatCents(version?.price_cents ?? 0)} · Venc. {String(subscription.first_due_date ?? "—")} · {paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)}</p></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setSubscriptionControlId(null)}><X size={19} /></button></header>
+              <header className={styles.modalHeader}><div><small>Controle da assinatura</small><h2 id="subscription-control-title">{plan?.name ?? "Plano"}</h2><p>{formatCents(version?.price_cents ?? 0)} · Venc. {String(subscription.first_due_date ?? "—")} · {paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)}</p></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => { setSubscriptionCycleDeleteTarget(null); setSubscriptionControlId(null); }}><X size={19} /></button></header>
               <div className={styles.subscriptionControlBody}>
                 <div className={styles.subscriptionControlLegend}><span><i className={styles.subscriptionDotAvailable} />Em aberto</span><span><i className={styles.subscriptionDotScheduled} />Agendada</span><span><i className={styles.subscriptionDotCompleted} />Concluída</span><span><i className={styles.subscriptionDotCanceled} />Cancelada</span></div>
                 {String((subscription.plan_version as { scheduling_mode?: string } | null)?.scheduling_mode) === "FIXED" && <section className={styles.subscriptionFixedSchedule}>
@@ -1599,11 +1620,14 @@ export function CustomersManager({
                 {cycles.map((cycle) => {
                   const cycleSessions = sessions.filter((session) => String(session.cycle_id) === String(cycle.id));
                   const canReceive = cycle.status === "OPEN" || cycle.status === "OVERDUE";
+                  const canDelete = canReceive && cycleSessions.every((session) => session.status === "AVAILABLE" || session.status === "CANCELED");
                   const showReceive = canReceive && (!upfront || String(cycle.id) === String(firstOpenCycle?.id));
                   const amount = upfront
-                    ? (cycle.status === "PAID" ? cycles : openCycles).reduce((total, item) => total + Number(item.amount_cents ?? 0), 0)
+                    ? (cycle.status === "PAID" ? cycles : cycle.status === "CANCELED" ? [cycle] : openCycles).reduce((total, item) => total + Number(item.amount_cents ?? 0), 0)
                     : Number(cycle.amount_cents ?? version?.price_cents ?? 0);
-                  return <article className={styles.subscriptionMonth} key={String(cycle.id)}><div className={styles.subscriptionMonthTitle}><strong>{new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${String(cycle.starts_on)}T12:00:00`))}</strong><small>Vencimento {String(cycle.due_on)} · {cycle.status === "PAID" ? `Pago em ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "—"}` : "Parcela em aberto"}</small></div><div className={styles.subscriptionSessionList}>{cycleSessions.map((session) => { const presentation = sessionPresentation(session, cycleSessions.length || Number(version?.sessions_per_cycle ?? 0)); const chipClass = `${styles.subscriptionSessionChip} ${styles[`subscriptionSessionChip${presentation.tone[0].toUpperCase()}${presentation.tone.slice(1)}`]}`; return session.status === "AVAILABLE" ? <button type="button" className={chipClass} key={String(session.id)} onClick={() => openSubscriptionBooking(subscription, session, cycle)}>{presentation.label}</button> : <span className={chipClass} key={String(session.id)}>{presentation.label}</span>; })}</div><div className={styles.subscriptionInstallment}><span><small>Parcela</small><strong>{formatCents(amount)}</strong><small>{cycle.status === "PAID" ? `${paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)} · ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "Pago"}` : `Venc. ${String(cycle.due_on)}`}</small></span>{showReceive && <button type="button" className={`${styles.button} ${styles.buttonSmall}`} onClick={() => openPaymentDialog(String(subscription.id), { id: cycle.id, amount_cents: amount, due_on: cycle.due_on }, String(subscription.payment_method ?? "CASH"))}>Receber</button>}</div></article>;
+                  const cycleStatus = cycle.status === "PAID" ? `Pago em ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "—"}` : cycle.status === "CANCELED" ? "Parcela cancelada" : "Parcela em aberto";
+                  const deleteTitle = !canReceive ? "Somente parcelas em aberto podem ser excluídas" : canDelete ? "Excluir parcela" : "Cancele as sessões agendadas antes de excluir esta parcela";
+                  return <article className={styles.subscriptionMonth} key={String(cycle.id)}><div className={styles.subscriptionMonthTitle}><strong>{new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(`${String(cycle.starts_on)}T12:00:00`))}</strong><small>Vencimento {String(cycle.due_on)} · {cycleStatus}</small></div><div className={styles.subscriptionSessionList}>{cycleSessions.map((session) => { const presentation = sessionPresentation(session, cycleSessions.length || Number(version?.sessions_per_cycle ?? 0)); const chipClass = `${styles.subscriptionSessionChip} ${styles[`subscriptionSessionChip${presentation.tone[0].toUpperCase()}${presentation.tone.slice(1)}`]}`; return session.status === "AVAILABLE" ? <button type="button" className={chipClass} key={String(session.id)} onClick={() => openSubscriptionBooking(subscription, session, cycle)}>{presentation.label}</button> : <span className={chipClass} key={String(session.id)}>{presentation.label}</span>; })}</div><div className={styles.subscriptionInstallment}><span><small>Parcela</small><strong>{formatCents(amount)}</strong><small>{cycle.status === "PAID" ? `${paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)} · ${cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(cycle.paid_at))) : "Pago"}` : `Venc. ${String(cycle.due_on)}`}</small></span><div className={styles.subscriptionCycleActions}>{showReceive && <button type="button" className={`${styles.button} ${styles.buttonSmall}`} onClick={() => openPaymentDialog(String(subscription.id), { id: cycle.id, amount_cents: amount, due_on: cycle.due_on }, String(subscription.payment_method ?? "CASH"))}>Receber</button>}<button type="button" className={`${styles.button} ${styles.buttonDanger} ${styles.financialDeleteIcon}`} aria-label="Excluir parcela" title={deleteTitle} disabled={deletingSubscriptionCycle || !canDelete} onClick={() => setSubscriptionCycleDeleteTarget(cycle)}><Trash2 size={15} /></button></div></div></article>;
                 })}
                 {cancellationRequest && <section className={styles.subscriptionFixedSchedule}>
                   <strong>Solicitação de cancelamento pendente</strong>
@@ -1625,7 +1649,9 @@ export function CustomersManager({
                 </div>}
               </div>
             </section>
-          </div>;
+          </div>
+          {subscriptionCycleDeleteTarget && String(subscriptionCycleDeleteTarget.subscription_id) === subscriptionControlId && <div className={`${styles.modalLayer} ${styles.subscriptionCancellationLayer}`} role="presentation"><button className={styles.modalBackdrop} type="button" aria-label="Cancelar exclusão da parcela" disabled={deletingSubscriptionCycle} onClick={() => setSubscriptionCycleDeleteTarget(null)} /><section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="subscription-cycle-delete-title"><header className={styles.modalHeader}><div><small>Controle da assinatura</small><h2 id="subscription-cycle-delete-title">Excluir parcela</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar confirmação" disabled={deletingSubscriptionCycle} onClick={() => setSubscriptionCycleDeleteTarget(null)}><X size={18} /></button></header><div className={styles.form}><p>Confirma excluir o ciclo {String(subscriptionCycleDeleteTarget.cycle_number)} no valor de {formatCents(Number(subscriptionCycleDeleteTarget.amount_cents ?? 0))}, com vencimento em {String(subscriptionCycleDeleteTarget.due_on)}?</p><p className={styles.muted}>As sessões disponíveis deste ciclo também serão canceladas. Ciclos com sessões agendadas/concluídas e parcelas baixadas não podem ser excluídos.</p><footer className={styles.modalActions}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" disabled={deletingSubscriptionCycle} onClick={() => setSubscriptionCycleDeleteTarget(null)}>Cancelar</button><button className={`${styles.button} ${styles.buttonDanger}`} type="button" disabled={deletingSubscriptionCycle} onClick={() => void deleteSubscriptionCycle()}><Trash2 size={15} /> {deletingSubscriptionCycle ? "Excluindo…" : "Confirmar exclusão"}</button></footer></div></section></div>}
+          </>;
         })()}
         {subscriptionCancellationDraft && (() => {
           const draft = subscriptionCancellationDraft;
