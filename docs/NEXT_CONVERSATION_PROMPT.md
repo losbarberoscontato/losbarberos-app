@@ -1,3 +1,7 @@
+# Projetos e Planos Encerrados — 23/10/2026
+
+Commit `4ae4e740841a0fa32d59c2b03f4d8e869554bd04` em `main`; migration `20261023172902_archive_closed_customer_plans_and_delete_project_installment.sql` aplicada; Vercel `dpl_GeHMJDnxztuwLX5LqSixSS6jHEZ4` `READY`. CI `39996560127`: `database`, `verify` e `edge-functions` falharam; E2E ainda em andamento. Não declarar CI verde. Fazer validação visual autenticada de cancelamentos e arquivo de planos e consultar logs finais do CI. Consulte `HANDOFF.md`.
+
 # Prompt inicial — próxima conversa Los Barberos
 
 Entrega de 21/10/2026: Google Calendar em `main` (`d2cc9bb`), migration e três Functions ativas no Supabase; Vercel `READY` (`dpl_22yL3N3K8aZyf9hbKRYRPt6fns9U`). OAuth autenticado e sincronização real ainda `NÃO VALIDADOS`. Google Auth Platform em `Testing`: autorização limitada a test users e tokens expiram em 7 dias; publicar/verificar escopo sensível para uso geral. Consulte o topo de `HANDOFF.md`; CI atual tem falhas preexistentes documentadas.

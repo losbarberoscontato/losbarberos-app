@@ -1,5 +1,13 @@
 # Handoff — Los Barberos
 
+## Projetos e planos encerrados — 23/10/2026
+
+- Commit `4ae4e740841a0fa32d59c2b03f4d8e869554bd04` publicado em `main`; Vercel `dpl_GeHMJDnxztuwLX5LqSixSS6jHEZ4` está `READY` nos aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`.
+- Migration `20261023172902_archive_closed_customer_plans_and_delete_project_installment.sql` aplicada e alinhada no Supabase `bwdjkhqshmppescunwer`; RPC `delete_open_project_installment` existe e está restrita a `authenticated`. Advisor de segurança: sem erros. Edge Functions não mudaram.
+- Projetos: contagem de cancelados na meta, filtro de status em Contratações e exclusão de parcelas abertas via RPC com trilha financeira preservada; parcelas quitadas não podem ser excluídas. App cliente tem tela Planos Encerrados; planos cancelados/expirados só encerram após não haver cobranças e sessões pendentes. Exibição compartilhada, portanto válida para os produtos/tenants que usam esses módulos.
+- CI `39996560127` continua em execução: `database`, `verify` e `edge-functions` falharam; `e2e` ainda está em progresso na instalação do Chromium. Não declarar CI verde. Build/typecheck/lint locais passaram antes do push; lint teve 14 avisos. Não houve teste autenticado/visual em produção.
+- Smoke público da primeira publicação: rotas base e cliente HTTP 200; `/gestor` 307. Repetir smoke no deploy da atualização de documentação. Próximo passo: aguardar CI e fazer validação visual autenticada de projetos, parcelas e Planos Encerrados.
+
 ## Integração Google Calendar — 21/10/2026
 
 - Commit `d2cc9bb` publicado em `main`. Gestores conectam a agenda geral em Configurações > Integrações; profissionais conectam a própria agenda em Perfil. No primeiro acesso com Google Auth, o Perfil inicia consentimento do Calendar se ainda não houver conexão.

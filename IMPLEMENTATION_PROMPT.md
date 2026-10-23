@@ -1,3 +1,7 @@
+# Continuidade atual — 23/10/2026
+
+Commit `4ae4e740841a0fa32d59c2b03f4d8e869554bd04` publicado em `main`; migration `20261023172902_archive_closed_customer_plans_and_delete_project_installment.sql` aplicada no Supabase; Vercel `dpl_GeHMJDnxztuwLX5LqSixSS6jHEZ4` `READY`. CI `39996560127` permanece pendente: três jobs falharam e E2E continua instalando Chromium. Validar os erros finais antes de classificar como preexistentes. Fluxos autenticados/visuais continuam não validados. Detalhes no topo de `HANDOFF.md`.
+
 # Prompt inicial — próxima conversa Los Barberos
 
 ## Google Calendar — 21/10/2026
