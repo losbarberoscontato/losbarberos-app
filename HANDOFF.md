@@ -1,5 +1,11 @@
 # Handoff — Los Barberos
 
+## Arquivamento de notificações visualizadas — 23/10/2026
+
+- O sininho do gestor consulta somente `manager_notifications` com `read_at IS NULL`. Ao abrir uma notificação, o app grava `read_at`, remove o item da lista local e redireciona. O badge e a contagem refletem apenas notificações pendentes; leitura já registrada por outro fluxo também remove o item na próxima consulta.
+- Alteração compartilhada no `ManagerShell`, portanto vale para os produtos Display que usam o shell de gestão. Não exigiu migration nem Edge Function: a tabela já tinha `read_at` e RLS de atualização restrita ao gestor da própria organização.
+- Typecheck e build passaram; lint passou com 14 avisos fora do arquivo alterado. Testes não foram executados. Após publicar, validar leitura individual, atualização do badge e navegação em sessão autenticada.
+
 ## Exclusão de parcela em assinatura — 23/10/2026
 
 - Commit `ad8cbdbd54433579c07db9a4cabddaac7165d180` publicado em `main`; migration `20261023175631_delete_open_subscription_cycle.sql` aplicada e sincronizada no Supabase `bwdjkhqshmppescunwer`.

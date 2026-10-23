@@ -1,5 +1,7 @@
 # Projetos e Planos Encerrados — 23/10/2026
 
+Atualização posterior: o sino do gestor agora mostra somente notificações não lidas; abrir uma notificação grava `read_at`, arquiva o item e remove seu badge. Typecheck/build passaram e lint teve 14 avisos não relacionados. Testes não foram executados; validar visualmente autenticado após deploy. Não houve mudança de migration ou Edge Function. Consulte o topo de `HANDOFF.md`.
+
 Atualização posterior: commit `ad8cbdbd54433579c07db9a4cabddaac7165d180` adicionou exclusão segura de ciclo não pago no Controle da assinatura; migration `20261023175631_delete_open_subscription_cycle.sql` está aplicada e Vercel `dpl_BNz5nHkpXAiqQhtD8DHk5tS8i94M` `READY`. CI `39999912241` vermelha (E2E passou; verify/database/edge-functions falharam em testes antigos, seed do Kanban sem platform admin e formatação de `whatsapp-templates.ts`). Typecheck, build e lint locais passaram; testes locais e validação visual autenticada não foram feitos. Consulte `HANDOFF.md` antes de continuar.
 
 Commit `4ae4e740841a0fa32d59c2b03f4d8e869554bd04` em `main`; migration `20261023172902_archive_closed_customer_plans_and_delete_project_installment.sql` aplicada; Vercel `dpl_GeHMJDnxztuwLX5LqSixSS6jHEZ4` `READY`. CI `39996560127`: `database`, `verify` e `edge-functions` falharam; E2E ainda em andamento. Não declarar CI verde. Fazer validação visual autenticada de cancelamentos e arquivo de planos e consultar logs finais do CI. Consulte `HANDOFF.md`.
