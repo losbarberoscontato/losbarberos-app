@@ -1,5 +1,9 @@
 # Módulo WhatsApp Evolution
 
+## Avisos de planos em runtime legado — 24/10/2026
+
+O tenant que revelou a falha estava em `runtime_engine = LEGACY`, conectado, com consentimento e sem pausa. As migrations `20261024124855_whatsapp_contract_notices_support_legacy_runtime.sql` e `20261024125131_whatsapp_revalidate_legacy_plan_notice_before_send.sql` alinharam o enqueue ao caminho de compatibilidade do `claim_whatsapp_v2_jobs` e restringiram esse aviso ao Evolution QR; não promovem tenants para outro motor. O dispatcher revalida modo, conexão, cliente ativo, telefone e consentimento antes do transporte. O contrato criado antes da correção não recebe reenvio retroativo. Confirme a criação e o estado do job, e depois a entrega no aparelho, separadamente. O código da Function está no Supabase; GitHub/Vercel dependem do push desta publicação.
+
 ## Avisos de criação de planos — 24/10/2026
 
 - Mensagens editáveis “Aviso de criação de contratos de projetos” e “Aviso de criação de assinaturas” ficam em “Mensagens de contratos” no editor de mensagens automáticas.

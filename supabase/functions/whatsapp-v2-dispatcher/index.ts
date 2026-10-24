@@ -75,6 +75,13 @@ function providerMessageId(value: unknown): string | null {
 type ConfirmationRequestResult = { skipped?: boolean };
 
 async function dispatchJob(job: Job): Promise<void> {
+  if (job.payload.transactional_plan_notice === true) {
+    const valid = await rpc<boolean>(
+      "whatsapp_v2_validate_plan_notice_dispatch",
+      { p_job_id: job.id, p_worker_id: workerId },
+    );
+    if (!valid) return;
+  }
   if (
     job.job_type === "REMINDER_T24_CLIENT" ||
     job.job_type === "REMINDER_MORNING_CLIENT" ||
