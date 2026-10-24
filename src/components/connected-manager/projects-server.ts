@@ -58,7 +58,7 @@ export interface ProjectEngagementRecord {
   customer_id: string;
   package_id: string;
   kanban_board_id: string;
-  status: "PROPOSAL" | "ACTIVE" | "COMPLETED" | "CANCELED" | "DECLINED";
+  status: "PROPOSAL" | "ACTIVE" | "COMPLETED" | "CANCELED" | "CANCELED_BY_ORGANIZATION" | "DECLINED";
   contracted_cents: number;
   proposal_sent_at: string | null;
   accepted_at: string | null;
