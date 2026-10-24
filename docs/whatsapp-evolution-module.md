@@ -5,7 +5,7 @@
 - Mensagens editáveis “Aviso de criação de contratos de projetos” e “Aviso de criação de assinaturas” ficam em “Mensagens de contratos” no editor de mensagens automáticas.
 - Gatilhos transacionais enfileiram aviso quando o gestor cria um contrato de projeto ou assinatura; chave idempotente impede duplicação. Só enfileira com cliente ativo, telefone e consentimento transacional, conexão ativa e dispatcher habilitado.
 - As variáveis `{link_app_cliente}` e `{email_cliente}` são renderizadas no dispatcher. O e-mail enviado é mascarado no banco antes de entrar no payload; consentimento, telefone e estado do cliente são revalidados no envio.
-- Migration `20261024121054_whatsapp_project_and_subscription_created_messages.sql` aplicada e `whatsapp-v2-dispatcher` publicado. A confirmação de entrega em aparelho depende de teste real e segue pendente até validação.
+- Migration `20261024121054_whatsapp_project_and_subscription_created_messages.sql` aplicada/alinhada; `whatsapp-v2-dispatcher` ACTIVE. Código `e3a4a6e` em `main`, Vercel `READY` (`dpl_BzsjV68sEZsqdHMD2Xa3aWv7VyF7`). CI `40093572864`: edge-functions passou, E2E passou (28, 4 ignorados), database falhou em `supabase start` e verify falhou em 19 testes. Entrega em aparelho e inspeção visual autenticada seguem pendentes.
 
 > Fonte técnica para manutenção do canal WhatsApp via Evolution API. Leia este documento antes de alterar agenda, lembretes, QR, webhooks, jobs ou notificações do WhatsApp.
 

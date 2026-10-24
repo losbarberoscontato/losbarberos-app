@@ -5,8 +5,10 @@
 - Ao gestor criar contrato de projeto ou assinatura, o Supabase enfileira um aviso transacional idempotente dentro da mesma transação, desde que o cliente esteja ativo, tenha telefone e consentimento transacional, e o WhatsApp Evolution esteja conectado/ativo e sem pausa.
 - A tela WhatsApp > Mensagens automáticas ganhou “Mensagens de contratos”, com textos editáveis “Aviso de criação de contratos de projetos” e “Aviso de criação de assinaturas”. Os padrões são compartilhados pelos produtos Display.
 - A mensagem inclui nome do cliente, acesso à aba Assinaturas e e-mail mascarado (3 primeiros caracteres locais + `*****@domínio`). O payload não salva o e-mail completo. O dispatcher confere novamente consentimento, estado do cliente e telefone antes de enviar.
-- Migration `20261024121054_whatsapp_project_and_subscription_created_messages.sql` aplicada ao Supabase `bwdjkhqshmppescunwer`; `whatsapp-v2-dispatcher` publicado. Build, typecheck e Deno check passaram; lint passou com 14 avisos no projeto. Testes locais não executados. Recebimento real no aparelho ainda não validado.
-- Push para GitHub `main`, CI e deploy Vercel desta alteração: registrar após concluir e verificar publicação.
+- Migration `20261024121054_whatsapp_project_and_subscription_created_messages.sql` aplicada ao Supabase `bwdjkhqshmppescunwer`; dry-run posterior confirmou banco alinhado. `whatsapp-v2-dispatcher` está `ACTIVE` após publicação.
+- Código publicado em GitHub `main`, commit `e3a4a6efe873a74ade1c5e81a2bc62c38a0015ad`; Vercel production `READY`, deploy `dpl_BzsjV68sEZsqdHMD2Xa3aWv7VyF7`, com aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`. Smoke: home HTTP 200; rota protegida de WhatsApp redireciona para login (307).
+- Validação local: build, typecheck e Deno check passaram; lint sem erros e 14 avisos no projeto. Testes locais não executados. CI `40093572864` falhou: `edge-functions` passou, E2E passou (28 testes, 4 ignorados), `database` falhou ao iniciar em `supabase start`, e `verify` falhou em 19 testes distribuídos por áreas diversas; lint e typecheck no job passaram. Não declarar CI verde.
+- Entrega real da mensagem no aparelho e inspeção visual autenticada das duas mensagens permanecem pendentes.
 
 ## Arquivamento de notificações visualizadas — 23/10/2026
 
