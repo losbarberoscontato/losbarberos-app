@@ -301,7 +301,7 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
     if (!context) return;
     const client = getSupabaseBrowserClient(); if (!client) return;
     const { error } = await client.rpc("accept_customer_subscription_offer", { p_organization_id: context.organization.id, p_subscription_id: id });
-    setMessage(error ? error.message : "Plano aceito. Aguarde a aprovação do gestor.");
+    setMessage(error ? error.message : "Assinatura confirmada e ativada. Suas parcelas e sessões já estão disponíveis.");
     if (!error) window.location.assign(route("/cliente/assinaturas/meus-planos"));
   }
   async function acceptProjectOffer(offer: ProjectOffer) {
