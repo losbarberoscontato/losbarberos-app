@@ -3,7 +3,9 @@
 ## Contagens do Funil Kanban — 24/10/2026
 
 - O resumo agora usa a mesma regra da aba Kanban para cards de contratação: conta somente contratos visíveis no quadro, excluindo recusados e cancelados, e inclui cards avulsos do projeto.
-- Funil e Kanban compartilham o filtro de contratos por quadro; sem migration ou mudança de Edge Function. Validação local e publicação desta correção devem ser registradas após concluir o release.
+- Funil e Kanban compartilham o filtro de contratos por quadro; sem migration ou mudança de Edge Function. ESLint focado, TypeScript e build local passaram; `npm run lint` completo foi interrompido e testes locais não foram executados.
+- GitHub `main`: commit `d7bf80a861a3ee87672793121deb5a84da009071`. CI `40108890016`: Edge Functions passaram; `database` falhou em `supabase start`; `verify` falhou em `npm run test`; E2E ainda instalava Chromium no último estado consultado.
+- Supabase: migrations remotas e locais alinhadas; nenhuma migration/Edge Function necessária para esta alteração. Vercel `dpl_BWyrZFYvFb6bp4qWy5yiTBekrDz3` ficou `Ready` no commit da correção; alias `displaysh-app.vercel.app` respondeu `/` HTTP 200 e `/gestor` HTTP 307 para login.
 
 ## Avisos WhatsApp para novos planos — 24/10/2026
 
