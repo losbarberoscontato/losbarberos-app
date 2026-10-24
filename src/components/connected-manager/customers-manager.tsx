@@ -1446,6 +1446,7 @@ export function CustomersManager({
                                     <button type="button" className={styles.subscriptionLink} onClick={() => setSubscriptionControlId(String(subscription.id))}>
                                       {plan?.name ?? "Plano"}
                                     </button>
+                                    <small>Contrato nº {String(subscription.contract_number ?? "—")}</small>
                                   </span>
                                   <strong>
                                     {formatCents(version?.price_cents ?? 0)}
@@ -1600,7 +1601,7 @@ export function CustomersManager({
           <div className="modal-layer" role="presentation">
             <button className="modal-layer__backdrop" type="button" aria-label="Fechar controle da assinatura" onClick={() => { setSubscriptionCycleDeleteTarget(null); setSubscriptionControlId(null); }} />
             <section className={`${styles.modal} ${styles.modalWide} ${styles.subscriptionControlModal}`} role="dialog" aria-modal="true" aria-labelledby="subscription-control-title">
-              <header className={styles.modalHeader}><div><small>Controle da assinatura</small><h2 id="subscription-control-title">{plan?.name ?? "Plano"}</h2><p>{formatCents(version?.price_cents ?? 0)} · Venc. {String(subscription.first_due_date ?? "—")} · {paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)}</p></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => { setSubscriptionCycleDeleteTarget(null); setSubscriptionControlId(null); }}><X size={19} /></button></header>
+              <header className={styles.modalHeader}><div><small>Controle da assinatura · Contrato nº {String(subscription.contract_number ?? "—")}</small><h2 id="subscription-control-title">{plan?.name ?? "Plano"}</h2><p>{formatCents(version?.price_cents ?? 0)} · Venc. {String(subscription.first_due_date ?? "—")} · {paymentLabels[String(subscription.payment_method)] ?? String(subscription.payment_method)}</p></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => { setSubscriptionCycleDeleteTarget(null); setSubscriptionControlId(null); }}><X size={19} /></button></header>
               <div className={styles.subscriptionControlBody}>
                 <div className={styles.subscriptionControlLegend}><span><i className={styles.subscriptionDotAvailable} />Em aberto</span><span><i className={styles.subscriptionDotScheduled} />Agendada</span><span><i className={styles.subscriptionDotCompleted} />Concluída</span><span><i className={styles.subscriptionDotCanceled} />Cancelada</span></div>
                 {String((subscription.plan_version as { scheduling_mode?: string } | null)?.scheduling_mode) === "FIXED" && <section className={styles.subscriptionFixedSchedule}>

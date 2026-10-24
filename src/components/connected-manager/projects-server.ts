@@ -59,6 +59,7 @@ export interface ProjectEngagementRecord {
   package_id: string;
   kanban_board_id: string;
   status: "PROPOSAL" | "ACTIVE" | "COMPLETED" | "CANCELED" | "CANCELED_BY_ORGANIZATION" | "DECLINED";
+  contract_number?: number;
   contracted_cents: number;
   proposal_sent_at: string | null;
   accepted_at: string | null;
@@ -251,7 +252,7 @@ export async function loadProjectsData() {
     supabase.from("projects").select("id,organization_id,name,description,status,starts_on,sales_close_on,ends_on,goal_contracts,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("project_packages").select("id,organization_id,project_id,name,description,price_cents,sessions_count,duration_minutes,fixed_cost_per_hour_cents,extra_costs_cents,extra_costs_description,tax_rate_bps,card_rate_bps,profit_margin_bps,deposit_cents,suggested_price_cents,sort_order,active").eq("organization_id", organizationId).order("sort_order"),
     supabase.from("project_steps").select("id,organization_id,project_id,name,description,position,kind,service_id,commission_rate_bps,active").eq("organization_id", organizationId).order("position"),
-    supabase.from("project_engagements").select("id,organization_id,project_id,customer_id,package_id,kanban_board_id,status,contracted_cents,proposal_sent_at,accepted_at,event_description,event_link_1,event_link_2,event_link_3,kanban_received_at,kanban_received_by,kanban_received_by_name,event_due_on,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+    supabase.from("project_engagements").select("id,organization_id,project_id,customer_id,package_id,kanban_board_id,status,contract_number,contracted_cents,proposal_sent_at,accepted_at,event_description,event_link_1,event_link_2,event_link_3,kanban_received_at,kanban_received_by,kanban_received_by_name,event_due_on,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }),
     supabase.from("project_installment_finance").select("id,organization_id,engagement_id,installment_number,due_on,amount_cents,status,paid_at,financial_entry_id,settled_cents,remaining_cents,last_paid_at,payment_method,financial_account_id,financial_account_name,received_by,received_by_name").eq("organization_id", organizationId).order("installment_number").order("due_on"),
     supabase.from("customers").select("id,full_name,phone_e164,email,customer_dependents(id,full_name,birth_date,relationship)").eq("organization_id", organizationId).is("merged_into_customer_id", null).eq("active", true).order("full_name"),
     supabase.from("services").select("id,name,price_cents,active,availability").eq("organization_id", organizationId).eq("active", true).order("name"),
@@ -282,9 +283,9 @@ export async function loadProjectsData() {
 
   let engagements: { data: unknown[] | null; error: { message: string } | null } = engagementsRaw as { data: unknown[] | null; error: { message: string } | null };
   if (engagementsRaw.error && /event_description|event_link_[123]|kanban_received_|event_due_on|column .* does not exist/i.test(engagementsRaw.error.message)) {
-    const eventOnly = await supabase.from("project_engagements").select("id,organization_id,project_id,customer_id,package_id,kanban_board_id,status,contracted_cents,proposal_sent_at,accepted_at,event_description,event_link_1,event_link_2,event_link_3,kanban_received_at,kanban_received_by,kanban_received_by_name,event_due_on,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false });
+    const eventOnly = await supabase.from("project_engagements").select("id,organization_id,project_id,customer_id,package_id,kanban_board_id,status,contract_number,contracted_cents,proposal_sent_at,accepted_at,event_description,event_link_1,event_link_2,event_link_3,kanban_received_at,kanban_received_by,kanban_received_by_name,event_due_on,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false });
     engagements = eventOnly.error && /event_description|event_link_[123]|column .* does not exist/i.test(eventOnly.error.message)
-      ? await supabase.from("project_engagements").select("id,organization_id,project_id,customer_id,package_id,kanban_board_id,status,contracted_cents,proposal_sent_at,accepted_at,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false })
+      ? await supabase.from("project_engagements").select("id,organization_id,project_id,customer_id,package_id,kanban_board_id,status,contract_number,contracted_cents,proposal_sent_at,accepted_at,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false })
       : eventOnly;
   }
 

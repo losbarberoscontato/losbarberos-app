@@ -168,7 +168,7 @@ export async function loadCustomersData() {
     supabase
       .from("customer_subscriptions")
       .select(
-        "id,customer_id,status,contract_accepted_at,start_date,end_date,payment_method,first_due_date,fixed_schedule_cadence_weeks,fixed_schedule_start_date,fixed_schedule_local_time,fixed_schedule_barber_id,fixed_schedule_created_at,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(id,price_cents,billing_period,sessions_per_cycle,scheduling_mode)",
+        "id,customer_id,status,contract_number,contract_accepted_at,start_date,end_date,payment_method,first_due_date,fixed_schedule_cadence_weeks,fixed_schedule_start_date,fixed_schedule_local_time,fixed_schedule_barber_id,fixed_schedule_created_at,plan:subscription_plans(name,description),plan_version:subscription_plan_versions(id,price_cents,billing_period,sessions_per_cycle,scheduling_mode)",
       )
       .eq("organization_id", organizationId)
       .in("status", ["REQUESTED", "PENDING_PAYMENT", "ACTIVE", "CANCELED", "EXPIRED", "DECLINED"])
