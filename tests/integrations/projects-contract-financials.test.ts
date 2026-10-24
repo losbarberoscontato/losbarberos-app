@@ -15,6 +15,8 @@ const kanbanSectorOptionalMigration = readFileSync("supabase/migrations/20260918
 const kanbanLegacyCleanupMigration = readFileSync("supabase/migrations/20260918161746_project_kanban_cleanup_legacy_auto_sectors.sql", "utf8");
 const kanbanReceivedCommentsMigration = readFileSync("supabase/migrations/20260918171520_project_kanban_received_comments.sql", "utf8");
 const signatureDueDateFixMigration = readFileSync("supabase/migrations/20260918193248_project_contract_signature_due_date_fix.sql", "utf8");
+const acceptedFinanceMigration = readFileSync("supabase/migrations/20261024133828_project_contract_finance_after_customer_acceptance.sql", "utf8");
+const acceptedFinanceGuardMigration = readFileSync("supabase/migrations/20261024134836_enforce_project_finance_acceptance_guards.sql", "utf8");
 
 describe("projects contract financial migration", () => {
   it("links project installments to financial receivables", () => {
@@ -111,6 +113,21 @@ describe("projects contract financial migration", () => {
     expect(signatureDueDateFixMigration).toContain("issue_date = least(e.issue_date, p_entry_due_on)");
     expect(signatureDueDateFixMigration).toContain("due_date = p_entry_due_on");
     expect(signatureDueDateFixMigration).toContain("financial_settlements");
+  });
+
+  it("defers project receivables until acceptance and voids only unaccepted open receivables", () => {
+    expect(acceptedFinanceMigration).toContain("contract_financial_terms_configured");
+    expect(acceptedFinanceMigration).toContain("if p_status = 'PROPOSAL' or v_accepted_at is null");
+    expect(acceptedFinanceMigration).toContain("generate_accepted_project_financial_schedule");
+    expect(acceptedFinanceMigration).toContain("after update of status, accepted_at on public.project_engagements");
+    expect(acceptedFinanceMigration).toContain("engagement.accepted_at is null");
+    expect(acceptedFinanceMigration).toContain("not exists (\n     select 1 from public.financial_settlements settlement");
+    expect(acceptedFinanceGuardMigration).toContain("public.cancel_financial_entry(v_item.financial_entry_id");
+    expect(acceptedFinanceGuardMigration).not.toContain("delete from public.financial_entries");
+    expect(acceptedFinanceGuardMigration).toContain("before insert or update on public.project_installments");
+    expect(acceptedFinanceGuardMigration).toContain("before insert or update on public.financial_entries");
+    expect(acceptedFinanceMigration).toContain("project contract must be accepted before receivables are created");
+    expect(acceptedFinanceMigration).toContain("project contract must be accepted before installments are created");
   });
 
   it("allows unassigned project boards to stay out of the general Kanban", () => {
