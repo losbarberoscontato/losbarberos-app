@@ -1344,7 +1344,7 @@ function projectContractCostsCents(engagement: Props["engagements"][number], pac
 
 function ProjectOverview({ goalContracts, projectCostItems, projectPackages, kanbanBoards, engagements, customerById, packageById, installments }: { goalContracts: number | null; projectCostItems: ProjectCostItemRecord[]; projectPackages: Props["packages"]; kanbanBoards: ProjectKanbanBoardRecord[]; engagements: Props["engagements"]; customerById: Map<string, Props["customers"][number]>; packageById: Map<string, Props["packages"][number]>; installments: Props["installments"] }) {
   const activeContracts = engagements.filter(projectContractIsActive);
-  const canceledContracts = engagements.filter((item) => projectEngagementCanceled(item.status)).length;
+  const canceledContracts = engagements.filter((item) => Boolean(item.accepted_at) && projectEngagementCanceled(item.status)).length;
   const soldCents = engagements.filter((item) => Boolean(item.accepted_at) && !projectEngagementCanceled(item.status) && item.status !== "DECLINED").reduce((sum, item) => sum + item.contracted_cents, 0);
   const receivedCents = installments.filter((item) => engagements.some((engagement) => engagement.id === item.engagement_id && Boolean(engagement.accepted_at) && !projectEngagementCanceled(engagement.status) && engagement.status !== "DECLINED")).reduce((sum, item) => sum + installmentReceivedCents(item), 0);
   const projectedCents = goalContracts && projectPackages[0] ? goalContracts * projectPackages[0].price_cents : 0;
