@@ -1,5 +1,10 @@
 # Handoff — Los Barberos
 
+## Contagens do Funil Kanban — 24/10/2026
+
+- O resumo agora usa a mesma regra da aba Kanban para cards de contratação: conta somente contratos visíveis no quadro, excluindo recusados e cancelados, e inclui cards avulsos do projeto.
+- Funil e Kanban compartilham o filtro de contratos por quadro; sem migration ou mudança de Edge Function. Validação local e publicação desta correção devem ser registradas após concluir o release.
+
 ## Avisos WhatsApp para novos planos — 24/10/2026
 
 - Incidente corrigido: o tenant de teste estava conectado e com consentimento, mas `runtime_engine = LEGACY`. O helper novo exigia `ACTIVE` e, por isso, não criou job; o dispatcher possui caminho de compatibilidade que consome jobs em `LEGACY`/`SHADOW`.

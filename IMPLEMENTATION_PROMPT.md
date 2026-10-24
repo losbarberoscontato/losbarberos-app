@@ -1,5 +1,7 @@
 # Continuidade atual — 23/10/2026
 
+Atualização 24/10/2026: Funil Kanban da visão geral passa a refletir a quantidade real de cards por quadro, usando o mesmo filtro da aba Kanban e incluindo cards avulsos. Sem migration/Edge Function. Estado final de validação, CI e Vercel está no topo de `HANDOFF.md`.
+
 Atualização 24/10/2026: correção do aviso WhatsApp de contrato/assinatura para organizações em `LEGACY` aplicada pelas migrations `20261024124855_whatsapp_contract_notices_support_legacy_runtime.sql` e `20261024125131_whatsapp_revalidate_legacy_plan_notice_before_send.sql`; `whatsapp-v2-dispatcher` foi atualizado. Causa: condição de engine no enqueue era mais restrita que o dispatcher de compatibilidade. Consentimento, cliente/telefone, conexão, modo ativo e pausa continuam validados. O contrato de teste anterior não foi reenviado. GitHub/Vercel da correção ainda precisam ser confirmados nesta publicação; entrega real no aparelho continua pendente. Veja `HANDOFF.md`.
 
 Atualização 24/10/2026: novos avisos WhatsApp configuráveis para criação de contratos de projeto e assinaturas. Commit `e3a4a6e` publicado em `main`; migration aplicada/alinhada, `whatsapp-v2-dispatcher` ACTIVE e Vercel `READY` (`dpl_BzsjV68sEZsqdHMD2Xa3aWv7VyF7`). CI `40093572864` falhou em `database` (Supabase local não iniciou) e `verify` (19 testes); E2E e `edge-functions` passaram. Teste real de entrega e inspeção autenticada pendentes. Detalhes no topo de `HANDOFF.md`.
