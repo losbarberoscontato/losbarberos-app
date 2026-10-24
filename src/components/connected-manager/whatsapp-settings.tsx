@@ -101,7 +101,12 @@ const responseMessages: FixedMessageDefinition[] = [
   { key: "RESERVATION_CHOICE", title: "Escolha entre vários agendamentos", description: "Enviada quando o cliente tem mais de um pedido de confirmação em aberto." },
 ];
 
-const messageVariables = ["{cliente}", "{profissional}", "{horario}", "{servico}", "{telefone}", "{reservas}"] as const;
+const contractMessages: FixedMessageDefinition[] = [
+  { key: "PROJECT_CONTRACT_CREATED_CLIENT", title: "Aviso de criação de contratos de projetos", description: "Enviada ao cliente quando o gestor cria um novo contrato de projeto." },
+  { key: "SUBSCRIPTION_CREATED_CLIENT", title: "Aviso de criação de assinaturas", description: "Enviada ao cliente quando o gestor cria uma nova assinatura." },
+];
+
+const messageVariables = ["{cliente}", "{profissional}", "{horario}", "{servico}", "{telefone}", "{reservas}", "{link_app_cliente}", "{email_cliente}"] as const;
 
 function normalizeConfirmationTemplates(templates: Record<WhatsAppFixedMessageKey, string>) {
   const normalized = { ...templates };
@@ -128,7 +133,7 @@ function reminderLabel(key: ReminderRuleKey | null) {
 }
 
 function messageDefinitionTitle(key: WhatsAppFixedMessageKey, productKey: ProductKey) {
-  const title = [...bookingAndReminderMessages, ...responseMessages].find((message) => message.key === key)?.title ?? key;
+  const title = [...bookingAndReminderMessages, ...responseMessages, ...contractMessages].find((message) => message.key === key)?.title ?? key;
   return localizeWhatsAppCopy(title, productKey);
 }
 
@@ -664,6 +669,12 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
           <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>Respostas e retornos</strong><small>{productCopy.responseGroupDescription}</small></span></summary>
           <div className={styles.whatsappMessageGroupContent}>
             {responseMessages.map((definition) => fixedMessageCard(definition))}
+          </div>
+        </details>
+        <details className={styles.whatsappMessageGroup}>
+          <summary className={styles.whatsappMessageGroupSummary}><span className={styles.whatsappMessageChevron} aria-hidden="true">›</span><span><strong>Mensagens de contratos</strong><small>Avisos enviados aos clientes quando o gestor cria um contrato de projeto ou uma assinatura.</small></span></summary>
+          <div className={styles.whatsappMessageGroupContent}>
+            {contractMessages.map((definition) => fixedMessageCard(definition))}
           </div>
         </details>
       </form>

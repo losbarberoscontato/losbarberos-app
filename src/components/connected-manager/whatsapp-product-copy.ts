@@ -6,7 +6,8 @@ export type WhatsAppFixedMessageKey =
   | "CONFIRMATION_ACK_CLIENT" | "CANCELLATION_ACK_CLIENT"
   | "APPOINTMENT_CONFIRMED_STAFF" | "APPOINTMENT_CANCELED_STAFF"
   | "INVALID_REPLY_PROMPT" | "ATTENDANT_REQUEST_MANAGER"
-  | "MANUAL_CONFIRMATION_CLIENT" | "MANUAL_CONFIRMATION_STAFF" | "RESERVATION_CHOICE";
+  | "MANUAL_CONFIRMATION_CLIENT" | "MANUAL_CONFIRMATION_STAFF" | "RESERVATION_CHOICE"
+  | "PROJECT_CONTRACT_CREATED_CLIENT" | "SUBSCRIPTION_CREATED_CLIENT";
 
 type ProductTerms = {
   customer: string;
@@ -55,6 +56,8 @@ const legacySharedDefaults: Record<WhatsAppFixedMessageKey, string> = {
   MANUAL_CONFIRMATION_CLIENT: "{cliente}, seu agendamento foi confirmado pelo estabelecimento para {horario}.",
   MANUAL_CONFIRMATION_STAFF: "Agendamento confirmado manualmente: {cliente}, {horario}.",
   RESERVATION_CHOICE: `Encontrei mais de um agendamento. Responda com o número correspondente:\n\n{reservas}`,
+  PROJECT_CONTRACT_CREATED_CLIENT: "Olá! {cliente}, passando para informar que foi criado um novo plano de serviços para você. Para mais detalhes e aceite do plano, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.",
+  SUBSCRIPTION_CREATED_CLIENT: "Olá! {cliente}, passando para informar que foi criada uma nova assinatura para você. Para mais detalhes e aceite desta assinatura, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.",
 };
 const canonicalSharedDefaults: Record<WhatsAppFixedMessageKey, string> = {
   ...legacySharedDefaults,
@@ -143,6 +146,8 @@ export function getWhatsAppProductDefaultTemplates(productKey: ProductKey): Reco
     MANUAL_CONFIRMATION_CLIENT: "{cliente}, seu agendamento foi confirmado pelo estabelecimento para {horario}.",
     MANUAL_CONFIRMATION_STAFF: "Agendamento confirmado manualmente: {cliente}, {horario}.",
     RESERVATION_CHOICE: "Encontrei mais de um agendamento. Responda com o número correspondente:\n\n{reservas}",
+    PROJECT_CONTRACT_CREATED_CLIENT: "Olá! {cliente}, passando para informar que foi criado um novo plano de serviços para você. Para mais detalhes e aceite do plano, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.",
+    SUBSCRIPTION_CREATED_CLIENT: "Olá! {cliente}, passando para informar que foi criada uma nova assinatura para você. Para mais detalhes e aceite desta assinatura, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.",
   };
 
   switch (productKey) {

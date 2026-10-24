@@ -8,6 +8,8 @@ Commit `4ae4e740841a0fa32d59c2b03f4d8e869554bd04` em `main`; migration `20261023
 
 # Prompt inicial — próxima conversa Los Barberos
 
+Atualização 24/10/2026: implementados avisos WhatsApp configuráveis para criação de contratos de projetos e assinaturas; migration aplicada e `whatsapp-v2-dispatcher` publicado. Build/typecheck/Deno check passaram; lint tem 14 avisos no projeto e testes locais não foram executados. Push/CI/Vercel e entrega real de mensagem devem ser verificados. Veja o topo de `HANDOFF.md`.
+
 Entrega de 21/10/2026: Google Calendar em `main` (`d2cc9bb`), migration e três Functions ativas no Supabase; Vercel `READY` (`dpl_22yL3N3K8aZyf9hbKRYRPt6fns9U`). OAuth autenticado e sincronização real ainda `NÃO VALIDADOS`. Google Auth Platform em `Testing`: autorização limitada a test users e tokens expiram em 7 dias; publicar/verificar escopo sensível para uso geral. Consulte o topo de `HANDOFF.md`; CI atual tem falhas preexistentes documentadas.
 
 Entrega de 20/10/2026: Kanban de Atendimentos e guardas do agendamento livre publicados em `main` (`c1f5e03`), Supabase alinhado e Function `stripe-kanban-module` ativa. Vercel `READY` (`dpl_BNFpXL1AuH84VqrG3zUxvYSTBYhA`). Módulo ainda inativo, sem preço publicado. CI `39486634305` vermelha por testes gerais, formatação antiga de WhatsApp e fixture pgTAP; E2E passou. Veja estado preciso em `HANDOFF.md` e teste visual em `docs/CHECKLIST_VISUAL_KANBAN_ATENDIMENTOS.md`.

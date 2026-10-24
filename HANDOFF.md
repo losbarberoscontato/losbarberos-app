@@ -1,5 +1,13 @@
 # Handoff — Los Barberos
 
+## Avisos WhatsApp para novos planos — 24/10/2026
+
+- Ao gestor criar contrato de projeto ou assinatura, o Supabase enfileira um aviso transacional idempotente dentro da mesma transação, desde que o cliente esteja ativo, tenha telefone e consentimento transacional, e o WhatsApp Evolution esteja conectado/ativo e sem pausa.
+- A tela WhatsApp > Mensagens automáticas ganhou “Mensagens de contratos”, com textos editáveis “Aviso de criação de contratos de projetos” e “Aviso de criação de assinaturas”. Os padrões são compartilhados pelos produtos Display.
+- A mensagem inclui nome do cliente, acesso à aba Assinaturas e e-mail mascarado (3 primeiros caracteres locais + `*****@domínio`). O payload não salva o e-mail completo. O dispatcher confere novamente consentimento, estado do cliente e telefone antes de enviar.
+- Migration `20261024121054_whatsapp_project_and_subscription_created_messages.sql` aplicada ao Supabase `bwdjkhqshmppescunwer`; `whatsapp-v2-dispatcher` publicado. Build, typecheck e Deno check passaram; lint passou com 14 avisos no projeto. Testes locais não executados. Recebimento real no aparelho ainda não validado.
+- Push para GitHub `main`, CI e deploy Vercel desta alteração: registrar após concluir e verificar publicação.
+
 ## Arquivamento de notificações visualizadas — 23/10/2026
 
 - Commit de aplicação `a37fcac55614e417661947d3d3c85c4a4c595ac0` em `main`; Vercel `dpl_3MouMjnZFQB7MYJbzsW3v42qVuSm` `READY` nos aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`.

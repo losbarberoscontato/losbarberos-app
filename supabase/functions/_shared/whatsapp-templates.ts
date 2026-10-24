@@ -5,20 +5,25 @@ const fixedConfirmationReplyPrompt =
 
 function withFixedConfirmationReply(template: string): string {
   const normalized = template.replaceAll("\\n", "\n");
-  const fixedSectionStart = /(?:^|\r?\n)\s*(?:Responda somente com um número\s*:|1\s*(?:[—–-]|[.)]))/i;
+  const fixedSectionStart =
+    /(?:^|\r?\n)\s*(?:Responda somente com um número\s*:|1\s*(?:[—–-]|[.)]))/i;
   const marker = fixedSectionStart.exec(normalized);
   const header = (marker ? normalized.slice(0, marker.index) : normalized)
     .replace(/[\s\r\n]+$/, "");
-  return header ? `${header}\n\n${fixedConfirmationReplyPrompt}` : fixedConfirmationReplyPrompt;
+  return header
+    ? `${header}\n\n${fixedConfirmationReplyPrompt}`
+    : fixedConfirmationReplyPrompt;
 }
 
 function hasFixedConfirmationReply(job: Job): boolean {
-  if ([
-    "REMINDER_T24_CLIENT",
-    "REMINDER_MORNING_CLIENT",
-    "REMINDER_T180_CLIENT",
-    "REMINDER_T45_CLIENT",
-  ].includes(job.job_type)) return true;
+  if (
+    [
+      "REMINDER_T24_CLIENT",
+      "REMINDER_MORNING_CLIENT",
+      "REMINDER_T180_CLIENT",
+      "REMINDER_T45_CLIENT",
+    ].includes(job.job_type)
+  ) return true;
   return job.job_type === "MANUAL_OUTBOUND_TEXT" &&
     job.payload.message_kind === "INVALID_REPLY_PROMPT";
 }
@@ -87,7 +92,16 @@ function applyTemplate(template: string, job: Job, fallback: string): string {
     .replaceAll("{servico}", service)
     .replaceAll("{telefone}", phone)
     .replaceAll("{reservas}", reservations);
-  return rendered.trim() || fallback;
+  const appUrl = typeof job.payload.customer_app_url === "string"
+    ? job.payload.customer_app_url
+    : "https://displaysh-app.vercel.app/cliente/assinaturas";
+  const maskedEmail = typeof job.payload.customer_email_masked === "string"
+    ? job.payload.customer_email_masked
+    : "não cadastrado";
+  return rendered
+    .replaceAll("{link_app_cliente}", appUrl)
+    .replaceAll("{email_cliente}", maskedEmail)
+    .trim() || fallback;
 }
 
 export function textFor(job: Job): string {

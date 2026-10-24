@@ -1,5 +1,12 @@
 # Módulo WhatsApp Evolution
 
+## Avisos de criação de planos — 24/10/2026
+
+- Mensagens editáveis “Aviso de criação de contratos de projetos” e “Aviso de criação de assinaturas” ficam em “Mensagens de contratos” no editor de mensagens automáticas.
+- Gatilhos transacionais enfileiram aviso quando o gestor cria um contrato de projeto ou assinatura; chave idempotente impede duplicação. Só enfileira com cliente ativo, telefone e consentimento transacional, conexão ativa e dispatcher habilitado.
+- As variáveis `{link_app_cliente}` e `{email_cliente}` são renderizadas no dispatcher. O e-mail enviado é mascarado no banco antes de entrar no payload; consentimento, telefone e estado do cliente são revalidados no envio.
+- Migration `20261024121054_whatsapp_project_and_subscription_created_messages.sql` aplicada e `whatsapp-v2-dispatcher` publicado. A confirmação de entrega em aparelho depende de teste real e segue pendente até validação.
+
 > Fonte técnica para manutenção do canal WhatsApp via Evolution API. Leia este documento antes de alterar agenda, lembretes, QR, webhooks, jobs ou notificações do WhatsApp.
 
 ## Estado atual — 07/09/2026
