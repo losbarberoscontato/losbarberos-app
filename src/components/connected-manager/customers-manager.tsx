@@ -300,6 +300,16 @@ export function CustomersManager({
     const subscriptionId = params.get("assinatura");
     if (!customerId) return;
     const customer = customers.find((item) => item.id === customerId);
+    if (customer && params.get("aba") === "agendamentos") {
+      queueMicrotask(() => {
+        setEditing(null);
+        setFormOpen(false);
+        setHistoryCustomer(customer);
+        setHistoryTab("APPOINTMENTS");
+        setSubscriptionControlId(null);
+      });
+      return;
+    }
     const subscription = subscriptionId
       ? subscriptions.find((item) => String(item.id) === subscriptionId)
       : null;
