@@ -5,6 +5,15 @@ const migration = readFileSync(
   "supabase/migrations/20261024164738_activate_subscription_offer_on_customer_acceptance.sql",
   "utf8",
 );
+const acceptanceSourceMigration = readFileSync(
+  "supabase/migrations/20261024171919_allow_customer_offer_acceptance_source.sql",
+  "utf8",
+);
+const enumFixMigration = readFileSync(
+  "supabase/migrations/20261024172043_fix_subscription_offer_cycle_status_cast.sql",
+  "utf8",
+);
+const client = readFileSync("src/components/connected-client/subscriptions.tsx", "utf8");
 
 describe("manager subscription offer acceptance migration", () => {
   it("activates only an offer belonging to the authenticated customer", () => {
@@ -25,5 +34,21 @@ describe("manager subscription offer acceptance migration", () => {
     expect(migration).toContain("now() at time zone v_timezone");
     expect(migration).toContain("if v_sub.status = 'ACTIVE' and v_sub.contract_accepted_by = auth.uid() then");
     expect(migration).toContain("'client-offer-activated:' || v_sub.id");
+  });
+
+  it("allows the acceptance source written by the offer RPC", () => {
+    expect(acceptanceSourceMigration).toContain("'CLIENT_OFFER'");
+    expect(acceptanceSourceMigration).toContain("'CLIENT', 'CLIENT_OFFER', 'MANAGER', 'PRESENTIAL'");
+  });
+
+  it("inserts cycle statuses as the enum and satisfies the paid-cycle constraint", () => {
+    expect(enumFixMigration).toContain("'OPEN'::public.subscription_cycle_status");
+    expect(enumFixMigration).toContain("set status = 'PAID', paid_at = now()");
+  });
+
+  it("shows RPC failures in the offer screen and prevents duplicate clicks", () => {
+    expect(client).toContain("Não foi possível confirmar a assinatura:");
+    expect(client).toContain("{message && <p role=\"alert\">{message}</p>}");
+    expect(client).toContain("disabled={acceptingSubscriptionOffer}");
   });
 });

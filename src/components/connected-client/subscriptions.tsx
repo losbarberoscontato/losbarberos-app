@@ -140,6 +140,7 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
   const [contractBody, setContractBody] = useState<string | null>(null);
   const [fixedScheduleDraft, setFixedScheduleDraft] = useState<FixedScheduleDraft | null>(null);
   const [message, setMessage] = useState("Carregando assinaturas…");
+  const [acceptingSubscriptionOffer, setAcceptingSubscriptionOffer] = useState(false);
   const customerDetailsKey = context && customer && user ? `${context.organization.id}:${customer.id}:${user.id}` : "";
   const subscriptionDetailsLoaded = Boolean(customerDetailsKey) && subscriptionDetailsLoadedFor === customerDetailsKey;
   const projectDetailsLoaded = Boolean(customerDetailsKey) && projectDetailsLoadedFor === customerDetailsKey;
@@ -298,11 +299,25 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
     });
   }, [context, customer, customerDetailsKey, user]);
   async function acceptSubscriptionOffer(id: string) {
-    if (!context) return;
-    const client = getSupabaseBrowserClient(); if (!client) return;
-    const { error } = await client.rpc("accept_customer_subscription_offer", { p_organization_id: context.organization.id, p_subscription_id: id });
-    setMessage(error ? error.message : "Assinatura confirmada e ativada. Suas parcelas e sessões já estão disponíveis.");
-    if (!error) window.location.assign(route("/cliente/assinaturas/meus-planos"));
+    if (!context || acceptingSubscriptionOffer) return;
+    const client = getSupabaseBrowserClient();
+    if (!client) {
+      setMessage("Não foi possível conectar ao sistema. Atualize a página e tente novamente.");
+      return;
+    }
+    setAcceptingSubscriptionOffer(true);
+    try {
+      const { error } = await client.rpc("accept_customer_subscription_offer", { p_organization_id: context.organization.id, p_subscription_id: id });
+      if (error) {
+        setMessage(`Não foi possível confirmar a assinatura: ${error.message}`);
+        return;
+      }
+      window.location.assign(route("/cliente/assinaturas/meus-planos"));
+    } catch (error) {
+      setMessage(`Não foi possível confirmar a assinatura: ${error instanceof Error ? error.message : "falha de comunicação"}`);
+    } finally {
+      setAcceptingSubscriptionOffer(false);
+    }
   }
   async function acceptProjectOffer(offer: ProjectOffer) {
     if (!context) return;
@@ -616,7 +631,8 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
     <article className={styles.subscriptionCard}>{selectedSubscriptionOffer.plan_version && <><h2>{money(selectedSubscriptionOffer.plan_version.price_cents)}</h2><p>{selectedSubscriptionOffer.plan_version.billing_period === "BIWEEKLY" ? "Quinzenal" : "Mensal"} · {selectedSubscriptionOffer.plan_version.duration_months} mês(es) · {selectedSubscriptionOffer.plan_version.sessions_per_cycle} sessão(ões) por ciclo · {selectedSubscriptionOffer.plan_version.scheduling_mode === "FIXED" ? "Agendamento fixo" : "Agendamento livre"} · pagamento: {paymentMethodLabel[selectedSubscriptionOffer.plan_version.payment_method] ?? selectedSubscriptionOffer.plan_version.payment_method}</p>
       {selectedSubscriptionOffer.plan_version.cancellation_policy && <details><summary>Políticas</summary><p>{selectedSubscriptionOffer.plan_version.cancellation_policy}</p>{selectedSubscriptionOffer.plan_version.session_cancellation_policy && <p>{selectedSubscriptionOffer.plan_version.session_cancellation_policy}</p>}</details>}</>}
       {selectedSubscriptionOffer.contract_body_snapshot && <details><summary>Contrato</summary><p>{selectedSubscriptionOffer.contract_body_snapshot}</p></details>}
-      <div className={styles.planActions}><button className={styles.subscriptionAction} type="button" onClick={() => void acceptSubscriptionOffer(selectedSubscriptionOffer.id)}>Confirmar assinatura</button><button className={styles.subscriptionSecondary} type="button" onClick={() => void declineSubscriptionOffer(selectedSubscriptionOffer.id)}>Recusar</button></div>
+      {message && <p role="alert">{message}</p>}
+      <div className={styles.planActions}><button className={styles.subscriptionAction} type="button" disabled={acceptingSubscriptionOffer} onClick={() => void acceptSubscriptionOffer(selectedSubscriptionOffer.id)}>{acceptingSubscriptionOffer ? "Confirmando…" : "Confirmar assinatura"}</button><button className={styles.subscriptionSecondary} type="button" disabled={acceptingSubscriptionOffer} onClick={() => void declineSubscriptionOffer(selectedSubscriptionOffer.id)}>Recusar</button></div>
     </article>
   </section>;
 
