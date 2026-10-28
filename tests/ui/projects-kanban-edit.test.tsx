@@ -206,7 +206,7 @@ describe("kanban board editing", () => {
     render(<ProjectsManager {...sessionData} projectId="project-1" />);
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
-    const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    const contractDialog = screen.getByRole("dialog", { name: "Contrato nº 1" });
     fireEvent.click(within(contractDialog).getByRole("tab", { name: "Agendamento de Sessões" }));
     fireEvent.click(within(contractDialog).getByRole("button", { name: /Agendar/ }));
 
@@ -500,7 +500,7 @@ describe("kanban board editing", () => {
     }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo cliente" })).not.toBeInTheDocument());
     expect(screen.getByRole("dialog", { name: "Novo contrato" })).toBeInTheDocument();
-    expect(within(contractDialog).getByText("Cliente manual selecionado")).toBeInTheDocument();
+    expect(within(contractDialog).queryByText(/selecionado$/)).not.toBeInTheDocument();
     expect(within(contractDialog).getByLabelText("Cliente")).toHaveValue("Cliente manual");
     fireEvent.click(within(contractDialog).getByRole("button", { name: "Criar contrato" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("save_project_contract", expect.objectContaining({
@@ -527,7 +527,7 @@ describe("kanban board editing", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
-    const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    const contractDialog = screen.getByRole("dialog", { name: "Contrato nº 1" });
     fireEvent.click(within(contractDialog).getByRole("tab", { name: "Dados do pacote" }));
     fireEvent.click(within(contractDialog).getByRole("button", { name: "Receber" }));
     const receiptDialog = screen.getByRole("dialog", { name: "Receber parcela" });
@@ -557,7 +557,7 @@ describe("kanban board editing", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
-    const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    const contractDialog = screen.getByRole("dialog", { name: "Contrato nº 1" });
     fireEvent.click(within(contractDialog).getByRole("tab", { name: "Dados do pacote" }));
     const receiptRow = within(contractDialog).getByText("PIX").closest("div");
 

@@ -45,7 +45,7 @@ const contractData = {
   ...data,
   customers: [{ id: "customer-1", full_name: "Cliente Teste", phone_e164: null, email: null }],
   packages: [{ id: "package-1", organization_id: "org-1", project_id: "project-1", name: "Experiência", description: null, price_cents: 15000, sessions_count: 5, duration_minutes: 60, fixed_cost_per_hour_cents: 0, extra_costs_cents: 0, extra_costs_description: null, tax_rate_bps: 0, card_rate_bps: 0, profit_margin_bps: 5000, deposit_cents: 5000, suggested_price_cents: 15000, sort_order: 1, active: true }],
-  engagements: [{ id: "engagement-1", organization_id: "org-1", project_id: "project-1", customer_id: "customer-1", package_id: "package-1", kanban_board_id: "board-active", status: "ACTIVE" as const, contracted_cents: 15000, proposal_sent_at: "2026-09-14T00:00:00.000Z", accepted_at: "2026-09-15T12:00:00.000Z", created_at: "2026-09-14T00:00:00.000Z" }],
+  engagements: [{ id: "engagement-1", organization_id: "org-1", project_id: "project-1", customer_id: "customer-1", package_id: "package-1", kanban_board_id: "board-active", contract_number: 1, status: "ACTIVE" as const, contracted_cents: 15000, proposal_sent_at: "2026-09-14T00:00:00.000Z", accepted_at: "2026-09-15T12:00:00.000Z", created_at: "2026-09-14T00:00:00.000Z" }],
   installments: [
     { id: "installment-entry", engagement_id: "engagement-1", installment_number: 0, due_on: "2026-09-15", amount_cents: 5000, status: "PAID" as const },
     { id: "installment-1", engagement_id: "engagement-1", installment_number: 1, due_on: "2026-09-15", amount_cents: 5000, status: "PAID" as const },
@@ -247,14 +247,14 @@ describe("projects navigation", () => {
     expect(contractRow).toHaveTextContent("1/2");
     expect(contractRow).toHaveTextContent("15/10/2026");
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente Teste" }));
-    expect(screen.getByRole("dialog", { name: "Novo contrato" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Contrato nº 1" })).toBeInTheDocument();
     const customerInput = screen.getByLabelText("Cliente");
     expect(customerInput).toHaveValue("Cliente Teste");
     fireEvent.change(customerInput, { target: { value: "Cliente" } });
     expect(screen.getByRole("button", { name: "Selecionar Cliente Teste" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Selecionar Cliente Teste" }));
     expect(customerInput).toHaveValue("Cliente Teste");
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Novo contrato" })).getByRole("tab", { name: "Dados do pacote" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Contrato nº 1" })).getByRole("tab", { name: "Dados do pacote" }));
     expect(screen.getByLabelText("Pacote")).toHaveValue("package-1");
     expect(screen.getByLabelText("Data da assinatura")).toHaveValue("2026-09-15");
     expect(within(screen.getByRole("tabpanel", { name: "Dados do pacote" })).queryByLabelText("Status")).not.toBeInTheDocument();
