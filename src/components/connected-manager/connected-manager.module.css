@@ -918,6 +918,22 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .installmentGenerator { display: flex; align-items: flex-end; gap: .6rem; }
 .installmentGenerator > :first-child { flex: 1; }
 .installmentGenerator > .button { margin-bottom: .05rem; white-space: nowrap; }
+.engagementForm { align-content: start; }
+.engagementCustomerHeader { position: sticky; top: -1rem; z-index: 10; display: grid; gap: .45rem; margin: -1rem -1rem 0; padding: 1rem 1rem .55rem; border-bottom: 1px solid #e7ebe5; background: #f7f8f5; }
+.engagementTabs { display: flex; gap: .35rem; overflow-x: auto; scrollbar-width: thin; }
+.engagementTabs button { flex: 0 0 auto; min-height: 2.4rem; padding: .45rem .75rem; border: 1px solid transparent; border-radius: 999px; background: transparent; color: #59665d; font: inherit; font-size: .82rem; font-weight: 750; cursor: pointer; }
+.engagementTabs button:hover { background: #ecefe9; }
+.engagementTabs button.engagementTabActive { border-color: #ded0e6; background: #f0e8f4; color: #44244f; }
+.engagementTabPanel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: .85rem; min-width: 0; }
+.engagementTabPanel > .form { grid-column: 1 / -1; width: 100%; margin: 0; padding: 0; border: 0; background: transparent; }
+.dependentList { display: grid; align-content: start; gap: .5rem; }
+.dependentList > strong { color: #3c4a40; font-size: .85rem; }
+.dependentList > span { display: flex; align-items: center; gap: .45rem; color: #46554a; font-size: .85rem; }
+.dependentList > small { color: #718077; }
+.engagementSessionsPreview { grid-column: 1 / -1; display: grid; gap: .45rem; }
+.engagementSessionsPreview > strong { color: #3c4a40; font-size: .85rem; }
+.engagementSessionsPreview > div { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .65rem .75rem; border: 1px solid #e1e8e1; border-radius: .7rem; background: #fff; }
+.engagementSessionsPreview small { color: #718077; }
 .contractFinance { margin-top: .4rem; }
 .contractFinance h3 { margin: 0 0 .65rem; font-size: 1rem; }
 .sectionToggle { display: inline-flex; align-items: center; gap: .35rem; border: 0; background: transparent; padding: 0 0 .65rem; color: #17251d; font: inherit; font-weight: 800; cursor: pointer; }

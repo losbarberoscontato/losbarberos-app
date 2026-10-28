@@ -1,5 +1,7 @@
 # Continuidade atual — 23/10/2026
 
+Atualização 28/10/2026: modal Novo/Editar contrato do Módulo Projetos organizado em três abas, com cliente fixo no topo, dados de contato/dependentes, parcelas e agendamento de sessões. Sem migration ou Edge Function. Build/typecheck/ESLint focado passaram; a execução inicial da suíte completa reportou 29 falhas, e CI pós-publicação ainda precisa ser consultada. Consulte o topo de `HANDOFF.md`.
+
 Atualização 24/10/2026: Funil Kanban da visão geral passa a refletir a quantidade real de cards por quadro, usando o mesmo filtro da aba Kanban e incluindo cards avulsos. Sem migration/Edge Function. Estado final de validação, CI e Vercel está no topo de `HANDOFF.md`.
 
 Atualização 24/10/2026: correção do aviso WhatsApp de contrato/assinatura para organizações em `LEGACY` aplicada pelas migrations `20261024124855_whatsapp_contract_notices_support_legacy_runtime.sql` e `20261024125131_whatsapp_revalidate_legacy_plan_notice_before_send.sql`; `whatsapp-v2-dispatcher` foi atualizado. Causa: condição de engine no enqueue era mais restrita que o dispatcher de compatibilidade. Consentimento, cliente/telefone, conexão, modo ativo e pausa continuam validados. O contrato de teste anterior não foi reenviado. GitHub/Vercel da correção ainda precisam ser confirmados nesta publicação; entrega real no aparelho continua pendente. Veja `HANDOFF.md`.

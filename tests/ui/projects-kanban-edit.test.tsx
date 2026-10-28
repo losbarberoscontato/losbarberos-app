@@ -525,6 +525,7 @@ describe("kanban board editing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
     const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    fireEvent.click(within(contractDialog).getByRole("tab", { name: "Dados do pacote" }));
     fireEvent.click(within(contractDialog).getByRole("button", { name: "Receber" }));
     const receiptDialog = screen.getByRole("dialog", { name: "Receber parcela" });
     fireEvent.change(within(receiptDialog).getByLabelText("Data de recebimento"), { target: { value: "2026-09-22" } });
@@ -554,6 +555,7 @@ describe("kanban board editing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
     const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    fireEvent.click(within(contractDialog).getByRole("tab", { name: "Dados do pacote" }));
     const receiptRow = within(contractDialog).getByText("PIX").closest("div");
 
     expect(receiptRow).toHaveTextContent("22 de set. de 2026");

@@ -254,6 +254,7 @@ describe("projects navigation", () => {
     expect(screen.getByRole("button", { name: "Selecionar Cliente Teste" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Selecionar Cliente Teste" }));
     expect(customerInput).toHaveValue("Cliente Teste");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Novo contrato" })).getByRole("tab", { name: "Dados do pacote" }));
     expect(screen.getByLabelText("Pacote")).toHaveValue("package-1");
     expect(screen.getByLabelText("Data da assinatura")).toHaveValue("2026-09-15");
     expect(screen.queryByLabelText("Status")).not.toBeInTheDocument();

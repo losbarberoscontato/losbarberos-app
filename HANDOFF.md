@@ -1,5 +1,12 @@
 # Handoff — Los Barberos
 
+## Modal de contrato em abas — 28/10/2026
+
+- Modal Novo/Editar contrato separado em Dados do Cliente, Dados do pacote e Agendamento de Sessões; cliente permanece fixo acima das abas. Cliente mostra WhatsApp e dependentes; pacote mantém parcelas e ações financeiras; sessões mantêm agendamento/cancelamento existentes e mostram sessões previstas antes do aceite.
+- Sem mudança de schema ou Edge Function. `supabase db push --linked --dry-run --yes` confirmou banco remoto alinhado; inventário de Functions consultado, sem Function alterada para republicar.
+- `npm.cmd run typecheck`, build de produção local e ESLint focado passaram. `npm.cmd run verify` terminou com 29 testes falhando, 727 aprovados e 1 ignorado; falhas atravessam áreas fora de Projetos. Testes afetados pela nova navegação foram atualizados após essa execução; CI pós-push deve confirmar o estado final.
+- Commit, CI, deployment Vercel e smoke pós-publicação: pendentes de confirmação nesta entrega.
+
 ## Contagens do Funil Kanban — 24/10/2026
 
 - O resumo agora usa a mesma regra da aba Kanban para cards de contratação: conta somente contratos visíveis no quadro, excluindo recusados e cancelados, e inclui cards avulsos do projeto.
