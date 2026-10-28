@@ -2,7 +2,7 @@
 
 ## Modal de contrato em abas — 28/10/2026
 
-- Modal Novo/Editar contrato separado em Dados do Cliente, Dados do pacote e Agendamento de Sessões; cliente permanece fixo acima das abas. Cliente mostra WhatsApp e dependentes; pacote mantém parcelas e ações financeiras; sessões mantêm agendamento/cancelamento existentes e mostram sessões previstas antes do aceite.
+- Modal Novo/Editar contrato separado em Dados do Cliente, Dados do pacote e Agendamento de Sessões; cliente permanece fixo acima das abas. Cliente mostra WhatsApp e dependentes sem repetir o nome; edição usa “Contrato nº N” no título, sem mensagem redundante no rodapé; lista de sessões ocupa a largura inteira do modal. Pacote mantém parcelas e ações financeiras; sessões mantêm agendamento/cancelamento existentes e mostram sessões previstas antes do aceite.
 - Sem mudança de schema ou Edge Function. `supabase db push --linked --dry-run --yes` confirmou banco remoto alinhado; inventário de Functions consultado, sem Function alterada para republicar.
 - Commits em `main`: `7cd545d` (modal) e `1f3fa98` (seletores de teste atualizados). ESLint focado, typecheck e build de produção local passaram. CI `40746561824`: `edge-functions` e `e2e` passaram; `verify` falhou em 18 testes de 9 arquivos (738 passaram, 1 ignorado), mas os dois arquivos de UI de Projetos alterados passaram; `database` falhou em `supabase start` por `toomanyrequests: Rate exceeded` do Docker Hub.
 - Vercel deployment `dpl_3qkyvxEww4YYHd4A9C3r78TCzfxg` ficou `Ready` no commit `7cd545d`, aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`. Smoke: `/`, `/entrar`, `/privacidade`, `/termos` HTTP 200; `/gestor` HTTP 307 para autenticação. Fluxo visual autenticado ainda não validado.

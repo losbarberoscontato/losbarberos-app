@@ -16,7 +16,7 @@ const board = (id: string, name: string, systemKey: "PROPOSAL" | "ACTIVE" | "COM
 const data = {
   organizationId: "org-1", enabled: true, retentionStatus: "NONE" as const,
   projects: [{ id: "project-1", organization_id: "org-1", name: "Projeto", description: null, status: "PUBLISHED" as const, starts_on: null, sales_close_on: null, ends_on: null, goal_contracts: 10, created_at: "2026-09-15T00:00:00.000Z" }],
-  packages: [], steps: [], engagements: [{ id: "engagement-1", organization_id: "org-1", project_id: "project-1", customer_id: "customer-1", package_id: "package-1", kanban_board_id: "board-1", status: "PROPOSAL" as const, contracted_cents: 15000, proposal_sent_at: null, accepted_at: null, created_at: "2026-09-15T00:00:00.000Z" }],
+  packages: [], steps: [], engagements: [{ id: "engagement-1", organization_id: "org-1", project_id: "project-1", customer_id: "customer-1", package_id: "package-1", kanban_board_id: "board-1", contract_number: 1, status: "PROPOSAL" as const, contracted_cents: 15000, proposal_sent_at: null, accepted_at: null, created_at: "2026-09-15T00:00:00.000Z" }],
   installments: [], customers: [{ id: "customer-1", full_name: "Cliente", phone_e164: null, email: null }], services: [], barbers: [{ id: "barber-1", display_name: "Alef Gonçalves" }], packageBarbers: [], costItems: [],
   kanbanBoards: [board("board-1", "Aguardando aceite", "PROPOSAL", 1), board("board-2", "Em execução", "ACTIVE", 2), board("board-3", "Concluídas", "COMPLETED", 3), board("board-4", "Canceladas", "CANCELED", 4)],
 };
@@ -420,7 +420,9 @@ describe("kanban board editing", () => {
     render(<ProjectsManager {...data} projectId="project-1" />);
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
-    const dialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    const dialog = screen.getByRole("dialog", { name: "Contrato nº 1" });
+    expect(within(dialog).queryByText(/selecionado$/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Modo de edição/)).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Assinar Contrato" })).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Data da assinatura"), { target: { value: "2026-09-20" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
@@ -449,7 +451,7 @@ describe("kanban board editing", () => {
     render(<ProjectsManager {...signedData} projectId="project-1" />);
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
-    const dialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    const dialog = screen.getByRole("dialog", { name: "Contrato nº 1" });
     fireEvent.change(within(dialog).getByLabelText("Data da assinatura"), { target: { value: "2026-09-22" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Salvar alterações" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("set_project_engagement_status", expect.objectContaining({
@@ -458,7 +460,7 @@ describe("kanban board editing", () => {
       p_accepted_on: "2026-09-22",
       p_kanban_board_id: "board-2",
     })));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Novo contrato" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Contrato nº 1" })).not.toBeInTheDocument());
     expect(mocks.refresh).toHaveBeenCalled();
   });
 

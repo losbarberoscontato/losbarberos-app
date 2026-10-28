@@ -1,5 +1,7 @@
 # Continuidade atual — 23/10/2026
 
+Atualização 28/10/2026: refinado o modal de contrato em Projetos: modo de edição mostra “Contrato nº N” no título, remove a descrição redundante do rodapé e o nome duplicado na aba do cliente; lista de sessões usa a largura total. Typecheck e ESLint focado passaram; build e publicação desta atualização serão registrados após concluírem. Nenhuma migration ou Function alterada.
+
 Atualização 28/10/2026: modal Novo/Editar contrato do Módulo Projetos organizado em três abas, com cliente fixo no topo, dados de contato/dependentes, parcelas e agendamento de sessões. Sem migration ou Edge Function. Commits `7cd545d` e `1f3fa98` em `main`; Vercel `Ready`. CI `40746561824`: E2E/Edge Functions e testes de Projetos passaram; verify falhou em 18 testes gerais e database no limite do Docker Hub. Consulte o topo de `HANDOFF.md`.
 
 Atualização 24/10/2026: Funil Kanban da visão geral passa a refletir a quantidade real de cards por quadro, usando o mesmo filtro da aba Kanban e incluindo cards avulsos. Sem migration/Edge Function. Estado final de validação, CI e Vercel está no topo de `HANDOFF.md`.
