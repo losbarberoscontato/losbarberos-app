@@ -207,6 +207,7 @@ describe("kanban board editing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
     const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    fireEvent.click(within(contractDialog).getByRole("tab", { name: "Agendamento de Sessões" }));
     fireEvent.click(within(contractDialog).getByRole("button", { name: /Agendar/ }));
 
     const bookingDialog = await screen.findByRole("dialog", { name: "Reserve um horário" });

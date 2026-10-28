@@ -257,7 +257,7 @@ describe("projects navigation", () => {
     fireEvent.click(within(screen.getByRole("dialog", { name: "Novo contrato" })).getByRole("tab", { name: "Dados do pacote" }));
     expect(screen.getByLabelText("Pacote")).toHaveValue("package-1");
     expect(screen.getByLabelText("Data da assinatura")).toHaveValue("2026-09-15");
-    expect(screen.queryByLabelText("Status")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("tabpanel", { name: "Dados do pacote" })).queryByLabelText("Status")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Vencimento da Entrada")).toHaveValue("2026-09-15");
     expect(screen.getByRole("button", { name: "Gerar Parcelas" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Valor"), { target: { value: "180,00" } });
