@@ -1,6 +1,6 @@
 # Continuidade atual — 23/10/2026
 
-Atualização 28/10/2026: modal Novo/Editar contrato do Módulo Projetos organizado em três abas, com cliente fixo no topo, dados de contato/dependentes, parcelas e agendamento de sessões. Sem migration ou Edge Function. Build/typecheck/ESLint focado passaram; a execução inicial da suíte completa reportou 29 falhas, e CI pós-publicação ainda precisa ser consultada. Consulte o topo de `HANDOFF.md`.
+Atualização 28/10/2026: modal Novo/Editar contrato do Módulo Projetos organizado em três abas, com cliente fixo no topo, dados de contato/dependentes, parcelas e agendamento de sessões. Sem migration ou Edge Function. Commits `7cd545d` e `1f3fa98` em `main`; Vercel `Ready`. CI `40746561824`: E2E/Edge Functions e testes de Projetos passaram; verify falhou em 18 testes gerais e database no limite do Docker Hub. Consulte o topo de `HANDOFF.md`.
 
 Atualização 24/10/2026: Funil Kanban da visão geral passa a refletir a quantidade real de cards por quadro, usando o mesmo filtro da aba Kanban e incluindo cards avulsos. Sem migration/Edge Function. Estado final de validação, CI e Vercel está no topo de `HANDOFF.md`.
 

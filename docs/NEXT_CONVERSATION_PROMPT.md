@@ -1,6 +1,6 @@
 # Projetos e Planos Encerrados — 23/10/2026
 
-Atualização 28/10/2026: modal de contrato do Módulo Projetos recebeu abas de cliente, pacote/parcelas e agendamento de sessões. Supabase remoto estava alinhado no dry-run; nenhuma migration ou Edge Function alterada. Build/typecheck passaram; conferir CI/deploy atuais no topo de `HANDOFF.md`.
+Atualização 28/10/2026: modal de contrato do Módulo Projetos recebeu abas de cliente, pacote/parcelas e agendamento de sessões. Supabase remoto alinhado no dry-run; nenhuma migration ou Edge Function alterada. Commits `7cd545d`/`1f3fa98`; Vercel Ready. CI `40746561824` passou E2E/Edge Functions e falhou em testes gerais/Docker Hub. Limites e smoke no topo de `HANDOFF.md`.
 
 Atualização 24/10/2026: corrigida ausência de aviso WhatsApp em tenants `LEGACY`. A causa era a função de enqueue exigir `runtime_engine = ACTIVE`, embora o dispatcher já tenha caminho de compatibilidade para engines não-`ACTIVE`. Migrations `20261024124855_whatsapp_contract_notices_support_legacy_runtime.sql` e `20261024125131_whatsapp_revalidate_legacy_plan_notice_before_send.sql` aplicadas; `whatsapp-v2-dispatcher` atualizado para respeitar consentimento, cliente/telefone e conexão no envio. O contrato do teste anterior não foi reenfileirado; entrega no aparelho segue pendente. Vercel ainda depende do push GitHub. Consulte `HANDOFF.md`.
 
