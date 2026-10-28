@@ -1,6 +1,6 @@
 # Projetos e Planos Encerrados — 23/10/2026
 
-Atualização 28/10/2026: refinado o modal de contrato em Projetos: edição mostra “Contrato nº N” no título, sem texto redundante no rodapé ou nome repetido na aba Cliente; a lista de sessões ocupa a largura do modal. Typecheck e ESLint focado passaram. Consulte o topo de `HANDOFF.md` para estado final da publicação. Nenhuma migration ou Function alterada.
+Atualização 28/10/2026: modal de Projetos refinado: edição mostra “Contrato nº N” no título, sem texto redundante no rodapé ou nome repetido na aba Cliente; lista de sessões ocupa a largura do modal. Commits `844b73f` e `663134c` na `main`; Vercel Ready (`dpl_C7XrRPmHtog2hrP87LcRwqt8R4M5`). Nenhuma migration ou Function alterada. CI `40750305257`: E2E, Edge Functions e as duas suites de Projetos passaram; 18 falhas em testes de outras áreas; database falhou no seed sem platform admin para o catálogo Kanban. Consulte o topo de `HANDOFF.md`.
 
 Atualização 28/10/2026: modal de contrato do Módulo Projetos recebeu abas de cliente, pacote/parcelas e agendamento de sessões. Supabase remoto alinhado no dry-run; nenhuma migration ou Edge Function alterada. Commits `7cd545d`/`1f3fa98`; Vercel Ready. CI `40746561824` passou E2E/Edge Functions e falhou em testes gerais/Docker Hub. Limites e smoke no topo de `HANDOFF.md`.
 

@@ -1,6 +1,6 @@
 # Continuidade atual — 23/10/2026
 
-Atualização 28/10/2026: refinado o modal de contrato em Projetos: modo de edição mostra “Contrato nº N” no título, remove a descrição redundante do rodapé e o nome duplicado na aba do cliente; lista de sessões usa a largura total. Typecheck e ESLint focado passaram; build e publicação desta atualização serão registrados após concluírem. Nenhuma migration ou Function alterada.
+Atualização 28/10/2026: modal de Projetos refinado: edição mostra “Contrato nº N” no título, sem descrição redundante no rodapé ou nome duplicado na aba Cliente; lista de sessões usa a largura total. Commits `844b73f` e `663134c` em `main`; Vercel Ready (`dpl_C7XrRPmHtog2hrP87LcRwqt8R4M5`). Typecheck, ESLint focado e build local passaram; CI `40750305257` aprovou E2E/Edge Functions e as duas suites de Projetos, mas falhou em 18 testes gerais e no seed do banco por falta de platform admin para auditar o catálogo Kanban. Sem migration ou Function nesta alteração. Veja `HANDOFF.md`.
 
 Atualização 28/10/2026: modal Novo/Editar contrato do Módulo Projetos organizado em três abas, com cliente fixo no topo, dados de contato/dependentes, parcelas e agendamento de sessões. Sem migration ou Edge Function. Commits `7cd545d` e `1f3fa98` em `main`; Vercel `Ready`. CI `40746561824`: E2E/Edge Functions e testes de Projetos passaram; verify falhou em 18 testes gerais e database no limite do Docker Hub. Consulte o topo de `HANDOFF.md`.
 
