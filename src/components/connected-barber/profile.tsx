@@ -12,15 +12,164 @@ import styles from "./barber.module.css";
 
 export function BarberProfile({ context }: { context: BarberAppContext }) {
   const query = `?barbearia=${encodeURIComponent(context.organization_slug)}`;
-  return <><section className={styles.hero}><div><p className={styles.eyebrow}>{context.organization_name}</p><h1 className={styles.title}>Meu</h1><p className={styles.muted}>Acesse seus dados pessoais e gerencie sua escala.</p></div></section><div className={styles.profileMenu}><Link className={styles.card + " " + styles.profileMenuItem} href={`/barbeiro/perfil/dados-pessoais${query}`}><span><UserRound size={21} /><strong>Dados pessoais</strong><small>Foto, contato, apresentação e Google Agenda</small></span><span aria-hidden="true">›</span></Link><Link className={styles.card + " " + styles.profileMenuItem} href={`/barbeiro/escala${query}`}><span><CalendarClock size={21} /><strong>Escala</strong><small>Horários de trabalho, folgas e exceções</small></span><span aria-hidden="true">›</span></Link></div></>;
+  return <>
+    <section className={styles.hero}>
+      <div>
+        <p className={styles.eyebrow}>{context.organization_name}</p>
+        <h1 className={styles.title}>Meu</h1>
+        <p className={styles.muted}>Acesse seus dados pessoais e gerencie sua escala.</p>
+      </div>
+    </section>
+    <div className={styles.profileMenu}>
+      <Link className={`${styles.card} ${styles.profileMenuItem}`} href={`/barbeiro/perfil/dados-pessoais${query}`}>
+        <span><UserRound size={21} /><strong>Dados pessoais</strong><small>Foto, contato e apresentação</small></span>
+        <span aria-hidden="true">›</span>
+      </Link>
+      <Link className={`${styles.card} ${styles.profileMenuItem}`} href={`/barbeiro/escala${query}`}>
+        <span><CalendarClock size={21} /><strong>Escala</strong><small>Horários de trabalho, folgas e exceções</small></span>
+        <span aria-hidden="true">›</span>
+      </Link>
+    </div>
+    <BarberCalendarIntegration context={context} />
+  </>;
+}
+
+function BarberCalendarIntegration({ context }: { context: BarberAppContext }) {
+  const [message, setMessage] = useState("");
+  const [calendar, setCalendar] = useState<{ google_account_email: string; status: string } | null>(null);
+  const [connectingCalendar, setConnectingCalendar] = useState(false);
+  const returnPath = `/barbeiro/perfil?barbearia=${encodeURIComponent(context.organization_slug)}`;
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    void (async () => {
+      const [authResult, connectionResult] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.from("google_calendar_connections")
+          .select("google_account_email,status")
+          .eq("organization_id", context.organization_id)
+          .eq("target_type", "BARBER")
+          .eq("barber_id", context.barber_id)
+          .maybeSingle(),
+      ]);
+      setCalendar(connectionResult.data);
+      const providers = authResult.data.user?.app_metadata?.providers;
+      const usedGoogleAuth = authResult.data.user?.app_metadata?.provider === "google"
+        || (Array.isArray(providers) && providers.includes("google"));
+      const attemptKey = `google-calendar-consent:${context.organization_id}:${context.barber_id}`;
+      if (!connectionResult.data && usedGoogleAuth && !sessionStorage.getItem(attemptKey)) {
+        sessionStorage.setItem(attemptKey, "started");
+        setConnectingCalendar(true);
+        const { data, error } = await supabase.functions.invoke("google-calendar-oauth-start", {
+          body: { organizationId: context.organization_id, targetType: "BARBER", barberId: context.barber_id, returnPath },
+        });
+        const authorizationUrl = data && typeof data === "object" && "authorizationUrl" in data ? data.authorizationUrl : null;
+        if (!error && typeof authorizationUrl === "string") window.location.assign(authorizationUrl);
+        else {
+          setConnectingCalendar(false);
+          setMessage(error?.message ?? "Não foi possível iniciar a autorização do Google Agenda.");
+        }
+      }
+    })();
+  }, [context.organization_id, context.barber_id, returnPath]);
+
+  async function connectGoogleCalendar() {
+    setConnectingCalendar(true);
+    setMessage("Abrindo autorização do Google Agenda…");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) throw new Error("Supabase indisponível.");
+      const { data, error } = await supabase.functions.invoke("google-calendar-oauth-start", {
+        body: { organizationId: context.organization_id, targetType: "BARBER", barberId: context.barber_id, returnPath },
+      });
+      const authorizationUrl = data && typeof data === "object" && "authorizationUrl" in data ? data.authorizationUrl : null;
+      if (error || typeof authorizationUrl !== "string") throw new Error(error?.message ?? "URL de autorização não recebida.");
+      window.location.assign(authorizationUrl);
+    } catch (error) {
+      setConnectingCalendar(false);
+      setMessage(error instanceof Error ? error.message : "Não foi possível abrir a conexão.");
+    }
+  }
+
+  return <section className={styles.card} style={{ marginTop: 16 }}>
+    <h2>Integração Google Agenda</h2>
+    <p className={styles.muted}>
+      {calendar?.google_account_email
+        ? `${calendar.google_account_email} · seus atendimentos serão sincronizados nesta agenda.`
+        : "Conecte a agenda Google onde deseja receber seus atendimentos."}
+    </p>
+    {message && <p className={styles.notice} role="status">{message}</p>}
+    <button type="button" className={styles.button} disabled={connectingCalendar} onClick={() => void connectGoogleCalendar()}>
+      {connectingCalendar ? "Abrindo…" : calendar?.status === "CONNECTED" ? "Reconectar Google Agenda" : "Conectar Google Agenda"}
+    </button>
+  </section>;
 }
 
 export function BarberPersonalData({ context }: { context: BarberAppContext }) {
-  const router = useRouter(); const input = useRef<HTMLInputElement>(null); const [message, setMessage] = useState(""); const [avatarUrl, setAvatarUrl] = useState(context.barber_avatar_url); const [calendar, setCalendar] = useState<{ google_account_email: string; status: string } | null>(null); const [connectingCalendar, setConnectingCalendar] = useState(false);
-  useEffect(() => { const supabase = getSupabaseBrowserClient(); if (!supabase) return; void (async () => { const [authResult, connectionResult] = await Promise.all([supabase.auth.getUser(), supabase.from("google_calendar_connections").select("google_account_email,status").eq("organization_id", context.organization_id).eq("target_type", "BARBER").eq("barber_id", context.barber_id).maybeSingle()]); setCalendar(connectionResult.data); const providers = authResult.data.user?.app_metadata?.providers; const usedGoogleAuth = authResult.data.user?.app_metadata?.provider === "google" || (Array.isArray(providers) && providers.includes("google")); const attemptKey = `google-calendar-consent:${context.organization_id}:${context.barber_id}`; if (!connectionResult.data && usedGoogleAuth && !sessionStorage.getItem(attemptKey)) { sessionStorage.setItem(attemptKey, "started"); setConnectingCalendar(true); const returnPath = `/barbeiro/perfil/dados-pessoais?barbearia=${encodeURIComponent(context.organization_slug)}`; const { data, error } = await supabase.functions.invoke("google-calendar-oauth-start", { body: { organizationId: context.organization_id, targetType: "BARBER", barberId: context.barber_id, returnPath } }); const authorizationUrl = data && typeof data === "object" && "authorizationUrl" in data ? data.authorizationUrl : null; if (!error && typeof authorizationUrl === "string") window.location.assign(authorizationUrl); else { setConnectingCalendar(false); setMessage(error?.message ?? "Não foi possível iniciar a autorização do Google Agenda."); } } })(); }, [context.organization_id, context.organization_slug, context.barber_id]);
-  async function connectGoogleCalendar() { setConnectingCalendar(true); setMessage("Abrindo autorização do Google Agenda…"); try { const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error("Supabase indisponível."); const returnPath = `/barbeiro/perfil/dados-pessoais?barbearia=${encodeURIComponent(context.organization_slug)}`; const { data, error } = await supabase.functions.invoke("google-calendar-oauth-start", { body: { organizationId: context.organization_id, targetType: "BARBER", barberId: context.barber_id, returnPath } }); const authorizationUrl = data && typeof data === "object" && "authorizationUrl" in data ? data.authorizationUrl : null; if (error || typeof authorizationUrl !== "string") throw new Error(error?.message ?? "URL de autorização não recebida."); window.location.assign(authorizationUrl); } catch (error) { setConnectingCalendar(false); setMessage(error instanceof Error ? error.message : "Não foi possível abrir a conexão."); } }
-  async function uploadPhoto(file: File) { if (!/^image\/(png|jpeg|webp)$/u.test(file.type) || file.size > 2 * 1024 * 1024) throw new Error("Use PNG, JPEG ou WebP de até 2 MB."); const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error("Supabase indisponível."); const path = `${context.organization_id}/${context.barber_id}/${crypto.randomUUID()}.webp`; const { error } = await supabase.storage.from("barber-avatars").upload(path, file, { contentType: file.type, cacheControl: "31536000" }); if (error) throw error; return supabase.storage.from("barber-avatars").getPublicUrl(path).data.publicUrl; }
-  async function save(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = new FormData(event.currentTarget); try { const file = data.get("avatar"); const newAvatar = file instanceof File && file.size ? await uploadPhoto(file) : avatarUrl; const whatsapp = normalizePhoneE164(String(data.get("whatsapp") ?? "").trim()); if (String(data.get("whatsapp") ?? "").trim() && !whatsapp) throw new Error("Informe um WhatsApp válido."); const supabase = getSupabaseBrowserClient(); const { error } = await supabase!.rpc("update_my_barber_profile", { p_organization_id: context.organization_id, p_display_name: String(data.get("display_name") ?? "").trim(), p_whatsapp_e164: whatsapp, p_bio: String(data.get("bio") ?? "").trim() || null, p_avatar_url: newAvatar }); if (error) throw error; setAvatarUrl(newAvatar); setMessage("Perfil atualizado."); router.refresh(); } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível atualizar o perfil."); } }
+  const router = useRouter();
+  const input = useRef<HTMLInputElement>(null);
+  const [message, setMessage] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState(context.barber_avatar_url);
+
+  async function uploadPhoto(file: File) {
+    if (!/^image\/(png|jpeg|webp)$/u.test(file.type) || file.size > 2 * 1024 * 1024) throw new Error("Use PNG, JPEG ou WebP de até 2 MB.");
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) throw new Error("Supabase indisponível.");
+    const path = `${context.organization_id}/${context.barber_id}/${crypto.randomUUID()}.webp`;
+    const { error } = await supabase.storage.from("barber-avatars").upload(path, file, { contentType: file.type, cacheControl: "31536000" });
+    if (error) throw error;
+    return supabase.storage.from("barber-avatars").getPublicUrl(path).data.publicUrl;
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    try {
+      const file = data.get("avatar");
+      const newAvatar = file instanceof File && file.size ? await uploadPhoto(file) : avatarUrl;
+      const rawWhatsapp = String(data.get("whatsapp") ?? "").trim();
+      const whatsapp = normalizePhoneE164(rawWhatsapp);
+      if (rawWhatsapp && !whatsapp) throw new Error("Informe um WhatsApp válido.");
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) throw new Error("Supabase indisponível.");
+      const { error } = await supabase.rpc("update_my_barber_profile", {
+        p_organization_id: context.organization_id,
+        p_display_name: String(data.get("display_name") ?? "").trim(),
+        p_whatsapp_e164: whatsapp,
+        p_bio: String(data.get("bio") ?? "").trim() || null,
+        p_avatar_url: newAvatar,
+      });
+      if (error) throw error;
+      setAvatarUrl(newAvatar);
+      setMessage("Perfil atualizado.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível atualizar o perfil.");
+    }
+  }
+
   const backHref = `/barbeiro/perfil?barbearia=${encodeURIComponent(context.organization_slug)}`;
-  return <><section className={styles.hero}><div><p className={styles.eyebrow}>{context.organization_name}</p><h1 className={styles.title}>Dados pessoais</h1><p className={styles.muted}>Edite seus dados de contato e apresentação.</p><Link className={styles.switcher} href={backHref}>← Voltar para Meu</Link></div></section>{message && <p className={styles.notice} role="status">{message}</p>}<form className={styles.card + " " + styles.form} onSubmit={save}><div className={styles.row}>{avatarUrl ? <Image src={avatarUrl} alt="Foto de perfil" width={78} height={78} style={{ borderRadius: "50%", objectFit: "cover" }} /> : <span className={styles.status}>Sem foto</span>}<button type="button" className={`${styles.button} ${styles.secondary}`} onClick={() => input.current?.click()}><Camera size={16} /> Trocar foto</button><input ref={input} name="avatar" type="file" accept="image/png,image/jpeg,image/webp" hidden /></div><label>Nome<input name="display_name" defaultValue={context.barber_name} minLength={2} required /></label><label>WhatsApp<input name="whatsapp" defaultValue={context.barber_whatsapp_e164 ?? ""} inputMode="tel" /></label><label>Descrição de perfil<textarea name="bio" defaultValue={context.barber_bio ?? ""} maxLength={1000} /></label><div className={styles.formActions}><button className={styles.button}>Salvar alterações</button></div></form><section className={styles.card} style={{ marginTop: 16 }}><h2>Integração Google Agenda</h2><p className={styles.muted}>{calendar?.google_account_email ? `${calendar.google_account_email} · seus atendimentos serão sincronizados nesta agenda.` : "Conecte a agenda Google onde deseja receber seus atendimentos."}</p><button type="button" className={styles.button} disabled={connectingCalendar} onClick={() => void connectGoogleCalendar()}>{connectingCalendar ? "Abrindo…" : calendar?.status === "CONNECTED" ? "Reconectar Google Agenda" : "Conectar Google Agenda"}</button></section></>;
+  return <>
+    <section className={styles.hero}>
+      <div>
+        <p className={styles.eyebrow}>{context.organization_name}</p>
+        <h1 className={styles.title}>Dados pessoais</h1>
+        <p className={styles.muted}>Edite seus dados de contato e apresentação.</p>
+        <Link className={styles.switcher} href={backHref}>← Voltar para Meu</Link>
+      </div>
+    </section>
+    {message && <p className={styles.notice} role="status">{message}</p>}
+    <form className={`${styles.card} ${styles.form}`} onSubmit={save}>
+      <div className={styles.row}>
+        {avatarUrl ? <Image src={avatarUrl} alt="Foto de perfil" width={78} height={78} style={{ borderRadius: "50%", objectFit: "cover" }} /> : <span className={styles.status}>Sem foto</span>}
+        <button type="button" className={`${styles.button} ${styles.secondary}`} onClick={() => input.current?.click()}><Camera size={16} /> Trocar foto</button>
+        <input ref={input} name="avatar" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+      </div>
+      <label>Nome<input name="display_name" defaultValue={context.barber_name} minLength={2} required /></label>
+      <label>WhatsApp<input name="whatsapp" defaultValue={context.barber_whatsapp_e164 ?? ""} inputMode="tel" /></label>
+      <label>Descrição de perfil<textarea name="bio" defaultValue={context.barber_bio ?? ""} maxLength={1000} /></label>
+      <div className={styles.formActions}><button className={styles.button}>Salvar alterações</button></div>
+    </form>
+  </>;
 }
