@@ -5,7 +5,9 @@
 - O histórico já registrava as remoções do teste e `get_my_barber_schedule` devolvia esses eventos. O sino não recebia notificações porque o histórico da escala e `manager_notifications` não estavam conectados.
 - Migration `20261030191420_notify_managers_of_professional_schedule_changes.sql` adiciona o tipo `BARBER_SCHEDULE_CHANGED` e um trigger transacional: alterações feitas pelo profissional (adicionar, editar ou remover horário; adicionar ou remover folga/exceção) geram item no sino para gestores `OWNER` ativos da mesma organização. Edições do gestor seguem registradas no histórico sem gerar notificação redundante.
 - Verificação remota: trigger e tipo ativos; inserção simulada em transação validou notificação (`before 0, after 1`) e foi revertida. Eventos de histórico existentes permanecem disponíveis ao profissional. Supabase alinhado após migration.
-- Publicação GitHub, Vercel e CI desta entrega: registrar após conclusão no topo deste documento. A validação visual autenticada do sino permanece pendente.
+- Commit `0ad06f1238d7e6865dadf1dc32e90c41cff61449` publicado em `main`. Migration aplicada ao Supabase `bwdjkhqshmppescunwer`; dry-run confirmou alinhamento. Nenhuma Edge Function mudou. Advisors não apontaram erros; o relatório geral ainda mostra avisos em funções legadas.
+- Vercel deployment `dpl_XN3Xghas3g8XUnrDPx5CHLiBAA6R` está `READY` e atende `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`. Smoke: `/`, `/entrar`, `/privacidade`, `/termos` HTTP 200 e `/gestor` HTTP 307 para autenticação.
+- Validação local: `npm run lint` sem erros (14 avisos), `npm run typecheck`, `npm run build` e `git diff --check` passaram. CI `41114196809`: `e2e` e `edge-functions` passaram; `verify` falhou no teste de perfil que procura `ana@example.com` (mesma falha no CI anterior `41111893673`); `database` falhou durante preparação do job, antes dos comandos Supabase. Validação visual autenticada do sino permanece pendente.
 
 ## Recálculo de parcelas em contratos de Projetos — 30/10/2026
 
