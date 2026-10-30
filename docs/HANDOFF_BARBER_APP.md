@@ -1,5 +1,9 @@
 # Prompt para próxima conversa
 
+## Ajuste de notificações da escala — 30/10/2026
+
+Alterações de escala feitas pelo profissional agora geram notificação no sino do gestor e evento no histórico na mesma transação. Abrange adicionar/editar/remover horário e adicionar/remover folga ou exceção. Notificações são enviadas a cada gestor `OWNER` ativo da própria organização. Migration: `20261030191420_notify_managers_of_professional_schedule_changes.sql`. O trigger foi verificado no Supabase com uma inserção de teste revertida por rollback. Validar o sino visualmente em sessão autenticada após a publicação.
+
 ```text
 Continue o projeto Los Barberos em D:\Display SH\Los Barberos. Antes de alterar qualquer coisa, leia AGENTS.md, README.md, docs/architecture.md, docs/security.md, docs/qa.md, docs/ROTEIRO_TESTES_VISUAIS_APP_BARBEIRO.md e o estado atual de Git/Supabase/Vercel. Não trate este texto como substituto do código, migrations e estado remoto.
 

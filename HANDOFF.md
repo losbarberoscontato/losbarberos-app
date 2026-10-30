@@ -1,5 +1,12 @@
 # Handoff — Los Barberos
 
+## Aviso ao gestor sobre alterações de escala — 30/10/2026
+
+- O histórico já registrava as remoções do teste e `get_my_barber_schedule` devolvia esses eventos. O sino não recebia notificações porque o histórico da escala e `manager_notifications` não estavam conectados.
+- Migration `20261030191420_notify_managers_of_professional_schedule_changes.sql` adiciona o tipo `BARBER_SCHEDULE_CHANGED` e um trigger transacional: alterações feitas pelo profissional (adicionar, editar ou remover horário; adicionar ou remover folga/exceção) geram item no sino para gestores `OWNER` ativos da mesma organização. Edições do gestor seguem registradas no histórico sem gerar notificação redundante.
+- Verificação remota: trigger e tipo ativos; inserção simulada em transação validou notificação (`before 0, after 1`) e foi revertida. Eventos de histórico existentes permanecem disponíveis ao profissional. Supabase alinhado após migration.
+- Publicação GitHub, Vercel e CI desta entrega: registrar após conclusão no topo deste documento. A validação visual autenticada do sino permanece pendente.
+
 ## Recálculo de parcelas em contratos de Projetos — 30/10/2026
 
 - Corrigida a repetição de parcelas no modal: `project_installment_finance` agora ignora lançamentos financeiros cancelados ligados à mesma parcela. Antes da migration, a consulta remota tinha 1 parcela duplicada, 15 parcelas com histórico financeiro cancelado e 0 duplicatas ativas em Contas a receber; depois, a consulta retorna 0 parcelas duplicadas e 0 duplicatas ativas em Contas a receber.

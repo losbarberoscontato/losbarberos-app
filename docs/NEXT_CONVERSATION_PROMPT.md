@@ -1,5 +1,7 @@
 # Projetos e Planos Encerrados — 23/10/2026
 
+Atualização 30/10/2026: escala do app de equipe agora notifica gestores no sino para qualquer alteração feita pelo profissional e mantém histórico append-only. Migration `20261030191420_notify_managers_of_professional_schedule_changes.sql`; verificação transacional Supabase passou e rollback não deixou dados de teste. Confirmar CI, push e Vercel no `HANDOFF.md`; inspeção visual autenticada ainda pendente.
+
 Atualização 30/10/2026: no modal de contrato em Projetos, cliente não pode ser trocado na edição; na criação a busca continua ativa. Commit `c965de1` em `main`; Vercel Ready (`dpl_5bPqoYHrUcxh1RkJHt9SF5CvNBeN`). Sem migration ou Function. CI `41086372129`: E2E e Edge Functions passaram; verify e database falharam. Veja o topo de `HANDOFF.md`.
 
 Atualização 28/10/2026: modal de Projetos refinado: edição mostra “Contrato nº N” no título, sem texto redundante no rodapé ou nome repetido na aba Cliente; lista de sessões ocupa a largura do modal. Commits `844b73f` e `663134c` na `main`; Vercel Ready (`dpl_C7XrRPmHtog2hrP87LcRwqt8R4M5`). Nenhuma migration ou Function alterada. CI `40750305257`: E2E, Edge Functions e as duas suites de Projetos passaram; 18 falhas em testes de outras áreas; database falhou no seed sem platform admin para o catálogo Kanban. Consulte o topo de `HANDOFF.md`.
