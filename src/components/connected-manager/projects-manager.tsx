@@ -637,18 +637,21 @@ export function ProjectsManager(props: ManagerProps) {
     const entry = Math.min(value, Math.max(0, safeCentsInput(engagementEntry || "0")));
     const total = Math.max(1, Number.parseInt(engagementInstallments, 10) || 1);
     const existing = props.installments.filter((item) => item.engagement_id === editingEngagementId);
-    const paidRows = existing.filter((item) => item.installment_number > 0 && (item.status === "PAID" || (item.settled_cents ?? 0) > 0));
-    const paidTotal = paidRows.reduce((sum, item) => sum + (item.settled_cents ?? item.amount_cents), 0);
-    const remaining = Math.max(0, value - entry - paidTotal);
-    const openCount = Math.max(0, total - paidRows.length);
-    const lastPaid = paidRows.reduce((max, item) => Math.max(max, item.installment_number), 0);
-    const lastPaidDue = paidRows.find((item) => item.installment_number === lastPaid)?.due_on;
-    const start = new Date(`${lastPaidDue ?? engagementFirstDueOn}T12:00:00`);
-    if (lastPaidDue) start.setMonth(start.getMonth() + 1);
-    else start.setMonth(start.getMonth());
+    const lockedRows = existing.filter((item) => item.installment_number > 0 && (item.status === "PAID" || (item.settled_cents ?? 0) > 0));
+    const paidRows = lockedRows.filter((item) => item.status === "PAID" || (item.remaining_cents ?? Math.max(0, item.amount_cents - (item.settled_cents ?? 0))) === 0);
+    const partialRows = lockedRows.filter((item) => !paidRows.includes(item));
+    const paidTotal = paidRows.reduce((sum, item) => sum + (item.settled_cents ?? item.amount_cents), 0)
+      + partialRows.reduce((sum, item) => sum + (item.settled_cents ?? 0), 0);
+    const partialRemaining = partialRows.reduce((sum, item) => sum + (item.remaining_cents ?? Math.max(0, item.amount_cents - (item.settled_cents ?? 0))), 0);
+    const remaining = Math.max(0, value - entry - paidTotal - partialRemaining);
+    const openCount = Math.max(0, total - lockedRows.length);
+    const lastLocked = lockedRows.reduce((max, item) => Math.max(max, item.installment_number), 0);
+    const lastLockedDue = lockedRows.find((item) => item.installment_number === lastLocked)?.due_on;
+    const start = new Date(`${lastLockedDue ?? engagementFirstDueOn}T12:00:00`);
+    if (lastLockedDue) start.setMonth(start.getMonth() + 1);
     const base = openCount > 0 ? Math.floor(remaining / openCount) : 0;
     setGeneratedEngagementSchedule(Array.from({ length: openCount }, (_, index) => {
-      const installmentNumber = lastPaid + index + 1;
+      const installmentNumber = lastLocked + index + 1;
       const due = new Date(start);
       due.setMonth(start.getMonth() + index);
       return { installment_number: installmentNumber, due_on: due.toISOString().slice(0, 10), amount_cents: index === openCount - 1 ? remaining - base * (openCount - 1) : base };

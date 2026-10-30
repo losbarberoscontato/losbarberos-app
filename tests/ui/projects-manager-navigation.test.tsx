@@ -283,6 +283,31 @@ describe("projects navigation", () => {
     expect(screen.getByRole("row", { name: /Cliente Teste/ }).className).toMatch(/engagementOverdue/);
   });
 
+  it("regenerates only the outstanding balance while preserving a partially paid installment", () => {
+    const partiallyPaidData = {
+      ...contractData,
+      engagements: [{ ...contractData.engagements[0], contracted_cents: 20000 }],
+      installments: [
+        { ...contractData.installments[0], settled_cents: 5000, remaining_cents: 0 },
+        { ...contractData.installments[1], settled_cents: 5000, remaining_cents: 0 },
+        { ...contractData.installments[2], settled_cents: 2500, remaining_cents: 2500 },
+      ],
+    };
+    render(<ProjectsManager {...partiallyPaidData} projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente Teste" }));
+    const dialog = screen.getByRole("dialog", { name: "Contrato nº 1" });
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Dados do pacote" }));
+    fireEvent.change(within(dialog).getByLabelText("Valor"), { target: { value: "200,00" } });
+    fireEvent.change(within(dialog).getByLabelText("Total de parcelas"), { target: { value: "3" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Gerar Parcelas" }));
+
+    expect(within(dialog).getByText("2", { selector: "span" })).toBeInTheDocument();
+    expect(within(dialog).getByText("3", { selector: "span" })).toBeInTheDocument();
+    expect(within(dialog).getAllByText("R$ 50,00")).toHaveLength(4);
+    expect(within(dialog).getByText("15 de nov. de 2026")).toBeInTheDocument();
+  });
+
   it("opens the packages sub-screen and caps the editor at four packages", () => {
     render(<ProjectsManager {...data} projectId="project-1" />);
     fireEvent.click(screen.getByRole("button", { name: /Pacotes/ }));

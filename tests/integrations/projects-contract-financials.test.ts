@@ -17,6 +17,7 @@ const kanbanReceivedCommentsMigration = readFileSync("supabase/migrations/202609
 const signatureDueDateFixMigration = readFileSync("supabase/migrations/20260918193248_project_contract_signature_due_date_fix.sql", "utf8");
 const acceptedFinanceMigration = readFileSync("supabase/migrations/20261024133828_project_contract_finance_after_customer_acceptance.sql", "utf8");
 const acceptedFinanceGuardMigration = readFileSync("supabase/migrations/20261024134836_enforce_project_finance_acceptance_guards.sql", "utf8");
+const installmentRecalculationMigration = readFileSync("supabase/migrations/20261030161047_fix_project_installment_recalculation.sql", "utf8");
 
 describe("projects contract financial migration", () => {
   it("links project installments to financial receivables", () => {
@@ -128,6 +129,14 @@ describe("projects contract financial migration", () => {
     expect(acceptedFinanceGuardMigration).toContain("before insert or update on public.financial_entries");
     expect(acceptedFinanceMigration).toContain("project contract must be accepted before receivables are created");
     expect(acceptedFinanceMigration).toContain("project contract must be accepted before installments are created");
+  });
+
+  it("hides canceled receivables from installment rows and recalculates only the remaining balance", () => {
+    expect(installmentRecalculationMigration).toContain("e.canceled_at is null");
+    expect(installmentRecalculationMigration).toContain("v_partial_remaining");
+    expect(installmentRecalculationMigration).toContain("p_contracted_cents - p_entry_cents - v_paid_total - v_partial_remaining");
+    expect(installmentRecalculationMigration).toContain("p_installments_count - v_paid_count - v_partial_count");
+    expect(installmentRecalculationMigration).toContain("on conflict (organization_id, project_installment_id)");
   });
 
   it("allows unassigned project boards to stay out of the general Kanban", () => {
