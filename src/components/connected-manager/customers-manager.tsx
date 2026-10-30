@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronDown, ChevronRight, Clock3, Pencil, Save, Trash2, UserRound, UserPlus, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Clock3, Pencil, Save, Trash2, UserRound, UserPlus, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import type { loadCustomersData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
@@ -228,7 +228,7 @@ export function CustomersManager({
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentAccountId, setPaymentAccountId] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
-  const [dependentsOpen, setDependentsOpen] = useState(true);
+  const [customerFormTab, setCustomerFormTab] = useState<"details" | "dependents">("details");
   const [dependentDraft, setDependentDraft] = useState<{ id?: string; fullName: string; birthDate: string; relationship: "CHILD" | "SPOUSE" | "EMPLOYEE" | "PARENT" | "OTHER" }>({ fullName: "", birthDate: "", relationship: "CHILD" });
   const [todayTimestamp] = useState(() => Date.now());
   const subscriptionStatusesByCustomer = useMemo(() => {
@@ -337,6 +337,7 @@ export function CustomersManager({
       queueMicrotask(() => {
         setEditing(customer);
         setFormOpen(true);
+        setCustomerFormTab("details");
         setHistoryCustomer(null);
       });
     }
@@ -403,7 +404,7 @@ export function CustomersManager({
     setEditing(customer);
     setFormOpen(true);
     setMessage("");
-    setDependentsOpen(true);
+    setCustomerFormTab("details");
     setDependentDraft({ fullName: "", birthDate: "", relationship: "CHILD" });
   }
 
@@ -418,7 +419,7 @@ export function CustomersManager({
   function closeForm() {
     setFormOpen(false);
     setEditing(null);
-    setDependentsOpen(true);
+    setCustomerFormTab("details");
     setDependentDraft({ fullName: "", birthDate: "", relationship: "CHILD" });
   }
 
@@ -867,6 +868,7 @@ export function CustomersManager({
             type="button"
             onClick={() => {
               setEditing(null);
+              setCustomerFormTab("details");
               setFormOpen(true);
             }}
           >
@@ -985,7 +987,7 @@ export function CustomersManager({
               onClick={closeForm}
             />
             <form
-              className="form-modal"
+              className="form-modal form-modal--customer"
               role="dialog"
               aria-modal="true"
               aria-label={editing ? "Editar cliente" : "Novo cliente"}
@@ -998,6 +1000,7 @@ export function CustomersManager({
                   <strong>
                     {editing ? "Atualize os dados" : "Cadastre um cliente"}
                   </strong>
+                  <em>{editing ? "Mantenha o cadastro e os dependentes organizados." : "Preencha os dados principais do cliente."}</em>
                 </span>
                 <button
                   type="button"
@@ -1008,79 +1011,88 @@ export function CustomersManager({
                   <X size={19} />
                 </button>
               </div>
-              <div className="form-modal__body">
-                {editing?.auth_user_id && (
-                  <p className="customer-canonical-notice">
-                    Dados controlados pelo cliente. Nome, telefone, e-mail e
-                    nascimento são atualizados pela conta global.
-                  </p>
-                )}
-                <Field label="Nome completo">
-                  <input
-                    name="full_name"
-                    required
-                    minLength={2}
-                    maxLength={160}
-                    defaultValue={editing?.full_name}
-                    disabled={Boolean(editing?.auth_user_id)}
-                  />
-                </Field>
-                <Field label="CPF/CNPJ">
-                  <input name="cpf_cnpj" inputMode="numeric" placeholder="CPF ou CNPJ" defaultValue={editing?.cpf_cnpj ? formatCpfCnpj(editing.cpf_cnpj) : ""} disabled={Boolean(editing?.auth_user_id)} onChange={(event) => { event.currentTarget.value = formatCpfCnpj(event.currentTarget.value); }} />
-                </Field>
-                <Field label="Telefone">
-                  <input
-                    name="phone_e164"
-                    inputMode="tel"
-                    placeholder="11999999999 ou +5511999999999"
-                    pattern="[+0-9][0-9\s().-]{7,20}"
-                    defaultValue={editing?.phone_e164 ?? ""}
-                    disabled={Boolean(editing?.auth_user_id)}
-                  />
-                </Field>
-                <Field label="E-mail">
-                  <input
-                    name="email"
-                    type="email"
-                    defaultValue={editing?.email ?? ""}
-                    disabled={Boolean(editing?.auth_user_id)}
-                  />
-                </Field>
-                <Field label="Nascimento (opcional)">
-                  <input
-                    name="birth_date"
-                    type="date"
-                    defaultValue={editing?.birth_date ?? ""}
-                    disabled={Boolean(editing?.auth_user_id)}
-                  />
-                </Field>
-                <Field label="Observações" wide>
-                  <textarea
-                    name="notes"
-                    maxLength={1000}
-                    defaultValue={editing?.notes ?? ""}
-                  />
-                </Field>
-                {editing && <section className="form-wide customer-dependents" aria-labelledby="customer-dependents-title">
-                  <button type="button" className="customer-dependents__toggle" onClick={() => setDependentsOpen((value) => !value)} aria-expanded={dependentsOpen}>
-                    <span className="customer-dependents__heading"><ChevronRight size={16} className={dependentsOpen ? "section-toggle-open" : ""} /><span><strong id="customer-dependents-title">Dependentes</strong><small>Até 8 pessoas cadastradas para atendimento</small></span></span>
-                    <span className="customer-dependents__count">{editing.dependents?.length ?? 0}/8</span>
+              <div className="form-modal__body customer-modal__body">
+                <div className="customer-modal__tabs" role="tablist" aria-label="Dados do cliente">
+                  <button type="button" id="customer-details-tab" role="tab" aria-selected={customerFormTab === "details"} aria-controls="customer-details-panel" className={customerFormTab === "details" ? "is-active" : ""} onClick={() => setCustomerFormTab("details")}>Dados do cliente</button>
+                  <button type="button" id="customer-dependents-tab" role="tab" aria-selected={customerFormTab === "dependents"} aria-controls={editing ? "customer-dependents-panel" : undefined} className={customerFormTab === "dependents" ? "is-active" : ""} disabled={!editing} onClick={() => setCustomerFormTab("dependents")}>
+                    Dependentes <span>{editing ? `${editing.dependents?.length ?? 0}/8` : "Após salvar"}</span>
                   </button>
-                  {dependentsOpen && <div className="customer-dependents__content">
-                    <div className="customer-dependent-form">
-                      <label className="customer-dependent-name">Nome completo<input aria-label="Nome do dependente" placeholder="Digite o nome completo" value={dependentDraft.fullName} onChange={(event) => setDependentDraft((d) => ({ ...d, fullName: event.target.value }))} /></label>
-                      <div className="customer-dependent-details">
-                        <label>Data de nascimento<input aria-label="Data de nascimento do dependente" type="date" value={dependentDraft.birthDate} onChange={(event) => setDependentDraft((d) => ({ ...d, birthDate: event.target.value }))} /></label>
-                        <span className="customer-dependent-age"><small>Idade calculada</small><strong>{dependentDraft.birthDate ? `${dependentAge(dependentDraft.birthDate)} anos` : "—"}</strong></span>
-                        <label>Parentesco<select aria-label="Parentesco do dependente" value={dependentDraft.relationship} onChange={(event) => setDependentDraft((d) => ({ ...d, relationship: event.target.value as typeof d.relationship }))}><option value="CHILD">Filho(a)</option><option value="SPOUSE">Cônjuge</option><option value="EMPLOYEE">Funcionário</option><option value="PARENT">Pai/Mãe</option><option value="OTHER">Outros</option></select></label>
-                        <button type="button" className="button button--dark customer-dependent-save" disabled={(editing.dependents?.length ?? 0) >= 8 && !dependentDraft.id} onClick={() => void saveDependent(editing)}><Save size={15} /> {dependentDraft.id ? "Salvar alteração" : "Adicionar dependente"}</button>
-                      </div>
+                </div>
+                {!editing && <p className="customer-modal__hint">Salve o cliente para liberar o cadastro de dependentes.</p>}
+                <section id="customer-details-panel" className="customer-modal__panel" role="tabpanel" aria-labelledby="customer-details-tab" hidden={customerFormTab !== "details"}>
+                  {editing?.auth_user_id && (
+                    <p className="customer-canonical-notice">
+                      Dados controlados pelo cliente. Nome, telefone, e-mail e
+                      nascimento são atualizados pela conta global.
+                    </p>
+                  )}
+                  <div className="customer-modal__grid">
+                    <Field label="Nome completo">
+                      <input
+                        name="full_name"
+                        required
+                        minLength={2}
+                        maxLength={160}
+                        defaultValue={editing?.full_name}
+                        disabled={Boolean(editing?.auth_user_id)}
+                      />
+                    </Field>
+                    <Field label="CPF/CNPJ">
+                      <input name="cpf_cnpj" inputMode="numeric" placeholder="CPF ou CNPJ" defaultValue={editing?.cpf_cnpj ? formatCpfCnpj(editing.cpf_cnpj) : ""} disabled={Boolean(editing?.auth_user_id)} onChange={(event) => { event.currentTarget.value = formatCpfCnpj(event.currentTarget.value); }} />
+                    </Field>
+                    <Field label="Telefone">
+                      <input
+                        name="phone_e164"
+                        inputMode="tel"
+                        placeholder="11999999999 ou +5511999999999"
+                        pattern="[+0-9][0-9\s().-]{7,20}"
+                        defaultValue={editing?.phone_e164 ?? ""}
+                        disabled={Boolean(editing?.auth_user_id)}
+                      />
+                    </Field>
+                    <Field label="E-mail">
+                      <input
+                        name="email"
+                        type="email"
+                        defaultValue={editing?.email ?? ""}
+                        disabled={Boolean(editing?.auth_user_id)}
+                      />
+                    </Field>
+                    <Field label="Nascimento (opcional)">
+                      <input
+                        name="birth_date"
+                        type="date"
+                        defaultValue={editing?.birth_date ?? ""}
+                        disabled={Boolean(editing?.auth_user_id)}
+                      />
+                    </Field>
+                    <Field label="Observações" wide>
+                      <textarea
+                        name="notes"
+                        maxLength={1000}
+                        defaultValue={editing?.notes ?? ""}
+                      />
+                    </Field>
+                  </div>
+                </section>
+                {editing && <section id="customer-dependents-panel" className="customer-modal__panel customer-modal__dependents" role="tabpanel" aria-labelledby="customer-dependents-tab" hidden={customerFormTab !== "dependents"}>
+                  <header className="customer-modal__section-head">
+                    <span><strong>Dependentes do cliente</strong><small>Cadastre até 8 pessoas que podem ser atendidas vinculadas a este cliente.</small></span>
+                    <span className="customer-dependents__count">{editing.dependents?.length ?? 0}/8</span>
+                  </header>
+                  <div className="customer-dependent-form">
+                    <label className="customer-dependent-name">Nome completo<input aria-label="Nome do dependente" placeholder="Digite o nome completo" value={dependentDraft.fullName} onChange={(event) => setDependentDraft((d) => ({ ...d, fullName: event.target.value }))} /></label>
+                    <div className="customer-dependent-details">
+                      <label>Data de nascimento<input aria-label="Data de nascimento do dependente" type="date" value={dependentDraft.birthDate} onChange={(event) => setDependentDraft((d) => ({ ...d, birthDate: event.target.value }))} /></label>
+                      <span className="customer-dependent-age"><small>Idade calculada</small><strong>{dependentDraft.birthDate ? dependentAge(dependentDraft.birthDate) : "—"}</strong></span>
+                      <label>Parentesco<select aria-label="Parentesco do dependente" value={dependentDraft.relationship} onChange={(event) => setDependentDraft((d) => ({ ...d, relationship: event.target.value as typeof d.relationship }))}><option value="CHILD">Filho(a)</option><option value="SPOUSE">Cônjuge</option><option value="EMPLOYEE">Funcionário(a)</option><option value="PARENT">Pai/Mãe</option><option value="OTHER">Outro</option></select></label>
+                      <button type="button" className="button button--dark customer-dependent-save" disabled={(editing.dependents?.length ?? 0) >= 8 && !dependentDraft.id} onClick={() => void saveDependent(editing)}><Save size={15} /> {dependentDraft.id ? "Salvar alteração" : "Adicionar dependente"}</button>
                     </div>
-                    {(editing.dependents ?? []).length > 0 ? <div className="customer-dependent-table" role="table" aria-label="Dependentes cadastrados">
-                      <div className="customer-dependent-table__head" role="row"><span>Nome</span><span>Nascimento</span><span>Idade</span><span>Parentesco</span><span className="sr-only">Ações</span></div>
-                      {(editing.dependents ?? []).map((item) => <div className="customer-dependent-table__row" role="row" key={item.id}><span><strong>{item.full_name}</strong></span><span>{item.birth_date}</span><span>{dependentAge(item.birth_date)} anos</span><span>{({ CHILD: "Filho(a)", SPOUSE: "Cônjuge", EMPLOYEE: "Funcionário", PARENT: "Pai/Mãe", OTHER: "Outros" } as Record<string, string>)[item.relationship]}</span><span className="customer-dependent-actions"><button type="button" className="icon-button icon-button--sm" aria-label={`Editar ${item.full_name}`} onClick={() => setDependentDraft({ id: item.id, fullName: item.full_name, birthDate: item.birth_date, relationship: item.relationship })}><Pencil size={15} /></button><button type="button" className="icon-button icon-button--sm" aria-label={`Excluir ${item.full_name}`} onClick={() => void removeDependent(item.id)}><Trash2 size={15} /></button></span></div>)}
-                    </div> : <div className="customer-dependents__empty"><UserPlus size={18} /><span><strong>Nenhum dependente cadastrado</strong><small>Adicione alguém que poderá ser atendido no lugar do cliente.</small></span></div>}
-                  </div>}
+                  </div>
+                  {(editing.dependents ?? []).length > 0 ? <div className="customer-dependent-table" role="table" aria-label="Dependentes cadastrados">
+                    <div className="customer-dependent-table__head" role="row"><span>Nome</span><span>Nascimento</span><span>Idade</span><span>Parentesco</span><span className="sr-only">Ações</span></div>
+                    {(editing.dependents ?? []).map((item) => <div className="customer-dependent-table__row" role="row" key={item.id}><span><strong>{item.full_name}</strong></span><span>{new Date(`${item.birth_date}T12:00:00`).toLocaleDateString("pt-BR")}</span><span>{dependentAge(item.birth_date)}</span><span>{({ CHILD: "Filho(a)", SPOUSE: "Cônjuge", EMPLOYEE: "Funcionário(a)", PARENT: "Pai/Mãe", OTHER: "Outro" } as Record<string, string>)[item.relationship]}</span><span className="customer-dependent-actions"><button type="button" className="icon-button icon-button--sm" aria-label={`Editar ${item.full_name}`} onClick={() => setDependentDraft({ id: item.id, fullName: item.full_name, birthDate: item.birth_date, relationship: item.relationship })}><Pencil size={15} /></button><button type="button" className="icon-button icon-button--sm" aria-label={`Excluir ${item.full_name}`} onClick={() => void removeDependent(item.id)}><Trash2 size={15} /></button></span></div>)}
+                  </div> : <div className="customer-dependents__empty"><UserPlus size={18} /><span><strong>Nenhum dependente cadastrado</strong><small>Adicione alguém que poderá ser atendido no lugar do cliente.</small></span></div>}
                 </section>}
               </div>
               <div className="form-modal__footer">
