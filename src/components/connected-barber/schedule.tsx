@@ -221,9 +221,9 @@ export function BarberSchedule({ context, section = "overview" }: { context: Bar
           </div>
         </section>
         <div className={styles.scheduleShortcuts}>
-          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={`${baseHref}/nova-folga`}><span><CalendarClock size={19} /><strong>Adicionar folga ou exceção</strong><small>Cadastrar uma data e horário indisponível</small></span><ChevronRight size={19} /></Link>
-          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={`${baseHref}/folgas`}><span><CalendarClock size={19} /><strong>Folgas e exceções cadastradas</strong><small>{exceptions.length ? `${exceptions.length} cadastradas` : "Consultar e remover períodos"}</small></span><ChevronRight size={19} /></Link>
-          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={`${baseHref}/historico`}><span><CalendarClock size={19} /><strong>Histórico de alterações</strong><small>Ver quem alterou a escala e quando</small></span><ChevronRight size={19} /></Link>
+          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={`/barbeiro/escala/nova-folga${query}`}><span><CalendarClock size={19} /><strong>Adicionar folga ou exceção</strong><small>Cadastrar uma data e horário indisponível</small></span><ChevronRight size={19} /></Link>
+          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={`/barbeiro/escala/folgas${query}`}><span><CalendarClock size={19} /><strong>Folgas e exceções cadastradas</strong><small>{exceptions.length ? `${exceptions.length} cadastradas` : "Consultar e remover períodos"}</small></span><ChevronRight size={19} /></Link>
+          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={`/barbeiro/escala/historico${query}`}><span><CalendarClock size={19} /><strong>Histórico de alterações</strong><small>Ver quem alterou a escala e quando</small></span><ChevronRight size={19} /></Link>
         </div>
       </>}
 

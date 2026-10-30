@@ -1,5 +1,10 @@
 # Handoff — Los Barberos
 
+## Atalhos de escala do app de equipe — 30/10/2026
+
+- Corrigida a composição de URL dos atalhos de adicionar folga, consultar folgas e histórico. O query param `barbearia` agora fica depois do caminho da seção, levando à rota correta em vez de `/barbeiro/escala`.
+- Sem alterações em migrations ou Edge Functions. Validar rotas após publicar; a conferência autenticada depende de sessão profissional.
+
 ## Aviso ao gestor sobre alterações de escala — 30/10/2026
 
 - O histórico já registrava as remoções do teste e `get_my_barber_schedule` devolvia esses eventos. O sino não recebia notificações porque o histórico da escala e `manager_notifications` não estavam conectados.

@@ -1,5 +1,9 @@
 # Prompt para próxima conversa
 
+## Navegação dos atalhos de escala — 30/10/2026
+
+Corrigido o formato dos links de adicionar folga, folgas cadastradas e histórico para `/barbeiro/escala/<seção>?barbearia=<slug>`. Sem mudança de schema ou Edge Function. Confirmar deployment e navegação autenticada conforme `HANDOFF.md`.
+
 ## Ajuste de notificações da escala — 30/10/2026
 
 Alterações de escala feitas pelo profissional agora geram notificação no sino do gestor e evento no histórico na mesma transação. Abrange adicionar/editar/remover horário e adicionar/remover folga ou exceção. Notificações são enviadas a cada gestor `OWNER` ativo da própria organização. Migration `20261030191420_notify_managers_of_professional_schedule_changes.sql`, commit `0ad06f1` em `main`, Supabase aplicado e Vercel `READY` (`dpl_XN3Xghas3g8XUnrDPx5CHLiBAA6R`). Trigger confirmado em teste com rollback. Validação visual autenticada do sino ainda pendente; CI `41114196809` teve E2E/Edge Functions aprovados, teste geral de perfil falhou e job de banco falhou na preparação. Ver `HANDOFF.md`.
