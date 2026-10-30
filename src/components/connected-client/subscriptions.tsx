@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useConnectedClient } from "./context";
+import { clientVocabulary } from "./vocabulary";
 import { barberSupportsServices, localToday } from "./format";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import styles from "./connected-client.module.css";
@@ -122,7 +123,8 @@ const paymentMethodLabel: Record<string, string> = {
 };
 
 export function ConnectedSubscriptions({ view = "home", itemId }: { view?: SubscriptionView; itemId?: string }) {
-  const { context, customer, user } = useConnectedClient();
+  const { context, customer, user, entry, identity } = useConnectedClient();
+  const vocabulary = clientVocabulary(identity, entry?.product_key);
   const [rows, setRows] = useState<Row[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [subscriptionDetailsLoadedFor, setSubscriptionDetailsLoadedFor] = useState("");
@@ -384,14 +386,14 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
       p_accept_contract: true,
     });
     const friendlyError = error?.message?.match(/subscription module disabled/i)
-      ? "Planos de Assinatura está inativo nesta barbearia."
+      ? `Planos de Assinatura estão inativos ${vocabulary.inOrganization}.`
       : error?.code === "23505" || error?.message?.match(/already has|unique constraint/i)
-        ? "Você já possui uma assinatura ativa nesta barbearia."
+        ? `Você já possui uma assinatura ativa ${vocabulary.inOrganization}.`
         : error?.message;
     setMessage(
       friendlyError
         ? friendlyError
-        : "Solicitação enviada. Aguarde aprovação da barbearia.",
+        : `Solicitação enviada. Aguarde aprovação ${vocabulary.byOrganization}.`,
     );
     if (!friendlyError) window.location.assign(route("/cliente/assinaturas/meus-planos"));
   }
@@ -415,9 +417,9 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
     const message = error?.message.match(/fixed_schedule_conflict|barber|availability/i)
       ? "Não há disponibilidade para esta série. Escolha outra data, hora ou profissional."
       : error?.code === "23505" || error?.message.match(/already has|unique constraint/i)
-        ? "Você já possui uma assinatura ativa nesta barbearia."
+        ? `Você já possui uma assinatura ativa ${vocabulary.inOrganization}.`
         : error?.message;
-    setMessage(message ?? "Solicitação enviada. Aguarde aprovação da barbearia.");
+    setMessage(message ?? `Solicitação enviada. Aguarde aprovação ${vocabulary.byOrganization}.`);
     if (!error) {
       setFixedScheduleDraft(null);
       window.location.assign(route("/cliente/assinaturas/meus-planos"));

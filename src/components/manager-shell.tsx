@@ -28,6 +28,7 @@ import { LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, PRO_STETIC_IDEN
 import { systemLoginHref } from "@/lib/system-auth";
 import type { ProductKey } from "@/lib/product-context";
 import { productBillingPath } from "@/lib/product-routes";
+import { getProductVocabulary } from "@/lib/product-vocabulary";
 
 const navigation = [
   { href: "/gestor", label: "Visão geral", icon: LayoutDashboard, exact: true },
@@ -64,7 +65,7 @@ function ManagerNavigation({ onNavigate, agendaCount, projectsModuleEnabled, kan
     (item.module !== "projects" || projectsModuleEnabled) && (item.module !== "kanban" || kanbanModuleEnabled)).map((item) => ({
     ...item,
     label: productKey === "music-pro"
-      ? item.href === "/gestor/clientes" ? "Alunos" : item.href === "/gestor/equipe" ? "Professores" : item.href === "/gestor/catalogo" ? "Cursos" : item.label
+      ? item.href === "/gestor/clientes" ? "Estudantes" : item.href === "/gestor/equipe" ? "Equipe" : item.href === "/gestor/catalogo" ? "Cursos" : item.label
       : item.label,
   }));
 
@@ -228,6 +229,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
   }
 
   const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : productKey === "music-pro" ? MUSIC_PRO_IDENTITY_FALLBACK : productKey === "pro-stetic" ? PRO_STETIC_IDENTITY_FALLBACK : undefined);
+  const organizationTerm = getProductVocabulary(productKey, effectiveIdentity?.vocabulary).organization;
   const identityStyle = productIdentityStyle(effectiveIdentity);
 
   const managerProfile = (
@@ -261,7 +263,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
         <div className="manager-sidebar__brand">
           <Brand href="/gestor" light name={effectiveIdentity?.brand.name} tagline={effectiveIdentity?.brand.tagline} mark={effectiveIdentity?.brand.mark} logoUrl={effectiveIdentity?.brand.logoUrl} />
         </div>
-          <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={effectiveIdentity?.vocabulary.organization ?? "barbearia"} brandMark={effectiveIdentity?.brand.mark} />
+          <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={organizationTerm} brandMark={effectiveIdentity?.brand.mark} />
         <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} kanbanModuleEnabled={kanbanModuleEnabled} productKey={productKey} />
         <div className="manager-sidebar__footer">
           {managerProfile}
@@ -283,7 +285,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
             <X size={20} />
           </button>
         </div>
-        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={effectiveIdentity?.vocabulary.organization ?? "barbearia"} brandMark={effectiveIdentity?.brand.mark} />
+        <OrganizationSwitcher organizationName={organizationName} locationName={locationName} organizationLogoUrl={organizationLogoUrl} onClick={() => setOrganizationNotice((visible) => !visible)} showNotice={organizationNotice} organizationTerm={organizationTerm} brandMark={effectiveIdentity?.brand.mark} />
         <ManagerNavigation agendaCount={agendaCount} projectsModuleEnabled={projectsModuleEnabled} kanbanModuleEnabled={kanbanModuleEnabled} productKey={productKey} onNavigate={() => setMenuOpen(false)} />
         <div className="manager-sidebar__footer">
           {managerProfile}
@@ -344,7 +346,7 @@ function ManagerBottomLink({ item, productKey }: { item: (typeof navigation)[num
   return (
     <Link href={item.href} className={active ? "is-active" : ""} aria-current={active ? "page" : undefined}>
       <Icon size={20} />
-      <span>{productKey === "music-pro" && item.href === "/gestor/clientes" ? "Alunos" : productKey === "music-pro" && item.href === "/gestor/equipe" ? "Professores" : item.label.split(" ")[0]}</span>
+      <span>{productKey === "music-pro" && item.href === "/gestor/clientes" ? "Estudantes" : productKey === "music-pro" && item.href === "/gestor/equipe" ? "Equipe" : item.label.split(" ")[0]}</span>
     </Link>
   );
 }

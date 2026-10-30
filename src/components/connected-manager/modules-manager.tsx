@@ -112,7 +112,7 @@ export function ModulesManager(props: Props) {
             <p className={styles.muted}>Valor: {kanbanPrice ? formatCents(kanbanPrice.monthly_price_cents) : "—"}/mês. Início da cobrança: {nextCharge}. Sem cobrança proporcional neste ciclo; durante o trial, no primeiro ciclo pago.</p>
             <label className={styles.check}><input type="checkbox" checked={activationAccepted} onChange={(event) => setActivationAccepted(event.target.checked)} /> Li e aceito o aditivo {kanbanPrice?.contract_version} e autorizo a cobrança recorrente.</label>
           </> : <>
-            <p className={styles.muted}>As cobranças deste módulo são responsabilidade do gestor da barbearia. O sistema não transaciona valores, não cobra clientes e não se responsabiliza por pagamentos.</p>
+            <p className={styles.muted}>A gestão é responsável pelas cobranças deste módulo. O sistema não processa pagamentos, não cobra clientes e não se responsabiliza pelos valores pagos.</p>
             <p className={styles.muted}>O módulo de pagamentos online ainda não está ativo; esta integração será disponibilizada futuramente.</p>
             <label className={styles.check}><input type="checkbox" checked={activationAccepted} onChange={(event) => setActivationAccepted(event.target.checked)} /> Li e aceito o aditivo contratual do módulo e autorizo a cobrança adicional na mensalidade do sistema a partir do próximo ciclo.</label>
           </>}

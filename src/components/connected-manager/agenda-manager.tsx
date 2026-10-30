@@ -53,10 +53,12 @@ import { AppointmentReceiptDialog } from "./cash-manager";
 import { buildAppointmentReceiptDraft, type AppointmentReceiptDraft } from "./appointment-receipt";
 import { dateBlockCoversDate, type OrganizationDateBlock } from "./date-block-calendar";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
+import type { ProductKey } from "@/lib/product-routes";
+import { getProductVocabulary } from "@/lib/product-vocabulary";
 import styles from "./connected-manager.module.css";
 
 type AgendaData = AwaitedReturn<typeof loadAgendaData>;
-type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions" | "environments" | "dateBlocks" | "kanbanEnabled" | "kanbanBoards" | "kanbanCards" | "whatsappPending"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"]; environments?: AgendaData["environments"]; dateBlocks?: OrganizationDateBlock[]; kanbanEnabled?: boolean; kanbanBoards?: AgendaData["kanbanBoards"]; kanbanCards?: AgendaData["kanbanCards"]; whatsappPending?: boolean };
+type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions" | "environments" | "dateBlocks" | "kanbanEnabled" | "kanbanBoards" | "kanbanCards" | "whatsappPending"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"]; environments?: AgendaData["environments"]; dateBlocks?: OrganizationDateBlock[]; kanbanEnabled?: boolean; kanbanBoards?: AgendaData["kanbanBoards"]; kanbanCards?: AgendaData["kanbanCards"]; whatsappPending?: boolean; productKey?: ProductKey };
 type View = "day" | "week" | "month";
 
 const hours = Array.from({ length: 14 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
@@ -119,6 +121,7 @@ function agendaStatusClass(appointment: Pick<AppointmentRecord, "status" | "canc
 }
 
 export function AgendaManager(props: Props) {
+  const vocabulary = getProductVocabulary(props.productKey);
   const router = useRouter();
   const timezone = props.organization.timezone;
   const todayKey = dateKeyInTimezone(new Date(), timezone);
@@ -396,7 +399,7 @@ export function AgendaManager(props: Props) {
         const payment = subscriptionPaymentFor(appointment);
         const alerts = [
           payment?.overdue ? "A parcela do plano de assinatura está em atraso." : "",
-          payment?.method === "CASH" ? "O pagamento do plano deve ser recebido em dinheiro na barbearia." : "",
+          payment?.method === "CASH" ? `O pagamento do plano deve ser recebido em dinheiro ${vocabulary.organizationWithPreposition}.` : "",
         ].filter(Boolean);
         if (alerts.length) window.alert(alerts.join("\n"));
       }
@@ -585,7 +588,7 @@ export function AgendaManager(props: Props) {
           <span><MapPin size={17} /><div><small>Origem</small><strong>{appointmentSourceLabel(selected.source)}</strong></div></span>
           {props.kanbanEnabled && (() => { const card = props.kanbanCards?.find((item) => item.appointment_id === selected.id); const board = props.kanbanBoards?.find((item) => item.id === card?.board_id); return board ? <span><div><small>Kanban</small><strong>{board.name}</strong></div></span> : null; })()}
         </div>
-        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span>{selected.payment_mode === "SUBSCRIPTION" ? <><small>Plano de assinatura</small>{selectedSubscriptionPayment?.sessionReference && <small>Sessão {selectedSubscriptionPayment.sessionReference}</small>}{selectedSubscriptionPayment?.cycle?.status === "PAID" && <small>Pago em {selectedSubscriptionPayment.cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(selectedSubscriptionPayment.cycle.paid_at))) : "—"} · {formatCents(selectedSubscriptionPayment.amountCents)} · {paymentMethodLabel(selectedSubscriptionPayment.method)}</small>}{selectedSubscriptionPayment?.overdue && <small className="appointment-payment-alert">Pagamento em atraso</small>}{selectedSubscriptionPayment?.method === "CASH" && <small className="appointment-payment-alert">Receber em dinheiro na barbearia</small>}</> : <><small>{selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</>}</div><div className="appointment-detail__payment-value"><strong>{selected.payment_mode === "SUBSCRIPTION" ? formatCents(selectedSubscriptionPayment?.amountCents ?? 0) : formatCents(selected.total_cents_snapshot)}</strong>{selected.payment_mode === "SUBSCRIPTION" && selectedSubscriptionPayment?.subscriptionId && <button type="button" className="button button--dark button--sm" onClick={() => { setSelected(null); router.push(`/gestor/clientes?cliente=${encodeURIComponent(selected.customer_id)}&assinatura=${encodeURIComponent(selectedSubscriptionPayment.subscriptionId)}`); }}>Receber</button>}</div><span>{selected.payment_mode === "SUBSCRIPTION" ? `Venc. ${selectedSubscriptionPayment?.cycle?.due_on ?? "—"}` : `Saldo: ${formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}`}</span></div>
+        <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span>{selected.payment_mode === "SUBSCRIPTION" ? <><small>Plano de assinatura</small>{selectedSubscriptionPayment?.sessionReference && <small>Sessão {selectedSubscriptionPayment.sessionReference}</small>}{selectedSubscriptionPayment?.cycle?.status === "PAID" && <small>Pago em {selectedSubscriptionPayment.cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(selectedSubscriptionPayment.cycle.paid_at))) : "—"} · {formatCents(selectedSubscriptionPayment.amountCents)} · {paymentMethodLabel(selectedSubscriptionPayment.method)}</small>}{selectedSubscriptionPayment?.overdue && <small className="appointment-payment-alert">Pagamento em atraso</small>}{selectedSubscriptionPayment?.method === "CASH" && <small className="appointment-payment-alert">Receber em dinheiro {vocabulary.organizationWithPreposition}</small>}</> : <><small>{selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</>}</div><div className="appointment-detail__payment-value"><strong>{selected.payment_mode === "SUBSCRIPTION" ? formatCents(selectedSubscriptionPayment?.amountCents ?? 0) : formatCents(selected.total_cents_snapshot)}</strong>{selected.payment_mode === "SUBSCRIPTION" && selectedSubscriptionPayment?.subscriptionId && <button type="button" className="button button--dark button--sm" onClick={() => { setSelected(null); router.push(`/gestor/clientes?cliente=${encodeURIComponent(selected.customer_id)}&assinatura=${encodeURIComponent(selectedSubscriptionPayment.subscriptionId)}`); }}>Receber</button>}</div><span>{selected.payment_mode === "SUBSCRIPTION" ? `Venc. ${selectedSubscriptionPayment?.cycle?.due_on ?? "—"}` : `Saldo: ${formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}`}</span></div>
         {selectedCustomerRecord?.phone_e164 && <div className="appointment-detail__contact"><a href={`https://web.whatsapp.com/send?phone=${selectedCustomerRecord.phone_e164.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a></div>}
       </div>
       <div className="appointment-detail__actions">

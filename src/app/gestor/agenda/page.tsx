@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui";
 import { hasSupabaseConfig } from "@/lib/env";
 import { AgendaManager } from "@/components/connected-manager/agenda-manager";
 import { loadAgendaData } from "@/components/connected-manager/server";
+import { getSelectedProductKey } from "@/lib/product-context";
 
 export const metadata: Metadata = { title: "Agenda" };
 
@@ -12,7 +13,7 @@ export default async function AgendaPage() {
   if (hasSupabaseConfig) {
     const data = await loadAgendaData();
     if (data.billingStatus === "CANCELED_RETENTION" || data.billingStatus === "CLOSED") redirect("/regularizacao");
-    return <AgendaManager {...data} />;
+    return <AgendaManager {...data} productKey={await getSelectedProductKey()} />;
   }
   return (
     <div className="agenda-page">

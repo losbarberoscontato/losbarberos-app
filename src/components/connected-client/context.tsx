@@ -224,12 +224,12 @@ export function ConnectedClientProvider({
         setCustomer((current) =>
           current?.organization_id === result?.organization.id ? current : null
         );
-        if (!result) setError("Barbearia não encontrada.");
+        if (!result) setError("Estabelecimento não encontrado.");
       })
       .catch((cause: unknown) => {
         if (!active) return;
         setContext(null);
-        setError(toClientError(cause, "Não foi possível carregar barbearia."));
+        setError(toClientError(cause, "Não foi possível carregar o estabelecimento."));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -310,7 +310,7 @@ export function ConnectedClientProvider({
       if (context && relation) {
         nextCustomer = await getMyCustomer(supabase, context.organization.id, expectedUserId);
         if (!nextCustomer || nextCustomer.id !== relation.customer_id) {
-          throw new Error("Relação de cliente inconsistente para esta barbearia.");
+          throw new Error("Relação de cliente inconsistente para este estabelecimento.");
         }
       }
       if (!active) return;
@@ -391,7 +391,7 @@ export function ConnectedClientProvider({
     const result = await getMyCustomer(supabase, context.organization.id, user.id);
     if (!result || result.id !== relation.customer_id) {
       setCustomer(null);
-      throw new Error("Relação de cliente inconsistente para esta barbearia.");
+      throw new Error("Relação de cliente inconsistente para este estabelecimento.");
     }
     setCustomer(result);
     return result;
@@ -442,7 +442,7 @@ export function ConnectedClientProvider({
 
   const confirmTenantLink = useCallback((): Promise<ClientTenantLinkResult> => {
     if (!supabase || !user || !slug || !context) {
-      return Promise.reject(new Error("Sessão e barbearia são obrigatórias para criar vínculo."));
+      return Promise.reject(new Error("Sessão e estabelecimento são obrigatórios para criar vínculo."));
     }
     if (linkInFlightRef.current?.slug === slug) return linkInFlightRef.current.promise;
 
@@ -473,7 +473,7 @@ export function ConnectedClientProvider({
             || result.organization_id !== expectedOrganizationId
             || result.organization_slug !== expectedSlug
           ) {
-            throw new Error("Resposta de vínculo não corresponde à barbearia selecionada.");
+          throw new Error("Resposta de vínculo não corresponde ao estabelecimento selecionado.");
           }
         }
         if (currentSlugRef.current !== expectedSlug) return result;
@@ -502,10 +502,10 @@ export function ConnectedClientProvider({
           item.organization_id === expectedOrganizationId
           && item.organization_slug === expectedSlug
           && item.customer_id === result.customer_id);
-        if (!relation) throw new Error("Vínculo confirmado não apareceu na lista de barbearias.");
+        if (!relation) throw new Error("Vínculo confirmado não apareceu na lista de estabelecimentos.");
         const nextCustomer = await getMyCustomer(supabase, expectedOrganizationId, user.id);
         if (!nextCustomer || nextCustomer.id !== relation.customer_id) {
-          throw new Error("Relação de cliente inconsistente para esta barbearia.");
+          throw new Error("Relação de cliente inconsistente para este estabelecimento.");
         }
         if (currentSlugRef.current !== expectedSlug) return result;
         setOrganizations(nextOrganizations);
@@ -518,7 +518,7 @@ export function ConnectedClientProvider({
           setCustomer(null);
           setPendingClaim(null);
           setLinkStatus("ERROR");
-          setError(toClientError(cause, "Não foi possível entrar nesta barbearia."));
+          setError(toClientError(cause, "Não foi possível acessar este estabelecimento."));
         }
         throw cause;
       }

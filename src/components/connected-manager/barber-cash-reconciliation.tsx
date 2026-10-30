@@ -93,12 +93,12 @@ export function BarberCashSessionReconciliation({ sessions, receipts = [], finan
         p_account_breakdown: accountBreakdown,
         p_idempotency_key: `manager:barber-cash-reconcile:${selected.id}:${crypto.randomUUID()}`,
       }));
-    }, "Caixa do Barbeiro conciliado e confirmado nas contas selecionadas.");
+    }, "Caixa do profissional conciliado e confirmado nas contas selecionadas.");
     if (saved) { closeSession(); onSaved(); }
   }
 
   return <>
-    {!sessions.length ? <EmptyState title="Nenhum caixa diário aberto">Os caixas surgem quando um Barbeiro com permissão recebe um atendimento.</EmptyState> : <div className={styles.list}>{sessions.map((session) => {
+    {!sessions.length ? <EmptyState title="Nenhum caixa diário aberto">Os caixas surgem quando um profissional com permissão recebe um atendimento.</EmptyState> : <div className={styles.list}>{sessions.map((session) => {
       const reconciled = session.status === "RECONCILED";
       return <article className={styles.row} key={session.id}>
         <span className={styles.rowTitle}><strong>{barberNames[session.barber_id] ?? "Profissional"}</strong><small>{formatBusinessDate(session.business_date)} · esperado {formatCents(session.expected_cents)}{reconciled && session.reconciled_cents !== null ? ` · apurado ${formatCents(session.reconciled_cents)}` : ""}</small></span>
@@ -109,7 +109,7 @@ export function BarberCashSessionReconciliation({ sessions, receipts = [], finan
     {selected && <div className="modal-layer" role="presentation"><button type="button" className="modal-layer__backdrop" aria-label="Fechar conciliação" onClick={closeSession} /><form className="form-modal" role="dialog" aria-modal="true" aria-label={`Conciliar caixa de ${barberNames[selected.barber_id] ?? "profissional"}`} onSubmit={reconcile}>
       <div className="form-modal__head"><span><small>Caixa diário</small><strong>Conciliar e fechar</strong></span><button type="button" className="icon-button" onClick={closeSession} aria-label="Fechar"><X size={18} aria-hidden="true" /></button></div>
       <div className="form-modal__body">
-        <p>Barbeiro: <strong>{barberNames[selected.barber_id] ?? "Profissional"}</strong></p>
+        <p>Profissional: <strong>{barberNames[selected.barber_id] ?? "Profissional"}</strong></p>
         <p>Esperado no caixa: <strong>{formatCents(totalExpected)}</strong></p>
         <div className={styles.reconciliationTable} role="table" aria-label="Valores por conta financeira">
           <div className={styles.reconciliationHeader} role="row"><span>Conta financeira</span><span>Valor</span><span>Valor apurado</span></div>

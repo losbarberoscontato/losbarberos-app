@@ -116,8 +116,8 @@ export function ClientAuthForm({
 }) {
   const { push } = useRouter();
   const clientContext = useOptionalConnectedClient();
-  const isLeGras = clientContext?.entry?.product_key === "le-gras";
-  const organizationPhrase = isLeGras ? "seu estúdio" : "sua barbearia";
+  const clientProductKey = clientContext?.entry?.product_key;
+  const organizationPhrase = clientProductKey === "music-pro" ? "sua escola" : clientProductKey === "le-gras" || clientProductKey === "pro-stetic" ? "seu estúdio" : "sua barbearia";
   const [mode, setMode] = useState<AuthMode>(oauthCompletion ? "complete" : initialMode);
   const [oauthChecking, setOauthChecking] = useState(oauthCompletion || resumeCompletion);
   const [email, setEmail] = useState("");

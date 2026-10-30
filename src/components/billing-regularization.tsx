@@ -8,6 +8,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { BillingStatus } from "@/lib/domain/types";
 import { productBillingPath, type ProductKey } from "@/lib/product-routes";
 import { LE_GRAS_IDENTITY_FALLBACK, MUSIC_PRO_IDENTITY_FALLBACK, PRO_STETIC_IDENTITY_FALLBACK, productIdentityStyle, type ProductIdentityConfig } from "@/lib/product-identity";
+import { getProductVocabulary } from "@/lib/product-vocabulary";
 
 export function BillingRegularization({ organizationId, billingStatus, graceEndsAt, retentionEndsAt, productKey = "los-barberos", identity }: { organizationId: string | null; billingStatus: BillingStatus | null; graceEndsAt?: string | null; retentionEndsAt?: string | null; productKey?: ProductKey; identity?: ProductIdentityConfig | null }) {
   const [demoPortalOpen, setDemoPortalOpen] = useState(false);
@@ -19,7 +20,7 @@ export function BillingRegularization({ organizationId, billingStatus, graceEnds
   const effectiveIdentity = identity ?? (productKey === "le-gras" ? LE_GRAS_IDENTITY_FALLBACK : productKey === "music-pro" ? MUSIC_PRO_IDENTITY_FALLBACK : productKey === "pro-stetic" ? PRO_STETIC_IDENTITY_FALLBACK : null);
   const isBrandedProduct = productKey !== "los-barberos";
   const productName = effectiveIdentity?.brand.name ?? "Los Barberos";
-  const organizationTerm = effectiveIdentity?.vocabulary.organization ?? "barbearia";
+  const organizationTerm = getProductVocabulary(productKey, effectiveIdentity?.vocabulary).organization;
   const billingPath = productBillingPath(productKey);
   const identityStyle = productIdentityStyle(effectiveIdentity);
   const formatDeadline = (value?: string | null) => value

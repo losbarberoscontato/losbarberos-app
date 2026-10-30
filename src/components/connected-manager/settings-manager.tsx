@@ -14,6 +14,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import { normalizePhoneE164 } from "@/lib/phone";
 import { barberLoginHref } from "@/lib/barber-auth";
 import { productBillingPath, type ProductKey } from "@/lib/product-routes";
+import { getProductVocabulary } from "@/lib/product-vocabulary";
 import { DateBlocksEditor } from "./date-blocks-editor";
 import styles from "./connected-manager.module.css";
 
@@ -33,6 +34,7 @@ export function SettingsManager(props: Props) {
   const isLeGras = props.productKey === "le-gras";
   const isMusicPro = props.productKey === "music-pro";
   const isProStetic = props.productKey === "pro-stetic";
+  const vocabulary = getProductVocabulary(props.productKey);
   const billingPath = productBillingPath(props.productKey ?? "los-barberos");
   const router = useRouter();
   const [message, setMessage] = useState("");
@@ -309,13 +311,13 @@ export function SettingsManager(props: Props) {
               <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(queueUrl)}>Copiar link</button><button type="button" className="button button--soft" onClick={() => window.print()}>Imprimir QR code</button></div>
             </article>}
             <article className="useful-link-row">
-              <div><strong>{isLeGras || isProStetic ? "App do cliente" : isMusicPro ? "App do aluno" : "Link de agendamento"}</strong><p>{isLeGras || isProStetic ? "Envie este link para seus clientes acessarem seu app." : isMusicPro ? "Envie este link para seus alunos acessarem o app da escola." : "Envie este link para clientes novos e antigos, eles poderão fazer cadastro/login e acessar a Agenda da sua barbearia."}</p></div>
+              <div><strong>{isLeGras || isProStetic ? "App do cliente" : isMusicPro ? "App do estudante" : "Link de agendamento"}</strong><p>{isLeGras || isProStetic ? "Envie este link para seus clientes acessarem seu app." : isMusicPro ? "Envie este link para seus estudantes acessarem o app da escola." : "Envie este link para clientes novos e antigos, eles poderão fazer cadastro/login e acessar a Agenda da sua barbearia."}</p></div>
               <button type="button" className="useful-link-value" onClick={() => void copyLink(bookingUrl)} title={isLeGras ? "Copiar link do app do cliente" : "Copiar link de agendamento"}>{bookingUrl}</button>
               <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(bookingUrl)}>Copiar link</button></div>
             </article>
             <article className="useful-link-row">
-              <div><strong>{isLeGras || isProStetic ? "App da equipe" : isMusicPro ? "App do Professor" : "Acesso ao App do Barbeiro"}</strong><p>{isLeGras ? "Envie este link para o profissional da sua equipe poder acessar o app da equipe." : isMusicPro ? "Envie este link para os professores acessarem o app da equipe." : isProStetic ? "Envie este link para especialistas acessarem o app da equipe." : "Envie este link para o profissional acessar a agenda e o caixa da barbearia."}</p></div>
-              <button type="button" className="useful-link-value" onClick={() => void copyLink(barberAccessUrl)} title={isLeGras ? "Copiar link do app da equipe" : "Copiar link do App do Barbeiro"}>{barberAccessUrl}</button>
+              <div><strong>{vocabulary.teamApp}</strong><p>{isLeGras ? "Envie este link para profissionais de fotografia acessarem a agenda e os recursos da equipe." : isMusicPro ? "Envie este link para professores(as) e músicos(as) acessarem a agenda e os recursos da equipe." : isProStetic ? "Envie este link para esteticistas, cabeleireiros(as), manicures e demais profissionais acessarem a agenda e os recursos da equipe." : "Envie este link para barbeiros acessarem a agenda e o caixa da barbearia."}</p></div>
+              <button type="button" className="useful-link-value" onClick={() => void copyLink(barberAccessUrl)} title={`Copiar link do ${vocabulary.teamApp}`}>{barberAccessUrl}</button>
               <div className="useful-link-actions"><button type="button" className="button button--soft" onClick={() => void copyLink(barberAccessUrl)}>Copiar link</button><Link className="button button--soft" href={barberAccessPath}>Abrir app</Link></div>
             </article>
           </div>
@@ -421,7 +423,7 @@ export function SettingsManager(props: Props) {
         <p className={styles.muted}>Função refere-se ao cargo exercido pelo profissional na empresa.</p>
         {!professionalFunctionsAvailable && <div className={styles.noticeWarning}><strong>Cadastro indisponível</strong><p>Cadastro indisponível até a atualização do banco. Aplique as migrations pendentes e recarregue a tela.</p></div>}
         <form className={styles.professionalFunctionForm} onSubmit={(event) => void addProfessionalFunction(event)}>
-          <Field label="Adicionar a Função"><input value={professionalFunctionName} onChange={(event) => setProfessionalFunctionName(event.target.value)} minLength={2} maxLength={80} required disabled={!professionalFunctionsAvailable} placeholder="Ex.: Barbeiro" /></Field>
+          <Field label="Adicionar uma função"><input value={professionalFunctionName} onChange={(event) => setProfessionalFunctionName(event.target.value)} minLength={2} maxLength={80} required disabled={!professionalFunctionsAvailable} placeholder={props.productKey === "pro-stetic" ? "Ex.: Esteticista, Cabeleireiro(a) ou Manicure" : props.productKey === "music-pro" ? "Ex.: Professor(a) ou Músico(a)" : props.productKey === "le-gras" ? "Ex.: Profissional de fotografia ou Assistente de fotografia" : "Ex.: Barbeiro"} /></Field>
           <button className={`${styles.button} ${styles.buttonSoft}`} type="submit" disabled={!professionalFunctionsAvailable}>Adicionar função</button>
         </form>
         {professionalFunctionMessage && <p className={styles.message} role="status">{professionalFunctionMessage}</p>}

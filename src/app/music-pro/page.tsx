@@ -8,7 +8,7 @@ import styles from "./page.module.css";
 
 export const metadata: Metadata = {
   title: { absolute: "MusicPro — gestão para escolas de música" },
-  description: "Organize alunos, professores e aulas da sua escola de música com o MusicPro.",
+  description: "Organize estudantes, professores(as), músicos(as) e aulas da sua escola de música com o MusicPro.",
   icons: { icon: [{ url: "/music-pro/icon.svg", type: "image/svg+xml" }] },
 };
 
@@ -28,7 +28,7 @@ export default async function MusicProPage() {
         <div className={styles.copy}>
           <span className={styles.eyebrow}>GESTÃO PARA ESCOLAS DE MÚSICA</span>
           <h1>Mais música.<br /><em>Menos tarefas.</em></h1>
-          <p>Alunos, professores, aulas e pagamentos organizados em um só lugar. Deixe a rotina da escola fluir no ritmo certo.</p>
+          <p>Estudantes, professores(as), músicos(as), aulas e pagamentos organizados em um só lugar. Deixe a rotina da escola fluir no ritmo certo.</p>
           <Link href="/music-pro/entrar?modo=cadastro" className={styles.cta}>Criar minha escola <ArrowRight size={18} /></Link>
           <small className={styles.trial}>14 dias grátis · depois R$ 57,00 por mês</small>
         </div>

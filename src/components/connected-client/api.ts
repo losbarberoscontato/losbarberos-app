@@ -52,15 +52,15 @@ export function toClientError(error: unknown, fallback: string): string {
   if (bookingErrorKind(error) === "ACTIVE_IN_ANOTHER_TAB") {
     return "Você já está finalizando outro horário em outra aba. Conclua-o ou aguarde até 3 minutos.";
   }
-  if (message.includes("not accepting")) return "Barbearia não aceita novas reservas agora.";
+  if (message.includes("not accepting")) return "Este estabelecimento não aceita novas reservas no momento.";
   if (message.includes("cannot perform") || message.includes("active barber not found")) return "Profissional não executa seleção escolhida. Escolha outro.";
-  if (message.includes("mercado pago account is not connected")) return "Pagamento online ainda não foi conectado por esta barbearia.";
+  if (message.includes("mercado pago account is not connected")) return "O pagamento online ainda não foi conectado por este estabelecimento.";
   if (message.includes("reschedule deadline")) return "Prazo de reagendamento já terminou.";
   if (message.includes("subscription_overdue_installment")) return "Há parcela vencida neste plano. Fale com o estabelecimento para regularizar antes de agendar.";
   if (message.includes("previous_subscription_session_not_finished")) return "A sessão anterior precisa ser concluída antes de agendar a próxima.";
   if (message.includes("authentication required") || message.includes("jwt")) return "Sessão expirou. Entre novamente.";
   if (message.includes("client account not found") || message.includes("query returned no rows")) {
-    return "Complete seus dados de cliente antes de entrar nesta barbearia.";
+    return "Complete seus dados de cliente antes de acessar este estabelecimento.";
   }
   return error.message || fallback;
 }
@@ -113,7 +113,7 @@ export async function listMyClientOrganizations(
   supabase: SupabaseClient,
 ): Promise<ClientOrganization[]> {
   const { data, error } = await supabase.rpc("list_my_client_organizations");
-  return assertData(data as ClientOrganization[] | null, error, "Não foi possível carregar barbearias vinculadas.");
+  return assertData(data as ClientOrganization[] | null, error, "Não foi possível carregar os estabelecimentos vinculados.");
 }
 
 export async function setMyLastClientOrganization(
@@ -135,7 +135,7 @@ export async function linkMyClientToOrganization(
     p_organization_slug: slug,
     p_expected_organization_id: expectedOrganizationId,
   });
-  return assertData(data as ClientLinkResult | null, error, "Não foi possível entrar nesta barbearia.");
+  return assertData(data as ClientLinkResult | null, error, "Não foi possível acessar este estabelecimento.");
 }
 
 export async function claimMyExistingCustomer(

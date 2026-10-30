@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   if (hasSupabaseConfig) return <SettingsManager {...await loadSettingsData()} productKey={await getSelectedProductKey()} />;
   return (
     <div className="settings-page">
-      <PageHeader title="Configurações" description="Identidade, regras e integrações da sua barbearia." />
+      <PageHeader title="Configurações" description="Identidade, regras e integrações do seu negócio." />
       <SettingsView />
     </div>
   );

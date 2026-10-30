@@ -4,10 +4,13 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { connectedClient, assertResult } from "./mutation-utils";
 import { Field } from "./shared";
 import styles from "./connected-manager.module.css";
+import type { ProductKey } from "@/lib/product-routes";
+import { getProductVocabulary } from "@/lib/product-vocabulary";
 
-export function WhatsAppCampaignDialog({ organizationId, messageKey, body, onClose }: {
-  organizationId: string; messageKey: string; body: string; onClose: () => void;
+export function WhatsAppCampaignDialog({ organizationId, messageKey, body, onClose, productKey = "los-barberos" }: {
+  organizationId: string; messageKey: string; body: string; onClose: () => void; productKey?: ProductKey;
 }) {
+  const vocabulary = getProductVocabulary(productKey);
   const dialog = useRef<HTMLDialogElement>(null);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("09:00");
@@ -49,7 +52,7 @@ export function WhatsAppCampaignDialog({ organizationId, messageKey, body, onClo
   return <dialog ref={dialog} className={`${styles.modal} ${styles.modalWide}`} onCancel={(event) => { if (busy) event.preventDefault(); else onClose(); }} aria-labelledby="campaign-title">
     <header className={styles.modalHeader}><h2 id="campaign-title">Agendar mensagem</h2><button type="button" className={styles.modalClose} disabled={busy} onClick={onClose} aria-label="Fechar">×</button></header>
     <form className={styles.form} onSubmit={submit}>
-      <p>Horário local da barbearia. Envio entre 09h e 18h, conforme consentimento e limite de frequência.</p>
+      <p>Horário local {vocabulary.organizationWithPreposition}. Envio entre 09h e 18h, conforme consentimento e limite de frequência.</p>
       <Field label="Data"><input type="date" required value={date} onChange={(e) => setDate(e.target.value)} disabled={busy} /></Field>
       <Field label="Horário"><input type="time" required min="09:00" max="17:59" value={time} onChange={(e) => setTime(e.target.value)} disabled={busy} /></Field>
       <Field label="Público"><select value={all ? "all" : "selected"} onChange={(e) => setAll(e.target.value === "all")} disabled={busy}><option value="all">Todos os clientes elegíveis</option><option value="selected">Selecionar clientes</option></select></Field>

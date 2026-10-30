@@ -7,6 +7,7 @@ import { Avatar, PageHeader, SectionHeading } from "@/components/ui";
 import { hasSupabaseConfig } from "@/lib/env";
 import { TeamManager } from "@/components/connected-manager/team-manager";
 import { loadTeamData } from "@/components/connected-manager/server";
+import { getSelectedProductKey } from "@/lib/product-context";
 
 export const metadata: Metadata = { title: "Equipe" };
 
@@ -24,7 +25,7 @@ export default async function TeamPage() {
   if (hasSupabaseConfig) {
     const data = await loadTeamData();
     if (data.billingStatus === "CANCELED_RETENTION" || data.billingStatus === "CLOSED") redirect("/regularizacao");
-    return <TeamManager {...data} />;
+    return <TeamManager {...data} productKey={await getSelectedProductKey()} />;
   }
   return (
     <div className="team-page">
@@ -64,7 +65,7 @@ export default async function TeamPage() {
           <section className="panel team-security">
             <span><ShieldCheck size={20} /></span>
             <h3>Acesso da equipe</h3>
-            <p>No MVP, apenas o gestor acessa o painel. Cada barbeiro recebe sua agenda pelo WhatsApp.</p>
+            <p>No MVP, apenas o gestor acessa o painel. Cada profissional recebe sua agenda pelo WhatsApp.</p>
             <Link href="/gestor/configuracoes">Configurar WhatsApp <ChevronRight size={15} /></Link>
           </section>
         </aside>

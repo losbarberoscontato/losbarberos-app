@@ -6,15 +6,15 @@ import { publicSite } from "@/lib/public-site";
 export const metadata: Metadata = {
   metadataBase: new URL(publicSite.origin),
   title: {
-    default: "Los Barberos · Gestão para barbearias",
-    template: "%s · Los Barberos",
+    default: "Display SH · Gestão de negócios",
+    template: "%s · Display SH",
   },
-  description: "Agenda, clientes, pagamentos e crescimento da sua barbearia em um só lugar.",
-  applicationName: "Los Barberos",
+  description: "Agenda, clientes, pagamentos e gestão do seu negócio em um só lugar.",
+  applicationName: "Display SH",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Los Barberos",
+    title: "Display SH",
     statusBarStyle: "black-translucent",
   },
   icons: {

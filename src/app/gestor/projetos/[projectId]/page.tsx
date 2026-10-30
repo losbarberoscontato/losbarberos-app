@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui";
 import { hasSupabaseConfig } from "@/lib/env";
 import { ProjectsManager } from "@/components/connected-manager/projects-manager";
 import { loadProjectsData } from "@/components/connected-manager/projects-server";
+import { getSelectedProductKey } from "@/lib/product-context";
 import { EmptyState, Panel } from "@/components/connected-manager/shared";
 import styles from "@/components/connected-manager/connected-manager.module.css";
 
@@ -34,5 +35,5 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     return <div className={styles.stack}><PageHeader title="Projetos" description="O módulo organiza ofertas comerciais, contratações e etapas de execução." /><Panel title="Módulo inativo" description="Ative Projetos em Configurações → Módulos para começar."><EmptyState title="Projetos ainda não está ativo">A ativação exige aceite do aditivo contratual e passa a valer no próximo ciclo de cobrança.</EmptyState></Panel></div>;
   }
   if (!data.projects.some((project) => project.id === projectId)) notFound();
-  return <ProjectsManager {...data} projectId={projectId} />;
+  return <ProjectsManager {...data} projectId={projectId} productKey={await getSelectedProductKey()} />;
 }

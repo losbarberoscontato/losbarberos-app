@@ -30,10 +30,12 @@ export const LE_GRAS_IDENTITY_FALLBACK: ProductIdentityConfig = {
   vocabulary: {
     organization: "estúdio",
     organizationPlural: "estúdios",
-    professional: "fotógrafo",
-    professionalPlural: "fotógrafos",
+    professional: "profissional de fotografia",
+    professionalPlural: "profissionais de fotografia",
     teamApp: "App da Equipe",
     organizationPicker: "Meus estúdios",
+    service: "sessão fotográfica",
+    servicePlural: "sessões fotográficas",
   },
 };
 
@@ -66,12 +68,12 @@ export const MUSIC_PRO_IDENTITY_FALLBACK: ProductIdentityConfig = {
   vocabulary: {
     organization: "escola",
     organizationPlural: "escolas",
-    professional: "professor",
-    professionalPlural: "professores",
-    teamApp: "App do Professor",
+    professional: "professor(a) ou músico(a)",
+    professionalPlural: "professores(as) e músicos(as)",
+    teamApp: "App da equipe musical",
     organizationPicker: "Minhas escolas",
-    customer: "aluno",
-    customerPlural: "alunos",
+    customer: "estudante",
+    customerPlural: "estudantes",
     service: "aula",
     servicePlural: "aulas",
   },
@@ -100,8 +102,8 @@ export const PRO_STETIC_IDENTITY_FALLBACK: ProductIdentityConfig = {
   vocabulary: {
     organization: "estúdio",
     organizationPlural: "estúdios",
-    professional: "especialista",
-    professionalPlural: "especialistas",
+    professional: "profissional",
+    professionalPlural: "profissionais",
     teamApp: "App da Equipe",
     organizationPicker: "Meus estúdios",
     customer: "cliente",

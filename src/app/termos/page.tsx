@@ -4,7 +4,7 @@ import { publicSite } from "@/lib/public-site";
 
 export const metadata: Metadata = {
   title: "Termos de Uso",
-  description: "Condições de uso da plataforma Los Barberos.",
+  description: "Condições de uso dos sistemas Display SH.",
   alternates: { canonical: "/termos" },
 };
 
@@ -13,16 +13,16 @@ export default function TermsPage() {
     <LegalPage
       eyebrow="Condições do serviço"
       title="Termos de Uso"
-      description="Estas condições regulam o acesso e o uso da plataforma Los Barberos por gestores, equipes e clientes de barbearias."
+      description="Estas condições regulam o acesso e o uso dos sistemas Display SH por gestores, equipes e clientes dos estabelecimentos atendidos."
     >
       <section>
         <h2>1. Aceitação e capacidade</h2>
-        <p>Ao criar uma conta ou usar a plataforma, você declara ter capacidade legal para aceitar estes termos. Quando agir por uma empresa ou barbearia, declara possuir poderes para representá-la.</p>
+        <p>Ao criar uma conta ou usar os sistemas, você declara ter capacidade legal para aceitar estes termos. Quando agir por uma empresa ou estabelecimento, declara possuir poderes para representá-lo.</p>
       </section>
 
       <section>
         <h2>2. O que o Los Barberos oferece</h2>
-        <p>Fornecemos tecnologia para gestão de barbearias, agenda, relacionamento com clientes, equipe, recursos financeiros e integrações. O atendimento de beleza é prestado pela barbearia e pelos profissionais, não pelo Los Barberos.</p>
+        <p>Fornecemos tecnologia para gestão de agenda, relacionamento com clientes, equipe, recursos financeiros e integrações. Os serviços são prestados pelos respectivos estabelecimentos e profissionais, não pelo Display SH.</p>
       </section>
 
       <section>
@@ -31,14 +31,14 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>4. Responsabilidades da barbearia</h2>
-        <p>A barbearia é responsável pela qualidade e legalidade dos serviços oferecidos, preços, horários, profissionais, informações prestadas aos clientes e cumprimento das normas de consumo, fiscais, trabalhistas e sanitárias aplicáveis.</p>
+        <h2>4. Responsabilidades do estabelecimento</h2>
+        <p>Cada estabelecimento é responsável pela qualidade e legalidade dos serviços oferecidos, preços, horários, profissionais, informações prestadas aos clientes e cumprimento das normas de consumo, fiscais, trabalhistas e sanitárias aplicáveis.</p>
         <p>Também deve possuir base legal adequada para inserir, consultar e utilizar dados pessoais de clientes e colaboradores, fornecer os avisos necessários e atender solicitações dos titulares quando atuar como controladora.</p>
       </section>
 
       <section>
         <h2>5. Agendamentos, pagamentos e integrações</h2>
-        <p>Vagas e durações dependem da configuração da barbearia e da disponibilidade confirmada pelo sistema. Cancelamentos, atrasos, reembolsos e prestação do serviço observam as regras informadas pela barbearia e os direitos obrigatórios do consumidor.</p>
+        <p>Vagas e durações dependem da configuração do estabelecimento e da disponibilidade confirmada pelo sistema. Cancelamentos, atrasos, reembolsos e prestação do serviço observam as regras informadas pelo estabelecimento e os direitos obrigatórios do consumidor.</p>
         <p>Pagamentos e comunicações podem ser processados por terceiros, como Stripe, Mercado Pago e Meta/WhatsApp, quando habilitados. O uso desses recursos também está sujeito aos termos dos respectivos provedores.</p>
       </section>
 
@@ -49,7 +49,7 @@ export default function TermsPage() {
 
       <section>
         <h2>7. Propriedade intelectual e disponibilidade</h2>
-        <p>O software, a marca e os elementos próprios do Los Barberos permanecem protegidos por direitos de propriedade intelectual. O conteúdo inserido pela barbearia continua sob responsabilidade de seu titular.</p>
+        <p>O software, a marca e os elementos próprios do Display SH permanecem protegidos por direitos de propriedade intelectual. O conteúdo inserido pelo estabelecimento continua sob responsabilidade de seu titular.</p>
         <p>Buscamos manter o serviço disponível e seguro, mas podem ocorrer manutenções, indisponibilidades de terceiros ou eventos fora de controle razoável. Não excluímos garantias ou responsabilidades que a lei proíba excluir.</p>
       </section>
 

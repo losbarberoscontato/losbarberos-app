@@ -4,16 +4,16 @@ import { ArrowRight, CalendarCheck2, ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Área do cliente",
-  description: "Acesse sua conta Los Barberos para cuidar dos seus horários.",
+  description: "Acesse sua conta Display SH para acompanhar seus horários e reservas.",
 };
 
 export default function ClientAccessPage() {
   return (
     <main className="client-access-page">
       <header className="client-access-nav">
-        <Link className="client-access-brand" href="/" aria-label="Los Barberos · Início">
-          <span className="brand__mark" aria-hidden="true"><span>LB</span></span>
-          <strong>Los Barberos</strong>
+        <Link className="client-access-brand" href="/" aria-label="Display SH · Início">
+          <span className="brand__mark" aria-hidden="true"><span>DS</span></span>
+          <strong>Display SH</strong>
         </Link>
         <Link className="client-access-nav__manager" href="/entrar?modo=login">
           Sou gestor
@@ -24,7 +24,7 @@ export default function ClientAccessPage() {
         <span className="client-access-card__mark" aria-hidden="true"><CalendarCheck2 size={26} /></span>
         <h1 id="client-access-title">Seus horários, no seu ritmo.</h1>
         <p className="client-access-card__description">
-          Entre para acompanhar reservas, cuidar dos seus dados e agendar quando sua barbearia estiver disponível.
+          Entre para acompanhar suas reservas, cuidar dos seus dados e agendar quando o estabelecimento estiver disponível.
         </p>
 
         <div className="client-access-actions">
@@ -38,7 +38,7 @@ export default function ClientAccessPage() {
 
         <p className="client-access-card__note">
           <ShieldCheck size={16} aria-hidden="true" />
-          Sua conta é pessoal. A barbearia só é vinculada quando você acessa um convite ou faz uma reserva.
+          Sua conta é pessoal. O estabelecimento é vinculado quando você acessa um convite ou faz uma reserva.
         </p>
       </section>
     </main>

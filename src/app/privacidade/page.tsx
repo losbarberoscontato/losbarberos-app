@@ -4,7 +4,7 @@ import { publicSite } from "@/lib/public-site";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade",
-  description: "Saiba como o Los Barberos trata e protege dados pessoais.",
+  description: "Saiba como o Display SH trata e protege dados pessoais nos seus sistemas.",
   alternates: { canonical: "/privacidade" },
 };
 
@@ -18,10 +18,10 @@ export default function PrivacyPage() {
       <section>
         <h2>1. Quem é responsável</h2>
         <p>
-          O Los Barberos é operado por <strong>{publicSite.legalName}</strong>. Somos o controlador dos dados próprios da plataforma, como cadastro, segurança e relacionamento com usuários.
+          O Display SH é operado por <strong>{publicSite.legalName}</strong>. Somos o controlador dos dados próprios da plataforma, como cadastro, segurança e relacionamento com usuários.
         </p>
         <p>
-          Também podemos atuar como operador quando tratar dados pessoais em nome das barbearias que usam o sistema. Nesses casos, a barbearia define as finalidades do tratamento e deve possuir base legal adequada.
+          Também podemos atuar como operador ao tratar dados pessoais em nome dos estabelecimentos que usam os sistemas Display SH. Nesses casos, cada estabelecimento define as finalidades do tratamento e deve possuir base legal adequada.
         </p>
       </section>
 
@@ -29,7 +29,7 @@ export default function PrivacyPage() {
         <h2>2. Dados que podemos tratar</h2>
         <ul>
           <li>Cadastro e perfil: nome, telefone, e-mail, credenciais protegidas e preferências.</li>
-          <li>Agendamentos e atendimento: barbearia, profissional, serviço, data, horário e histórico operacional.</li>
+          <li>Agendamentos e atendimentos: estabelecimento, profissional, serviço ou atividade, data, horário e histórico operacional.</li>
           <li>Pagamentos: status, valor, método e identificadores da transação. Não armazenamos os dados completos do cartão.</li>
           <li>Comunicações: mensagens e eventos de entrega, inclusive WhatsApp quando a integração estiver habilitada.</li>
           <li>Dados técnicos: endereço IP, dispositivo, navegador, registros de acesso, sessão, segurança e prevenção a fraude.</li>
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
 
       <section>
         <h2>4. Compartilhamento e transferências</h2>
-        <p>Não vendemos dados pessoais. Podemos compartilhar somente o necessário com a barbearia relacionada ao atendimento e com fornecedores tecnológicos que sustentam recursos efetivamente habilitados, como Supabase, Vercel, Stripe, Mercado Pago, Meta/WhatsApp e serviços de suporte ou nuvem.</p>
+        <p>Não vendemos dados pessoais. Podemos compartilhar somente o necessário com o estabelecimento relacionado ao atendimento e com fornecedores tecnológicos que sustentam recursos efetivamente habilitados, como Supabase, Vercel, Stripe, Mercado Pago, Meta/WhatsApp e serviços de suporte ou nuvem.</p>
         <p>Alguns fornecedores podem tratar dados fora do Brasil. Nesses casos, adotamos contratos, controles de segurança e outros mecanismos previstos na legislação aplicável para transferências internacionais.</p>
       </section>
 

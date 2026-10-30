@@ -40,7 +40,7 @@ export function LegalPage({ eyebrow, title, description, children }: LegalPagePr
       <footer className={styles.footer}>
         <div>
           <strong>{publicSite.name}</strong>
-          <span>Gestão para barbearias</span>
+          <span>Gestão para negócios</span>
         </div>
         <div>
           <span>Dúvidas sobre privacidade e proteção de dados:</span>

@@ -1362,7 +1362,7 @@ export function CustomersManager({
                             <th>Status</th>
                             <th>Serviço/Pacote</th>
                             <th>Valor pago</th>
-                            <th>Barbeiro</th>
+                            <th>Profissional</th>
                           </tr>
                         </thead>
                         <tbody>

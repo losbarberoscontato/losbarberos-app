@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { normalizePhoneE164 } from "@/lib/phone";
+import type { ProductKey } from "@/lib/product-routes";
+import { getProductVocabulary } from "@/lib/product-vocabulary";
 import type { loadTeamData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
 import type { BarberRecord } from "./types";
@@ -15,7 +17,7 @@ import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
 
 type TeamData = AwaitedReturn<typeof loadTeamData>;
-type Props = Omit<TeamData, "financialAccounts" | "barberAccountPermissions" | "managerUserId" | "environments" | "projectsModuleEnabled"> & Partial<Pick<TeamData, "financialAccounts" | "barberAccountPermissions" | "projectsModuleEnabled">> & { managerUserId?: string; environments?: TeamData["environments"] };
+type Props = Omit<TeamData, "financialAccounts" | "barberAccountPermissions" | "managerUserId" | "environments" | "projectsModuleEnabled"> & Partial<Pick<TeamData, "financialAccounts" | "barberAccountPermissions" | "projectsModuleEnabled">> & { managerUserId?: string; environments?: TeamData["environments"]; productKey?: ProductKey };
 type ProfessionalFilter = "ACTIVE" | "INACTIVE";
 type OperationForm = "SCHEDULE" | "EXCEPTION" | null;
 type CommissionPaymentFrequency = "PER_SERVICE" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
@@ -59,6 +61,7 @@ async function profileImage320(file: File) {
 
 export function TeamManager(props: Props) {
   const router = useRouter();
+  const vocabulary = getProductVocabulary(props.productKey);
   const [message, setMessage] = useState("");
   const [barberForm, setBarberForm] = useState<BarberRecord | "new" | null>(props.barbers.length ? null : "new");
   const [professionalFilter, setProfessionalFilter] = useState<ProfessionalFilter>("ACTIVE");
@@ -452,8 +455,8 @@ export function TeamManager(props: Props) {
             <div className="form-grid"><Field label="Nome completo"><input name="display_name" required minLength={2} defaultValue={barberForm === "new" ? "" : barberForm.display_name} /></Field><Field label="Função"><select name="professional_function_id" defaultValue={barberForm === "new" ? "" : barberForm.professional_function_id ?? ""}><option value="">Sem função</option>{props.professionalFunctions.map((professionalFunction) => <option key={professionalFunction.id} value={professionalFunction.id}>{professionalFunction.name}</option>)}</select></Field></div>
             <Field label="Unidade"><select name="location_id" required defaultValue={barberForm === "new" ? activeLocation?.id : barberForm.location_id}>{props.locations.filter((item) => item.active).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></Field>
             <Field label="WhatsApp do profissional"><><input name="whatsapp_e164" inputMode="tel" required placeholder="47999999999 ou +5547999999999" pattern="[+0-9][0-9\s().-]{7,20}" defaultValue={barberForm === "new" ? "" : barberForm.whatsapp_e164 ?? ""} onBlur={(event) => { const normalized = normalizePhoneE164(event.currentTarget.value); if (normalized) event.currentTarget.value = normalized; }} /><small>Usado somente para avisos transacionais dos próprios agendamentos.</small></></Field>
-            <Field label="E-mail de acesso ao app"><><input name="login_email" type="email" readOnly={editingManager} aria-readonly={editingManager || undefined} defaultValue={barberForm === "new" ? "" : barberForm.login_email ?? ""} /><small>{editingManager ? "Vínculo original do login de administrador; não pode ser alterado." : "Deve ser igual ao e-mail usado no login. Sem este cadastro, o App do Barbeiro não libera acesso."}</small></></Field>
-            <Field label="Acesso a agenda"><select name="agenda_access_scope" defaultValue={barberForm === "new" ? "OWN" : barberForm.agenda_access_scope ?? "OWN"}><option value="OWN">Somente a própria agenda</option><option value="FULL">Agenda completa da barbearia</option></select></Field>
+            <Field label="E-mail de acesso ao app"><><input name="login_email" type="email" readOnly={editingManager} aria-readonly={editingManager || undefined} defaultValue={barberForm === "new" ? "" : barberForm.login_email ?? ""} /><small>{editingManager ? "Vínculo original do login de administrador; não pode ser alterado." : `Deve ser igual ao e-mail usado no login. Sem este cadastro, o ${vocabulary.teamApp} não libera acesso.`}</small></></Field>
+            <Field label="Acesso à agenda"><select name="agenda_access_scope" defaultValue={barberForm === "new" ? "OWN" : barberForm.agenda_access_scope ?? "OWN"}><option value="OWN">Somente a própria agenda</option><option value="FULL">Agenda completa {vocabulary.organizationPossessive}</option></select></Field>
             <Field label="Acesso ao App"><label className={styles.check}><input name="app_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.app_access_enabled)} />Liberar login no app</label></Field>
             <Field label="Acesso ao Caixa"><label className={styles.check}><input name="cash_access_enabled" type="checkbox" defaultChecked={barberForm !== "new" && Boolean(barberForm.cash_access_enabled)} />Permitir recebimentos no Caixa individual</label></Field>
             <Field label="Acesso a Projetos"><label className={styles.check}><input name="projects_access_enabled" type="checkbox" disabled={!props.projectsModuleEnabled} defaultChecked={barberForm !== "new" && Boolean(barberForm.projects_access_enabled)} />Permitir acesso ao módulo Projetos</label>{!props.projectsModuleEnabled && <small>Ative o módulo Projetos em Configurações → Módulos.</small>}</Field>

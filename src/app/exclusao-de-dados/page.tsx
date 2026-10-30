@@ -4,7 +4,7 @@ import { publicSite } from "@/lib/public-site";
 
 export const metadata: Metadata = {
   title: "Exclusão de Dados",
-  description: "Instruções para solicitar a exclusão de dados pessoais no Los Barberos.",
+  description: "Instruções para solicitar a exclusão de dados pessoais nos sistemas Display SH.",
   alternates: { canonical: "/exclusao-de-dados" },
 };
 
@@ -18,7 +18,7 @@ export default function DataDeletionPage() {
       <section>
         <h2>1. Pelo aplicativo</h2>
         <ol>
-          <li>Entre na sua conta conectada do Los Barberos.</li>
+          <li>Entre na sua conta conectada ao sistema que você utiliza.</li>
           <li>Acesse <strong>Perfil e privacidade</strong>.</li>
           <li>Selecione <strong>Solicitar exclusão</strong> e confirme as instruções exibidas.</li>
         </ol>
@@ -27,12 +27,12 @@ export default function DataDeletionPage() {
       <section>
         <h2>2. Por e-mail</h2>
         <p>Se não conseguir entrar na conta, envie um e-mail com o assunto <strong>Solicitação de exclusão de dados</strong> para <a href={`mailto:${publicSite.privacyEmail}`}>{publicSite.privacyEmail}</a>.</p>
-        <p>Informe o e-mail ou telefone usado na conta e, se houver, a barbearia relacionada. Não envie senha, documento completo ou dados de cartão. Poderemos pedir uma confirmação adicional por canal seguro.</p>
+        <p>Informe o e-mail ou telefone usado na conta e, se houver, o estabelecimento relacionado. Não envie senha, documento completo ou dados de cartão. Poderemos pedir uma confirmação adicional por canal seguro.</p>
       </section>
 
       <section>
         <h2>3. O que acontece depois</h2>
-        <p>Após validar sua identidade e o alcance da solicitação, eliminaremos ou anonimizaremos os dados abrangidos e comunicaremos a conclusão nos prazos aplicáveis. Quando a barbearia for controladora dos dados, poderemos encaminhar a solicitação para que ela também adote as providências necessárias.</p>
+        <p>Após validar sua identidade e o alcance da solicitação, eliminaremos ou anonimizaremos os dados abrangidos e comunicaremos a conclusão nos prazos aplicáveis. Quando o estabelecimento for controlador dos dados, poderemos encaminhar a solicitação para que também adote as providências necessárias.</p>
       </section>
 
       <section>

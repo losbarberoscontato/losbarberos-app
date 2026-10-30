@@ -722,7 +722,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
       </div>)}
     </Panel>}
     {status.runtime && <p role="status">Mensagens pendentes: {status.runtime.pending}. Falhas que precisam de revisão: {status.runtime.failed}.</p>}
-    {campaignKey && <WhatsAppCampaignDialog key={`${organizationId}:${campaignKey}`} organizationId={organizationId} messageKey={campaignKey} body={customMessages.find((m) => m.key === campaignKey)?.body ?? ""} onClose={() => { setCampaignKey(null); router.refresh(); }} />}
+    {campaignKey && <WhatsAppCampaignDialog key={`${organizationId}:${campaignKey}`} organizationId={organizationId} messageKey={campaignKey} body={customMessages.find((m) => m.key === campaignKey)?.body ?? ""} productKey={productKey} onClose={() => { setCampaignKey(null); router.refresh(); }} />}
     {pendingReminderChange && <div className={styles.modalLayer} role="presentation">
       <button className={styles.modalBackdrop} type="button" aria-label="Cancelar alteração das confirmações de presença" onClick={cancelReminderChange} disabled={savingReminderChange} />
       <section className={`${styles.modal} ${styles.reminderChangeModal}`} role="alertdialog" aria-modal="true" aria-labelledby="reminder-change-title" aria-describedby="reminder-change-description">
