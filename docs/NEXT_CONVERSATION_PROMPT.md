@@ -18,6 +18,8 @@ Commit `4ae4e740841a0fa32d59c2b03f4d8e869554bd04` em `main`; migration `20261023
 
 # Prompt inicial — próxima conversa Los Barberos
 
+Atualização 30/10/2026: corrigido o bug de parcelas repetidas no Módulo Projetos. A view financeira ignora lançamentos cancelados; recalculo distribui saldo restante e preserva parcelas parcial/totalmente baixadas. Commit `bf60cba0a6aff617149c6c4c51353d111195c150` e migration `20261030161047_fix_project_installment_recalculation.sql` aplicados/publicados. Consulta remota após migration: 0 parcelas duplicadas e 0 recebíveis ativos duplicados. Vercel production `READY` (`dpl_8v1beStNboVZLtLTWzirt6njoTHK`). CI `41088833981` não ficou verde: E2E/Edge Functions passaram; verify falhou em 18 testes fora do escopo; database falhou por ausência de platform admin no seed do Kanban. Testes focados (39) e build passaram. Confira HANDOFF.
+
 Atualização 24/10/2026: avisos WhatsApp configuráveis para criação de projetos/assinaturas publicados em `main` (`e3a4a6e`), migration alinhada e dispatcher ACTIVE; Vercel `READY` (`dpl_BzsjV68sEZsqdHMD2Xa3aWv7VyF7`). CI `40093572864` não ficou verde: E2E e Edge Functions passaram; database falhou ao iniciar Supabase local e verify falhou em 19 testes. Falta validação autenticada e recibo real de mensagem. Consulte `HANDOFF.md`.
 
 Entrega de 21/10/2026: Google Calendar em `main` (`d2cc9bb`), migration e três Functions ativas no Supabase; Vercel `READY` (`dpl_22yL3N3K8aZyf9hbKRYRPt6fns9U`). OAuth autenticado e sincronização real ainda `NÃO VALIDADOS`. Google Auth Platform em `Testing`: autorização limitada a test users e tokens expiram em 7 dias; publicar/verificar escopo sensível para uso geral. Consulte o topo de `HANDOFF.md`; CI atual tem falhas preexistentes documentadas.

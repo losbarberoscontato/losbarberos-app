@@ -1,5 +1,14 @@
 # Handoff — Los Barberos
 
+## Recálculo de parcelas em contratos de Projetos — 30/10/2026
+
+- Corrigida a repetição de parcelas no modal: `project_installment_finance` agora ignora lançamentos financeiros cancelados ligados à mesma parcela. Antes da migration, a consulta remota tinha 1 parcela duplicada, 15 parcelas com histórico financeiro cancelado e 0 duplicatas ativas em Contas a receber; depois, a consulta retorna 0 parcelas duplicadas e 0 duplicatas ativas em Contas a receber.
+- O recálculo preserva parcelas pagas/parcialmente pagas, desconta os valores baixados e o saldo ainda devido em parcelas parciais, e distribui só o saldo restante pelas parcelas novas. A exclusão seguida de nova geração mantém um lançamento ativo por parcela.
+- Commit `bf60cba0a6aff617149c6c4c51353d111195c150` publicado em `main`. Migration `20261030161047_fix_project_installment_recalculation.sql` aplicada; dry-run confirma Supabase alinhado. Edge Functions não mudaram nesta tarefa. Testes focados: 39 passaram; `npm run build`, TypeScript e ESLint passaram (14 avisos ESLint já existentes); `git diff --check` passou.
+- `npm run verify` local não completou porque a suíte geral falhou: 17 testes em áreas fora do Módulo Projetos (741 passaram, 1 ignorado). CI `41088833981`: `e2e` e `edge-functions` passaram; `verify` falhou em 18 testes de outras áreas (740 passaram, 1 ignorado); `database` falhou no seed por ausência de platform admin para auditar publicação de preço do Kanban.
+- Vercel deployment `dpl_8v1beStNboVZLtLTWzirt6njoTHK` está `READY` em produção e atende os aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`. Smoke após publicação: `/`, `/entrar`, `/privacidade`, `/termos` HTTP 200; `/gestor` HTTP 307 para autenticação.
+- `tmp/` preexistente continua não rastreada e fora dos commits.
+
 ## Cliente fixo na edição do contrato — 30/10/2026
 
 - No modal do Módulo Projetos, o campo Cliente fica somente leitura ao editar uma contratação; na criação, continua editável e pesquisável.
