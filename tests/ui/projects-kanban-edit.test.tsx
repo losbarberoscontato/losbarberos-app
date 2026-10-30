@@ -421,6 +421,7 @@ describe("kanban board editing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Editar contratação de Cliente" }));
     const dialog = screen.getByRole("dialog", { name: "Contrato nº 1" });
+    expect(within(dialog).getByLabelText("Cliente")).toHaveAttribute("readonly");
     expect(within(dialog).queryByText(/selecionado$/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/Modo de edição/)).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Assinar Contrato" })).not.toBeInTheDocument();
@@ -481,6 +482,7 @@ describe("kanban board editing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Contratações/ }));
     fireEvent.click(screen.getByRole("button", { name: "Novo contrato" }));
     const contractDialog = screen.getByRole("dialog", { name: "Novo contrato" });
+    expect(within(contractDialog).getByLabelText("Cliente")).not.toHaveAttribute("readonly");
     fireEvent.change(within(contractDialog).getByLabelText("Cliente"), { target: { value: "Cliente manual" } });
     fireEvent.click(within(contractDialog).getByRole("button", { name: "Cadastrar novo cliente" }));
 

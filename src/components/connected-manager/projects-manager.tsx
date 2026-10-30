@@ -1044,7 +1044,7 @@ export function ProjectsManager(props: ManagerProps) {
     {newEngagementOpen && selectedProject && <Modal title={editingEngagementId ? `Contrato nº ${editingEngagement?.contract_number ?? "—"}` : "Novo contrato"} wide onClose={closeEngagementModal}>
       <div className={`${styles.form} ${styles.engagementForm}`}>
         <div className={`${styles.formWide} ${styles.engagementCustomerHeader}`}>
-          <Field label="Cliente" wide><span className="input-shell"><UserRound size={17} /><input required aria-label="Cliente" value={selectedEngagementCustomer?.full_name ?? engagementCustomerQuery} onChange={(event) => { setEngagementCustomerQuery(event.target.value); setEngagementCustomerId(""); }} placeholder="Buscar por nome ou telefone" /></span></Field>
+          <Field label="Cliente" wide><span className="input-shell"><UserRound size={17} /><input required aria-label="Cliente" readOnly={Boolean(editingEngagementId)} value={selectedEngagementCustomer?.full_name ?? engagementCustomerQuery} onChange={(event) => { setEngagementCustomerQuery(event.target.value); setEngagementCustomerId(""); }} placeholder="Buscar por nome ou telefone" /></span></Field>
           <div className={styles.engagementTabs} role="tablist" aria-label="Dados do contrato">
             {([["client", "Dados do Cliente"], ["package", "Dados do pacote"], ["sessions", "Agendamento de Sessões"]] as const).map(([tab, label]) => <button key={tab} type="button" role="tab" id={`engagement-tab-${tab}`} aria-selected={engagementModalTab === tab} aria-controls={`engagement-panel-${tab}`} className={engagementModalTab === tab ? styles.engagementTabActive : ""} onClick={() => setEngagementModalTab(tab)}>{label}</button>)}
           </div>
