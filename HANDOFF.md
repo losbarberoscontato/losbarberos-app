@@ -1,5 +1,13 @@
 # Handoff — Los Barberos
 
+## Cliente fixo na edição do contrato — 30/10/2026
+
+- No modal do Módulo Projetos, o campo Cliente fica somente leitura ao editar uma contratação; na criação, continua editável e pesquisável.
+- Commit `c965de1` publicado em `main`. Typecheck, ESLint focado, build de produção local e `git diff --check` passaram. Testes locais não foram executados. CI `41086372129`: E2E e Edge Functions passaram; `verify` falhou na suíte geral; `database` falhou no seed por ausência de platform admin para a migration do catálogo Kanban.
+- Supabase remoto alinhado no dry-run; nenhuma migration ou Function foi alterada. Inventário de Functions consultado.
+- Vercel deployment `dpl_5bPqoYHrUcxh1RkJHt9SF5CvNBeN` ficou `Ready`, aliases `displaysh-app.vercel.app` e `losbarberos-app.vercel.app`. Smoke: `/`, `/entrar`, `/privacidade`, `/termos` HTTP 200; `/gestor` HTTP 307 para autenticação.
+- `tmp/` preexistente permanece não rastreada e fora dos commits.
+
 ## Modal de contrato em abas — 28/10/2026
 
 - Modal Novo/Editar contrato separado em Dados do Cliente, Dados do pacote e Agendamento de Sessões; cliente permanece fixo acima das abas. Cliente mostra WhatsApp e dependentes sem repetir o nome; edição usa “Contrato nº N” no título, sem mensagem redundante no rodapé; lista de sessões ocupa a largura inteira do modal. Pacote mantém parcelas e ações financeiras; sessões mantêm agendamento/cancelamento existentes e mostram sessões previstas antes do aceite.
