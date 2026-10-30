@@ -1,5 +1,11 @@
 # Handoff — Los Barberos
 
+## Cadastro de folga no app de equipe — 30/10/2026
+
+- Corrigido o destino após salvar folga/exceção: o fluxo usa `/barbeiro/escala/folgas?barbearia=...` para abrir lista atualizada, sem anexar a seção ao query param.
+- Os atalhos de escala e o retorno pós-salvamento compartilham a mesma montagem de rota. O RPC existente cria evento de histórico; trigger já implantado notifica gestores ativos `OWNER` da organização. Sem migration ou Edge Function nova.
+- Confirmar CI, Vercel e rota após publicação; validação autenticada do cadastro em produção permanece pendente.
+
 ## Atalhos de escala do app de equipe — 30/10/2026
 
 - Corrigida a composição de URL dos atalhos de adicionar folga, consultar folgas e histórico. O query param `barbearia` agora fica depois do caminho da seção, levando à rota correta em vez de `/barbeiro/escala`.

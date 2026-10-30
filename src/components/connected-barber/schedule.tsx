@@ -52,6 +52,7 @@ export function BarberSchedule({ context, section = "overview" }: { context: Bar
 
   const query = useMemo(() => `?barbearia=${encodeURIComponent(context.organization_slug)}`, [context.organization_slug]);
   const baseHref = `/barbeiro/escala${query}`;
+  const sectionHref = (target: "folgas" | "historico" | "nova-folga") => `/barbeiro/escala/${target}${query}`;
   const load = useCallback(async (initializeDefaults = false) => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) { setMessage("Supabase indisponível."); setLoading(false); return; }
@@ -138,7 +139,7 @@ export function BarberSchedule({ context, section = "overview" }: { context: Bar
         p_reason: String(form.get("reason") ?? "").trim() || null,
         p_exception_kind: "UNAVAILABLE",
       });
-      router.push(`${baseHref}/folgas`);
+      router.push(sectionHref("folgas"));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível registrar a folga.");
     } finally {
@@ -221,9 +222,9 @@ export function BarberSchedule({ context, section = "overview" }: { context: Bar
           </div>
         </section>
         <div className={styles.scheduleShortcuts}>
-          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={`/barbeiro/escala/nova-folga${query}`}><span><CalendarClock size={19} /><strong>Adicionar folga ou exceção</strong><small>Cadastrar uma data e horário indisponível</small></span><ChevronRight size={19} /></Link>
-          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={`/barbeiro/escala/folgas${query}`}><span><CalendarClock size={19} /><strong>Folgas e exceções cadastradas</strong><small>{exceptions.length ? `${exceptions.length} cadastradas` : "Consultar e remover períodos"}</small></span><ChevronRight size={19} /></Link>
-          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={`/barbeiro/escala/historico${query}`}><span><CalendarClock size={19} /><strong>Histórico de alterações</strong><small>Ver quem alterou a escala e quando</small></span><ChevronRight size={19} /></Link>
+          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={sectionHref("nova-folga")}><span><CalendarClock size={19} /><strong>Adicionar folga ou exceção</strong><small>Cadastrar uma data e horário indisponível</small></span><ChevronRight size={19} /></Link>
+          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={sectionHref("folgas")}><span><CalendarClock size={19} /><strong>Folgas e exceções cadastradas</strong><small>{exceptions.length ? `${exceptions.length} cadastradas` : "Consultar e remover períodos"}</small></span><ChevronRight size={19} /></Link>
+          <Link className={`${styles.card} ${styles.scheduleShortcut}`} href={sectionHref("historico")}><span><CalendarClock size={19} /><strong>Histórico de alterações</strong><small>Ver quem alterou a escala e quando</small></span><ChevronRight size={19} /></Link>
         </div>
       </>}
 

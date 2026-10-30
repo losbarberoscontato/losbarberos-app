@@ -1,5 +1,7 @@
 # Projetos e Planos Encerrados — 23/10/2026
 
+Atualização 30/10/2026: cadastro de folga/exceção agora redireciona para lista de folgas pela rota `/barbeiro/escala/folgas?barbearia=...`; atalhos e redirect pós-salvamento montam URL de forma consistente. O RPC e trigger já implantados registram o evento e notificam gestores ativos. Sem migrations/Edge Functions novas.
+
 Atualização 30/10/2026: corrigidos os atalhos de seções da Escala do app de equipe. O caminho (`/historico`, `/folgas`, `/nova-folga`) agora vem antes do query param `barbearia`, evitando retorno à Agenda. Nenhuma migration ou Edge Function alterada. Verificar publicação e navegação autenticada no `HANDOFF.md`.
 
 Atualização 30/10/2026: escala do app de equipe agora notifica gestores no sino para qualquer alteração feita pelo profissional e mantém histórico append-only. Migration `20261030191420_notify_managers_of_professional_schedule_changes.sql`, commit `0ad06f1` em `main`, Supabase aplicado e Vercel `READY` (`dpl_XN3Xghas3g8XUnrDPx5CHLiBAA6R`). Teste transacional com rollback confirmou notificação e descartou a linha de teste. CI `41114196809`: E2E/Edge Functions passaram; verify falhou no teste de perfil que procura `ana@example.com`; database falhou durante preparação. Inspeção visual autenticada do sino segue pendente. Consulte `HANDOFF.md`.

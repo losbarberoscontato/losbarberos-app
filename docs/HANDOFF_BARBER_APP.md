@@ -1,5 +1,9 @@
 # Prompt para próxima conversa
 
+## Cadastro e lista de folgas — 30/10/2026
+
+Após salvar folga/exceção, app navega para `/barbeiro/escala/folgas?barbearia=<slug>` para mostrar período recém cadastrado. Atalhos e redirect usam helper comum para manter seção antes do query param. RPC registra histórico e trigger implantado notifica gestores da organização. Sem mudança de migration ou Edge Function.
+
 ## Navegação dos atalhos de escala — 30/10/2026
 
 Corrigido o formato dos links de adicionar folga, folgas cadastradas e histórico para `/barbeiro/escala/<seção>?barbearia=<slug>`. Sem mudança de schema ou Edge Function. Confirmar deployment e navegação autenticada conforme `HANDOFF.md`.

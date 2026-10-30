@@ -1,5 +1,7 @@
 # Continuidade atual — 23/10/2026
 
+Atualização 30/10/2026: corrigido também o `router.push` após cadastro de folga/exceção; agora abre a lista com `/barbeiro/escala/folgas?barbearia=...`. Links de seções usam o mesmo helper. RPC e trigger existentes registram exceção e notificam gestor; nenhuma migration/Edge Function nova. Conferir publication em `HANDOFF.md`.
+
 Atualização 30/10/2026: corrigidos os links dos atalhos de Escala no app da equipe. Cada seção recebe o caminho antes do query param `barbearia`, incluindo `/historico`; sem alteração de Supabase/Edge Functions. Verificar GitHub/Vercel no `HANDOFF.md`.
 
 Atualização 30/10/2026: correção do aviso ao gestor na escala da equipe. Migration `20261030191420_notify_managers_of_professional_schedule_changes.sql` conecta o evento append-only do histórico ao `manager_notifications`; mudanças do profissional (adicionar/editar/remover horários e adicionar/remover folgas ou exceções) notificam gestores `OWNER` ativos da mesma organização na mesma transação. Teste remoto com rollback confirmou inserção sem persistir dados de teste. Commit `0ad06f1` publicado em `main`; Supabase alinhado; Vercel `READY` (`dpl_XN3Xghas3g8XUnrDPx5CHLiBAA6R`). CI `41114196809`: E2E/Edge Functions passaram; verify falhou no teste que procura `ana@example.com` (repetiu falha do run anterior); database falhou na preparação do job. Smoke público passou; validação visual autenticada segue pendente. Detalhes em `HANDOFF.md`.
