@@ -114,6 +114,8 @@ export function humanizeError(error: unknown) {
     [/requested slot is no longer available|exclusion constraint/i, "Esse horário acabou de ser ocupado."],
     [/organization_date_block_conflict/i, "Há agendamento ativo neste período. Reagende ou cancele antes de bloquear."],
     [/date block overlaps an existing date block/i, "Este período já tem outro bloqueio cadastrado."],
+    [/schedule interval has future appointments|exception period has future appointments/i, "Há atendimento agendado neste horário. Reagende ou cancele antes de alterar a escala."],
+    [/no active agenda environment is available|select an active agenda environment/i, "Não há sala ou cadeira disponível para esse horário."],
     [/requested date is blocked/i, "A agenda está bloqueada nesse período. Escolha outra data ou horário."],
     [/fixed_schedule_conflict/i, "Há conflito na série fixa. Escolha outra data, horário ou profissional antes de registrar o primeiro pagamento."],
     [/subscription_overdue_installment/i, "Este cliente possui parcela vencida e não paga. Para liberar o agendamento, informe o motivo da exceção."],

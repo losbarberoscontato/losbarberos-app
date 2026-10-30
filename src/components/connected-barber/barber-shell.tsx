@@ -47,6 +47,7 @@ export function BarberShell({ context, children }: { context: BarberAppContext; 
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const suffix = `?barbearia=${encodeURIComponent(context.organization_slug)}`;
   const identity = context.product_identity;
@@ -62,6 +63,10 @@ export function BarberShell({ context, children }: { context: BarberAppContext; 
     ...(context.cash_access_enabled ? [{ href: "/barbeiro/caixa", label: "Caixa", icon: Banknote }] : []),
   ];
   const profile = { href: "/barbeiro/perfil", label: "Meu perfil", icon: UserRound };
+  const moreNavigation = [
+    ...navigation.filter((item) => item.href !== "/barbeiro/agenda" && item.href !== "/barbeiro/caixa"),
+    ...(context.cash_access_enabled ? [{ href: "/barbeiro/financeiro", label: "Financeiro", icon: Banknote }] : []),
+  ];
   const currentInitials = initials(context.barber_name);
 
   async function signOut() {
@@ -117,9 +122,12 @@ export function BarberShell({ context, children }: { context: BarberAppContext; 
       <main className="manager-main">{children}</main>
     </div>
 
-    <nav className="manager-bottom-nav" aria-label="Navegação rápida">
-      {[...navigation, profile].map((item) => { const Icon = item.icon; const active = isActive(item.href); return <Link key={item.href} href={link(item.href)} className={active ? "is-active" : ""} aria-current={active ? "page" : undefined}><Icon size={20} /><span>{item.label.split(" ")[0]}</span></Link>; })}
-      <button type="button" onClick={() => setMenuOpen(true)} aria-label="Mais opções"><Menu size={20} /><span>Mais</span></button>
+    {moreOpen && <><button className="barber-more-backdrop" type="button" aria-label="Fechar Mais" onClick={() => setMoreOpen(false)} /><section className="barber-more-menu" aria-label="Mais módulos"><header><strong>Mais</strong><button className="icon-button" type="button" onClick={() => setMoreOpen(false)} aria-label="Fechar Mais"><X size={18} /></button></header>{moreNavigation.length ? moreNavigation.map((item) => { const Icon = item.icon; const active = isActive(item.href); return <Link key={item.href} href={link(item.href)} className={active ? "is-active" : ""} onClick={() => setMoreOpen(false)}><Icon size={19} /><span>{item.label}</span></Link>; }) : <p>Nenhum outro módulo está habilitado.</p>}</section></>}
+    <nav className="manager-bottom-nav barber-bottom-nav" aria-label="Navegação rápida">
+      <Link href={link("/barbeiro/agenda")} className={isActive("/barbeiro/agenda") ? "is-active" : ""} aria-current={isActive("/barbeiro/agenda") ? "page" : undefined}><CalendarDays size={20} /><span>Agenda</span></Link>
+      {context.cash_access_enabled ? <Link href={link("/barbeiro/caixa")} className={isActive("/barbeiro/caixa") ? "is-active" : ""} aria-current={isActive("/barbeiro/caixa") ? "page" : undefined}><Banknote size={20} /><span>Caixa</span></Link> : <button type="button" disabled aria-label="Caixa indisponível"><Banknote size={20} /><span>Caixa</span></button>}
+      <Link href={link(profile.href)} className={isActive(profile.href) ? "is-active" : ""} aria-current={isActive(profile.href) ? "page" : undefined}><UserRound size={20} /><span>Meu</span></Link>
+      <button type="button" className={moreOpen || moreNavigation.some((item) => isActive(item.href)) ? "is-active" : ""} onClick={() => setMoreOpen((open) => !open)} aria-expanded={moreOpen} aria-label="Mais opções"><Menu size={20} /><span>Mais</span></button>
     </nav>
   </div>;
 }

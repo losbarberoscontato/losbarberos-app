@@ -11,7 +11,7 @@ import { getProductVocabulary } from "@/lib/product-vocabulary";
 import type { loadTeamData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
 import type { BarberRecord } from "./types";
-import { centsFromInput, formatRange, initials, toPostgresRange, weekDays } from "./format";
+import { centsFromInput, formatRange, initials, localDateTimeToIso, weekDays } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
 import styles from "./connected-manager.module.css";
@@ -355,27 +355,35 @@ export function TeamManager(props: Props) {
   async function addInterval(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    let changeMessage = "";
     const saved = await runMutation(setMessage, async () => {
       if (!scheduleBarber) throw new Error("Selecione um profissional.");
       const environmentId = String(data.get("environment_id") ?? "");
       if (!environmentId) throw new Error("Escolha um ambiente para o horário.");
-      await assertResult(await connectedClient().from("work_intervals").insert({
-        organization_id: props.organizationId,
-        barber_id: scheduleBarber,
-        weekday: Number(data.get("weekday")),
-        starts_at: String(data.get("starts_at")),
-        ends_at: String(data.get("ends_at")),
-        environment_id: environmentId,
-      }));
+      const result = await connectedClient().rpc("mutate_barber_schedule", {
+        p_organization_id: props.organizationId,
+        p_barber_id: scheduleBarber,
+        p_action: "ADD_INTERVAL",
+        p_weekday: Number(data.get("weekday")),
+        p_starts_at: String(data.get("starts_at")),
+        p_ends_at: String(data.get("ends_at")),
+        p_environment_id: environmentId,
+      });
+      await assertResult(result);
+      if (result.data && typeof result.data === "object" && "message" in result.data && typeof result.data.message === "string") changeMessage = result.data.message;
     }, "Intervalo adicionado.");
-    if (saved) { setActiveOperationForm(null); router.refresh(); }
+    if (saved) { setMessage(changeMessage || "Intervalo adicionado."); setActiveOperationForm(null); router.refresh(); }
   }
 
   async function removeInterval(id: string) {
+    let changeMessage = "";
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().from("work_intervals").delete().eq("id", id).eq("organization_id", props.organizationId));
+      if (!scheduleBarber) throw new Error("Selecione um profissional.");
+      const result = await connectedClient().rpc("mutate_barber_schedule", { p_organization_id: props.organizationId, p_barber_id: scheduleBarber, p_action: "DELETE_INTERVAL", p_interval_id: id });
+      await assertResult(result);
+      if (result.data && typeof result.data === "object" && "message" in result.data && typeof result.data.message === "string") changeMessage = result.data.message;
     }, "Intervalo removido.");
-    if (saved) router.refresh();
+    if (saved) { setMessage(changeMessage || "Intervalo removido."); router.refresh(); }
   }
 
   async function setParallelEnvironmentAppointments(allowed: boolean) {
@@ -397,25 +405,36 @@ export function TeamManager(props: Props) {
   async function addException(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    let changeMessage = "";
     const saved = await runMutation(setMessage, async () => {
       if (!scheduleBarber) throw new Error("Selecione um profissional.");
-      await assertResult(await connectedClient().from("availability_exceptions").insert({
-        organization_id: props.organizationId,
-        barber_id: scheduleBarber,
-        kind: String(data.get("kind")),
-        service_period: toPostgresRange(String(data.get("start")), String(data.get("end")), props.timezone),
-        reason: String(data.get("reason") ?? "").trim() || null,
-        environment_id: String(data.get("kind")) === "AVAILABLE_OVERRIDE" ? String(data.get("environment_id") ?? "") || null : null,
-      }));
+      const kind = String(data.get("kind"));
+      if (kind !== "UNAVAILABLE" && kind !== "AVAILABLE_OVERRIDE") throw new Error("Tipo de exceção inválido.");
+      const result = await connectedClient().rpc("mutate_barber_schedule", {
+        p_organization_id: props.organizationId,
+        p_barber_id: scheduleBarber,
+        p_action: "ADD_EXCEPTION",
+        p_exception_start: localDateTimeToIso(String(data.get("start")), props.timezone),
+        p_exception_end: localDateTimeToIso(String(data.get("end")), props.timezone),
+        p_reason: String(data.get("reason") ?? "").trim() || null,
+        p_exception_kind: kind,
+        p_environment_id: kind === "AVAILABLE_OVERRIDE" ? String(data.get("environment_id") ?? "") || null : null,
+      });
+      await assertResult(result);
+      if (result.data && typeof result.data === "object" && "message" in result.data && typeof result.data.message === "string") changeMessage = result.data.message;
     }, "Exceção adicionada.");
-    if (saved) { setActiveOperationForm(null); router.refresh(); }
+    if (saved) { setMessage(changeMessage || "Exceção adicionada."); setActiveOperationForm(null); router.refresh(); }
   }
 
   async function removeException(id: string) {
+    let changeMessage = "";
     const saved = await runMutation(setMessage, async () => {
-      await assertResult(await connectedClient().from("availability_exceptions").delete().eq("id", id).eq("organization_id", props.organizationId));
+      if (!scheduleBarber) throw new Error("Selecione um profissional.");
+      const result = await connectedClient().rpc("mutate_barber_schedule", { p_organization_id: props.organizationId, p_barber_id: scheduleBarber, p_action: "DELETE_EXCEPTION", p_exception_id: id });
+      await assertResult(result);
+      if (result.data && typeof result.data === "object" && "message" in result.data && typeof result.data.message === "string") changeMessage = result.data.message;
     }, "Exceção removida.");
-    if (saved) router.refresh();
+    if (saved) { setMessage(changeMessage || "Exceção removida."); router.refresh(); }
   }
 
   const intervals = props.workIntervals.filter((item) => item.barber_id === scheduleBarber && item.active);

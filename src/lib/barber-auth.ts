@@ -8,6 +8,8 @@ const barberDestinations = new Set([
   "/barbeiro/caixa",
   "/barbeiro/financeiro",
   "/barbeiro/perfil",
+  "/barbeiro/perfil/dados-pessoais",
+  "/barbeiro/escala",
 ]);
 
 export function barberAuthDestination(input: {
