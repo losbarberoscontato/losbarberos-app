@@ -24,7 +24,7 @@ const packageRecord = {
   audiences: ["MASCULINO", "FEMININO"] as const, accepts_subscription: false, accepts_online_payment: false,
 };
 
-function switchToPackages() { fireEvent.click(screen.getByRole("button", { name: "Pacotes" })); }
+function switchToPackages() { fireEvent.click(screen.getByRole("button", { name: "Combos" })); }
 function panel(title: string) {
   const result = screen.getByRole("heading", { name: title, level: 2 }).closest("section");
   if (!result) throw new Error(`${title} panel missing`);
