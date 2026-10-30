@@ -10,6 +10,9 @@ const barberDestinations = new Set([
   "/barbeiro/perfil",
   "/barbeiro/perfil/dados-pessoais",
   "/barbeiro/escala",
+  "/barbeiro/escala/folgas",
+  "/barbeiro/escala/historico",
+  "/barbeiro/escala/nova-folga",
 ]);
 
 export function barberAuthDestination(input: {
