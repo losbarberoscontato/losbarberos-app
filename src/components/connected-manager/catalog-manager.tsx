@@ -7,7 +7,7 @@ import { X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import type { loadCatalogData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
-import type { PackageRecord, ServiceRecord } from "./types";
+import type { PackageRecord, ServiceOfferRecord, ServiceRecord } from "./types";
 import { centsFromInput, formatCents } from "./format";
 import { ActionMessage, EmptyState, Field, Panel, StatusChip } from "./shared";
 import { assertResult, connectedClient, runMutation } from "./mutation-utils";
@@ -48,6 +48,11 @@ export function CatalogManager(props: Props) {
   const [tab, setTab] = useState<CatalogTab>("SERVICES");
   const [serviceForm, setServiceForm] = useState<ServiceRecord | "new" | null>(null);
   const [serviceAvailability, setServiceAvailability] = useState<NonNullable<ServiceRecord["availability"]>>("CLIENT");
+  const [serviceHasOffers, setServiceHasOffers] = useState(false);
+  const [servicePrice, setServicePrice] = useState("");
+  const [serviceDuration, setServiceDuration] = useState("30");
+  const [serviceDescription, setServiceDescription] = useState("");
+  const [serviceOffers, setServiceOffers] = useState<Array<{ id: string; price: string; duration: string; description: string }>>([]);
   const [packageForm, setPackageForm] = useState<PackageRecord | "new" | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [packageAcceptsSubscription, setPackageAcceptsSubscription] = useState(false);
@@ -111,6 +116,17 @@ export function CatalogManager(props: Props) {
   function openServiceForm(item: ServiceRecord | "new") {
     setServiceForm(item);
     setServiceAvailability(item === "new" ? "CLIENT" : item.availability ?? "CLIENT");
+    const price = item === "new" ? "" : centsInput(item.price_cents);
+    const duration = item === "new" ? "30" : String(item.duration_minutes);
+    const description = item === "new" ? "" : item.description ?? "";
+    const offers = item === "new" ? [] : item.offers ?? [];
+    setServiceHasOffers(offers.length > 1);
+    setServicePrice(price);
+    setServiceDuration(duration);
+    setServiceDescription(description);
+    setServiceOffers(offers.length > 1
+      ? offers.map((offer) => ({ id: offer.id, price: centsInput(offer.price_cents), duration: String(offer.duration_minutes), description: offer.description ?? "" }))
+      : [{ id: "offer-1", price, duration, description }]);
   }
 
   function togglePackageService(serviceId: string, checked: boolean) {
@@ -128,13 +144,29 @@ export function CatalogManager(props: Props) {
     const data = new FormData(event.currentTarget);
     const editing = serviceForm === "new" || serviceForm === null ? null : serviceForm;
     const isInternal = serviceAvailability === "INTERNAL";
-    const payload = { organization_id: organizationId, name: String(data.get("name") ?? "").trim(), description: String(data.get("description") ?? "").trim() || null, price_cents: centsFromInput(data.get("price")), duration_minutes: Number(data.get("duration")), audiences: isInternal ? [] : audiencesFromForm(data), accepts_subscription: isInternal ? false : data.get("accepts_subscription") === "on", accepts_online_payment: isInternal ? false : data.get("accepts_online_payment") === "on", availability: serviceAvailability };
+    const normalizedOffers: ServiceOfferRecord[] = [];
+    if (serviceHasOffers) {
+      if (serviceOffers.length < 2) { setMessage("Adicione pelo menos duas ofertas para ativar esta opção."); return; }
+      try {
+        for (const [index, offer] of serviceOffers.entries()) {
+          const duration = Number(offer.duration);
+          if (!Number.isInteger(duration) || duration < 5 || duration > 720) throw new Error("Informe uma duração entre 5 e 720 minutos para cada oferta.");
+          normalizedOffers.push({ id: `offer-${index + 1}`, price_cents: centsFromInput(offer.price), duration_minutes: duration, description: offer.description.trim() || null });
+        }
+      } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Confira os dados das ofertas."); return; }
+    }
+    let priceCents: number;
+    try { priceCents = serviceHasOffers ? normalizedOffers[0].price_cents : centsFromInput(servicePrice); }
+    catch { setMessage("Informe um preço válido."); return; }
+    const durationMinutes = serviceHasOffers ? normalizedOffers[0].duration_minutes : Number(serviceDuration);
+    const description = serviceHasOffers ? normalizedOffers[0].description : serviceDescription.trim() || null;
+    const payload = { organization_id: organizationId, name: String(data.get("name") ?? "").trim(), description, price_cents: priceCents, duration_minutes: durationMinutes, offers: serviceHasOffers ? normalizedOffers : [], audiences: isInternal ? [] : audiencesFromForm(data), accepts_subscription: isInternal ? false : data.get("accepts_subscription") === "on", accepts_online_payment: isInternal ? false : data.get("accepts_online_payment") === "on", availability: serviceAvailability };
     if (!hasAudience(payload.audiences) && !isInternal) { setMessage("Selecione pelo menos um público."); return; }
     const saved = await runMutation(setMessage, async () => {
       const client = connectedClient();
       await assertResult(editing ? await client.from("services").update(payload).eq("id", editing.id).eq("organization_id", organizationId) : await client.from("services").insert(payload));
     }, serviceCopy(editing ? "Serviço atualizado." : "Serviço criado.", isMusicPro));
-    if (saved) { setServiceForm(null); router.refresh(); }
+    if (saved) { setServiceForm(null); setServiceHasOffers(false); setServiceOffers([]); router.refresh(); }
   }
 
   async function savePackage(event: FormEvent<HTMLFormElement>) {
@@ -180,11 +212,50 @@ export function CatalogManager(props: Props) {
       {visibleServices.length === 0 ? <EmptyState title={serviceCopy(serviceFilter === "ACTIVE" ? "Sem serviços ativos" : "Sem serviços inativos", isMusicPro)}>{serviceCopy(serviceFilter === "ACTIVE" ? "Cadastre ou reative um serviço." : "Nenhum serviço inativo no momento.", isMusicPro)}</EmptyState> : <div className={styles.list}>{visibleServices.map((service) => <article className={`${styles.row} ${styles.catalogServiceRow}`} key={service.id}><span className={styles.rowTitle}><strong>{service.name}</strong><small>{service.description ?? "Sem descrição"}</small><small>{service.audiences.map((audience) => audienceLabel(audience, organizationAudiences)).join(" · ") || "Sem público"}</small></span><strong>{formatCents(service.price_cents)}</strong><span>{service.duration_minutes} min</span><span className={styles.serviceStatus}><StatusChip active={service.active} /><small className={styles.serviceAvailabilityBadge}>{service.availability === "INTERNAL" ? "Interno" : service.availability === "HIDDEN" ? "Oculto" : "Cliente"}</small></span><span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => openServiceForm(service)}>Editar</button><button className={`${styles.button} ${styles.buttonSmall} ${service.active ? styles.buttonDanger : styles.buttonSoft}`} type="button" onClick={() => toggle("services", service)}>{service.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>}
     </Panel>}
 
+    {serviceForm && <div className={styles.modalLayer} role="presentation">
+      <button className={styles.modalBackdrop} type="button" aria-label={serviceCopy("Fechar cadastro de serviço", isMusicPro)} onClick={() => setServiceForm(null)} />
+      <form className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-label={serviceForm === "new" ? serviceCopy("Adicionar serviço", isMusicPro) : serviceCopy("Editar serviço", isMusicPro)} onSubmit={saveService} key={serviceForm === "new" ? "new" : serviceForm.id}>
+        <header className={styles.modalHeader}><div><small>{isMusicPro ? "Cadastro de Cursos" : "Cadastro de serviços"}</small><h2>{serviceForm === "new" ? serviceCopy("Adicionar serviço", isMusicPro) : serviceCopy("Editar serviço", isMusicPro)}</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setServiceForm(null)}><X size={19} /></button></header>
+        <div className={styles.form}>
+          <Field label="Nome"><input name="name" required minLength={2} defaultValue={serviceForm === "new" ? "" : serviceForm.name} /></Field>
+          <div className={styles.servicePriceField}>
+            <div className={styles.servicePriceLabelRow}>
+              {serviceHasOffers ? <span>Ofertas</span> : <label htmlFor="service-price">Preço (R$)</label>}
+              <label className={styles.offerToggle}><input type="checkbox" checked={serviceHasOffers} onChange={(event) => {
+                const enabled = event.target.checked;
+                if (enabled) setServiceOffers((current) => current.length ? [{ ...current[0], price: servicePrice, duration: serviceDuration, description: serviceDescription }, ...current.slice(1)] : [{ id: "offer-1", price: servicePrice, duration: serviceDuration, description: serviceDescription }]);
+                else if (serviceOffers[0]) { setServicePrice(serviceOffers[0].price); setServiceDuration(serviceOffers[0].duration); setServiceDescription(serviceOffers[0].description); }
+                setServiceHasOffers(enabled);
+              }} /><span>Este produto possui mais de uma oferta</span></label>
+            </div>
+            {!serviceHasOffers && <><input id="service-price" inputMode="decimal" value={servicePrice} onChange={(event) => setServicePrice(event.target.value)} required />{isMusicPro && <small>O preço refere-se ao valor de uma aula avulsa.</small>}</>}
+          </div>
+          {serviceHasOffers ? <section className={`${styles.serviceOffers} ${styles.formWide}`} aria-label="Ofertas">
+            <div className={styles.serviceOffersHeader}><h3>Ofertas</h3><span>O app do cliente exibirá as opções abaixo.</span></div>
+            <div className={styles.serviceOfferTable}>
+              <div className={styles.serviceOfferHead} aria-hidden="true"><span>Oferta</span><span>Preço (R$)</span><span>Duração (min)</span><span>Descrição</span></div>
+              {serviceOffers.map((offer, index) => <div className={styles.serviceOfferRow} key={offer.id}>
+                <strong>Oferta {index + 1}</strong>
+                <input aria-label={`Oferta ${index + 1} — Preço (R$)`} required inputMode="decimal" value={offer.price} onChange={(event) => { const price = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, price } : item)); if (index === 0) setServicePrice(price); }} />
+                <input aria-label={`Oferta ${index + 1} — Duração (minutos)`} required type="number" min={5} max={720} step={5} value={offer.duration} onChange={(event) => { const duration = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, duration } : item)); if (index === 0) setServiceDuration(duration); }} />
+                <input aria-label={`Oferta ${index + 1} — Descrição`} value={offer.description} onChange={(event) => { const description = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, description } : item)); if (index === 0) setServiceDescription(description); }} />
+                {serviceOffers.length > 2 && <button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} aria-label={`Remover Oferta ${index + 1}`} onClick={() => setServiceOffers((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Remover</button>}
+              </div>)}
+            </div>
+            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setServiceOffers((current) => [...current, { id: crypto.randomUUID(), price: "", duration: "30", description: "" }])}>Adicionar nova oferta</button>
+          </section> : <><Field label="Duração (minutos)"><input required type="number" min={5} max={720} step={5} value={serviceDuration} onChange={(event) => setServiceDuration(event.target.value)} /></Field><Field label="Descrição"><input value={serviceDescription} onChange={(event) => setServiceDescription(event.target.value)} /></Field></>}
+          <Field label={isMusicPro ? "Disponibilidade no app do estudante" : "Disponibilidade no app do Cliente"} wide><select aria-label={isMusicPro ? "Disponibilidade no app do estudante" : "Disponibilidade no app do Cliente"} value={serviceAvailability} onChange={(event) => setServiceAvailability(event.target.value as NonNullable<ServiceRecord["availability"]>)}><option value="CLIENT">Sim — {isMusicPro ? "estudante" : "cliente"} pode escolher</option><option value="HIDDEN">Não — somente gestão</option><option value="INTERNAL">Interno — apenas comissão</option></select></Field>
+          <div className={styles.formWide}><span className={styles.muted}>Público</span><div className={styles.inlineMeta}>{activeAudiences.map((audience) => <label className={styles.check} key={audience.audience_key}><input type="checkbox" name="audience" value={audience.audience_key} disabled={serviceAvailability === "INTERNAL"} defaultChecked={serviceForm !== "new" && serviceForm.audiences.includes(audience.audience_key)} />{audienceLabel(audience.audience_key, activeAudiences)}</label>)}</div></div>
+          <div className={`${styles.commercialToggles} ${styles.formWide}`}><CommercialToggle name="accepts_subscription" label="Aceita assinatura" defaultChecked={serviceForm !== "new" && (serviceForm.accepts_subscription ?? false)} disabled={serviceAvailability === "INTERNAL"} help={serviceCopy(serviceAvailability === "INTERNAL" ? "Serviço interno não permite assinatura." : "Permite assinatura futura deste serviço.", isMusicPro)} /><CommercialToggle name="accepts_online_payment" label="Aceita pagamento online" defaultChecked={serviceForm !== "new" && (serviceForm.accepts_online_payment ?? false)} disabled={serviceAvailability === "INTERNAL"} help={serviceAvailability === "INTERNAL" ? "Serviço interno não permite pagamento online." : "Permite configurar sinal ou pagamento integral futuro."} /></div>
+        </div>
+        <footer className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setServiceForm(null)}>Cancelar</button><button className={styles.button} type="submit">{serviceCopy(serviceForm === "new" ? "Cadastrar serviço" : "Salvar serviço", isMusicPro)}</button></footer>
+      </form>
+    </div>}
+
     {tab === "PACKAGES" && <Panel title="Pacotes" titleAdornment={<select className={styles.packageFilterSelect} aria-label="Filtro de pacotes" value={packageFilter} onChange={(event) => setPackageFilter(event.target.value as "ACTIVE" | "INACTIVE")}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select>} description="Uso em uma única visita" action={<button className={styles.button} type="button" disabled={!services.some((item) => item.active && item.availability !== "INTERNAL")} onClick={() => openPackageForm("new")}>Adicionar pacote</button>}>
       {packages.length === 0 ? <EmptyState title="Sem pacotes">{serviceCopy("Crie combinações depois de cadastrar serviços.", isMusicPro)}</EmptyState> : <div className={styles.list}>{packages.map((item) => <article className={styles.row} key={item.id}><span className={styles.rowTitle}><strong>{item.name}</strong><small>{packageItems.filter((link) => link.package_id === item.id && link.active).map((link) => serviceById.get(link.service_id)?.name).filter(Boolean).join(" + ") || "Sem itens"}</small><small>{item.audiences.map((audience) => audienceLabel(audience, organizationAudiences)).join(" · ") || "Sem público"}</small></span><strong>{formatCents(item.price_cents)}</strong><span>{packageItems.filter((link) => link.package_id === item.id && link.active).length} itens</span><StatusChip active={item.active} /><span className={styles.rowActions}><button className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} type="button" onClick={() => openPackageForm(item)}>Editar</button><button className={`${styles.button} ${styles.buttonSmall} ${item.active ? styles.buttonDanger : styles.buttonSoft}`} type="button" onClick={() => toggle("packages", item)}>{item.active ? "Inativar" : "Reativar"}</button></span></article>)}</div>}
     </Panel>}
 
-    {serviceForm && <div className={styles.modalLayer} role="presentation"><button className={styles.modalBackdrop} type="button" aria-label={serviceCopy("Fechar cadastro de serviço", isMusicPro)} onClick={() => setServiceForm(null)} /><form className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-label={serviceForm === "new" ? serviceCopy("Adicionar serviço", isMusicPro) : serviceCopy("Editar serviço", isMusicPro)} onSubmit={saveService} key={serviceForm === "new" ? "new" : serviceForm.id}><header className={styles.modalHeader}><div><small>{isMusicPro ? "Cadastro de Cursos" : "Cadastro de serviços"}</small><h2>{serviceForm === "new" ? serviceCopy("Adicionar serviço", isMusicPro) : serviceCopy("Editar serviço", isMusicPro)}</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setServiceForm(null)}><X size={19} /></button></header><div className={styles.form}><Field label="Nome"><input name="name" required minLength={2} defaultValue={serviceForm === "new" ? "" : serviceForm.name} /></Field><Field label="Preço (R$)"><><input name="price" required inputMode="decimal" defaultValue={serviceForm === "new" ? "" : (serviceForm.price_cents / 100).toFixed(2).replace(".", ",")} />{isMusicPro && <small>O preço refere-se ao valor de uma aula avulsa.</small>}</></Field><Field label="Duração (minutos)"><input name="duration" required type="number" min={5} max={720} step={5} defaultValue={serviceForm === "new" ? 30 : serviceForm.duration_minutes} /></Field><Field label="Descrição"><input name="description" defaultValue={serviceForm === "new" ? "" : serviceForm.description ?? ""} /></Field><Field label={isMusicPro ? "Disponibilidade no app do estudante" : "Disponibilidade no app do Cliente"} wide><select aria-label={isMusicPro ? "Disponibilidade no app do estudante" : "Disponibilidade no app do Cliente"} value={serviceAvailability} onChange={(event) => setServiceAvailability(event.target.value as NonNullable<ServiceRecord["availability"]>)}><option value="CLIENT">Sim — {isMusicPro ? "estudante" : "cliente"} pode escolher</option><option value="HIDDEN">Não — somente gestão</option><option value="INTERNAL">Interno — apenas comissão</option></select></Field><div className={styles.formWide}><span className={styles.muted}>Público</span><div className={styles.inlineMeta}>{activeAudiences.map((audience) => <label className={styles.check} key={audience.audience_key}><input type="checkbox" name="audience" value={audience.audience_key} disabled={serviceAvailability === "INTERNAL"} defaultChecked={serviceForm !== "new" && serviceForm.audiences.includes(audience.audience_key)} />{audienceLabel(audience.audience_key, activeAudiences)}</label>)}</div></div><div className={`${styles.commercialToggles} ${styles.formWide}`}><CommercialToggle name="accepts_subscription" label="Aceita assinatura" defaultChecked={serviceForm !== "new" && (serviceForm.accepts_subscription ?? false)} disabled={serviceAvailability === "INTERNAL"} help={serviceCopy(serviceAvailability === "INTERNAL" ? "Serviço interno não permite assinatura." : "Permite assinatura futura deste serviço.", isMusicPro)} /><CommercialToggle name="accepts_online_payment" label="Aceita pagamento online" defaultChecked={serviceForm !== "new" && (serviceForm.accepts_online_payment ?? false)} disabled={serviceAvailability === "INTERNAL"} help={serviceAvailability === "INTERNAL" ? "Serviço interno não permite pagamento online." : "Permite configurar sinal ou pagamento integral futuro."} /></div></div><footer className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setServiceForm(null)}>Cancelar</button><button className={styles.button} type="submit">{serviceCopy(serviceForm === "new" ? "Cadastrar serviço" : "Salvar serviço", isMusicPro)}</button></footer></form></div>}
 
     {packageForm && <div className={styles.modalLayer} role="presentation"><button className={styles.modalBackdrop} type="button" aria-label="Fechar cadastro de pacote" onClick={() => setPackageForm(null)} /><form className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-label={packageForm === "new" ? "Adicionar pacote" : "Editar pacote"} onSubmit={savePackage} key={packageForm === "new" ? "new" : packageForm.id}><header className={styles.modalHeader}><div><small>Cadastro de pacotes</small><h2>{packageForm === "new" ? "Adicionar pacote" : "Editar pacote"}</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setPackageForm(null)}><X size={19} /></button></header><div className={styles.form}><Field label="Nome"><input name="name" required minLength={2} defaultValue={packageForm === "new" ? "" : packageForm.name} /></Field><Field label="Preço do pacote (R$)"><><input name="price" required inputMode="decimal" value={packagePrice} onChange={(event) => { setPackagePrice(event.target.value); setPackagePriceOverridden(true); }} />{packagePriceDifferenceCents !== null && selectedServicesPriceCents > 0 && packagePriceDifferenceCents !== 0 && <small className={styles.packageDifference}>Diferença para soma dos {serviceCopy("serviços", isMusicPro)}: {formatCents(Math.abs(packagePriceDifferenceCents))} ({((Math.abs(packagePriceDifferenceCents) / selectedServicesPriceCents) * 100).toFixed(2).replace(".", ",")}%) {packagePriceDifferenceCents < 0 ? "menor" : "maior"}.</small>}</></Field><Field label="Duração (minutos)"><input name="duration" required type="number" min={5} max={14400} step={5} value={packageDuration} onChange={(event) => { setPackageDuration(event.target.value); setPackageDurationOverridden(true); }} /></Field><Field label="Descrição" wide><input name="description" defaultValue={packageForm === "new" ? "" : packageForm.description ?? ""} /></Field><div className={styles.formWide}><span className={styles.muted}>Público</span><div className={styles.inlineMeta}>{activeAudiences.map((audience) => <label className={styles.check} key={audience.audience_key}><input type="checkbox" name="audience" value={audience.audience_key} defaultChecked={packageForm !== "new" && packageForm.audiences.includes(audience.audience_key)} />{audienceLabel(audience.audience_key, activeAudiences)}</label>)}</div></div><div className={styles.formWide}><span className={styles.muted}>{serviceCopy("Serviços incluídos", isMusicPro)}</span><div className={styles.inlineMeta}>{services.filter((item) => item.active).map((service) => <label className={styles.check} key={service.id}><input type="checkbox" checked={selectedServices.includes(service.id)} onChange={(event) => togglePackageService(service.id, event.target.checked)} />{service.name}</label>)}</div></div><div className={`${styles.commercialToggles} ${styles.formWide}`}><CommercialToggle name="package_accepts_subscription" label="Aceita assinatura" checked={packageAcceptsSubscription} disabled={!subscriptionEligible} onChange={setPackageAcceptsSubscription} help={serviceCopy(subscriptionEligible ? "Todos os serviços selecionados aceitam assinatura." : "Ative Aceita assinatura em todos os serviços incluídos primeiro.", isMusicPro)} /><CommercialToggle name="package_accepts_online_payment" label="Aceita pagamento online" checked={packageAcceptsOnlinePayment} disabled={!onlinePaymentEligible} onChange={setPackageAcceptsOnlinePayment} help={subscriptionEligible ? "Todos os serviços selecionados aceitam pagamento online." : "Todos os cursos selecionados aceitam pagamento online."} /></div></div><footer className={styles.toolbarGroup}><button className={`${styles.button} ${styles.buttonSoft}`} type="button" onClick={() => setPackageForm(null)}>Cancelar</button><button className={styles.button} type="submit">{packageForm === "new" ? "Cadastrar pacote" : "Salvar pacote"}</button></footer></form></div>}
 

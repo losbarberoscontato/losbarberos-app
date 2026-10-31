@@ -37,6 +37,7 @@ export type PublicService = {
   description: string | null;
   price_cents: number;
   duration_minutes: number;
+  offers?: Array<{ id: string; price_cents: number; duration_minutes: number; description: string | null }>;
   audiences: readonly CatalogAudience[];
 };
 
@@ -154,10 +155,12 @@ export type CatalogChoice = {
   priceCents: number;
   durationMinutes: number;
   audiences: readonly CatalogAudience[];
+  offers?: Array<{ id: string; priceCents: number; durationMinutes: number; description: string | null }>;
+  offerId?: string;
 };
 
 export type BookingSelection =
-  | { type: "SERVICE"; service_id: string; quantity: number }
+  | { type: "SERVICE"; service_id: string; quantity: number; offer_id?: string }
   | { type: "PACKAGE"; package_id: string; quantity: number };
 
 export type AvailableSlot = {

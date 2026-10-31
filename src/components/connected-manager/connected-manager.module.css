@@ -127,6 +127,24 @@
 .field input:focus, .field select:focus, .field textarea:focus { outline: 3px solid rgba(106, 133, 98, .18); border-color: #789070; }
 .check { display: inline-flex; gap: .5rem; align-items: center; color: #515a53; font-size: .85rem; }
 .check input { width: 17px; height: 17px; accent-color: #52674e; }
+.servicePriceField { display: grid; align-content: start; gap: .35rem; min-width: 0; }
+.servicePriceLabelRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; min-height: 1.1rem; color: #555f57; font-size: .78rem; font-weight: 700; }
+.servicePriceLabelRow > label:first-child { color: inherit; }
+.offerToggle { display: inline-flex; align-items: center; gap: .4rem; color: #3f4b43; font-size: .72rem; font-weight: 750; cursor: pointer; }
+.offerToggle input { width: 18px; height: 18px; accent-color: #382047; }
+.servicePriceField > input { width: 100%; min-width: 0; border: 1px solid #d9dfd7; border-radius: 11px; padding: .7rem .75rem; background: #fff; color: #222823; font: inherit; font-size: .88rem; }
+.servicePriceField > small { color: #68736b; font-size: .72rem; }
+.serviceOffers { display: grid; gap: .8rem; min-width: 0; padding: 1rem; border: 1px solid #e1e6df; border-radius: 14px; background: #fff; }
+.serviceOffersHeader { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.serviceOffersHeader h3 { margin: 0; color: #243029; font-size: 1rem; }
+.serviceOffersHeader span { color: #68736b; font-size: .78rem; }
+.serviceOfferTable { display: grid; min-width: 0; overflow-x: auto; }
+.serviceOfferHead, .serviceOfferRow { display: grid; grid-template-columns: minmax(5.5rem, .65fr) minmax(7rem, 1fr) minmax(7rem, .9fr) minmax(10rem, 1.5fr) auto; align-items: center; gap: .55rem; min-width: 39rem; }
+.serviceOfferHead { padding: 0 .55rem .45rem; color: #69736c; font-size: .7rem; font-weight: 800; }
+.serviceOfferRow { padding: .6rem; border: 1px solid #e5e9e3; border-radius: 10px; background: #fafbf9; }
+.serviceOfferRow + .serviceOfferRow { margin-top: .45rem; }
+.serviceOfferRow strong { color: #3d2849; font-size: .8rem; }
+.serviceOfferRow input { width: 100%; min-width: 0; border: 1px solid #d9dfd7; border-radius: 8px; padding: .58rem; background: #fff; color: #222823; font: inherit; font-size: .8rem; }
 .message { border-radius: 12px; padding: .75rem .9rem; margin: 0 0 1rem; background: #eef4ea; color: #365033; font-size: .84rem; }
 .statusProgress { display: inline-flex; align-items: center; gap: .42rem; margin-top: .55rem; font-weight: 800; }
 .spinner { width: .85rem; height: .85rem; display: inline-block; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: whatsappSpin .8s linear infinite; }

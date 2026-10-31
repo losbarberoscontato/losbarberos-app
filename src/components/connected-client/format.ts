@@ -30,6 +30,7 @@ export function catalogChoices(context: PublicBookingContext): CatalogChoice[] {
       priceCents: service.price_cents,
       durationMinutes: service.duration_minutes,
       audiences: service.audiences,
+      offers: service.offers?.map((offer) => ({ id: offer.id, priceCents: offer.price_cents, durationMinutes: offer.duration_minutes, description: offer.description })) ?? [],
     })),
     ...context.packages.map((item) => ({
       id: item.id,
@@ -57,7 +58,7 @@ export function filterByChoiceKind(
 
 export function bookingSelection(choice: CatalogChoice): BookingSelection[] {
   return choice.kind === "SERVICE"
-    ? [{ type: "SERVICE", service_id: choice.id, quantity: 1 }]
+    ? [{ type: "SERVICE", service_id: choice.id, quantity: 1, ...(choice.offerId ? { offer_id: choice.offerId } : {}) }]
     : [{ type: "PACKAGE", package_id: choice.id, quantity: 1 }];
 }
 

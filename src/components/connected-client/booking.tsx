@@ -40,6 +40,7 @@ import { clientVocabulary } from "@/components/connected-client/vocabulary";
 
 type Draft = {
   choiceId: string;
+  offerId?: string;
   barberMode?: BarberMode;
   barberId: string;
   localDate: string;
@@ -117,6 +118,9 @@ function BookingContent() {
   const dates = useMemo(() => context ? dateOptions(context.organization.timezone) : [], [context]);
   const [step, setStep] = useState(1);
   const [choiceId, setChoiceId] = useState("");
+  const [selectedOfferId, setSelectedOfferId] = useState("");
+  const [offerDialogChoiceId, setOfferDialogChoiceId] = useState("");
+  const [pendingOfferId, setPendingOfferId] = useState("");
   const [subscriptionSessionId, setSubscriptionSessionId] = useState<string | null>(null);
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
   const [subscriptionSelections, setSubscriptionSelections] = useState<Array<{ type: "SERVICE"; service_id: string; quantity: number }>>([]);
@@ -150,7 +154,12 @@ function BookingContent() {
   const dialogBodyRef = useRef<HTMLDivElement>(null);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
 
-  const choice = choices.find((item) => item.id === choiceId) ?? null;
+  const baseChoice = useMemo(() => choices.find((item) => item.id === choiceId) ?? null, [choiceId, choices]);
+  const selectedOffer = baseChoice?.offers?.find((offer) => offer.id === selectedOfferId) ?? null;
+  const choice = useMemo(() => baseChoice && selectedOffer
+    ? { ...baseChoice, name: `${baseChoice.name} — Oferta ${(baseChoice.offers ?? []).findIndex((offer) => offer.id === selectedOffer.id) + 1}`, description: selectedOffer.description, priceCents: selectedOffer.priceCents, durationMinutes: selectedOffer.durationMinutes, offerId: selectedOffer.id }
+    : baseChoice, [baseChoice, selectedOffer]);
+  const offerDialogChoice = choices.find((item) => item.id === offerDialogChoiceId && item.kind === "SERVICE") ?? null;
   const isSubscriptionBooking = Boolean(subscriptionSessionId && subscriptionSelections.length);
   const currentSelections = useCallback(() => subscriptionSelections.length ? subscriptionSelections : choice ? bookingSelection(choice) : [], [choice, subscriptionSelections]);
   const resetBookingHold = useCallback((options?: { clearSlot?: boolean; refreshAvailability?: boolean }) => {
@@ -230,6 +239,7 @@ function BookingContent() {
       const firstService = context.services.find((service) => service.id === links[0].service_id);
       setSelectedAudience(firstService?.audiences?.[0] ?? bookingAudiences[0]?.audience_key ?? null);
       setChoiceId(links[0].service_id);
+      setSelectedOfferId("");
       setStep(2);
     }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Sessão de assinatura indisponível."); });
     return () => { active = false; };
@@ -281,6 +291,7 @@ function BookingContent() {
         try {
           const draft = JSON.parse(raw) as Partial<Draft>;
           if (typeof draft.choiceId === "string") setChoiceId(draft.choiceId);
+          if (typeof draft.offerId === "string") setSelectedOfferId(draft.offerId);
           if (typeof draft.audience === "string" && bookingAudiences.some((audience) => audience.audience_key === draft.audience)) setSelectedAudience(draft.audience);
           if (!queuePresetRef.current) {
             if (draft.barberMode === "ANY" || draft.barberMode === "SPECIFIC") setBarberMode(draft.barberMode);
@@ -315,9 +326,9 @@ function BookingContent() {
 
   useEffect(() => {
     if (!slug || !restored) return;
-    const draft: Draft = { choiceId, barberMode, barberId, localDate, startsAt, step, audience: selectedAudience ?? undefined };
+    const draft: Draft = { choiceId, offerId: selectedOfferId || undefined, barberMode, barberId, localDate, startsAt, step, audience: selectedAudience ?? undefined };
     window.sessionStorage.setItem(draftKey(slug), JSON.stringify(draft));
-  }, [barberId, barberMode, choiceId, localDate, restored, selectedAudience, slug, startsAt, step]);
+  }, [barberId, barberMode, choiceId, localDate, restored, selectedAudience, selectedOfferId, slug, startsAt, step]);
 
   useEffect(() => {
     if (!bookingHold?.expires_at || !supabase || !slug) {
@@ -431,7 +442,7 @@ function BookingContent() {
   const organization = context.organization;
   const tenantSlug = slug;
   const canContinue = step === 1
-    ? Boolean(choice)
+    ? Boolean(choice && (choice.kind !== "SERVICE" || (choice.offers?.length ?? 0) < 2 || selectedOffer))
     : step === 2
       ? Boolean(choice && (barberMode === "ANY" || (barberMode === "SPECIFIC" && barber)))
       : step === 3
@@ -663,6 +674,7 @@ function BookingContent() {
                   onClick={() => {
                     setSelectedAudience(audience);
                     setChoiceId("");
+                    setSelectedOfferId("");
                     resetBookingAfterChoice();
                   }}
                 >
@@ -688,6 +700,7 @@ function BookingContent() {
                       onClick={() => {
                         setSelectedChoiceKind(kind);
                         setChoiceId("");
+                        setSelectedOfferId("");
                         resetBookingAfterChoice();
                       }}
                     >
@@ -698,6 +711,7 @@ function BookingContent() {
                 <div className={styles.cards}>
                   {choices.map((item) => {
                     const selected = item.id === choiceId;
+                    const itemHasOffers = item.kind === "SERVICE" && (item.offers?.length ?? 0) > 1;
                     return (
                       <button
                         type="button"
@@ -705,13 +719,18 @@ function BookingContent() {
                         className={selected ? styles.selected : undefined}
                         aria-pressed={selected}
                         onClick={() => {
-                          if (item.id !== choiceId) resetBookingAfterChoice();
+                          resetBookingAfterChoice();
                           setChoiceId(item.id);
+                          setSelectedOfferId(itemHasOffers ? "" : item.offers?.[0]?.id ?? "");
+                          if (itemHasOffers) {
+                            setPendingOfferId("");
+                            setOfferDialogChoiceId(item.id);
+                          } else setOfferDialogChoiceId("");
                         }}
                       >
                         <span className={styles.choiceKind}>{item.kind === "PACKAGE" ? "Pacote" : vocabulary.serviceLabel}</span>
                         <strong>{item.name}</strong>
-                        <small>{item.description || `Detalhes informados ${vocabulary.byOrganization}.`}</small>
+                        <small>{itemHasOffers ? `${item.offers?.length} ofertas disponíveis. Escolha uma para continuar.` : item.description || `Detalhes informados ${vocabulary.byOrganization}.`}</small>
                         <span className={styles.choiceMeta}><Clock3 size={14} aria-hidden="true" /> {item.durationMinutes} min <b>{formatMoney(item.priceCents, organization.currency)}</b></span>
                         {selected && <i><Check size={15} aria-hidden="true" /></i>}
                       </button>
@@ -879,6 +898,8 @@ function BookingContent() {
 
         {error && <div className={styles.errorBox} role="alert"><strong>Reserva não concluída</strong><span>{error}</span></div>}
       </div>
+
+      {offerDialogChoice && <div className={styles.offerDialogLayer} role="presentation"><button className={styles.offerDialogBackdrop} type="button" aria-label="Fechar seleção de ofertas" onClick={() => { setOfferDialogChoiceId(""); setPendingOfferId(""); setChoiceId(""); setSelectedOfferId(""); }} /><section className={styles.offerDialog} role="dialog" aria-modal="true" aria-labelledby="service-offer-title"><span className={styles.choiceKind}>Escolha da oferta</span><h2 id="service-offer-title">{offerDialogChoice.name}</h2><p>Selecione a opção que deseja agendar.</p><div className={styles.offerDialogOptions}>{offerDialogChoice.offers?.map((offer, index) => <label key={offer.id} className={pendingOfferId === offer.id ? styles.offerDialogOptionSelected : styles.offerDialogOption}><input type="radio" name="service-offer" value={offer.id} checked={pendingOfferId === offer.id} onChange={() => setPendingOfferId(offer.id)} /><span><strong>Oferta {index + 1}</strong><small>{offer.description || "Detalhes desta oferta"}</small><em>{offer.durationMinutes} min <b>{formatMoney(offer.priceCents, organization.currency)}</b></em></span></label>)}</div><footer><button type="button" className={styles.secondaryButton} onClick={() => { setOfferDialogChoiceId(""); setPendingOfferId(""); setChoiceId(""); setSelectedOfferId(""); }}>Voltar</button><button type="button" className={styles.primaryButton} disabled={!pendingOfferId} onClick={() => { setSelectedOfferId(pendingOfferId); setOfferDialogChoiceId(""); setPendingOfferId(""); }}>Escolher oferta</button></footer></section></div>}
 
       <footer className={styles.bookingDialogFooter}>
         <span>{choice && <><small>{choice.name}</small><strong>{formatMoney(choice.priceCents, organization.currency)}</strong></>}</span>

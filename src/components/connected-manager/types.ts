@@ -143,12 +143,20 @@ export interface ServiceRecord {
   description: string | null;
   price_cents: number;
   duration_minutes: number;
+  offers?: ServiceOfferRecord[];
   active: boolean;
   sort_order: number;
   audiences: readonly import("@/lib/catalog-audiences").CatalogAudience[];
   accepts_subscription?: boolean;
   accepts_online_payment?: boolean;
   availability?: "CLIENT" | "HIDDEN" | "INTERNAL";
+}
+
+export interface ServiceOfferRecord {
+  id: string;
+  price_cents: number;
+  duration_minutes: number;
+  description: string | null;
 }
 
 export interface PackageRecord {
