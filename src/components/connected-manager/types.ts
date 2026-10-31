@@ -154,6 +154,7 @@ export interface ServiceRecord {
 
 export interface ServiceOfferRecord {
   id: string;
+  name?: string;
   price_cents: number;
   duration_minutes: number;
   description: string | null;

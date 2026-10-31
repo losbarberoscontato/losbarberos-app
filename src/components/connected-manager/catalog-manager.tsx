@@ -52,7 +52,7 @@ export function CatalogManager(props: Props) {
   const [servicePrice, setServicePrice] = useState("");
   const [serviceDuration, setServiceDuration] = useState("30");
   const [serviceDescription, setServiceDescription] = useState("");
-  const [serviceOffers, setServiceOffers] = useState<Array<{ id: string; price: string; duration: string; description: string }>>([]);
+  const [serviceOffers, setServiceOffers] = useState<Array<{ id: string; name: string; price: string; duration: string; description: string }>>([]);
   const [packageForm, setPackageForm] = useState<PackageRecord | "new" | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [packageAcceptsSubscription, setPackageAcceptsSubscription] = useState(false);
@@ -125,8 +125,8 @@ export function CatalogManager(props: Props) {
     setServiceDuration(duration);
     setServiceDescription(description);
     setServiceOffers(offers.length > 1
-      ? offers.map((offer) => ({ id: offer.id, price: centsInput(offer.price_cents), duration: String(offer.duration_minutes), description: offer.description ?? "" }))
-      : [{ id: "offer-1", price, duration, description }]);
+      ? offers.map((offer, index) => ({ id: offer.id, name: offer.name?.trim() || `Oferta ${index + 1}`, price: centsInput(offer.price_cents), duration: String(offer.duration_minutes), description: offer.description ?? "" }))
+      : [{ id: "offer-1", name: "Oferta 1", price, duration, description }]);
   }
 
   function togglePackageService(serviceId: string, checked: boolean) {
@@ -149,9 +149,11 @@ export function CatalogManager(props: Props) {
       if (serviceOffers.length < 2) { setMessage("Adicione pelo menos duas ofertas para ativar esta opção."); return; }
       try {
         for (const [index, offer] of serviceOffers.entries()) {
+          const name = offer.name.trim();
+          if (!name) throw new Error(`Informe o nome da Oferta ${index + 1}.`);
           const duration = Number(offer.duration);
           if (!Number.isInteger(duration) || duration < 5 || duration > 720) throw new Error("Informe uma duração entre 5 e 720 minutos para cada oferta.");
-          normalizedOffers.push({ id: `offer-${index + 1}`, price_cents: centsFromInput(offer.price), duration_minutes: duration, description: offer.description.trim() || null });
+          normalizedOffers.push({ id: `offer-${index + 1}`, name, price_cents: centsFromInput(offer.price), duration_minutes: duration, description: offer.description.trim() || null });
         }
       } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Confira os dados das ofertas."); return; }
     }
@@ -223,7 +225,7 @@ export function CatalogManager(props: Props) {
               <span>Ofertas</span>
               <label className={styles.offerToggle}><input type="checkbox" checked={serviceHasOffers} onChange={(event) => {
                 const enabled = event.target.checked;
-                if (enabled) setServiceOffers((current) => current.length ? [{ ...current[0], price: servicePrice, duration: serviceDuration, description: serviceDescription }, ...current.slice(1)] : [{ id: "offer-1", price: servicePrice, duration: serviceDuration, description: serviceDescription }]);
+                if (enabled) setServiceOffers((current) => current.length ? [{ ...current[0], price: servicePrice, duration: serviceDuration, description: serviceDescription }, ...current.slice(1)] : [{ id: "offer-1", name: "Oferta 1", price: servicePrice, duration: serviceDuration, description: serviceDescription }]);
                 else if (serviceOffers[0]) { setServicePrice(serviceOffers[0].price); setServiceDuration(serviceOffers[0].duration); setServiceDescription(serviceOffers[0].description); }
                 setServiceHasOffers(enabled);
               }} /><span>Este produto possui mais de uma oferta</span></label>
@@ -234,14 +236,14 @@ export function CatalogManager(props: Props) {
             <div className={styles.serviceOfferTable}>
               <div className={styles.serviceOfferHead} aria-hidden="true"><span>Oferta</span><span>Preço (R$)</span><span>Duração (min)</span><span>Descrição</span></div>
               {serviceOffers.map((offer, index) => <div className={styles.serviceOfferRow} key={offer.id}>
-                <strong>Oferta {index + 1}</strong>
+                <input aria-label={`Nome da Oferta ${index + 1}`} required maxLength={80} value={offer.name} onChange={(event) => { const name = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name } : item)); }} />
                 <input aria-label={`Oferta ${index + 1} — Preço (R$)`} required inputMode="decimal" value={offer.price} onChange={(event) => { const price = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, price } : item)); if (index === 0) setServicePrice(price); }} />
                 <input aria-label={`Oferta ${index + 1} — Duração (minutos)`} required type="number" min={5} max={720} step={5} value={offer.duration} onChange={(event) => { const duration = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, duration } : item)); if (index === 0) setServiceDuration(duration); }} />
                 <input aria-label={`Oferta ${index + 1} — Descrição`} value={offer.description} onChange={(event) => { const description = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, description } : item)); if (index === 0) setServiceDescription(description); }} />
                 {serviceOffers.length > 2 && <button type="button" className={styles.offerRemoveButton} aria-label={`Remover Oferta ${index + 1}`} title={`Remover Oferta ${index + 1}`} onClick={() => setServiceOffers((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={16} aria-hidden="true" /></button>}
               </div>)}
             </div>
-            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setServiceOffers((current) => [...current, { id: crypto.randomUUID(), price: "", duration: "30", description: "" }])}>Adicionar nova oferta</button>
+            <button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setServiceOffers((current) => [...current, { id: crypto.randomUUID(), name: `Oferta ${current.length + 1}`, price: "", duration: "30", description: "" }])}>Adicionar nova oferta</button>
           </section> : <>
             <Field label="Descrição" wide><input value={serviceDescription} onChange={(event) => setServiceDescription(event.target.value)} /></Field>
             <div className={`${styles.serviceDetailsRow} ${styles.formWide}`}>

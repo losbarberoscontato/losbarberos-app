@@ -37,7 +37,7 @@ export type PublicService = {
   description: string | null;
   price_cents: number;
   duration_minutes: number;
-  offers?: Array<{ id: string; price_cents: number; duration_minutes: number; description: string | null }>;
+  offers?: Array<{ id: string; name?: string; price_cents: number; duration_minutes: number; description: string | null }>;
   audiences: readonly CatalogAudience[];
 };
 
@@ -155,7 +155,7 @@ export type CatalogChoice = {
   priceCents: number;
   durationMinutes: number;
   audiences: readonly CatalogAudience[];
-  offers?: Array<{ id: string; priceCents: number; durationMinutes: number; description: string | null }>;
+  offers?: Array<{ id: string; name?: string; priceCents: number; durationMinutes: number; description: string | null }>;
   offerId?: string;
 };
 

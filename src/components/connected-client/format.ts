@@ -30,7 +30,7 @@ export function catalogChoices(context: PublicBookingContext): CatalogChoice[] {
       priceCents: service.price_cents,
       durationMinutes: service.duration_minutes,
       audiences: service.audiences,
-      offers: service.offers?.map((offer) => ({ id: offer.id, priceCents: offer.price_cents, durationMinutes: offer.duration_minutes, description: offer.description })) ?? [],
+      offers: service.offers?.map((offer) => ({ id: offer.id, name: offer.name, priceCents: offer.price_cents, durationMinutes: offer.duration_minutes, description: offer.description })) ?? [],
     })),
     ...context.packages.map((item) => ({
       id: item.id,
