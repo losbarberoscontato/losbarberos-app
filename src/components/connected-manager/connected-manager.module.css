@@ -106,6 +106,7 @@
 .modalBackdrop { position: absolute; inset: 0; border: 0; background: rgb(12 27 23 / 58%); backdrop-filter: blur(3px); }
 .modal { position: relative; width: min(100%, 28rem); max-height: calc(100dvh - 3rem); display: flex; flex-direction: column; padding: 1.5rem; border: 1px solid #e4e7df; border-radius: 1.25rem; background: #fffdf8; box-shadow: 0 1.5rem 4rem rgb(12 27 23 / 20%); }
 .modalWide { width: min(100%, 44rem); }
+.serviceModal { width: min(100%, 56rem); }
 .receiptModal { width: min(100%, 52rem); max-height: calc(100dvh - 4rem); margin-block: 1rem; padding: 1.75rem; }
 .modalHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .modalClose { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid #d9dfd7; border-radius: .85rem; background: #fff; color: #243029; cursor: pointer; }
@@ -127,9 +128,10 @@
 .field input:focus, .field select:focus, .field textarea:focus { outline: 3px solid rgba(106, 133, 98, .18); border-color: #789070; }
 .check { display: inline-flex; gap: .5rem; align-items: center; color: #515a53; font-size: .85rem; }
 .check input { width: 17px; height: 17px; accent-color: #52674e; }
-.servicePriceField { display: grid; align-content: start; gap: .35rem; min-width: 0; }
-.servicePriceLabelRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; min-height: 1.1rem; color: #555f57; font-size: .78rem; font-weight: 700; }
-.servicePriceLabelRow > label:first-child { color: inherit; }
+.serviceNameOfferRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 1rem; }
+.serviceOfferToggleField { display: grid; align-content: end; gap: .35rem; min-height: 100%; padding-bottom: .7rem; color: #555f57; font-size: .78rem; font-weight: 700; }
+.serviceDetailsRow { display: grid; grid-template-columns: repeat(2, minmax(0, 16rem)); align-items: start; gap: .85rem; }
+.servicePriceField { display: grid; align-content: start; gap: .35rem; min-width: 0; color: #555f57; font-size: .78rem; font-weight: 700; }
 .offerToggle { display: inline-flex; align-items: center; gap: .4rem; color: #3f4b43; font-size: .72rem; font-weight: 750; cursor: pointer; }
 .offerToggle input { width: 18px; height: 18px; accent-color: #382047; }
 .servicePriceField > input { width: 100%; min-width: 0; border: 1px solid #d9dfd7; border-radius: 11px; padding: .7rem .75rem; background: #fff; color: #222823; font: inherit; font-size: .88rem; }
@@ -138,8 +140,8 @@
 .serviceOffersHeader { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; }
 .serviceOffersHeader h3 { margin: 0; color: #243029; font-size: 1rem; }
 .serviceOffersHeader span { color: #68736b; font-size: .78rem; }
-.serviceOfferTable { display: grid; min-width: 0; overflow-x: auto; }
-.serviceOfferHead, .serviceOfferRow { display: grid; grid-template-columns: minmax(5.5rem, .65fr) minmax(7rem, 1fr) minmax(7rem, .9fr) minmax(10rem, 1.5fr) auto; align-items: center; gap: .55rem; min-width: 39rem; }
+.serviceOfferTable { display: grid; min-width: 0; }
+.serviceOfferHead, .serviceOfferRow { display: grid; grid-template-columns: minmax(5.5rem, .65fr) minmax(7rem, 1fr) minmax(7rem, .9fr) minmax(10rem, 1.5fr) auto; align-items: center; gap: .55rem; min-width: 0; }
 .serviceOfferHead { padding: 0 .55rem .45rem; color: #69736c; font-size: .7rem; font-weight: 800; }
 .serviceOfferRow { padding: .6rem; border: 1px solid #e5e9e3; border-radius: 10px; background: #fafbf9; }
 .serviceOfferRow + .serviceOfferRow { margin-top: .45rem; }
@@ -880,6 +882,12 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
   .investmentFormGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
+  .serviceNameOfferRow { grid-template-columns: 1fr; }
+  .serviceOfferToggleField { padding-bottom: 0; }
+  .serviceOfferHead { display: none; }
+  .serviceOfferRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .serviceOfferRow strong, .serviceOfferRow input:last-of-type { grid-column: 1 / -1; }
+  .serviceDetailsRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .projectStats, .projectColumns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .investmentMetrics { grid-template-columns: 1fr; }
   .projectDetailHeader { display: grid; }
@@ -890,6 +898,7 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
   .eventModalLayout { grid-template-columns: 1fr; }
 }
 @media (max-width: 500px) {
+  .serviceDetailsRow { grid-template-columns: 1fr; }
   .projectStats, .projectColumns, .financeRows { grid-template-columns: 1fr; }
   .investmentAddForm { grid-template-columns: 1fr; }
   .investmentFormGrid { grid-template-columns: 1fr; }

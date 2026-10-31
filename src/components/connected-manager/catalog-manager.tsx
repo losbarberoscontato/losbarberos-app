@@ -214,13 +214,13 @@ export function CatalogManager(props: Props) {
 
     {serviceForm && <div className={styles.modalLayer} role="presentation">
       <button className={styles.modalBackdrop} type="button" aria-label={serviceCopy("Fechar cadastro de serviço", isMusicPro)} onClick={() => setServiceForm(null)} />
-      <form className={`${styles.modal} ${styles.modalWide}`} role="dialog" aria-modal="true" aria-label={serviceForm === "new" ? serviceCopy("Adicionar serviço", isMusicPro) : serviceCopy("Editar serviço", isMusicPro)} onSubmit={saveService} key={serviceForm === "new" ? "new" : serviceForm.id}>
+      <form className={`${styles.modal} ${styles.serviceModal}`} role="dialog" aria-modal="true" aria-label={serviceForm === "new" ? serviceCopy("Adicionar serviço", isMusicPro) : serviceCopy("Editar serviço", isMusicPro)} onSubmit={saveService} key={serviceForm === "new" ? "new" : serviceForm.id}>
         <header className={styles.modalHeader}><div><small>{isMusicPro ? "Cadastro de Cursos" : "Cadastro de serviços"}</small><h2>{serviceForm === "new" ? serviceCopy("Adicionar serviço", isMusicPro) : serviceCopy("Editar serviço", isMusicPro)}</h2></div><button className={styles.modalClose} type="button" aria-label="Fechar" onClick={() => setServiceForm(null)}><X size={19} /></button></header>
         <div className={styles.form}>
-          <Field label="Nome"><input name="name" required minLength={2} defaultValue={serviceForm === "new" ? "" : serviceForm.name} /></Field>
-          <div className={styles.servicePriceField}>
-            <div className={styles.servicePriceLabelRow}>
-              {serviceHasOffers ? <span>Ofertas</span> : <label htmlFor="service-price">Preço (R$)</label>}
+          <div className={`${styles.serviceNameOfferRow} ${styles.formWide}`}>
+            <Field label="Nome"><input name="name" required minLength={2} defaultValue={serviceForm === "new" ? "" : serviceForm.name} /></Field>
+            <div className={styles.serviceOfferToggleField}>
+              <span>Ofertas</span>
               <label className={styles.offerToggle}><input type="checkbox" checked={serviceHasOffers} onChange={(event) => {
                 const enabled = event.target.checked;
                 if (enabled) setServiceOffers((current) => current.length ? [{ ...current[0], price: servicePrice, duration: serviceDuration, description: serviceDescription }, ...current.slice(1)] : [{ id: "offer-1", price: servicePrice, duration: serviceDuration, description: serviceDescription }]);
@@ -228,7 +228,6 @@ export function CatalogManager(props: Props) {
                 setServiceHasOffers(enabled);
               }} /><span>Este produto possui mais de uma oferta</span></label>
             </div>
-            {!serviceHasOffers && <><input id="service-price" inputMode="decimal" value={servicePrice} onChange={(event) => setServicePrice(event.target.value)} required />{isMusicPro && <small>O preço refere-se ao valor de uma aula avulsa.</small>}</>}
           </div>
           {serviceHasOffers ? <section className={`${styles.serviceOffers} ${styles.formWide}`} aria-label="Ofertas">
             <div className={styles.serviceOffersHeader}><h3>Ofertas</h3><span>O app do cliente exibirá as opções abaixo.</span></div>
@@ -243,7 +242,17 @@ export function CatalogManager(props: Props) {
               </div>)}
             </div>
             <button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setServiceOffers((current) => [...current, { id: crypto.randomUUID(), price: "", duration: "30", description: "" }])}>Adicionar nova oferta</button>
-          </section> : <><Field label="Duração (minutos)"><input required type="number" min={5} max={720} step={5} value={serviceDuration} onChange={(event) => setServiceDuration(event.target.value)} /></Field><Field label="Descrição"><input value={serviceDescription} onChange={(event) => setServiceDescription(event.target.value)} /></Field></>}
+          </section> : <>
+            <Field label="Descrição" wide><input value={serviceDescription} onChange={(event) => setServiceDescription(event.target.value)} /></Field>
+            <div className={`${styles.serviceDetailsRow} ${styles.formWide}`}>
+              <Field label="Duração (minutos)"><input required type="number" min={5} max={720} step={5} value={serviceDuration} onChange={(event) => setServiceDuration(event.target.value)} /></Field>
+              <div className={styles.servicePriceField}>
+                <label htmlFor="service-price">Preço (R$)</label>
+                <input id="service-price" inputMode="decimal" value={servicePrice} onChange={(event) => setServicePrice(event.target.value)} required />
+                {isMusicPro && <small>O preço refere-se ao valor de uma aula avulsa.</small>}
+              </div>
+            </div>
+          </>}
           <Field label={isMusicPro ? "Disponibilidade no app do estudante" : "Disponibilidade no app do Cliente"} wide><select aria-label={isMusicPro ? "Disponibilidade no app do estudante" : "Disponibilidade no app do Cliente"} value={serviceAvailability} onChange={(event) => setServiceAvailability(event.target.value as NonNullable<ServiceRecord["availability"]>)}><option value="CLIENT">Sim — {isMusicPro ? "estudante" : "cliente"} pode escolher</option><option value="HIDDEN">Não — somente gestão</option><option value="INTERNAL">Interno — apenas comissão</option></select></Field>
           <div className={styles.formWide}><span className={styles.muted}>Público</span><div className={styles.inlineMeta}>{activeAudiences.map((audience) => <label className={styles.check} key={audience.audience_key}><input type="checkbox" name="audience" value={audience.audience_key} disabled={serviceAvailability === "INTERNAL"} defaultChecked={serviceForm !== "new" && serviceForm.audiences.includes(audience.audience_key)} />{audienceLabel(audience.audience_key, activeAudiences)}</label>)}</div></div>
           <div className={`${styles.commercialToggles} ${styles.formWide}`}><CommercialToggle name="accepts_subscription" label="Aceita assinatura" defaultChecked={serviceForm !== "new" && (serviceForm.accepts_subscription ?? false)} disabled={serviceAvailability === "INTERNAL"} help={serviceCopy(serviceAvailability === "INTERNAL" ? "Serviço interno não permite assinatura." : "Permite assinatura futura deste serviço.", isMusicPro)} /><CommercialToggle name="accepts_online_payment" label="Aceita pagamento online" defaultChecked={serviceForm !== "new" && (serviceForm.accepts_online_payment ?? false)} disabled={serviceAvailability === "INTERNAL"} help={serviceAvailability === "INTERNAL" ? "Serviço interno não permite pagamento online." : "Permite configurar sinal ou pagamento integral futuro."} /></div>
