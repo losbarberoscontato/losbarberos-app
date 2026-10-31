@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import type { loadCatalogData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
@@ -238,7 +238,7 @@ export function CatalogManager(props: Props) {
                 <input aria-label={`Oferta ${index + 1} — Preço (R$)`} required inputMode="decimal" value={offer.price} onChange={(event) => { const price = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, price } : item)); if (index === 0) setServicePrice(price); }} />
                 <input aria-label={`Oferta ${index + 1} — Duração (minutos)`} required type="number" min={5} max={720} step={5} value={offer.duration} onChange={(event) => { const duration = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, duration } : item)); if (index === 0) setServiceDuration(duration); }} />
                 <input aria-label={`Oferta ${index + 1} — Descrição`} value={offer.description} onChange={(event) => { const description = event.target.value; setServiceOffers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, description } : item)); if (index === 0) setServiceDescription(description); }} />
-                {serviceOffers.length > 2 && <button type="button" className={`${styles.button} ${styles.buttonSoft} ${styles.buttonSmall}`} aria-label={`Remover Oferta ${index + 1}`} onClick={() => setServiceOffers((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Remover</button>}
+                {serviceOffers.length > 2 && <button type="button" className={styles.offerRemoveButton} aria-label={`Remover Oferta ${index + 1}`} title={`Remover Oferta ${index + 1}`} onClick={() => setServiceOffers((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={16} aria-hidden="true" /></button>}
               </div>)}
             </div>
             <button type="button" className={`${styles.button} ${styles.buttonSoft}`} onClick={() => setServiceOffers((current) => [...current, { id: crypto.randomUUID(), price: "", duration: "30", description: "" }])}>Adicionar nova oferta</button>

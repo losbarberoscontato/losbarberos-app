@@ -106,7 +106,6 @@
 .modalBackdrop { position: absolute; inset: 0; border: 0; background: rgb(12 27 23 / 58%); backdrop-filter: blur(3px); }
 .modal { position: relative; width: min(100%, 28rem); max-height: calc(100dvh - 3rem); display: flex; flex-direction: column; padding: 1.5rem; border: 1px solid #e4e7df; border-radius: 1.25rem; background: #fffdf8; box-shadow: 0 1.5rem 4rem rgb(12 27 23 / 20%); }
 .modalWide { width: min(100%, 44rem); }
-.serviceModal { width: min(100%, 56rem); }
 .receiptModal { width: min(100%, 52rem); max-height: calc(100dvh - 4rem); margin-block: 1rem; padding: 1.75rem; }
 .modalHeader { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .modalClose { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid #d9dfd7; border-radius: .85rem; background: #fff; color: #243029; cursor: pointer; }
@@ -147,6 +146,8 @@
 .serviceOfferRow + .serviceOfferRow { margin-top: .45rem; }
 .serviceOfferRow strong { color: #3d2849; font-size: .8rem; }
 .serviceOfferRow input { width: 100%; min-width: 0; border: 1px solid #d9dfd7; border-radius: 8px; padding: .58rem; background: #fff; color: #222823; font: inherit; font-size: .8rem; }
+.offerRemoveButton { display: inline-grid; place-items: center; width: 2.4rem; height: 2.4rem; padding: 0; border: 1px solid #f1d5d0; border-radius: 50%; background: #fff0ed; color: #a13f31; cursor: pointer; }
+.offerRemoveButton:hover { background: #ffe1dc; }
 .message { border-radius: 12px; padding: .75rem .9rem; margin: 0 0 1rem; background: #eef4ea; color: #365033; font-size: .84rem; }
 .statusProgress { display: inline-flex; align-items: center; gap: .42rem; margin-top: .55rem; font-weight: 800; }
 .spinner { width: .85rem; height: .85rem; display: inline-block; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: whatsappSpin .8s linear infinite; }
@@ -869,6 +870,7 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 .modalBackdrop { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
 .modal { position: relative; z-index: 1; width: min(680px, 100%); max-height: min(90vh, 760px); overflow: auto; border: 1px solid rgba(36, 42, 38, .12); border-radius: 20px; background: #fff; box-shadow: 0 24px 70px rgba(20, 31, 23, .22); }
 .modalProjectWide { width: min(1100px, 100%); max-height: min(92vh, 900px); }
+.modal.serviceModal { width: min(70rem, 100%); max-height: calc(100dvh - 3rem); overflow-x: hidden; }
 .modalHeader { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; padding: 1.25rem 1.25rem .75rem; }
 .modalHeader small { color: #7a837c; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .modalHeader h2 { margin: .25rem 0 0; color: #202a23; font-family: Georgia, serif; font-size: 1.5rem; font-weight: 500; }
