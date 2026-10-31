@@ -136,6 +136,8 @@ export function AgendaManager(props: Props) {
   const [selected, setSelected] = useState<AppointmentRecord | null>(null);
   const [lockedCancellation, setLockedCancellation] = useState<AppointmentRecord | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  const [newAppointmentSelection, setNewAppointmentSelection] = useState("");
+  const [newAppointmentOfferId, setNewAppointmentOfferId] = useState("");
   const [agendaHelpOpen, setAgendaHelpOpen] = useState(false);
   const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -200,6 +202,10 @@ export function AgendaManager(props: Props) {
     return availableCustomers.filter((customer) => `${customer.full_name} ${customer.phone_e164 ?? ""}`.toLocaleLowerCase("pt-BR").includes(query));
   }, [availableCustomers, customerQuery]);
   const selectedCustomer = availableCustomers.find((customer) => customer.id === selectedCustomerId) ?? null;
+  const [newSelectionType, newSelectionId] = newAppointmentSelection.split(":");
+  const selectedAppointmentService = newSelectionType === "SERVICE" ? props.services.find((service) => service.id === newSelectionId) ?? null : null;
+  const appointmentOffers = (selectedAppointmentService?.offers?.length ?? 0) > 1 ? selectedAppointmentService?.offers ?? [] : [];
+  const selectedAppointmentOffer = appointmentOffers.find((offer) => offer.id === newAppointmentOfferId) ?? null;
   const filteredAppointments = useMemo(() => props.appointments.filter((appointment) => {
     if (!matchesAgendaStatusFilter(appointment, status)) return false;
     return barberFilter === "ALL" || appointment.barber_id === barberFilter;
@@ -314,6 +320,8 @@ export function AgendaManager(props: Props) {
 
   function closeCreate() {
     setNewOpen(false);
+    setNewAppointmentSelection("");
+    setNewAppointmentOfferId("");
     setCustomerQuery("");
     setSelectedCustomerId("");
     setQuickCustomerOpen(false);
@@ -328,10 +336,14 @@ export function AgendaManager(props: Props) {
     const form = event.currentTarget;
     const data = new FormData(form);
     const [type, id] = String(data.get("selection") ?? "").split(":");
+    const offerId = String(data.get("offer_id") ?? "");
     const startsAt = `${String(data.get("date") ?? "")}T${String(data.get("time") ?? "")}`;
     const saved = await runMutation(setMessage, async () => {
       if (blocked) throw new Error("A assinatura está bloqueada para novas reservas.");
       if (!type || !id) throw new Error("Escolha um serviço ou pacote.");
+      if (type === "SERVICE" && appointmentOffers.length > 0 && !appointmentOffers.some((offer) => offer.id === offerId)) {
+        throw new Error("Escolha uma oferta para este serviço.");
+      }
       if (!selectedCustomerId) throw new Error("Busque e selecione um cliente.");
       if (!isAlignedToSlot(startsAt, BUSINESS_SLOT_INTERVAL_MINUTES)) {
         throw new Error(`Escolha um horário em intervalos de ${BUSINESS_SLOT_INTERVAL_MINUTES} minutos.`);
@@ -341,7 +353,7 @@ export function AgendaManager(props: Props) {
         p_customer_id: selectedCustomerId,
         p_barber_id: String(data.get("barber_id")),
         p_starts_at: localDateTimeToIso(startsAt, timezone),
-        p_selections: [{ type, id, quantity: 1 }],
+        p_selections: [{ type, id, quantity: 1, ...(type === "SERVICE" && offerId ? { offer_id: offerId } : {}) }],
         p_override_reason: String(data.get("override_reason") ?? "").trim() || null,
         p_notes: String(data.get("notes") ?? "").trim() || null,
         p_environment_id: String(data.get("environment_id") ?? "") || null,
@@ -609,7 +621,12 @@ export function AgendaManager(props: Props) {
         {customerQuery.trim() && !selectedCustomerId && <div className="customer-search-results">{matchingCustomers.map((customer) => <button className="customer-search-result" key={customer.id} type="button" aria-label={`Selecionar ${customer.full_name}`} onClick={() => { setSelectedCustomerId(customer.id); setCustomerQuery(customer.full_name); }}><strong>{customer.full_name}</strong><small>{customer.phone_e164 ?? "Sem telefone"}</small></button>)}{matchingCustomers.length === 0 && <button className="customer-search-create" type="button" onClick={() => { setQuickCustomerName(customerQuery); setQuickCustomerOpen(true); }}>Cadastrar novo cliente</button>}</div>}
         {selectedCustomer && <p className="customer-search-selected"><Check size={15} /> {selectedCustomer.full_name} selecionado</p>}
         {quickCustomerOpen && <div className="customer-quick-create"><label>Nome do novo cliente<input aria-label="Nome do novo cliente" value={quickCustomerName} onChange={(event) => setQuickCustomerName(event.target.value)} /></label><label>Telefone<input value={quickCustomerPhone} onChange={(event) => setQuickCustomerPhone(event.target.value)} /></label><button className="button button--soft button--sm" type="button" onClick={createQuickCustomer}>Salvar cliente</button></div>}
-        <div className="form-grid"><label>Serviço ou pacote<span className="select-input"><select name="selection" required defaultValue=""><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select><ChevronDown size={15} /></span></label><label>Profissional<span className="select-input"><select name="barber_id" required defaultValue={barberFilter === "ALL" ? props.barbers[0]?.id : barberFilter}>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label><label>Ambiente<span className="select-input"><select name="environment_id" defaultValue=""><option value="">Automático conforme escala</option>{(props.environments ?? []).filter((environment) => environment.active).sort((left, right) => left.sort_order - right.sort_order).map((environment) => <option key={environment.id} value={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select><ChevronDown size={15} /></span></label></div>
+        <div className="form-grid">
+          <label>Serviço ou pacote<span className="select-input"><select name="selection" required value={newAppointmentSelection} onChange={(event) => { setNewAppointmentSelection(event.target.value); setNewAppointmentOfferId(""); }}><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {(item.offers?.length ?? 0) > 1 ? "Ofertas disponíveis" : formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select><ChevronDown size={15} /></span></label>
+          <label>Profissional<span className="select-input"><select name="barber_id" required defaultValue={barberFilter === "ALL" ? props.barbers[0]?.id : barberFilter}>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label>
+          <label>Ambiente<span className="select-input"><select name="environment_id" defaultValue=""><option value="">Automático conforme escala</option>{(props.environments ?? []).filter((environment) => environment.active).sort((left, right) => left.sort_order - right.sort_order).map((environment) => <option key={environment.id} value={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select><ChevronDown size={15} /></span></label>
+          {appointmentOffers.length > 0 && <label>Oferta<span className="select-input"><select name="offer_id" required value={newAppointmentOfferId} onChange={(event) => setNewAppointmentOfferId(event.target.value)}><option value="">Selecione uma oferta</option>{appointmentOffers.map((offer, index) => <option key={offer.id} value={offer.id}>{offer.name?.trim() || `Oferta ${index + 1}`} · {formatCents(offer.price_cents)} · {offer.duration_minutes} min</option>)}</select><ChevronDown size={15} /></span>{selectedAppointmentOffer?.description && <small>{selectedAppointmentOffer.description}</small>}</label>}
+        </div>
         <div className="form-grid"><label>Data<span className="input-shell"><CalendarDays size={17} /><input name="date" type="date" defaultValue={date} required /></span></label><label>Horário<span className="input-shell"><Clock3 size={17} /><input name="time" type="time" defaultValue="09:00" step={BUSINESS_SLOT_INTERVAL_MINUTES * 60} required /></span></label></div>
         <label>Observação <small>opcional</small><textarea name="notes" placeholder="Preferências e observações..." rows={3} /></label>
         <label>Motivo fora da escala <small>somente quando necessário</small><span className="input-shell"><input name="override_reason" placeholder="Explique por que este horário será liberado" /></span></label>
