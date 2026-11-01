@@ -44,6 +44,7 @@ import {
   BUSINESS_SLOT_INTERVAL_MINUTES,
   formatCents,
   formatRange,
+  humanizeError,
   isAlignedToSlot,
   localDateTimeToIso,
   parsePostgresRange,
@@ -62,10 +63,18 @@ import styles from "./connected-manager.module.css";
 type AgendaData = AwaitedReturn<typeof loadAgendaData>;
 type Props = Omit<AgendaData, "appointmentItems" | "packageItems" | "appointmentAuxiliaries" | "appointmentAuxiliaryRules" | "appointmentAuxiliaryModuleEnabled" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions" | "environments" | "dateBlocks" | "kanbanEnabled" | "kanbanBoards" | "kanbanCards" | "whatsappPending"> & { appointmentItems?: AppointmentItemRecord[]; packageItems?: AgendaData["packageItems"]; appointmentAuxiliaries?: AppointmentAuxiliaryRecord[]; appointmentAuxiliaryRules?: AppointmentAuxiliaryCommissionRuleRecord[]; appointmentAuxiliaryModuleEnabled?: boolean; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"]; environments?: AgendaData["environments"]; dateBlocks?: OrganizationDateBlock[]; kanbanEnabled?: boolean; kanbanBoards?: AgendaData["kanbanBoards"]; kanbanCards?: AgendaData["kanbanCards"]; whatsappPending?: boolean; productKey?: ProductKey };
 type View = "day" | "week" | "month";
+type ManagerAppointmentEnvironmentSlot = { starts_at: string; ends_at: string; environment_id: string; environment_name: string };
 
 const hours = Array.from({ length: 14 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
 function formatDate(dateKey: string, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" }) {
   return new Intl.DateTimeFormat("pt-BR", { ...options, timeZone: "UTC" }).format(new Date(`${dateKey}T12:00:00.000Z`));
+}
+
+function formatSlotTime(startsAt: string, timezone: string) {
+  const parts = new Intl.DateTimeFormat("pt-BR", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(startsAt));
+  const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
+  return `${hour}:${minute}`;
 }
 
 function shiftMonth(dateKey: string, amount: number) {
@@ -130,6 +139,10 @@ export function AgendaManager(props: Props) {
   const [message, setMessage] = useState("");
   const [view, setView] = useState<View>("day");
   const [date, setDate] = useState(todayKey);
+  const [newAppointmentDate, setNewAppointmentDate] = useState(date);
+  const [newAppointmentEnvironmentId, setNewAppointmentEnvironmentId] = useState("");
+  const [newAppointmentSlotStart, setNewAppointmentSlotStart] = useState("");
+  const [managerAvailability, setManagerAvailability] = useState<{ key: string; slots: ManagerAppointmentEnvironmentSlot[]; error: string | null } | null>(null);
   const dateBlock = props.dateBlocks?.find((item) => dateBlockCoversDate(item, date));
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [datePickerMonth, setDatePickerMonth] = useState(todayKey);
@@ -215,6 +228,42 @@ export function AgendaManager(props: Props) {
   const selectedAppointmentService = newSelectionType === "SERVICE" ? props.services.find((service) => service.id === newSelectionId) ?? null : null;
   const appointmentOffers = (selectedAppointmentService?.offers?.length ?? 0) > 1 ? selectedAppointmentService?.offers ?? [] : [];
   const selectedAppointmentOffer = appointmentOffers.find((offer) => offer.id === newAppointmentOfferId) ?? null;
+  const availabilitySelections = useMemo(() => newAppointmentSelection && newSelectionType && newSelectionId && (!appointmentOffers.length || selectedAppointmentOffer)
+    ? [{ type: newSelectionType, id: newSelectionId, quantity: 1, ...(selectedAppointmentOffer ? { offer_id: selectedAppointmentOffer.id } : {}) }]
+    : null, [appointmentOffers.length, newAppointmentSelection, newSelectionId, newSelectionType, selectedAppointmentOffer]);
+  const availabilityRequestKey = newOpen && availabilitySelections && newAppointmentBarberId && newAppointmentDate
+    ? JSON.stringify([props.organizationId, newAppointmentBarberId, newAppointmentDate, availabilitySelections])
+    : "";
+  const currentManagerAvailability = managerAvailability?.key === availabilityRequestKey ? managerAvailability : null;
+  const managerAvailabilitySlots = currentManagerAvailability?.slots ?? [];
+  const managerAvailabilityLoading = Boolean(availabilityRequestKey && !currentManagerAvailability);
+  const availableAppointmentEnvironments = [...new Map(managerAvailabilitySlots.map((slot) => [slot.environment_id, slot.environment_name])).entries()];
+  const availableAppointmentTimes = managerAvailabilitySlots.filter((slot) => slot.environment_id === newAppointmentEnvironmentId);
+  useEffect(() => {
+    if (!availabilityRequestKey || !availabilitySelections) return;
+    let current = true;
+    async function loadManagerAvailability() {
+      try {
+        const { data, error } = await connectedClient().rpc("get_manager_appointment_environment_slots", {
+          p_organization_id: props.organizationId,
+          p_barber_id: newAppointmentBarberId,
+          p_local_date: newAppointmentDate,
+          p_selections: availabilitySelections,
+        });
+        if (!current) return;
+        if (error) {
+          setManagerAvailability({ key: availabilityRequestKey, slots: [], error: humanizeError(new Error(error.message)) });
+          return;
+        }
+        const result = data as { slots?: ManagerAppointmentEnvironmentSlot[] } | null;
+        setManagerAvailability({ key: availabilityRequestKey, slots: result?.slots ?? [], error: null });
+      } catch (error) {
+        if (current) setManagerAvailability({ key: availabilityRequestKey, slots: [], error: humanizeError(error) });
+      }
+    }
+    void loadManagerAvailability();
+    return () => { current = false; };
+  }, [availabilityRequestKey, availabilitySelections, newAppointmentBarberId, newAppointmentDate, props.organizationId]);
   const newAuxiliaryServices: AuxiliaryServiceDraft[] = newSelectionType === "SERVICE" && selectedAppointmentService
     ? [{ service_id: selectedAppointmentService.id, name: selectedAppointmentService.name, quantity: 1 }]
     : newSelectionType === "PACKAGE"
@@ -340,6 +389,9 @@ export function AgendaManager(props: Props) {
     setNewOpen(false);
     setNewAppointmentSelection("");
     setNewAppointmentOfferId("");
+    setNewAppointmentDate(date);
+    setNewAppointmentEnvironmentId("");
+    setNewAppointmentSlotStart("");
     setCustomerQuery("");
     setSelectedCustomerId("");
     setQuickCustomerOpen(false);
@@ -404,7 +456,8 @@ export function AgendaManager(props: Props) {
     const data = new FormData(form);
     const [type, id] = String(data.get("selection") ?? "").split(":");
     const offerId = String(data.get("offer_id") ?? "");
-    const startsAt = `${String(data.get("date") ?? "")}T${String(data.get("time") ?? "")}`;
+    const selectedSlot = managerAvailabilitySlots.find((slot) => slot.starts_at === newAppointmentSlotStart && slot.environment_id === newAppointmentEnvironmentId);
+    const startsAtLocal = selectedSlot ? `${newAppointmentDate}T${formatSlotTime(selectedSlot.starts_at, timezone)}` : "";
     const saved = await runMutation(setMessage, async () => {
       if (blocked) throw new Error("A assinatura está bloqueada para novas reservas.");
       if (!type || !id) throw new Error("Escolha um serviço ou pacote.");
@@ -412,7 +465,10 @@ export function AgendaManager(props: Props) {
         throw new Error("Escolha uma oferta para este serviço.");
       }
       if (!selectedCustomerId) throw new Error("Busque e selecione um cliente.");
-      if (!isAlignedToSlot(startsAt, BUSINESS_SLOT_INTERVAL_MINUTES)) {
+      if (!selectedSlot) {
+        throw new Error("Escolha uma sala e um horário entre as opções disponíveis para o profissional.");
+      }
+      if (!isAlignedToSlot(startsAtLocal, BUSINESS_SLOT_INTERVAL_MINUTES)) {
         throw new Error(`Escolha um horário em intervalos de ${BUSINESS_SLOT_INTERVAL_MINUTES} minutos.`);
       }
       const hasAuxiliaries = props.appointmentAuxiliaryModuleEnabled && newAuxiliaryDrafts.length > 0;
@@ -421,11 +477,11 @@ export function AgendaManager(props: Props) {
         p_organization_id: props.organizationId,
         p_customer_id: selectedCustomerId,
         p_barber_id: String(data.get("barber_id")),
-        p_starts_at: localDateTimeToIso(startsAt, timezone),
+        p_starts_at: selectedSlot.starts_at,
         p_selections: [{ type, id, quantity: 1, ...(type === "SERVICE" && offerId ? { offer_id: offerId } : {}) }],
         p_override_reason: String(data.get("override_reason") ?? "").trim() || null,
         p_notes: String(data.get("notes") ?? "").trim() || null,
-        p_environment_id: String(data.get("environment_id") ?? "") || null,
+        p_environment_id: newAppointmentEnvironmentId,
         ...(hasAuxiliaries ? { p_auxiliaries: auxiliaryDraftToServicePayload(newAuxiliaryDrafts) } : {}),
       }));
     }, "Agendamento criado com saldo pendente para o balcão.");
@@ -588,7 +644,7 @@ export function AgendaManager(props: Props) {
           <button type="button" className={view === "week" ? "is-active" : ""} onClick={() => setView("week")}>Semana</button>
           <button type="button" className={view === "month" ? "is-active" : ""} onClick={() => setView("month")}>Mês</button>
         </div>
-        <button type="button" className="button button--dark" onClick={() => setNewOpen(true)} disabled={blocked}><CalendarPlus2 size={17} /> Novo agendamento</button>
+        <button type="button" className="button button--dark" onClick={() => { setNewAppointmentDate(date); setNewAppointmentEnvironmentId(""); setNewAppointmentSlotStart(""); setNewOpen(true); }} disabled={blocked}><CalendarPlus2 size={17} /> Novo agendamento</button>
       </div>
     </div>
 
@@ -710,19 +766,27 @@ export function AgendaManager(props: Props) {
             setNewAppointmentSelection(selection);
             setNewAppointmentOfferId("");
             setNewAppointmentBarberId((current) => eligibleBarbers.some((barber) => barber.id === current) ? current : "");
+            setNewAppointmentEnvironmentId("");
+            setNewAppointmentSlotStart("");
             setNewAuxiliaryDrafts([]);
           }}><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {(item.offers?.length ?? 0) > 1 ? "Ofertas disponíveis" : formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select><ChevronDown size={15} /></span></label>
-          <label>Profissional<span className="select-input"><select name="barber_id" required value={newAppointmentBarberId} onChange={(event) => { setNewAppointmentBarberId(event.target.value); setNewAuxiliaryDrafts((current) => current.filter((item) => item.barber_id !== event.target.value)); }}><option value="">Selecione profissional habilitado</option>{newAppointmentBarberOptions.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span>{newAppointmentSelection && newAppointmentBarberOptions.length === 0 && <small>Nenhum profissional está habilitado para executar este serviço ou pacote. Configure os vínculos em Equipe.</small>}{newAppointmentSelection && newAppointmentBarberOptions.length > 0 && !newAppointmentBarberId && <small>Selecione um profissional habilitado para este serviço ou pacote.</small>}</label>
-          <label>Ambiente<span className="select-input"><select name="environment_id" defaultValue=""><option value="">Automático conforme escala</option>{(props.environments ?? []).filter((environment) => environment.active).sort((left, right) => left.sort_order - right.sort_order).map((environment) => <option key={environment.id} value={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select><ChevronDown size={15} /></span></label>
-          {appointmentOffers.length > 0 && <label>Oferta<span className="select-input"><select name="offer_id" required value={newAppointmentOfferId} onChange={(event) => setNewAppointmentOfferId(event.target.value)}><option value="">Selecione uma oferta</option>{appointmentOffers.map((offer, index) => <option key={offer.id} value={offer.id}>{offer.name?.trim() || `Oferta ${index + 1}`} · {formatCents(offer.price_cents)} · {offer.duration_minutes} min</option>)}</select><ChevronDown size={15} /></span>{selectedAppointmentOffer?.description && <small>{selectedAppointmentOffer.description}</small>}</label>}
+          <label>Profissional<span className="select-input"><select name="barber_id" required value={newAppointmentBarberId} onChange={(event) => { setNewAppointmentBarberId(event.target.value); setNewAppointmentEnvironmentId(""); setNewAppointmentSlotStart(""); setNewAuxiliaryDrafts((current) => current.filter((item) => item.barber_id !== event.target.value)); }}><option value="">Selecione profissional habilitado</option>{newAppointmentBarberOptions.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span>{newAppointmentSelection && newAppointmentBarberOptions.length === 0 && <small>Nenhum profissional está habilitado para executar este serviço ou pacote. Configure os vínculos em Equipe.</small>}{newAppointmentSelection && newAppointmentBarberOptions.length > 0 && !newAppointmentBarberId && <small>Selecione um profissional habilitado para este serviço ou pacote.</small>}</label>
+          {appointmentOffers.length > 0 && <label>Oferta<span className="select-input"><select name="offer_id" required value={newAppointmentOfferId} onChange={(event) => { setNewAppointmentOfferId(event.target.value); setNewAppointmentEnvironmentId(""); setNewAppointmentSlotStart(""); }}><option value="">Selecione uma oferta</option>{appointmentOffers.map((offer, index) => <option key={offer.id} value={offer.id}>{offer.name?.trim() || `Oferta ${index + 1}`} · {formatCents(offer.price_cents)} · {offer.duration_minutes} min</option>)}</select><ChevronDown size={15} /></span>{selectedAppointmentOffer?.description && <small>{selectedAppointmentOffer.description}</small>}</label>}
         </div>
         {props.appointmentAuxiliaryModuleEnabled && <AppointmentAuxiliaryFields barbers={props.barbers} excludedBarberId={newAppointmentBarberId} services={newAuxiliaryServices} value={newAuxiliaryDrafts} onChange={setNewAuxiliaryDrafts} />}
-        <div className="form-grid"><label>Data<span className="input-shell"><CalendarDays size={17} /><input name="date" type="date" defaultValue={date} required /></span></label><label>Horário<span className="input-shell"><Clock3 size={17} /><input name="time" type="time" defaultValue="09:00" step={BUSINESS_SLOT_INTERVAL_MINUTES * 60} required /></span></label></div>
+        <div className="form-grid">
+          <label>Data<span className="input-shell"><CalendarDays size={17} /><input name="date" type="date" min={todayKey} max={shiftDateKey(todayKey, 180)} value={newAppointmentDate} required onChange={(event) => { setNewAppointmentDate(event.target.value); setNewAppointmentEnvironmentId(""); setNewAppointmentSlotStart(""); }} /></span></label>
+          <label>Ambiente<span className="select-input"><select name="environment_id" required value={newAppointmentEnvironmentId} disabled={managerAvailabilityLoading || !availabilityRequestKey || availableAppointmentEnvironments.length === 0} onChange={(event) => { setNewAppointmentEnvironmentId(event.target.value); setNewAppointmentSlotStart(""); }}><option value="">{managerAvailabilityLoading ? "Consultando salas disponíveis…" : "Selecione uma sala disponível"}</option>{availableAppointmentEnvironments.map(([environmentId, environmentName]) => <option key={environmentId} value={environmentId}>{environmentName}</option>)}</select><ChevronDown size={15} /></span></label>
+          <label>Horário<span className="select-input"><select name="time" required value={newAppointmentSlotStart} disabled={!newAppointmentEnvironmentId || managerAvailabilityLoading || availableAppointmentTimes.length === 0} onChange={(event) => setNewAppointmentSlotStart(event.target.value)}><option value="">{managerAvailabilityLoading ? "Consultando horários…" : newAppointmentEnvironmentId ? "Selecione um horário disponível" : "Selecione primeiro a sala"}</option>{availableAppointmentTimes.map((slot) => <option key={`${slot.starts_at}:${slot.environment_id}`} value={slot.starts_at}>{formatSlotTime(slot.starts_at, timezone)}</option>)}</select><ChevronDown size={15} /></span></label>
+        </div>
+        {managerAvailabilityLoading && <small>Consultando salas e horários disponíveis para este profissional…</small>}
+        {currentManagerAvailability?.error && <small role="alert">{currentManagerAvailability.error}</small>}
+        {currentManagerAvailability && !currentManagerAvailability.error && managerAvailabilitySlots.length === 0 && <small>Nenhuma sala ou horário disponível para este profissional nesta data.</small>}
         <label>Observação <small>opcional</small><textarea name="notes" placeholder="Preferências e observações..." rows={3} /></label>
         <label>Motivo fora da escala <small>somente quando necessário</small><span className="input-shell"><input name="override_reason" placeholder="Explique por que este horário será liberado" /></span></label>
         <label className="check-row"><input type="checkbox" defaultChecked required /><span><strong>Confirmar sem pagamento</strong><small>O saldo ficará pendente para o balcão.</small></span></label>
       </div>
-      <div className="form-modal__footer"><button type="button" className="button button--ghost" onClick={closeCreate}>Cancelar</button><button type="submit" className="button button--dark"><CalendarPlus2 size={17} /> Criar agendamento</button></div>
+      <div className="form-modal__footer"><button type="button" className="button button--ghost" onClick={closeCreate}>Cancelar</button><button type="submit" className="button button--dark" disabled={managerAvailabilityLoading || !newAppointmentSlotStart || !newAppointmentEnvironmentId}><CalendarPlus2 size={17} /> Criar agendamento</button></div>
     </form></div>}
 
     {rescheduling && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar reagendamento" onClick={() => setRescheduling(null)} /><form className="form-modal" role="dialog" aria-modal="true" aria-label="Reagendar" onSubmit={reschedule}>
