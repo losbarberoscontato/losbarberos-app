@@ -1119,3 +1119,14 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
 :global(.appointment-auxiliary-summary small) {
   color: var(--muted, #68706d);
 }
+
+:global(.appointment-auxiliary-fields__actions) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+:global(.appointment-auxiliary-fields__error) {
+  color: var(--danger, #b42318);
+}
