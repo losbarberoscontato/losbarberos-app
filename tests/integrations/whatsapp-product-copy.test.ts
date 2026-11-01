@@ -36,6 +36,20 @@ describe("WhatsApp product copy", () => {
       .toContain("procedimento na clínica");
   });
 
+  it.each([
+    ["los-barberos", "no atendimento", "cancelou o atendimento", "manualmente o atendimento"],
+    ["le-gras", "na sessão", "cancelou a sessão", "manualmente a sessão"],
+    ["pro-stetic", "no atendimento", "cancelou o atendimento", "manualmente o atendimento"],
+    ["music-pro", "na aula", "cancelou a aula", "manualmente a aula"],
+  ] as const)("usa termos naturais nos modelos de auxiliares de %s", (productKey, bookingPhrase, cancellationPhrase, manualPhrase) => {
+    const templates = getWhatsAppProductDefaultTemplates(productKey);
+
+    expect(templates.BOOKING_CREATED_AUXILIARY).toContain(bookingPhrase);
+    expect(templates.APPOINTMENT_CONFIRMED_AUXILIARY).toContain(bookingPhrase);
+    expect(templates.APPOINTMENT_CANCELED_AUXILIARY).toContain(cancellationPhrase);
+    expect(templates.MANUAL_CONFIRMATION_AUXILIARY).toContain(manualPhrase);
+  });
+
   it("localiza apenas defaults antigos e preserva templates personalizados", () => {
     const resolved = resolveWhatsAppProductTemplates("music-pro", {
       BOOKING_CREATED_CLIENT: "{cliente}, seu agendamento foi confirmado para {horario}.",

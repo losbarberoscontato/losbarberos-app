@@ -49,9 +49,18 @@ function configuredTemplate(job: Job): string | null {
   const messageKind = typeof job.payload.message_kind === "string"
     ? job.payload.message_kind
     : null;
-  const key = job.job_type === "MANUAL_OUTBOUND_TEXT" && messageKind
+  const baseKey = job.job_type === "MANUAL_OUTBOUND_TEXT" && messageKind
     ? messageKind
     : job.job_type;
+  const auxiliaryKey: Record<string, string> = {
+    BOOKING_CREATED_STAFF: "BOOKING_CREATED_AUXILIARY",
+    APPOINTMENT_CONFIRMED_STAFF: "APPOINTMENT_CONFIRMED_AUXILIARY",
+    APPOINTMENT_CANCELED_STAFF: "APPOINTMENT_CANCELED_AUXILIARY",
+    MANUAL_CONFIRMATION_STAFF: "MANUAL_CONFIRMATION_AUXILIARY",
+  };
+  const key = job.payload.message_audience === "AUXILIARY"
+    ? auxiliaryKey[baseKey] ?? baseKey
+    : baseKey;
   const value = (templates as Record<string, unknown>)[key];
   return typeof value === "string" && value.trim().length > 0 &&
       value.length <= 4_096
@@ -86,6 +95,12 @@ function applyTemplate(template: string, job: Job, fallback: string): string {
     .replaceAll("\\n", "\n")
     .replaceAll("{cliente}", name)
     .replaceAll("{profissional}", barber)
+    .replaceAll(
+      "{profissional_principal}",
+      typeof job.payload.primary_barber_name === "string"
+        ? job.payload.primary_barber_name
+        : barber,
+    )
     // Keep compatibility with templates saved before the variable was renamed.
     .replaceAll("{barbeiro}", barber)
     .replaceAll("{horario}", formatStart(job.payload))
@@ -124,13 +139,16 @@ export function textFor(job: Job): string {
     ? job.payload.message_kind
     : "";
   const when = formatStart(job.payload);
+  const auxiliary = job.payload.message_audience === "AUXILIARY";
   let fallback: string;
   switch (job.job_type) {
     case "BOOKING_CREATED_CLIENT":
       fallback = `${name}, seu agendamento foi confirmado para ${when}.`;
       break;
     case "BOOKING_CREATED_STAFF":
-      fallback = `Novo agendamento: ${name}, ${when}.`;
+      fallback = auxiliary
+        ? `Você foi escalado como auxiliar no atendimento de ${name} em ${when}.`
+        : `Novo agendamento: ${name}, ${when}.`;
       break;
     case "REMINDER_MORNING_CLIENT":
       fallback =
@@ -156,10 +174,14 @@ export function textFor(job: Job): string {
         "Cancelamento confirmado. Se precisar, fale com o estabelecimento para marcar novo horário.";
       break;
     case "APPOINTMENT_CONFIRMED_STAFF":
-      fallback = `${name} confirmou presença pelo WhatsApp para ${when}.`;
+      fallback = auxiliary
+        ? `${name} confirmou presença no atendimento em ${when}. Você está escalado como auxiliar.`
+        : `${name} confirmou presença pelo WhatsApp para ${when}.`;
       break;
     case "APPOINTMENT_CANCELED_STAFF":
-      fallback = `${name} cancelou pelo WhatsApp.`;
+      fallback = auxiliary
+        ? `${name} cancelou o atendimento.`
+        : `${name} cancelou pelo WhatsApp.`;
       break;
     case "MANUAL_OUTBOUND_TEXT":
       if (messageKind === "INVALID_REPLY_PROMPT") {
@@ -172,7 +194,9 @@ export function textFor(job: Job): string {
         fallback =
           `${name}, seu agendamento foi confirmado pelo estabelecimento para ${when}.`;
       } else if (messageKind === "MANUAL_CONFIRMATION_STAFF") {
-        fallback = `Agendamento confirmado manualmente: ${name}, ${when}.`;
+        fallback = auxiliary
+          ? `O gestor confirmou manualmente o atendimento de ${name} em ${when}. Você está escalado como auxiliar.`
+          : `Agendamento confirmado manualmente: ${name}, ${when}.`;
       } else if (messageKind === "RESERVATION_CHOICE") {
         fallback = typeof job.payload.body === "string"
           ? job.payload.body

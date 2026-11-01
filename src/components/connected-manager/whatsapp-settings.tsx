@@ -83,6 +83,7 @@ const defaultAutomationRules: WhatsAppSettingsStatus["automation"] = {
 const bookingAndReminderMessages: FixedMessageDefinition[] = [
   { key: "BOOKING_CREATED_CLIENT", toggle: "booking_client_enabled", title: "Confirmação de agendamento para o cliente", description: "Enviada quando o cliente confirma um novo agendamento." },
   { key: "BOOKING_CREATED_STAFF", toggle: "booking_staff_enabled", title: "Confirmação de agendamento para o profissional", description: "Enviada ao profissional após um novo agendamento." },
+  { key: "BOOKING_CREATED_AUXILIARY", toggle: "booking_staff_enabled", title: "Novo agendamento para o auxiliar", description: "Enviada ao profissional escalado como auxiliar após um novo agendamento." },
   { key: "REMINDER_T24_CLIENT", toggle: "reminder_t24_enabled", title: "Confirmação de presença 24 horas antes", description: "Enviada ao cliente 24 horas antes do atendimento." },
   { key: "REMINDER_MORNING_CLIENT", toggle: "reminder_morning_enabled", title: "Confirmação de presença às 8h", description: "Enviada ao cliente às 08:00 no dia do atendimento." },
   { key: "REMINDER_T180_CLIENT", toggle: "reminder_t180_enabled", title: "Confirmação de presença 3 horas antes", description: "Enviada ao cliente 180 minutos antes do atendimento." },
@@ -94,10 +95,13 @@ const responseMessages: FixedMessageDefinition[] = [
   { key: "CANCELLATION_ACK_CLIENT", title: "Cliente cancelou", description: "Retorno enviado após a resposta 2 — Cancelar." },
   { key: "APPOINTMENT_CONFIRMED_STAFF", title: "Aviso ao profissional: presença confirmada", description: "Enviado ao profissional após o cliente confirmar." },
   { key: "APPOINTMENT_CANCELED_STAFF", title: "Aviso ao profissional: cancelamento", description: "Enviado ao profissional após o cliente cancelar." },
+  { key: "APPOINTMENT_CONFIRMED_AUXILIARY", title: "Aviso ao auxiliar: presença confirmada", description: "Enviado aos auxiliares quando o cliente confirma presença." },
+  { key: "APPOINTMENT_CANCELED_AUXILIARY", title: "Aviso ao auxiliar: cancelamento", description: "Enviado aos auxiliares quando o cliente cancela pelo WhatsApp." },
   { key: "ATTENDANT_REQUEST_MANAGER", title: "Pedido para falar com atendente", description: "Enviado ao número de avisos do gestor após a resposta 3." },
   { key: "INVALID_REPLY_PROMPT", title: "Resposta inválida", description: "Enviada quando o cliente responde com uma opção diferente de 1, 2 ou 3." },
   { key: "MANUAL_CONFIRMATION_CLIENT", title: "Confirmação manual para o cliente", description: "Enviada quando o gestor confirma presença manualmente." },
   { key: "MANUAL_CONFIRMATION_STAFF", title: "Confirmação manual para o profissional", description: "Enviada ao profissional após confirmação manual." },
+  { key: "MANUAL_CONFIRMATION_AUXILIARY", title: "Confirmação manual para o auxiliar", description: "Enviada aos auxiliares após o gestor confirmar presença manualmente." },
   { key: "RESERVATION_CHOICE", title: "Escolha entre vários agendamentos", description: "Enviada quando o cliente tem mais de um pedido de confirmação em aberto." },
 ];
 
@@ -106,7 +110,7 @@ const contractMessages: FixedMessageDefinition[] = [
   { key: "SUBSCRIPTION_CREATED_CLIENT", title: "Aviso de criação de assinaturas", description: "Enviada ao cliente quando o gestor cria uma nova assinatura." },
 ];
 
-const messageVariables = ["{cliente}", "{profissional}", "{horario}", "{servico}", "{telefone}", "{reservas}", "{link_app_cliente}", "{email_cliente}"] as const;
+const messageVariables = ["{cliente}", "{profissional}", "{profissional_principal}", "{horario}", "{servico}", "{telefone}", "{reservas}", "{link_app_cliente}", "{email_cliente}"] as const;
 
 function normalizeConfirmationTemplates(templates: Record<WhatsAppFixedMessageKey, string>) {
   const normalized = { ...templates };

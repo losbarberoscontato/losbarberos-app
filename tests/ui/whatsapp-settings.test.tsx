@@ -66,6 +66,7 @@ describe("WhatsApp settings", () => {
     expect(screen.getByText(/Conecte seu WhatsApp Business/i)).toBeInTheDocument();
     expect(screen.getAllByText("Confirmação de agendamento para o cliente")).not.toHaveLength(0);
     expect(screen.getAllByText(localizeWhatsAppCopy("Confirmação de agendamento para o profissional", "los-barberos"))).not.toHaveLength(0);
+    expect(screen.getAllByText("Novo agendamento para o auxiliar")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença às 8h")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença 3 horas antes")).not.toHaveLength(0);
     expect(screen.getAllByText("Confirmação de presença 45 minutos antes")).not.toHaveLength(0);
@@ -102,6 +103,15 @@ describe("WhatsApp settings", () => {
     fireEvent.click(screen.getByRole("button", { name: `Expandir mensagem: ${title}` }));
     expect(screen.getByLabelText(`Texto: ${title}`)).toBeInTheDocument();
   }, 15000);
+
+  it("mostra textos editáveis para confirmações e cancelamentos enviados aos auxiliares", () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Barbearia Central" status={status} />);
+    fireEvent.click(screen.getByText("Respostas e retornos"));
+
+    expect(screen.getByRole("button", { name: "Expandir mensagem: Aviso ao auxiliar: presença confirmada" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expandir mensagem: Aviso ao auxiliar: cancelamento" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expandir mensagem: Confirmação manual para o auxiliar" })).toBeInTheDocument();
+  });
 
   it.each(["los-barberos", "le-gras", "pro-stetic", "music-pro"] as const)("inicia todos os menus do WhatsApp recolhidos em %s", (productKey) => {
     const { container } = render(<WhatsAppSettings organizationId="org-1" organizationName="Estabelecimento" status={status} productKey={productKey} />);

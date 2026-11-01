@@ -99,6 +99,29 @@ describe("Evolution transport contract", () => {
       },
     })).toBe("Gabriele / Gabriele");
   });
+  it.each([
+    ["BOOKING_CREATED_STAFF", undefined, "BOOKING_CREATED_AUXILIARY"],
+    ["APPOINTMENT_CONFIRMED_STAFF", undefined, "APPOINTMENT_CONFIRMED_AUXILIARY"],
+    ["APPOINTMENT_CANCELED_STAFF", undefined, "APPOINTMENT_CANCELED_AUXILIARY"],
+    ["MANUAL_OUTBOUND_TEXT", "MANUAL_CONFIRMATION_STAFF", "MANUAL_CONFIRMATION_AUXILIARY"],
+  ])("seleciona texto editável próprio para auxiliar em %s", (jobType, messageKind, auxiliaryKey) => {
+    const key = auxiliaryKey;
+    const rendered = textFor({
+      job_type: jobType,
+      payload: {
+        ...(messageKind ? { message_kind: messageKind } : {}),
+        message_audience: "AUXILIARY",
+        customer_name: "Ana",
+        barber_name: "Carlos auxiliar",
+        primary_barber_name: "Julia principal",
+        starts_at: "2026-10-16T15:00:00-03:00",
+        timezone: "America/Sao_Paulo",
+        templates: { [key]: "{profissional} / {profissional_principal} / {cliente} / {horario}" },
+      },
+    });
+
+    expect(rendered).toBe("Carlos auxiliar / Julia principal / Ana / 16/10/2026, 15:00");
+  });
   it("usa fallback neutro quando a mensagem não carrega cópia do produto", () => {
     const attendant = textFor({
       job_type: "MANUAL_OUTBOUND_TEXT",

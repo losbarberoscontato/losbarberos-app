@@ -5,6 +5,10 @@ const migration = readFileSync(
   "supabase/migrations/20261101152207_appointment_auxiliaries.sql",
   "utf8",
 );
+const auxiliaryMessagesMigration = readFileSync(
+  "supabase/migrations/20261101204721_whatsapp_auxiliary_editable_templates.sql",
+  "utf8",
+);
 
 describe("appointment auxiliaries migration contract", () => {
   it("keeps assignments tenant-scoped and manager-only, with a maximum of three", () => {
@@ -29,6 +33,16 @@ describe("appointment auxiliaries migration contract", () => {
     expect(migration).toContain("Auxiliary cancellation notice could not be queued");
     expect(migration).toContain("Auxiliary WhatsApp job copy skipped");
     expect(migration).toContain("on conflict (organization_id, dedupe_key) do nothing");
+  });
+
+  it("adds separate editable templates for all auxiliary notice paths without recursive cloning", () => {
+    expect(auxiliaryMessagesMigration).toContain("BOOKING_CREATED_AUXILIARY");
+    expect(auxiliaryMessagesMigration).toContain("APPOINTMENT_CONFIRMED_AUXILIARY");
+    expect(auxiliaryMessagesMigration).toContain("APPOINTMENT_CANCELED_AUXILIARY");
+    expect(auxiliaryMessagesMigration).toContain("MANUAL_CONFIRMATION_AUXILIARY");
+    expect(auxiliaryMessagesMigration).toContain("'message_audience', 'AUXILIARY'");
+    expect(auxiliaryMessagesMigration).toContain("new.payload ->> 'message_audience' = 'AUXILIARY'");
+    expect(auxiliaryMessagesMigration).toContain("on conflict (organization_id, dedupe_key) do nothing");
   });
 
   it("activates the free module without creating a billable module change", () => {

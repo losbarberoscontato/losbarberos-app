@@ -1,12 +1,13 @@
 import type { ProductKey } from "@/lib/product-context";
 
 export type WhatsAppFixedMessageKey =
-  | "BOOKING_CREATED_CLIENT" | "BOOKING_CREATED_STAFF"
+  | "BOOKING_CREATED_CLIENT" | "BOOKING_CREATED_STAFF" | "BOOKING_CREATED_AUXILIARY"
   | "REMINDER_T24_CLIENT" | "REMINDER_MORNING_CLIENT" | "REMINDER_T180_CLIENT" | "REMINDER_T45_CLIENT"
   | "CONFIRMATION_ACK_CLIENT" | "CANCELLATION_ACK_CLIENT"
   | "APPOINTMENT_CONFIRMED_STAFF" | "APPOINTMENT_CANCELED_STAFF"
+  | "APPOINTMENT_CONFIRMED_AUXILIARY" | "APPOINTMENT_CANCELED_AUXILIARY"
   | "INVALID_REPLY_PROMPT" | "ATTENDANT_REQUEST_MANAGER"
-  | "MANUAL_CONFIRMATION_CLIENT" | "MANUAL_CONFIRMATION_STAFF" | "RESERVATION_CHOICE"
+  | "MANUAL_CONFIRMATION_CLIENT" | "MANUAL_CONFIRMATION_STAFF" | "MANUAL_CONFIRMATION_AUXILIARY" | "RESERVATION_CHOICE"
   | "PROJECT_CONTRACT_CREATED_CLIENT" | "SUBSCRIPTION_CREATED_CLIENT";
 
 type ProductTerms = {
@@ -43,6 +44,7 @@ const CONFIRMATION_REPLY = "Responda somente com um número:\n1 — Confirmar\n2
 const legacySharedDefaults: Record<WhatsAppFixedMessageKey, string> = {
   BOOKING_CREATED_CLIENT: "{cliente}, seu agendamento foi confirmado para {horario}.",
   BOOKING_CREATED_STAFF: "Novo agendamento: {cliente}, {horario}.",
+  BOOKING_CREATED_AUXILIARY: "Você foi escalado como auxiliar no atendimento de {cliente} em {horario}.",
   REMINDER_T24_CLIENT: `Lembrete: seu atendimento está marcado para {horario} (daqui a 24 horas).\n\n${CONFIRMATION_REPLY}`,
   REMINDER_MORNING_CLIENT: `Lembrete: seu atendimento é {horario}.\n\n${CONFIRMATION_REPLY}`,
   REMINDER_T180_CLIENT: `Lembrete: seu atendimento está marcado para {horario}.\n\n${CONFIRMATION_REPLY}`,
@@ -51,10 +53,13 @@ const legacySharedDefaults: Record<WhatsAppFixedMessageKey, string> = {
   CANCELLATION_ACK_CLIENT: "Cancelamento confirmado. Se precisar, fale com o estabelecimento para novo horário.",
   APPOINTMENT_CONFIRMED_STAFF: "{cliente} confirmou presença pelo WhatsApp para {horario}.",
   APPOINTMENT_CANCELED_STAFF: "{cliente} cancelou pelo WhatsApp.",
+  APPOINTMENT_CONFIRMED_AUXILIARY: "{cliente} confirmou presença no atendimento em {horario}. Você está escalado como auxiliar.",
+  APPOINTMENT_CANCELED_AUXILIARY: "{cliente} cancelou o atendimento.",
   INVALID_REPLY_PROMPT: `Não entendi sua resposta.\n\n${CONFIRMATION_REPLY}`,
   ATTENDANT_REQUEST_MANAGER: `Cliente deseja falar com atendente.\n\nCliente: {cliente}\nWhatsApp: {telefone}\nData e hora: {horario}\nProfissional: {barbeiro}\nServiço: {servico}`,
   MANUAL_CONFIRMATION_CLIENT: "{cliente}, seu agendamento foi confirmado pelo estabelecimento para {horario}.",
   MANUAL_CONFIRMATION_STAFF: "Agendamento confirmado manualmente: {cliente}, {horario}.",
+  MANUAL_CONFIRMATION_AUXILIARY: "O gestor confirmou manualmente o atendimento de {cliente} em {horario}. Você está escalado como auxiliar.",
   RESERVATION_CHOICE: `Encontrei mais de um agendamento. Responda com o número correspondente:\n\n{reservas}`,
   PROJECT_CONTRACT_CREATED_CLIENT: "Olá! {cliente}, passando para informar que foi criado um novo plano de serviços para você. Para mais detalhes e aceite do plano, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.",
   SUBSCRIPTION_CREATED_CLIENT: "Olá! {cliente}, passando para informar que foi criada uma nova assinatura para você. Para mais detalhes e aceite desta assinatura, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.",
@@ -133,6 +138,7 @@ export function getWhatsAppProductDefaultTemplates(productKey: ProductKey): Reco
   const shared: Record<WhatsAppFixedMessageKey, string> = {
     BOOKING_CREATED_CLIENT: "{cliente}, seu agendamento foi confirmado para {horario}.",
     BOOKING_CREATED_STAFF: "Novo agendamento: {cliente}, {horario}.",
+    BOOKING_CREATED_AUXILIARY: "Você foi escalado como auxiliar no atendimento de {cliente} em {horario}.",
     REMINDER_T24_CLIENT: reminder("está marcado para {horario} (daqui a 24 horas)"),
     REMINDER_MORNING_CLIENT: reminder("é {horario}"),
     REMINDER_T180_CLIENT: reminder("está marcado para {horario}"),
@@ -141,14 +147,46 @@ export function getWhatsAppProductDefaultTemplates(productKey: ProductKey): Reco
     CANCELLATION_ACK_CLIENT: "Cancelamento confirmado. Se precisar, fale com o estabelecimento para marcar novo horário.",
     APPOINTMENT_CONFIRMED_STAFF: "{cliente} confirmou presença pelo WhatsApp para {horario}.",
     APPOINTMENT_CANCELED_STAFF: "{cliente} cancelou pelo WhatsApp.",
+    APPOINTMENT_CONFIRMED_AUXILIARY: "{cliente} confirmou presença no atendimento em {horario}. Você está escalado como auxiliar.",
+    APPOINTMENT_CANCELED_AUXILIARY: "{cliente} cancelou o atendimento.",
     INVALID_REPLY_PROMPT: `Não entendi sua resposta.\n\n${CONFIRMATION_REPLY}`,
     ATTENDANT_REQUEST_MANAGER: `${terms.customer[0].toUpperCase()}${terms.customer.slice(1)} deseja falar com atendente.\n\n${terms.customer[0].toUpperCase()}${terms.customer.slice(1)}: {cliente}\nWhatsApp: {telefone}\nData e hora: {horario}\n${terms.professional[0].toUpperCase()}${terms.professional.slice(1)}: {profissional}\n${terms.service[0].toUpperCase()}${terms.service.slice(1)}: {servico}`,
     MANUAL_CONFIRMATION_CLIENT: "{cliente}, seu agendamento foi confirmado pelo estabelecimento para {horario}.",
     MANUAL_CONFIRMATION_STAFF: "Agendamento confirmado manualmente: {cliente}, {horario}.",
+    MANUAL_CONFIRMATION_AUXILIARY: "O gestor confirmou manualmente o atendimento de {cliente} em {horario}. Você está escalado como auxiliar.",
     RESERVATION_CHOICE: "Encontrei mais de um agendamento. Responda com o número correspondente:\n\n{reservas}",
     PROJECT_CONTRACT_CREATED_CLIENT: "Olá! {cliente}, passando para informar que foi criado um novo plano de serviços para você. Para mais detalhes e aceite do plano, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.",
     SUBSCRIPTION_CREATED_CLIENT: "Olá! {cliente}, passando para informar que foi criada uma nova assinatura para você. Para mais detalhes e aceite desta assinatura, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.",
   };
+  const auxiliaryCopy: Record<ProductKey, Pick<Record<WhatsAppFixedMessageKey, string>,
+    "BOOKING_CREATED_AUXILIARY" | "APPOINTMENT_CONFIRMED_AUXILIARY" |
+    "APPOINTMENT_CANCELED_AUXILIARY" | "MANUAL_CONFIRMATION_AUXILIARY">> = {
+    "los-barberos": {
+      BOOKING_CREATED_AUXILIARY: "Você foi escalado como auxiliar no atendimento de {cliente} em {horario}.",
+      APPOINTMENT_CONFIRMED_AUXILIARY: "{cliente} confirmou presença no atendimento em {horario}. Você está escalado como auxiliar.",
+      APPOINTMENT_CANCELED_AUXILIARY: "{cliente} cancelou o atendimento.",
+      MANUAL_CONFIRMATION_AUXILIARY: "O gestor confirmou manualmente o atendimento de {cliente} em {horario}. Você está escalado como auxiliar.",
+    },
+    "le-gras": {
+      BOOKING_CREATED_AUXILIARY: "Você foi escalado como auxiliar na sessão de {cliente} em {horario}.",
+      APPOINTMENT_CONFIRMED_AUXILIARY: "{cliente} confirmou presença na sessão em {horario}. Você está escalado como auxiliar.",
+      APPOINTMENT_CANCELED_AUXILIARY: "{cliente} cancelou a sessão.",
+      MANUAL_CONFIRMATION_AUXILIARY: "O gestor confirmou manualmente a sessão de {cliente} em {horario}. Você está escalado como auxiliar.",
+    },
+    "pro-stetic": {
+      BOOKING_CREATED_AUXILIARY: "Você foi escalado como auxiliar no atendimento de {cliente} em {horario}.",
+      APPOINTMENT_CONFIRMED_AUXILIARY: "{cliente} confirmou presença no atendimento em {horario}. Você está escalado como auxiliar.",
+      APPOINTMENT_CANCELED_AUXILIARY: "{cliente} cancelou o atendimento.",
+      MANUAL_CONFIRMATION_AUXILIARY: "O gestor confirmou manualmente o atendimento de {cliente} em {horario}. Você está escalado como auxiliar.",
+    },
+    "music-pro": {
+      BOOKING_CREATED_AUXILIARY: "Você foi escalado como auxiliar na aula de {cliente} em {horario}.",
+      APPOINTMENT_CONFIRMED_AUXILIARY: "{cliente} confirmou presença na aula em {horario}. Você está escalado como auxiliar.",
+      APPOINTMENT_CANCELED_AUXILIARY: "{cliente} cancelou a aula.",
+      MANUAL_CONFIRMATION_AUXILIARY: "O gestor confirmou manualmente a aula de {cliente} em {horario}. Você está escalado como auxiliar.",
+    },
+  };
+  Object.assign(shared, auxiliaryCopy[productKey]);
 
   switch (productKey) {
     case "los-barberos":
