@@ -9,9 +9,9 @@ import {
 describe("WhatsApp product copy", () => {
   it.each([
     ["los-barberos", "WhatsApp da sua barbearia", "barbeiro", ""],
-    ["le-gras", "WhatsApp do seu estúdio", "fotógrafo", "leGrasWhatsApp"],
-    ["pro-stetic", "WhatsApp da sua clínica", "especialista", "proSteticWhatsApp"],
-    ["music-pro", "WhatsApp da sua escola", "professor", "musicProWhatsApp"],
+    ["le-gras", "WhatsApp do seu estúdio", "profissional de fotografia", "leGrasWhatsApp"],
+    ["pro-stetic", "WhatsApp do seu estúdio", "profissional", "proSteticWhatsApp"],
+    ["music-pro", "WhatsApp da sua escola", "professor(a) ou músico(a)", "musicProWhatsApp"],
   ] as const)("fornece aparência e vocabulário para %s", (productKey, heading, professional, rootClass) => {
     const copy = getWhatsAppProductCopy(productKey);
 
@@ -23,17 +23,17 @@ describe("WhatsApp product copy", () => {
 
   it("gera mensagens iniciais adequadas ao produto e usa a variável canônica", () => {
     expect(getWhatsAppProductDefaultTemplates("le-gras").ATTENDANT_REQUEST_MANAGER)
-      .toContain("Fotógrafo: {profissional}");
+      .toContain("Profissional: {profissional}");
     expect(getWhatsAppProductDefaultTemplates("music-pro").REMINDER_T24_CLIENT)
       .toContain("sua aula");
     expect(getWhatsAppProductDefaultTemplates("pro-stetic").CANCELLATION_ACK_CLIENT)
-      .toContain("clínica");
+      .toContain("estúdio");
     expect(getWhatsAppProductDefaultTemplates("los-barberos").ATTENDANT_REQUEST_MANAGER)
       .toContain("Barbeiro: {profissional}");
     expect(getWhatsAppProductDefaultTemplates("le-gras").CONFIRMATION_ACK_CLIENT)
       .toContain("na sessão");
     expect(getWhatsAppProductDefaultTemplates("pro-stetic").BOOKING_CREATED_CLIENT)
-      .toContain("procedimento na clínica");
+      .toContain("atendimento no estúdio");
   });
 
   it.each([
@@ -66,16 +66,16 @@ describe("WhatsApp product copy", () => {
       ATTENDANT_REQUEST_MANAGER: "Cliente deseja falar com atendente.\n\nCliente: {cliente}\nWhatsApp: {telefone}\nData e hora: {horario}\nProfissional: {profissional}\nServiço: {servico}",
     });
 
-    expect(resolved.BOOKING_CREATED_CLIENT).toContain("procedimento na clínica");
-    expect(resolved.ATTENDANT_REQUEST_MANAGER).toContain("Especialista: {profissional}");
+    expect(resolved.BOOKING_CREATED_CLIENT).toContain("atendimento no estúdio");
+    expect(resolved.ATTENDANT_REQUEST_MANAGER).toContain("Profissional: {profissional}");
   });
 
   it("mantém a concordância dos textos ao adaptar o vocabulário do lembrete", () => {
     expect(localizeWhatsAppCopy("Enviada ao cliente antes do atendimento.", "le-gras"))
       .toBe("Enviada ao cliente antes da sessão.");
     expect(localizeWhatsAppCopy("Enviada ao cliente antes do atendimento.", "music-pro"))
-      .toBe("Enviada ao aluno antes da aula.");
+      .toBe("Enviada ao estudante antes da aula.");
     expect(localizeWhatsAppCopy("Enviada ao cliente antes do atendimento.", "pro-stetic"))
-      .toBe("Enviada ao cliente antes do procedimento.");
+      .toBe("Enviada ao cliente antes do atendimento.");
   });
 });
