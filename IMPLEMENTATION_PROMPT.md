@@ -1,5 +1,7 @@
 # Continuidade atual — 23/10/2026
 
+Atualização 01/11/2026: implementando Auxiliar adicional no código compartilhado do ecossistema Display (Los Barberos, ProStetic, Le Gras e MusicPro). Comissão por item é independente do preço cobrado; módulo gratuito tem ativação por organização; atendimentos de qualquer origem podem ser editados na Agenda; sessões novas de Projeto também permitem auxiliar na reserva. Migration `20261101152207_appointment_auxiliaries.sql`; nenhuma Edge Function alterada. O Supabase vinculado é `bwdjkhqshmppescunwer`; o projeto Vercel é `losbarberoscontatos-projects/losbarberos-app`, com alias `displaysh-app.vercel.app`. Estado final de validação/publicação ficará no topo de `HANDOFF.md`; roteiro visual em `docs/CHECKLIST_VISUAL_AUXILIAR_ADICIONAL.md`.
+
 Atualização 30/10/2026: corrigido também o `router.push` após cadastro de folga/exceção; agora abre a lista com `/barbeiro/escala/folgas?barbearia=...`. Links de seções usam o mesmo helper. RPC e trigger existentes registram exceção e notificam gestor; nenhuma migration/Edge Function nova. Conferir publication em `HANDOFF.md`.
 
 Atualização 30/10/2026: corrigidos os links dos atalhos de Escala no app da equipe. Cada seção recebe o caminho antes do query param `barbearia`, incluindo `/historico`; sem alteração de Supabase/Edge Functions. Verificar GitHub/Vercel no `HANDOFF.md`.

@@ -253,8 +253,25 @@ export interface AppointmentItemRecord {
   id: string;
   organization_id: string;
   appointment_id: string;
+  service_id?: string | null;
   service_name_snapshot: string;
+  quantity?: number;
+  list_price_cents_snapshot?: number;
   position: number;
+}
+
+export interface AppointmentAuxiliaryRecord {
+  id: string;
+  appointment_id: string;
+  assistant_barber_id: string;
+}
+
+export interface AppointmentAuxiliaryCommissionRuleRecord {
+  auxiliary_id: string;
+  appointment_item_id: string;
+  commission_mode: "FIXED" | "PERCENT";
+  fixed_cents: number | null;
+  percentage_bps: number | null;
 }
 
 export interface FinancialSummaryRecord {

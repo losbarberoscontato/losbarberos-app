@@ -22,7 +22,7 @@ import {
 import { Avatar, PageHeader } from "@/components/ui";
 import type { loadAgendaData } from "./server";
 import type { AwaitedReturn } from "./utility-types";
-import type { AppointmentRecord } from "./types";
+import type { AppointmentRecord, AppointmentAuxiliaryRecord, AppointmentAuxiliaryCommissionRuleRecord, AppointmentItemRecord } from "./types";
 import {
   agendaStatusFilterLabels,
   agendaStatusFilters,
@@ -49,6 +49,7 @@ import {
   parsePostgresRange,
 } from "./format";
 import { ActionMessage, StatusChip } from "./shared";
+import { AppointmentAuxiliaryFields, auxiliaryDraftToServicePayload, type AuxiliaryDraft, type AuxiliaryServiceDraft } from "./appointment-auxiliary-fields";
 import { AppointmentReceiptDialog } from "./cash-manager";
 import { buildAppointmentReceiptDraft, type AppointmentReceiptDraft } from "./appointment-receipt";
 import { dateBlockCoversDate, type OrganizationDateBlock } from "./date-block-calendar";
@@ -58,7 +59,7 @@ import { getProductVocabulary } from "@/lib/product-vocabulary";
 import styles from "./connected-manager.module.css";
 
 type AgendaData = AwaitedReturn<typeof loadAgendaData>;
-type Props = Omit<AgendaData, "appointmentItems" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions" | "environments" | "dateBlocks" | "kanbanEnabled" | "kanbanBoards" | "kanbanCards" | "whatsappPending"> & { appointmentItems?: AgendaData["appointmentItems"]; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"]; environments?: AgendaData["environments"]; dateBlocks?: OrganizationDateBlock[]; kanbanEnabled?: boolean; kanbanBoards?: AgendaData["kanbanBoards"]; kanbanCards?: AgendaData["kanbanCards"]; whatsappPending?: boolean; productKey?: ProductKey };
+type Props = Omit<AgendaData, "appointmentItems" | "packageItems" | "appointmentAuxiliaries" | "appointmentAuxiliaryRules" | "appointmentAuxiliaryModuleEnabled" | "receiptCatalogs" | "appointmentActivity" | "subscriptionSessions" | "subscriptionCycles" | "subscriptions" | "environments" | "dateBlocks" | "kanbanEnabled" | "kanbanBoards" | "kanbanCards" | "whatsappPending"> & { appointmentItems?: AppointmentItemRecord[]; packageItems?: AgendaData["packageItems"]; appointmentAuxiliaries?: AppointmentAuxiliaryRecord[]; appointmentAuxiliaryRules?: AppointmentAuxiliaryCommissionRuleRecord[]; appointmentAuxiliaryModuleEnabled?: boolean; receiptCatalogs?: AgendaData["receiptCatalogs"]; appointmentActivity?: AgendaData["appointmentActivity"]; subscriptionSessions?: AgendaData["subscriptionSessions"]; subscriptionCycles?: AgendaData["subscriptionCycles"]; subscriptions?: AgendaData["subscriptions"]; environments?: AgendaData["environments"]; dateBlocks?: OrganizationDateBlock[]; kanbanEnabled?: boolean; kanbanBoards?: AgendaData["kanbanBoards"]; kanbanCards?: AgendaData["kanbanCards"]; whatsappPending?: boolean; productKey?: ProductKey };
 type View = "day" | "week" | "month";
 
 const hours = Array.from({ length: 14 }, (_, index) => `${String(index + 8).padStart(2, "0")}:00`);
@@ -138,6 +139,10 @@ export function AgendaManager(props: Props) {
   const [newOpen, setNewOpen] = useState(false);
   const [newAppointmentSelection, setNewAppointmentSelection] = useState("");
   const [newAppointmentOfferId, setNewAppointmentOfferId] = useState("");
+  const [newAppointmentBarberId, setNewAppointmentBarberId] = useState(props.barbers[0]?.id ?? "");
+  const [newAuxiliaryDrafts, setNewAuxiliaryDrafts] = useState<AuxiliaryDraft[]>([]);
+  const [auxiliaryEditorAppointment, setAuxiliaryEditorAppointment] = useState<AppointmentRecord | null>(null);
+  const [auxiliaryEditDrafts, setAuxiliaryEditDrafts] = useState<AuxiliaryDraft[]>([]);
   const [agendaHelpOpen, setAgendaHelpOpen] = useState(false);
   const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -206,6 +211,15 @@ export function AgendaManager(props: Props) {
   const selectedAppointmentService = newSelectionType === "SERVICE" ? props.services.find((service) => service.id === newSelectionId) ?? null : null;
   const appointmentOffers = (selectedAppointmentService?.offers?.length ?? 0) > 1 ? selectedAppointmentService?.offers ?? [] : [];
   const selectedAppointmentOffer = appointmentOffers.find((offer) => offer.id === newAppointmentOfferId) ?? null;
+  const newAuxiliaryServices: AuxiliaryServiceDraft[] = newSelectionType === "SERVICE" && selectedAppointmentService
+    ? [{ service_id: selectedAppointmentService.id, name: selectedAppointmentService.name, quantity: 1 }]
+    : newSelectionType === "PACKAGE"
+    ? (props.packageItems ?? []).filter((item) => item.package_id === newSelectionId).map((item) => ({
+        service_id: item.service_id,
+        name: props.services.find((service) => service.id === item.service_id)?.name ?? "Serviço",
+        quantity: item.quantity ?? 1,
+      }))
+    : [];
   const filteredAppointments = useMemo(() => props.appointments.filter((appointment) => {
     if (!matchesAgendaStatusFilter(appointment, status)) return false;
     return barberFilter === "ALL" || appointment.barber_id === barberFilter;
@@ -325,6 +339,55 @@ export function AgendaManager(props: Props) {
     setCustomerQuery("");
     setSelectedCustomerId("");
     setQuickCustomerOpen(false);
+    setNewAuxiliaryDrafts([]);
+    setNewAppointmentBarberId(props.barbers[0]?.id ?? "");
+  }
+
+  function openAuxiliaryEditor(appointment: AppointmentRecord) {
+    const items = (props.appointmentItems ?? []).filter((item) => item.appointment_id === appointment.id);
+    const assignments = (props.appointmentAuxiliaries ?? []).filter((item) => item.appointment_id === appointment.id);
+    setAuxiliaryEditDrafts(assignments.map((assignment) => {
+      const rules = (props.appointmentAuxiliaryRules ?? []).filter((rule) => rule.auxiliary_id === assignment.id);
+      return {
+        barber_id: assignment.assistant_barber_id,
+        commissions: Object.fromEntries(items.filter((item) => item.service_id).map((item) => {
+          const rule = rules.find((row) => row.appointment_item_id === item.id);
+          return [item.service_id as string, rule ? {
+            commission_mode: rule.commission_mode,
+            fixed_cents: rule.fixed_cents,
+            percentage_bps: rule.percentage_bps,
+          } : { commission_mode: "FIXED" as const, fixed_cents: null, percentage_bps: null }];
+        })),
+      };
+    }));
+    setAuxiliaryEditorAppointment(appointment);
+  }
+
+  async function saveAuxiliaryEdits() {
+    if (!auxiliaryEditorAppointment) return;
+    const items = (props.appointmentItems ?? []).filter((item) => item.appointment_id === auxiliaryEditorAppointment.id);
+    const saved = await runMutation(setMessage, async () => {
+      const byService = auxiliaryDraftToServicePayload(auxiliaryEditDrafts);
+      const payload = byService.map((auxiliary) => ({
+        barber_id: auxiliary.barber_id,
+        commissions: items.map((item) => {
+          if (!item.service_id) throw new Error("Item do atendimento sem serviço associado.");
+          const rule = auxiliary.commissions.find((commission) => commission.service_id === item.service_id);
+          if (!rule) throw new Error("Defina comissão para cada serviço do auxiliar.");
+          return { appointment_item_id: item.id, commission_mode: rule.commission_mode, fixed_cents: "fixed_cents" in rule ? rule.fixed_cents : null, percentage_bps: "percentage_bps" in rule ? rule.percentage_bps : null };
+        }),
+      }));
+      await assertResult(await connectedClient().rpc("save_appointment_auxiliaries", {
+        p_organization_id: props.organizationId,
+        p_appointment_id: auxiliaryEditorAppointment.id,
+        p_auxiliaries: payload,
+      }));
+    }, "Auxiliares e comissões salvos. Valor cobrado do cliente não foi alterado.");
+    if (saved) {
+      setAuxiliaryEditorAppointment(null);
+      setSelected(null);
+      router.refresh();
+    }
   }
 
   function navigate(amount: number) {
@@ -348,7 +411,9 @@ export function AgendaManager(props: Props) {
       if (!isAlignedToSlot(startsAt, BUSINESS_SLOT_INTERVAL_MINUTES)) {
         throw new Error(`Escolha um horário em intervalos de ${BUSINESS_SLOT_INTERVAL_MINUTES} minutos.`);
       }
-      await assertResult(await connectedClient().rpc("create_manual_appointment", {
+      const hasAuxiliaries = props.appointmentAuxiliaryModuleEnabled && newAuxiliaryDrafts.length > 0;
+      const appointmentRpc = hasAuxiliaries ? "create_manual_appointment_with_auxiliaries" : "create_manual_appointment";
+      await assertResult(await connectedClient().rpc(appointmentRpc, {
         p_organization_id: props.organizationId,
         p_customer_id: selectedCustomerId,
         p_barber_id: String(data.get("barber_id")),
@@ -357,6 +422,7 @@ export function AgendaManager(props: Props) {
         p_override_reason: String(data.get("override_reason") ?? "").trim() || null,
         p_notes: String(data.get("notes") ?? "").trim() || null,
         p_environment_id: String(data.get("environment_id") ?? "") || null,
+        ...(hasAuxiliaries ? { p_auxiliaries: auxiliaryDraftToServicePayload(newAuxiliaryDrafts) } : {}),
       }));
     }, "Agendamento criado com saldo pendente para o balcão.");
     if (saved) {
@@ -600,10 +666,20 @@ export function AgendaManager(props: Props) {
           <span><MapPin size={17} /><div><small>Origem</small><strong>{appointmentSourceLabel(selected.source)}</strong></div></span>
           {props.kanbanEnabled && (() => { const card = props.kanbanCards?.find((item) => item.appointment_id === selected.id); const board = props.kanbanBoards?.find((item) => item.id === card?.board_id); return board ? <span><div><small>Kanban</small><strong>{board.name}</strong></div></span> : null; })()}
         </div>
+        {(props.appointmentAuxiliaries ?? []).filter((auxiliary) => auxiliary.appointment_id === selected.id).length > 0 && <section className="appointment-auxiliary-summary" aria-label="Auxiliares atribuídos"><strong>Profissionais auxiliares</strong>{(props.appointmentAuxiliaries ?? []).filter((auxiliary) => auxiliary.appointment_id === selected.id).map((auxiliary) => {
+          const barber = barberById.get(auxiliary.assistant_barber_id);
+          const rules = (props.appointmentAuxiliaryRules ?? []).filter((rule) => rule.auxiliary_id === auxiliary.id);
+          return <div key={auxiliary.id}><span>{barber?.display_name ?? "Profissional"}</span><small>{rules.map((rule) => {
+            const item = (props.appointmentItems ?? []).find((row) => row.id === rule.appointment_item_id);
+            const amount = rule.commission_mode === "FIXED" ? `${formatCents(rule.fixed_cents ?? 0)} fixos` : `${((rule.percentage_bps ?? 0) / 100).toFixed(2)}%`;
+            return `${item?.service_name_snapshot ?? "Serviço"}: ${amount}`;
+          }).join(" · ")}</small></div>;
+        })}</section>}
         <div className="appointment-detail__payment"><div><span><CircleDollarSign size={17} /> Pagamento</span>{selected.payment_mode === "SUBSCRIPTION" ? <><small>Plano de assinatura</small>{selectedSubscriptionPayment?.sessionReference && <small>Sessão {selectedSubscriptionPayment.sessionReference}</small>}{selectedSubscriptionPayment?.cycle?.status === "PAID" && <small>Pago em {selectedSubscriptionPayment.cycle.paid_at ? new Intl.DateTimeFormat("pt-BR").format(new Date(String(selectedSubscriptionPayment.cycle.paid_at))) : "—"} · {formatCents(selectedSubscriptionPayment.amountCents)} · {paymentMethodLabel(selectedSubscriptionPayment.method)}</small>}{selectedSubscriptionPayment?.overdue && <small className="appointment-payment-alert">Pagamento em atraso</small>}{selectedSubscriptionPayment?.method === "CASH" && <small className="appointment-payment-alert">Receber em dinheiro {vocabulary.organizationWithPreposition}</small>}</> : <><small>{selectedPaymentStatus}</small>{selectedPaymentAccounts.length > 0 && <small>Conta: {selectedPaymentAccounts.join(", ")}</small>}</>}</div><div className="appointment-detail__payment-value"><strong>{selected.payment_mode === "SUBSCRIPTION" ? formatCents(selectedSubscriptionPayment?.amountCents ?? 0) : formatCents(selected.total_cents_snapshot)}</strong>{selected.payment_mode === "SUBSCRIPTION" && selectedSubscriptionPayment?.subscriptionId && <button type="button" className="button button--dark button--sm" onClick={() => { setSelected(null); router.push(`/gestor/clientes?cliente=${encodeURIComponent(selected.customer_id)}&assinatura=${encodeURIComponent(selectedSubscriptionPayment.subscriptionId)}`); }}>Receber</button>}</div><span>{selected.payment_mode === "SUBSCRIPTION" ? `Venc. ${selectedSubscriptionPayment?.cycle?.due_on ?? "—"}` : `Saldo: ${formatCents(selectedFinancial?.outstanding_cents ?? selected.total_cents_snapshot)}`}</span></div>
         {selectedCustomerRecord?.phone_e164 && <div className="appointment-detail__contact"><a href={`https://web.whatsapp.com/send?phone=${selectedCustomerRecord.phone_e164.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a></div>}
       </div>
       <div className="appointment-detail__actions">
+        {props.appointmentAuxiliaryModuleEnabled && !["COMPLETED", "CANCELED", "NO_SHOW", "EXPIRED"].includes(selected.status) && <button type="button" className="button button--soft" onClick={() => openAuxiliaryEditor(selected)}>Auxiliares e comissões</button>}
         {["HELD", "PENDING_PAYMENT"].includes(selected.status) && <button type="button" className="button button--soft" onClick={() => confirmWithoutPayment(selected)}>Confirmar sem pagamento</button>}
         {selected.status === "CONFIRMED" && !["CONFIRMED_BY_WHATSAPP", "CONFIRMED_MANUALLY"].includes(selected.whatsapp_response_status ?? "PENDING") && <button type="button" className="button button--soft" onClick={() => confirmManuallyByWhatsApp(selected)}>Confirmar manualmente</button>}
         {selected.status === "CONFIRMED" && <button type="button" className="button button--dark" onClick={() => transition(selected, "IN_SERVICE")}><Check size={17} /> Iniciar</button>}
@@ -614,6 +690,8 @@ export function AgendaManager(props: Props) {
       </div>
     </section></div>}
 
+    {auxiliaryEditorAppointment && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar auxiliares" onClick={() => setAuxiliaryEditorAppointment(null)} /><section className="form-modal" role="dialog" aria-modal="true" aria-label="Auxiliares e comissões"><div className="form-modal__head"><span><small>Atendimento {auxiliaryEditorAppointment.id.slice(0, 8)}</small><strong>Auxiliares e comissões</strong></span><button type="button" className="icon-button" onClick={() => setAuxiliaryEditorAppointment(null)} aria-label="Fechar"><X size={19} /></button></div><div className="form-modal__body"><p>Defina comissão por serviço. Esses valores ficam separados do preço cobrado ao cliente.</p><AppointmentAuxiliaryFields barbers={props.barbers} excludedBarberId={auxiliaryEditorAppointment.barber_id} services={(props.appointmentItems ?? []).filter((item) => item.appointment_id === auxiliaryEditorAppointment.id && item.service_id).map((item) => ({ service_id: item.service_id as string, name: item.service_name_snapshot, quantity: item.quantity ?? 1 }))} value={auxiliaryEditDrafts} onChange={setAuxiliaryEditDrafts} /></div><div className="form-modal__footer"><button type="button" className="button button--ghost" onClick={() => setAuxiliaryEditorAppointment(null)}>Cancelar</button><button type="button" className="button button--dark" onClick={() => void saveAuxiliaryEdits()}>Salvar auxiliares</button></div></section></div>}
+
     {newOpen && <div className="modal-layer" role="presentation"><button className="modal-layer__backdrop" type="button" aria-label="Fechar" onClick={closeCreate} /><form className="form-modal" role="dialog" aria-modal="true" aria-label="Novo agendamento" onSubmit={createAppointment}>
       <div className="form-modal__head"><span><small>Novo agendamento</small><strong>Reserve um horário</strong></span><button type="button" className="icon-button" onClick={closeCreate} aria-label="Fechar"><X size={19} /></button></div>
       <div className="form-modal__body">
@@ -622,11 +700,12 @@ export function AgendaManager(props: Props) {
         {selectedCustomer && <p className="customer-search-selected"><Check size={15} /> {selectedCustomer.full_name} selecionado</p>}
         {quickCustomerOpen && <div className="customer-quick-create"><label>Nome do novo cliente<input aria-label="Nome do novo cliente" value={quickCustomerName} onChange={(event) => setQuickCustomerName(event.target.value)} /></label><label>Telefone<input value={quickCustomerPhone} onChange={(event) => setQuickCustomerPhone(event.target.value)} /></label><button className="button button--soft button--sm" type="button" onClick={createQuickCustomer}>Salvar cliente</button></div>}
         <div className="form-grid">
-          <label>Serviço ou pacote<span className="select-input"><select name="selection" required value={newAppointmentSelection} onChange={(event) => { setNewAppointmentSelection(event.target.value); setNewAppointmentOfferId(""); }}><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {(item.offers?.length ?? 0) > 1 ? "Ofertas disponíveis" : formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select><ChevronDown size={15} /></span></label>
-          <label>Profissional<span className="select-input"><select name="barber_id" required defaultValue={barberFilter === "ALL" ? props.barbers[0]?.id : barberFilter}>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label>
+          <label>Serviço ou pacote<span className="select-input"><select name="selection" required value={newAppointmentSelection} onChange={(event) => { setNewAppointmentSelection(event.target.value); setNewAppointmentOfferId(""); setNewAuxiliaryDrafts([]); }}><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {(item.offers?.length ?? 0) > 1 ? "Ofertas disponíveis" : formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select><ChevronDown size={15} /></span></label>
+          <label>Profissional<span className="select-input"><select name="barber_id" required value={newAppointmentBarberId} onChange={(event) => { setNewAppointmentBarberId(event.target.value); setNewAuxiliaryDrafts((current) => current.filter((item) => item.barber_id !== event.target.value)); }}>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label>
           <label>Ambiente<span className="select-input"><select name="environment_id" defaultValue=""><option value="">Automático conforme escala</option>{(props.environments ?? []).filter((environment) => environment.active).sort((left, right) => left.sort_order - right.sort_order).map((environment) => <option key={environment.id} value={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select><ChevronDown size={15} /></span></label>
           {appointmentOffers.length > 0 && <label>Oferta<span className="select-input"><select name="offer_id" required value={newAppointmentOfferId} onChange={(event) => setNewAppointmentOfferId(event.target.value)}><option value="">Selecione uma oferta</option>{appointmentOffers.map((offer, index) => <option key={offer.id} value={offer.id}>{offer.name?.trim() || `Oferta ${index + 1}`} · {formatCents(offer.price_cents)} · {offer.duration_minutes} min</option>)}</select><ChevronDown size={15} /></span>{selectedAppointmentOffer?.description && <small>{selectedAppointmentOffer.description}</small>}</label>}
         </div>
+        {props.appointmentAuxiliaryModuleEnabled && <AppointmentAuxiliaryFields barbers={props.barbers} excludedBarberId={newAppointmentBarberId} services={newAuxiliaryServices} value={newAuxiliaryDrafts} onChange={setNewAuxiliaryDrafts} />}
         <div className="form-grid"><label>Data<span className="input-shell"><CalendarDays size={17} /><input name="date" type="date" defaultValue={date} required /></span></label><label>Horário<span className="input-shell"><Clock3 size={17} /><input name="time" type="time" defaultValue="09:00" step={BUSINESS_SLOT_INTERVAL_MINUTES * 60} required /></span></label></div>
         <label>Observação <small>opcional</small><textarea name="notes" placeholder="Preferências e observações..." rows={3} /></label>
         <label>Motivo fora da escala <small>somente quando necessário</small><span className="input-shell"><input name="override_reason" placeholder="Explique por que este horário será liberado" /></span></label>

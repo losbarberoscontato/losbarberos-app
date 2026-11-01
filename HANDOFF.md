@@ -1,5 +1,14 @@
 # Handoff — Los Barberos
 
+## Auxiliar adicional — 01/11/2026
+
+- Implementação compartilhada no sistema Display para Los Barberos, ProStetic, Le Gras e MusicPro; a ativação é por organização e fica em Configurações → Gerenciar minha assinatura → Módulos.
+- Migration local `20261101152207_appointment_auxiliaries.sql` cria tabelas tenant-scoped, RPCs de criação/edição, comissão idempotente no `commission_ledger` após conclusão e ativação gratuita sem aditivo/cobrança. Comissão fixa multiplica quantidade; percentual usa preço de tabela do item. Nenhum valor cobrado é alterado.
+- Agenda permite atribuir até três profissionais ativos, exclui o principal, e dá suporte a criação manual, pacote/combo, atendimento já existente de qualquer origem e agendamento de sessão de projeto. App do cliente e app da equipe não recebem esses controles.
+- WhatsApp preserva os jobs existentes do profissional principal; triggers isolam falhas de cópia/enqueue auxiliar com exception handling. Auxiliares recebem criação, confirmação, atualização e cancelamento quando o fluxo/notificações de equipe estão habilitados. Recebimento no aparelho ainda precisa prova visual.
+- Verificações iniciais: Supabase correto `bwdjkhqshmppescunwer`; dry-run listou somente a migration nova. Vercel correto `losbarberoscontatos-projects/losbarberos-app`; `displaysh-app.vercel.app` aponta ao mesmo projeto. Validação completa, aplicação remota, CI, push e deployment ainda pendentes neste handoff.
+- Checklist visual: `docs/CHECKLIST_VISUAL_AUXILIAR_ADICIONAL.md`. Validação autenticada nos quatro produtos, valores de comissão, recebimento WhatsApp, CI e smoke pós-deploy permanecem pendentes.
+
 ## Cadastro de folga no app de equipe — 30/10/2026
 
 - Corrigido o destino após salvar folga/exceção: o fluxo usa `/barbeiro/escala/folgas?barbearia=...` para abrir lista atualizada, sem anexar a seção ao query param.

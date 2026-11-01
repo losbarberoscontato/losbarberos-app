@@ -1,5 +1,12 @@
 # Módulo WhatsApp Evolution
 
+## Auxiliares de atendimento — 01/11/2026
+
+- Auxiliares usam a fila operacional existente e as mesmas configurações de notificação da equipe. Atributos de comissão não entram no payload de cobrança do cliente.
+- Reserva/alteração e cancelamento de origem WhatsApp enfileiram mensagem auxiliar com chave idempotente. Confirmação/cancelamento de presença e confirmação manual são cópias do job de equipe já produzido pelo fluxo existente.
+- Falhas nos triggers auxiliares geram `WARNING` e são capturadas; não desfazem o job principal nem a transição de agenda. Isso evita acoplar o caminho prioritário do WhatsApp ao cadastro opcional de auxiliares.
+- A migration/RPCs ainda precisam de aplicação e validação remota; `SUBMITTED` ou job criado não prova entrega no aparelho. Siga `docs/CHECKLIST_VISUAL_AUXILIAR_ADICIONAL.md` e registre estado do job, provedor e recebimento separadamente.
+
 ## Avisos de planos em runtime legado — 24/10/2026
 
 O tenant que revelou a falha estava em `runtime_engine = LEGACY`, conectado, com consentimento e sem pausa. As migrations `20261024124855_whatsapp_contract_notices_support_legacy_runtime.sql` e `20261024125131_whatsapp_revalidate_legacy_plan_notice_before_send.sql` alinharam o enqueue ao caminho de compatibilidade do `claim_whatsapp_v2_jobs` e restringiram esse aviso ao Evolution QR; não promovem tenants para outro motor. O dispatcher revalida modo, conexão, cliente ativo, telefone e consentimento antes do transporte. O contrato criado antes da correção não recebe reenvio retroativo. Confirme a criação e o estado do job, e depois a entrega no aparelho, separadamente. O código da Function está no Supabase; GitHub/Vercel dependem do push desta publicação.

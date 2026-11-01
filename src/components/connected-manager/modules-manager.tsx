@@ -42,6 +42,13 @@ export function ModulesManager(props: Props) {
   async function disable(moduleKey: string) {
     const saved = await runMutation(setMessage, async () => {
       if (moduleKey === "kanban") { await changeKanban("DISABLE"); return; }
+      if (moduleKey === "appointment_assistants") {
+        await assertResult(await connectedClient().rpc("set_appointment_assistants_module_enabled", {
+          p_organization_id: props.organizationId,
+          p_enabled: false,
+        }));
+        return;
+      }
       await assertResult(await connectedClient().rpc("set_organization_module_enabled", {
         p_organization_id: props.organizationId,
         p_module_key: moduleKey,
@@ -49,9 +56,21 @@ export function ModulesManager(props: Props) {
       }));
     }, moduleKey === "kanban"
       ? "Kanban desativado. Os quadros e cards foram preservados; o item recorrente saiu da assinatura."
+      : moduleKey === "appointment_assistants"
+      ? "Recurso desativado. As comissões já geradas e os atendimentos existentes foram preservados."
       : moduleKey === "projects"
       ? "Módulo desativado. Se houver dados em Projetos, eles ficarão disponíveis por 60 dias para reativação; depois serão excluídos."
       : "Módulo desativado para novas adesões. Assinaturas existentes continuam até cancelamento ou término.");
+    if (saved) router.refresh();
+  }
+
+  async function enableFreeModule() {
+    const saved = await runMutation(setMessage, async () => {
+      await assertResult(await connectedClient().rpc("set_appointment_assistants_module_enabled", {
+        p_organization_id: props.organizationId,
+        p_enabled: true,
+      }));
+    }, "Recurso ativado. Nenhuma cobrança adicional será aplicada.");
     if (saved) router.refresh();
   }
 
@@ -90,11 +109,11 @@ export function ModulesManager(props: Props) {
             <div className={styles.integrationInfo}>
               <span className={styles.toolbarGroup}><strong>{module.name}</strong><StatusChip active={enabled} label={enabled ? "ATIVO" : "INATIVO"} /></span>
               <p>{module.description}</p>
-              <small>{price ? `${formatCents(price.monthly_price_cents)}/mês · cobrança em ${module.key === "kanban" ? nextCharge : "próximo ciclo"}` : "Preço ainda não configurado pela plataforma"}</small>
+              <small>{module.key === "appointment_assistants" ? "Sem custo adicional" : price ? `${formatCents(price.monthly_price_cents)}/mês · cobrança em ${module.key === "kanban" ? nextCharge : "próximo ciclo"}` : "Preço ainda não configurado pela plataforma"}</small>
               {module.key === "kanban" && !enabled && kanbanPrice && !props.nextChargeAt && <small>Data do próximo ciclo indisponível. Aguarde a sincronização da assinatura Stripe.</small>}
             </div>
             {module.key === "projects" && <small>Se desativado, dados existentes entram em retenção de 60 dias.</small>}
-            <button className={`${styles.button} ${enabled ? styles.buttonDanger : ""}`} type="button" disabled={module.key === "kanban" && !enabled && (!kanbanPrice || !props.nextChargeAt)} onClick={() => { if (enabled) void disable(module.key); else { setActivationModuleKey(module.key); setActivationOpen(true); } }}>{enabled ? "Desativar" : "Ativar"}</button>
+            <button className={`${styles.button} ${enabled ? styles.buttonDanger : ""}`} type="button" disabled={module.key === "kanban" && !enabled && (!kanbanPrice || !props.nextChargeAt)} onClick={() => { if (enabled) void disable(module.key); else if (module.key === "appointment_assistants") void enableFreeModule(); else { setActivationModuleKey(module.key); setActivationOpen(true); } }}>{enabled ? "Desativar" : "Ativar"}</button>
           </article>;
         })}
       </div>

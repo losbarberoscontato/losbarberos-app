@@ -548,6 +548,10 @@ export async function loadAgendaData() {
     subscriptionSessions,
     subscriptionCycles,
     subscriptions,
+    packageItems,
+    appointmentAuxiliaries,
+    appointmentAuxiliaryRules,
+    appointmentAuxiliaryModule,
     environments,
     dateBlocks,
   ] = await Promise.all([
@@ -566,7 +570,7 @@ export async function loadAgendaData() {
     supabase
       .from("appointment_items")
       .select(
-        "id,organization_id,appointment_id,service_name_snapshot,position",
+        "id,organization_id,appointment_id,service_id,service_name_snapshot,quantity,list_price_cents_snapshot,position",
       )
       .eq("organization_id", organizationId)
       .order("position")
@@ -666,6 +670,29 @@ export async function loadAgendaData() {
       .eq("organization_id", organizationId)
       .limit(MANAGER_ROW_LIMIT),
     supabase
+      .from("package_items")
+      .select("id,organization_id,package_id,service_id,quantity,position,active")
+      .eq("organization_id", organizationId)
+      .eq("active", true)
+      .order("position"),
+    supabase
+      .from("appointment_auxiliaries")
+      .select("id,organization_id,appointment_id,assistant_barber_id")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .limit(MANAGER_ROW_LIMIT * 3),
+    supabase
+      .from("appointment_auxiliary_commission_rules")
+      .select("organization_id,auxiliary_id,appointment_item_id,commission_mode,fixed_cents,percentage_bps")
+      .eq("organization_id", organizationId)
+      .limit(MANAGER_ROW_LIMIT * 10),
+    supabase
+      .from("organization_module_entitlements")
+      .select("enabled")
+      .eq("organization_id", organizationId)
+      .eq("module_key", "appointment_assistants")
+      .maybeSingle(),
+    supabase
       .from("agenda_environments")
       .select("id,organization_id,location_id,name,sort_order,active")
       .eq("organization_id", organizationId)
@@ -712,6 +739,10 @@ export async function loadAgendaData() {
     subscriptionSessions: subscriptionSessions.error ? [] : (requireData(subscriptionSessions, "Sessões de assinatura") as Array<Record<string, unknown>>),
     subscriptionCycles: subscriptionCycles.error ? [] : (requireData(subscriptionCycles, "Ciclos de assinatura") as Array<Record<string, unknown>>),
     subscriptions: subscriptions.error ? [] : (requireData(subscriptions, "Assinaturas") as Array<Record<string, unknown>>),
+    packageItems: packageItems.error ? [] : (requireData(packageItems, "Serviços dos pacotes") as import("./types").PackageItemRecord[]),
+    appointmentAuxiliaries: appointmentAuxiliaries.error ? [] : (requireData(appointmentAuxiliaries, "Auxiliares dos atendimentos") as Array<{ id: string; appointment_id: string; assistant_barber_id: string }>),
+    appointmentAuxiliaryRules: appointmentAuxiliaryRules.error ? [] : (requireData(appointmentAuxiliaryRules, "Comissões dos auxiliares") as Array<{ auxiliary_id: string; appointment_item_id: string; commission_mode: "FIXED" | "PERCENT"; fixed_cents: number | null; percentage_bps: number | null }>),
+    appointmentAuxiliaryModuleEnabled: Boolean(appointmentAuxiliaryModule.data?.enabled),
     environments: requireData(environments, "Ambientes") as AgendaEnvironmentRecord[],
     dateBlocks: requireData(dateBlocks, "Bloqueios de datas") as OrganizationDateBlock[],
     financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],

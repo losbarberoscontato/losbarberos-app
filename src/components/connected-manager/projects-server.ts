@@ -240,12 +240,18 @@ export async function loadProjectsData() {
   }
 
   const organizationId = context.organizationId;
-  const entitlement = await supabase
-    .from("organization_module_entitlements")
-    .select("enabled,data_retention_status")
-    .eq("organization_id", organizationId)
-    .eq("module_key", "projects")
-    .maybeSingle();
+  const [entitlement, auxiliaryModule] = await Promise.all([
+    supabase.from("organization_module_entitlements")
+      .select("enabled,data_retention_status")
+      .eq("organization_id", organizationId)
+      .eq("module_key", "projects")
+      .maybeSingle(),
+    supabase.from("organization_module_entitlements")
+      .select("enabled")
+      .eq("organization_id", organizationId)
+      .eq("module_key", "appointment_assistants")
+      .maybeSingle(),
+  ]);
   if (entitlement.error) throw new Error(`Módulo Projetos: ${entitlement.error.message}`);
 
   const [projects, packages, steps, engagementsRaw, installments, customers, services, barbers, barberServices, packageServiceAssignments, projectBarbers, costItems, kanbanBoardsRaw, kanbanSectorsRaw, eventCommentsRaw, financialAccounts, chartAccounts, costCenters, tags, sessions, projectAppointments, projectEngagementLinks, environments, internalServices, internalCards, cancellationRequests] = await Promise.all([
@@ -322,6 +328,7 @@ export async function loadProjectsData() {
   return {
     organizationId,
     enabled: Boolean(entitlement.data?.enabled),
+    appointmentAuxiliaryModuleEnabled: Boolean(auxiliaryModule.data?.enabled),
     retentionStatus: entitlement.data?.data_retention_status ?? "NONE",
     projects: projectRows,
     packages: required(packages, "Pacotes de projetos") as ProjectPackageRecord[],

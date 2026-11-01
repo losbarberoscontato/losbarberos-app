@@ -1060,3 +1060,62 @@ button.commissionRow:hover { border-color: #9ab297; background: #f8faf7; }
   .professionalFunctionForm { grid-template-columns: 1fr; }
   .professionalFunctionForm > .button { width: 100%; }
 }
+:global(.appointment-auxiliary-fields) {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+
+:global(.appointment-auxiliary-fields__heading) {
+  display: grid;
+  gap: 0.2rem;
+}
+
+:global(.appointment-auxiliary-fields__heading small),
+:global(.appointment-auxiliary-fields__service small) {
+  color: var(--muted, #68706d);
+  font-size: 0.78rem;
+}
+
+:global(.appointment-auxiliary-fields__card) {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--line, #d9ddda);
+  border-radius: 0.8rem;
+}
+
+:global(.appointment-auxiliary-fields__card legend) {
+  padding-inline: 0.25rem;
+  font-weight: 700;
+}
+
+:global(.appointment-auxiliary-fields__card .form-grid) {
+  margin: 0;
+}
+
+:global(.appointment-auxiliary-fields__service) {
+  display: grid;
+  gap: 0.45rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line, #d9ddda);
+}
+
+:global(.appointment-auxiliary-summary) {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border-radius: 0.8rem;
+  background: var(--surface-muted, #f3f5f3);
+}
+
+:global(.appointment-auxiliary-summary > div) {
+  display: grid;
+  gap: 0.2rem;
+}
+
+:global(.appointment-auxiliary-summary small) {
+  color: var(--muted, #68706d);
+}
