@@ -5,7 +5,7 @@
 - Auxiliares usam a fila operacional existente e as mesmas configurações de notificação da equipe. Atributos de comissão não entram no payload de cobrança do cliente.
 - Reserva/alteração e cancelamento de origem WhatsApp enfileiram mensagem auxiliar com chave idempotente. Confirmação/cancelamento de presença e confirmação manual são cópias do job de equipe já produzido pelo fluxo existente.
 - Falhas nos triggers auxiliares geram `WARNING` e são capturadas; não desfazem o job principal nem a transição de agenda. Isso evita acoplar o caminho prioritário do WhatsApp ao cadastro opcional de auxiliares.
-- A migration/RPCs ainda precisam de aplicação e validação remota; `SUBMITTED` ou job criado não prova entrega no aparelho. Siga `docs/CHECKLIST_VISUAL_AUXILIAR_ADICIONAL.md` e registre estado do job, provedor e recebimento separadamente.
+- Migration `20261101152207_appointment_auxiliaries.sql` aplicada ao projeto `bwdjkhqshmppescunwer`; RPCs/triggers SQL ativos. Nenhuma Edge Function mudou. CI `41322902075`: Edge Functions passou; E2E passou (28, 4 ignorados); verify ficou vermelho e o job de banco falhou no Docker Hub. O smoke Vercel não comprova envio WhatsApp. Siga `docs/CHECKLIST_VISUAL_AUXILIAR_ADICIONAL.md` e registre job, resposta do provedor e recebimento no aparelho separadamente.
 
 ## Avisos de planos em runtime legado — 24/10/2026
 
