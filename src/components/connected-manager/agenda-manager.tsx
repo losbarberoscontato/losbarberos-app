@@ -50,6 +50,7 @@ import {
 } from "./format";
 import { ActionMessage, StatusChip } from "./shared";
 import { AppointmentAuxiliaryFields, auxiliaryDraftToServicePayload, type AuxiliaryDraft, type AuxiliaryServiceDraft } from "./appointment-auxiliary-fields";
+import { eligibleBarbersForAppointmentSelection } from "./appointment-eligibility";
 import { AppointmentReceiptDialog } from "./cash-manager";
 import { buildAppointmentReceiptDraft, type AppointmentReceiptDraft } from "./appointment-receipt";
 import { dateBlockCoversDate, type OrganizationDateBlock } from "./date-block-calendar";
@@ -208,6 +209,9 @@ export function AgendaManager(props: Props) {
   }, [availableCustomers, customerQuery]);
   const selectedCustomer = availableCustomers.find((customer) => customer.id === selectedCustomerId) ?? null;
   const [newSelectionType, newSelectionId] = newAppointmentSelection.split(":");
+  const newAppointmentBarberOptions = newAppointmentSelection
+    ? eligibleBarbersForAppointmentSelection(newAppointmentSelection, props.barbers, props.barberServices ?? [], props.packageItems ?? [])
+    : props.barbers;
   const selectedAppointmentService = newSelectionType === "SERVICE" ? props.services.find((service) => service.id === newSelectionId) ?? null : null;
   const appointmentOffers = (selectedAppointmentService?.offers?.length ?? 0) > 1 ? selectedAppointmentService?.offers ?? [] : [];
   const selectedAppointmentOffer = appointmentOffers.find((offer) => offer.id === newAppointmentOfferId) ?? null;
@@ -700,8 +704,15 @@ export function AgendaManager(props: Props) {
         {selectedCustomer && <p className="customer-search-selected"><Check size={15} /> {selectedCustomer.full_name} selecionado</p>}
         {quickCustomerOpen && <div className="customer-quick-create"><label>Nome do novo cliente<input aria-label="Nome do novo cliente" value={quickCustomerName} onChange={(event) => setQuickCustomerName(event.target.value)} /></label><label>Telefone<input value={quickCustomerPhone} onChange={(event) => setQuickCustomerPhone(event.target.value)} /></label><button className="button button--soft button--sm" type="button" onClick={createQuickCustomer}>Salvar cliente</button></div>}
         <div className="form-grid">
-          <label>Serviço ou pacote<span className="select-input"><select name="selection" required value={newAppointmentSelection} onChange={(event) => { setNewAppointmentSelection(event.target.value); setNewAppointmentOfferId(""); setNewAuxiliaryDrafts([]); }}><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {(item.offers?.length ?? 0) > 1 ? "Ofertas disponíveis" : formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select><ChevronDown size={15} /></span></label>
-          <label>Profissional<span className="select-input"><select name="barber_id" required value={newAppointmentBarberId} onChange={(event) => { setNewAppointmentBarberId(event.target.value); setNewAuxiliaryDrafts((current) => current.filter((item) => item.barber_id !== event.target.value)); }}>{props.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span></label>
+          <label>Serviço ou pacote<span className="select-input"><select name="selection" required value={newAppointmentSelection} onChange={(event) => {
+            const selection = event.target.value;
+            const eligibleBarbers = eligibleBarbersForAppointmentSelection(selection, props.barbers, props.barberServices ?? [], props.packageItems ?? []);
+            setNewAppointmentSelection(selection);
+            setNewAppointmentOfferId("");
+            setNewAppointmentBarberId((current) => eligibleBarbers.some((barber) => barber.id === current) ? current : "");
+            setNewAuxiliaryDrafts([]);
+          }}><option value="">Selecione</option><optgroup label="Serviços">{props.services.map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>{item.name} · {(item.offers?.length ?? 0) > 1 ? "Ofertas disponíveis" : formatCents(item.price_cents)}</option>)}</optgroup><optgroup label="Pacotes">{props.packages.map((item) => <option key={item.id} value={`PACKAGE:${item.id}`}>{item.name} · {formatCents(item.price_cents)}</option>)}</optgroup></select><ChevronDown size={15} /></span></label>
+          <label>Profissional<span className="select-input"><select name="barber_id" required value={newAppointmentBarberId} onChange={(event) => { setNewAppointmentBarberId(event.target.value); setNewAuxiliaryDrafts((current) => current.filter((item) => item.barber_id !== event.target.value)); }}><option value="">Selecione profissional habilitado</option>{newAppointmentBarberOptions.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select><ChevronDown size={15} /></span>{newAppointmentSelection && newAppointmentBarberOptions.length === 0 && <small>Nenhum profissional está habilitado para executar este serviço ou pacote. Configure os vínculos em Equipe.</small>}{newAppointmentSelection && newAppointmentBarberOptions.length > 0 && !newAppointmentBarberId && <small>Selecione um profissional habilitado para este serviço ou pacote.</small>}</label>
           <label>Ambiente<span className="select-input"><select name="environment_id" defaultValue=""><option value="">Automático conforme escala</option>{(props.environments ?? []).filter((environment) => environment.active).sort((left, right) => left.sort_order - right.sort_order).map((environment) => <option key={environment.id} value={environment.id}>{environment.sort_order}º · {environment.name}</option>)}</select><ChevronDown size={15} /></span></label>
           {appointmentOffers.length > 0 && <label>Oferta<span className="select-input"><select name="offer_id" required value={newAppointmentOfferId} onChange={(event) => setNewAppointmentOfferId(event.target.value)}><option value="">Selecione uma oferta</option>{appointmentOffers.map((offer, index) => <option key={offer.id} value={offer.id}>{offer.name?.trim() || `Oferta ${index + 1}`} · {formatCents(offer.price_cents)} · {offer.duration_minutes} min</option>)}</select><ChevronDown size={15} /></span>{selectedAppointmentOffer?.description && <small>{selectedAppointmentOffer.description}</small>}</label>}
         </div>

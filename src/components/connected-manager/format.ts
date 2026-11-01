@@ -110,6 +110,7 @@ export function humanizeError(error: unknown) {
     [/WhatsApp automation settings not found/i, "A configuração do WhatsApp deste estabelecimento não foi encontrada."],
     [/appointment customer not found/i, "O cliente deste agendamento não foi encontrado neste estabelecimento."],
     [/appointment barber not found/i, "O profissional deste agendamento não foi encontrado neste estabelecimento."],
+    [/barber cannot perform selected service/i, "O profissional selecionado não está habilitado para este serviço. Confira os vínculos em Equipe."],
     [/start time is not aligned to slot interval/i, "Escolha um horário alinhado ao intervalo de slots da agenda."],
     [/requested slot is no longer available|exclusion constraint/i, "Esse horário acabou de ser ocupado."],
     [/organization_date_block_conflict/i, "Há agendamento ativo neste período. Reagende ou cancele antes de bloquear."],

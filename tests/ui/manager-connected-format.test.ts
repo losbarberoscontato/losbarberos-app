@@ -41,6 +41,10 @@ describe("connected manager formatting contracts", () => {
     expect(humanizeError(new Error("start time is not aligned to slot interval"))).toBe("Escolha um horário alinhado ao intervalo de slots da agenda.");
   });
 
+  it("explains when a professional is not enabled for a selected service", () => {
+    expect(humanizeError(new Error("barber cannot perform selected service"))).toBe("O profissional selecionado não está habilitado para este serviço. Confira os vínculos em Equipe.");
+  });
+
   it("explains why WhatsApp manual confirmation is blocked", () => {
     expect(humanizeError(new Error("WhatsApp automation is not active"))).toContain("automação do WhatsApp está desativada");
     expect(humanizeError(new Error("WhatsApp dispatch is paused"))).toContain("envio de mensagens do WhatsApp está pausado");
@@ -52,7 +56,7 @@ describe("connected manager formatting contracts", () => {
   });
 
   it("explains when the App do Barbeiro migration is missing", () => {
-    expect(humanizeError(new Error("Could not find the 'login_email' column of 'barbers' in the schema cache"))).toBe("O banco ainda não recebeu a atualização do App do Barbeiro. Aplique as migrations pendentes antes de salvar o e-mail de acesso.");
+    expect(humanizeError(new Error("Could not find the 'login_email' column of 'barbers' in the schema cache"))).toBe("O banco ainda não recebeu a atualização do aplicativo da equipe. Aplique as migrations pendentes antes de salvar o e-mail de acesso.");
   });
 
   it("explains duplicate project titles", () => {
