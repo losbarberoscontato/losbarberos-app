@@ -21,22 +21,25 @@ export function useNavigationAccess(
   useEffect(() => {
     if (!supabase || !organizationId || !customerId || !userId) return;
     let active = true;
-    let pendingUnread: Promise<boolean> | null = null;
-    // Reuse only an in-flight request. No TTL, cross-tenant or session cache.
-    const loadUnread = () => {
-      pendingUnread ??= (async () => {
-        const { count } = await supabase.from("customer_in_app_notifications")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", organizationId).eq("customer_id", customerId).is("read_at", null);
-        const unread = (count ?? 0) > 0;
-        if (active) setAccess((current) => ({
+    let unreadRequest = 0;
+    let appliedUnreadRequest = 0;
+    // Initial unread/access state share one query. Every later timer tick still
+    // starts a fresh read, even if an older request is slow. No TTL/session cache.
+    const loadUnread = async () => {
+      const request = ++unreadRequest;
+      const { count } = await supabase.from("customer_in_app_notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId).eq("customer_id", customerId).is("read_at", null);
+      const unread = (count ?? 0) > 0;
+      if (active && request > appliedUnreadRequest) {
+        appliedUnreadRequest = request;
+        setAccess((current) => ({
           scope,
           subscriptionAccess: current?.scope === scope ? current.subscriptionAccess : null,
           unread,
         }));
-        return unread;
-      })().finally(() => { pendingUnread = null; });
-      return pendingUnread;
+      }
+      return unread;
     };
 
     void (async () => {

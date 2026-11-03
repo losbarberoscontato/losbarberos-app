@@ -56,14 +56,21 @@ describe("tráfego e isolamento da navegação do cliente", () => {
     expect(f.pending).toHaveLength(2);
   });
 
-  it("compartilha somente a chamada pendente, sem TTL e sem sobreposição", async () => {
+  it("não atrasa nova consulta quando a anterior excede o intervalo de 30s", async () => {
     const f = fixture();
-    renderHook(f.useAccess, { initialProps: f.props });
+    const { result } = renderHook(f.useAccess, { initialProps: f.props });
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
-    expect(f.pending).toHaveLength(1);
-    await act(async () => { f.pending[0].resolve({ count: 0 }); });
+    expect(f.pending).toHaveLength(3);
+    // A later request being in flight must not starve every earlier response.
+    await act(async () => { f.pending[0].resolve({ count: 1 }); });
+    expect(result.current.commercialOfferUnread).toBe(true);
+    await act(async () => { f.pending[2].resolve({ count: 0 }); });
+    expect(result.current.commercialOfferUnread).toBe(false);
+    // An older response cannot overwrite a newer response already displayed.
+    await act(async () => { f.pending[1].resolve({ count: 1 }); });
+    expect(result.current.commercialOfferUnread).toBe(false);
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-    expect(f.pending).toHaveLength(2);
+    expect(f.pending).toHaveLength(4);
   });
 
   it("descarta resposta atrasada após trocar organização e oculta dados no logout", async () => {

@@ -166,26 +166,17 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
     if (!supabase) return;
     const client = supabase;
     let disposed = false;
-    let pending = false;
     async function loadNotifications() {
-      if (pending) return;
-      pending = true;
-      try {
-        const { data } = await client
-          .from("manager_notifications")
-          .select("id,title,body,href,read_at,created_at")
-          .eq("organization_id", organizationId)
-          .is("read_at", null)
-          .order("created_at", { ascending: false })
-          .limit(12);
-        if (!disposed) {
-          setNotifications(((data ?? []) as ManagerNotification[]).filter((item) => !archivedNotificationIds.current.has(item.id)));
-          setNotificationsOrganizationId(organizationId ?? null);
-        }
-      } catch {
-        // Keep the last snapshot on transport failure; next scheduled tick retries.
-      } finally {
-        pending = false;
+      const { data } = await client
+        .from("manager_notifications")
+        .select("id,title,body,href,read_at,created_at")
+        .eq("organization_id", organizationId)
+        .is("read_at", null)
+        .order("created_at", { ascending: false })
+        .limit(12);
+      if (!disposed) {
+        setNotifications(((data ?? []) as ManagerNotification[]).filter((item) => !archivedNotificationIds.current.has(item.id)));
+        setNotificationsOrganizationId(organizationId ?? null);
       }
     }
     void loadNotifications();
