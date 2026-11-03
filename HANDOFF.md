@@ -1,5 +1,11 @@
 # Handoff — Los Barberos
 
+## Egress Display — 03/11/2026
+
+Diagnóstico, alterações compartilhadas, medições, testes, publicação e roteiro de 04/11 em [docs/egress-2026-11-03.md](docs/egress-2026-11-03.md). Supabase Auth retornou 402 `exceed_egress_quota`; SQL administrativo e inventário de Functions funcionaram. Worker confirmado em execução por SSH, mas heartbeat registrado no banco é de 01/11. Não confundir container ativo com processamento saudável.
+
+Aplicação usa backend existente; projeções do runtime HTTP exigem publicação posterior do dispatcher e da imagem VPS, com autorização específica. Nenhuma migration, cron ou modo de operação foi alterado. GitHub/Vercel estão autorizados nesta tarefa; resultados efetivamente confirmados constam no relatório. Confirmar liberação real antes da etapa de 04/11; não reenviar `SEND_UNKNOWN` nem usar período bloqueado como economia.
+
 ## Auxiliar adicional — 01/11/2026
 
 - Implementação compartilhada no sistema Display para Los Barberos, ProStetic, Le Gras e MusicPro; a ativação é por organização e fica em Configurações → Gerenciar minha assinatura → Módulos.

@@ -3,6 +3,10 @@
 O worker compartilha o runtime testado com o dispatcher Edge. Não mantém fila em memória.
 O cron existente permanece recuperação de baixa frequência. Ambos usam os mesmos claims e tokens.
 
+## Revisão de Egress — 03/11/2026
+
+`whatsapp-runtime-http.ts` agora pode projetar somente campos consumidos dos claims e da retenção de imagens. Alteração preparada no repositório: **não aplicada à VPS nem às Functions nesta etapa**. Não muda os loops de 1 s, timeouts, limites, heartbeat, SQL, leases ou decisões de retry. Consulte [diagnóstico e procedimento de publicação/rollback](../../docs/egress-2026-11-03.md). Publicar GitHub/Vercel não atualiza este container. Benchmark offline, sem rede: `node scripts/measure-egress.ts`.
+
 ## Instalação e segredos
 
 1. Inventariar Evolution, PostgreSQL/Redis do gateway, proxy, volumes, backup e uso de CPU/RAM antes de alterar a VPS.

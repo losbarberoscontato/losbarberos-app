@@ -1,9 +1,29 @@
 import type { Rpc, RuntimeDependencies } from "./whatsapp-runtime.ts";
 
+// These RPCs return table rows. Keep their SQL contracts/claims intact and ask
+// PostgREST to serialize only fields consumed by this runtime.
+const rpcColumns: Record<string, string> = {
+  whatsapp_runtime_claim:
+    "id,organization_id,connection_id,appointment_id,job_type,recipient_e164,payload,lease_token,scheduled_for",
+  whatsapp_runtime_claim_events:
+    "id,organization_id,connection_id,lease_token,payload",
+  whatsapp_runtime_expired_images: "id,object_path",
+};
+
+export type RuntimeRpcMetric = {
+  rpc: string;
+  status: number;
+  durationMs: number;
+  jsonBytes: number;
+  rows: number;
+  ok: boolean;
+};
+
 export function runtimeHttp(
   supabaseUrl: string,
   serviceKey: string,
   request: typeof fetch = fetch,
+  observe?: (metric: RuntimeRpcMetric) => void,
 ): RuntimeDependencies {
   const base = supabaseUrl.replace(/\/$/, "");
   const headers = {
@@ -15,19 +35,48 @@ export function runtimeHttp(
     name: string,
     args: Record<string, unknown>,
   ): Promise<T> => {
-    const response = await request(
-      `${base}/rest/v1/rpc/${encodeURIComponent(name)}`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(args),
-        redirect: "error",
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
-    if (!response.ok) throw new Error(`RUNTIME_RPC_FAILED:${name}`);
-    const raw = await response.text();
-    return (raw ? JSON.parse(raw) : null) as T;
+    const started = performance.now();
+    let status = 0;
+    let jsonBytes = 0;
+    let rows = 0;
+    let ok = false;
+    try {
+      const columns = rpcColumns[name];
+      const query = columns ? `?select=${encodeURIComponent(columns)}` : "";
+      const response = await request(
+        `${base}/rest/v1/rpc/${encodeURIComponent(name)}${query}`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(args),
+          redirect: "error",
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      status = response.status;
+      if (!response.ok) throw new Error(`RUNTIME_RPC_FAILED:${name}`);
+      const raw = await response.text();
+      if (observe) jsonBytes = new TextEncoder().encode(raw).byteLength;
+      const result = raw ? JSON.parse(raw) : null;
+      rows = Array.isArray(result) ? result.length : 0;
+      ok = true;
+      return result as T;
+    } finally {
+      // Optional local measurement: no tokens, arguments, bodies, IDs or phones.
+      // Decoded JSON bytes are NOT wire bytes or Supabase-billed Egress.
+      try {
+        observe?.({
+          rpc: name,
+          status,
+          durationMs: performance.now() - started,
+          jsonBytes,
+          rows,
+          ok,
+        });
+      } catch {
+        // Instrumentation must never change delivery or retry behavior.
+      }
+    }
   };
   return {
     rpc,

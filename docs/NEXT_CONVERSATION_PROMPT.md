@@ -1,5 +1,7 @@
 # Projetos e Planos Encerrados — 23/10/2026
 
+Atualização 03/11/2026 — Egress: contexto vigente desta revisão em [egress-2026-11-03.md](egress-2026-11-03.md). Confirmar fim de 402 antes da etapa de 04/11. Dispatcher/VPS exigem autorização específica; aplicação não depende dessa publicação. Preservar cron, retries, leases, modos administrativos e `SEND_UNKNOWN`. Relatório separa métricas SQL/fixtures de Egress faturado e lista evidências de GitHub/Vercel/CI.
+
 Atualização 30/10/2026: cadastro de folga/exceção agora redireciona para lista de folgas pela rota `/barbeiro/escala/folgas?barbearia=...`; atalhos e redirect pós-salvamento montam URL de forma consistente. O RPC e trigger já implantados registram o evento e notificam gestores ativos. Sem migrations/Edge Functions novas.
 
 Atualização 30/10/2026: corrigidos os atalhos de seções da Escala do app de equipe. O caminho (`/historico`, `/folgas`, `/nova-folga`) agora vem antes do query param `barbearia`, evitando retorno à Agenda. Nenhuma migration ou Edge Function alterada. Verificar publicação e navegação autenticada no `HANDOFF.md`.
