@@ -2014,7 +2014,7 @@ export async function loadDashboardData() {
   ] = await Promise.all([
     supabase
       .from("organizations")
-      .select("*")
+      .select("id,name,timezone")
       .eq("id", organizationId)
       .single(),
     supabase
@@ -2026,20 +2026,18 @@ export async function loadDashboardData() {
       .limit(500),
     supabase
       .from("customers")
-      .select(
-        "id,organization_id,auth_user_id,full_name,phone_e164,email,birth_date,notes,active,inactivation_reason,inactivated_at,created_at",
-      )
+      .select("id,organization_id,full_name,created_at")
       .eq("organization_id", organizationId)
       .limit(MANAGER_ROW_LIMIT),
     supabase
       .from("barbers")
-      .select("*")
+      .select("id,organization_id,display_name")
       .eq("organization_id", organizationId)
       .eq("active", true)
       .order("display_name"),
     supabase
       .from("appointment_financial_summary")
-      .select("*")
+      .select("appointment_id,outstanding_cents")
       .eq("organization_id", organizationId)
       .limit(MANAGER_ROW_LIMIT),
     supabase
@@ -2071,7 +2069,7 @@ export async function loadDashboardData() {
   const organizationData = requireData(
     organization,
     "Organização",
-  ) as OrganizationRecord;
+  ) as Pick<OrganizationRecord, "id" | "name" | "timezone">;
   const todayKey = new Intl.DateTimeFormat("en-CA", {
     timeZone: organizationData.timezone,
   }).format(new Date());
@@ -2111,9 +2109,9 @@ export async function loadDashboardData() {
     billingStatus: context.billingStatus,
     organization: organizationData,
     appointments: requireData(appointments, "Agenda") as AppointmentRecord[],
-    customers: requireData(customers, "Clientes") as CustomerRecord[],
-    barbers: requireData(barbers, "Equipe") as BarberRecord[],
-    financial: requireData(financial, "Financeiro") as FinancialSummaryRecord[],
+    customers: requireData(customers, "Clientes") as Pick<CustomerRecord, "id" | "organization_id" | "full_name" | "created_at">[],
+    barbers: requireData(barbers, "Equipe") as Pick<BarberRecord, "id" | "organization_id" | "display_name">[],
+    financial: requireData(financial, "Financeiro") as Pick<FinancialSummaryRecord, "appointment_id" | "outstanding_cents">[],
     openPayouts: requireData(payouts, "Comissões") as CommissionPayoutRecord[],
     whatsapp: whatsappResult.error
       ? null

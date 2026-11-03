@@ -9,6 +9,7 @@ import { isProductIdentityConfig, type ProductIdentityConfig } from "@/lib/produ
 import { getSelectedProductKey, parseProductKey, type ProductKey } from "@/lib/product-context";
 import { getPublishedProductIdentity } from "@/lib/product-identity-server";
 import { productLoginPath } from "@/lib/product-routes";
+import { getTodayAgendaCount } from "@/lib/agenda-count";
 
 export async function generateMetadata(): Promise<Metadata> {
   const productKey = await getSelectedProductKey();
@@ -66,9 +67,12 @@ export default async function GestorLayout({ children }: { children: React.React
         supabase.from("organization_product_assignments").select("product_key").eq("organization_id", context.organizationId).maybeSingle(),
       ]);
       if (assignment?.product_key) {
+        const previousProductKey = productKey;
         productKey = parseProductKey(assignment.product_key) ?? productKey;
-        const { data: publishedIdentity } = await supabase.from("platform_product_identities").select("config").eq("product_key", assignment.product_key).maybeSingle();
-        if (isProductIdentityConfig(publishedIdentity?.config)) identity = publishedIdentity.config;
+        if (productKey !== previousProductKey) {
+          const publishedIdentity = await getPublishedProductIdentity(productKey);
+          if (isProductIdentityConfig(publishedIdentity)) identity = publishedIdentity;
+        }
       }
       organizationName = organization?.name ?? organizationName;
       if (organization?.logo_path) {
@@ -78,13 +82,7 @@ export default async function GestorLayout({ children }: { children: React.React
       userName = profile?.display_name ?? userName;
       projectsModuleEnabled = Boolean(projectsModule?.enabled);
       kanbanModuleEnabled = Boolean(kanbanModule?.enabled);
-      const { data: todayAppointments } = await supabase.from("appointments").select("service_period,status").eq("organization_id", context.organizationId);
-      const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: (organization as { timezone?: string } | null)?.timezone ?? "UTC" }).format(new Date());
-      agendaCount = (todayAppointments ?? []).filter((appointment) => {
-        if (["CANCELED", "NO_SHOW", "EXPIRED"].includes(appointment.status)) return false;
-        const start = String(appointment.service_period).match(/\[([^,]+)/)?.[1];
-        return start ? new Intl.DateTimeFormat("en-CA", { timeZone: (organization as { timezone?: string } | null)?.timezone ?? "UTC" }).format(new Date(start)) === todayKey : false;
-      }).length;
+      agendaCount = await getTodayAgendaCount(supabase, context.organizationId, organization?.timezone ?? "UTC");
     }
   }
 

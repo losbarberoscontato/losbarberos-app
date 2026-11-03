@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { cache } from "react";
 import type { BillingStatus } from "@/lib/domain/types";
 import { getSelectedProductKey, type ProductKey } from "@/lib/product-context";
 
@@ -10,12 +11,17 @@ export interface AccessContext {
 }
 
 export async function getAccessContext(productKey?: ProductKey): Promise<AccessContext | null> {
+  // Resolve the optional argument first: layout and page must share the same
+  // request-local entry, even when only the layout supplies the product key.
+  return getProductAccessContext(productKey ?? await getSelectedProductKey());
+}
+
+const getProductAccessContext = cache(async (selectedProduct: ProductKey): Promise<AccessContext | null> => {
   const supabase = await getSupabaseServerClient();
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
 
-  const selectedProduct = productKey ?? await getSelectedProductKey();
   const { data: assignmentRows } = await supabase
     .from("organization_product_assignments")
     .select("organization_id")
@@ -73,7 +79,7 @@ export async function getAccessContext(productKey?: ProductKey): Promise<AccessC
     role: platformAdminResult.data ? "PLATFORM_ADMIN" : "UNREGISTERED",
     billingStatus: null,
   };
-}
+});
 
 export async function isPlatformAdminUser(userId: string): Promise<boolean> {
   const supabase = await getSupabaseServerClient();

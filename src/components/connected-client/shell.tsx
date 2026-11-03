@@ -10,6 +10,7 @@ import { initials, locationLabel } from "@/components/connected-client/format";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { productIdentityStyle } from "@/lib/product-identity";
+import { useNavigationAccess } from "./use-navigation-access";
 
 const navigation = [
   { href: "/cliente/agendar", label: "Agendar", icon: CalendarPlus2 },
@@ -22,8 +23,6 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const { context, customer, organizations, user, slug, entry, identity, entryLoading, signOut, switchTenant } = useConnectedClient();
-  const [subscriptionAccess, setSubscriptionAccess] = useState<boolean | null>(null);
-  const [commercialOfferUnread, setCommercialOfferUnread] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [targetSlug, setTargetSlug] = useState<string | null>(null);
   const suffix = slug ? `?barbearia=${encodeURIComponent(slug)}` : "";
@@ -32,59 +31,9 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     ? organizations.find((item) => item.organization_slug === targetSlug) ?? null
     : null;
   const supabase = getSupabaseBrowserClient();
-  useEffect(() => {
-    let active = true;
-    if (!supabase || !context || !customer || !user) {
-      queueMicrotask(() => { if (active) setCommercialOfferUnread(false); });
-      return () => { active = false; };
-    }
-    const load = async () => {
-      const { count } = await supabase.from("customer_in_app_notifications").select("id", { count: "exact", head: true })
-        .eq("organization_id", context.organization.id).eq("customer_id", customer.id).is("read_at", null);
-      if (active) setCommercialOfferUnread((count ?? 0) > 0);
-    };
-    void load();
-    const timer = window.setInterval(() => void load(), 30_000);
-    return () => { active = false; window.clearInterval(timer); };
-  }, [context, customer, supabase, user]);
-  useEffect(() => {
-    let active = true;
-    if (!supabase || !context || !customer) {
-      queueMicrotask(() => {
-        if (active) setSubscriptionAccess(false);
-      });
-      return () => { active = false; };
-    }
-    void (async () => {
-      try {
-        const [{ count }, subscriptionModuleResult, projectModuleResult, { count: unreadOffers }] = await Promise.all([
-          supabase
-          .from("customer_subscriptions")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", context.organization.id)
-          .eq("customer_id", customer.id)
-          .eq("status", "ACTIVE"),
-          supabase.rpc("organization_module_enabled", {
-            p_organization_id: context.organization.id,
-            p_module_key: "subscription_plans",
-          }),
-          supabase.rpc("organization_module_enabled", {
-            p_organization_id: context.organization.id,
-            p_module_key: "projects",
-          }),
-          supabase.from("customer_in_app_notifications").select("id", { count: "exact", head: true })
-            .eq("organization_id", context.organization.id).eq("customer_id", customer.id).is("read_at", null),
-        ]);
-        if (active) {
-          setSubscriptionAccess(Boolean(subscriptionModuleResult.data) || Boolean(projectModuleResult.data) || (count ?? 0) > 0 || (unreadOffers ?? 0) > 0);
-          setCommercialOfferUnread((unreadOffers ?? 0) > 0);
-        }
-      } catch {
-        if (active) setSubscriptionAccess(false);
-      }
-    })();
-    return () => { active = false; };
-  }, [context, customer, supabase]);
+  const { subscriptionAccess, commercialOfferUnread } = useNavigationAccess(
+    supabase, context, customer, user,
+  );
   useEffect(() => {
     if (pathname.startsWith("/cliente/assinaturas") && subscriptionAccess === false) {
       router.replace(`/cliente/reservas${suffix}`);
