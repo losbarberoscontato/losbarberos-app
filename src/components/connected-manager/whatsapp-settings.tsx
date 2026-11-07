@@ -110,7 +110,37 @@ const contractMessages: FixedMessageDefinition[] = [
   { key: "SUBSCRIPTION_CREATED_CLIENT", title: "Aviso de criação de assinaturas", description: "Enviada ao cliente quando o gestor cria uma nova assinatura." },
 ];
 
-const messageVariables = ["{cliente}", "{profissional}", "{profissional_principal}", "{horario}", "{servico}", "{telefone}", "{reservas}", "{link_app_cliente}", "{email_cliente}"] as const;
+const appointmentMessageVariables = ["{cliente}", "{profissional}", "{profissional_principal}", "{horario}", "{servico}", "{telefone}"] as const;
+const reservationMessageVariables = ["{reservas}"] as const;
+const contractMessageVariables = ["{cliente}", "{link_app_cliente}", "{email_cliente}"] as const;
+const appointmentMessageKeys = new Set<WhatsAppFixedMessageKey>([
+  "BOOKING_CREATED_CLIENT",
+  "BOOKING_CREATED_STAFF",
+  "BOOKING_CREATED_AUXILIARY",
+  "REMINDER_T24_CLIENT",
+  "REMINDER_MORNING_CLIENT",
+  "REMINDER_T180_CLIENT",
+  "REMINDER_T45_CLIENT",
+  "CONFIRMATION_ACK_CLIENT",
+  "CANCELLATION_ACK_CLIENT",
+  "APPOINTMENT_CONFIRMED_STAFF",
+  "APPOINTMENT_CANCELED_STAFF",
+  "APPOINTMENT_CONFIRMED_AUXILIARY",
+  "APPOINTMENT_CANCELED_AUXILIARY",
+  "INVALID_REPLY_PROMPT",
+  "ATTENDANT_REQUEST_MANAGER",
+  "MANUAL_CONFIRMATION_CLIENT",
+  "MANUAL_CONFIRMATION_STAFF",
+  "MANUAL_CONFIRMATION_AUXILIARY",
+]);
+
+function messageVariablesFor(key: WhatsAppFixedMessageKey): readonly string[] {
+  if (key === "PROJECT_CONTRACT_CREATED_CLIENT" || key === "SUBSCRIPTION_CREATED_CLIENT") {
+    return contractMessageVariables;
+  }
+  if (key === "RESERVATION_CHOICE") return reservationMessageVariables;
+  return appointmentMessageKeys.has(key) ? appointmentMessageVariables : [];
+}
 
 function normalizeConfirmationTemplates(templates: Record<WhatsAppFixedMessageKey, string>) {
   const normalized = { ...templates };
@@ -561,7 +591,7 @@ export function WhatsAppSettings({ organizationId, organizationName, status, sch
         </aside>}
         <div className={styles.whatsappTemplateVariables} aria-label={`Variáveis para ${title}`}>
           <span>Variáveis</span>
-          {messageVariables.map((variable) => <button
+          {messageVariablesFor(definition.key).map((variable) => <button
             className={styles.buttonSoft}
             type="button"
             key={variable}

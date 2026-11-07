@@ -99,6 +99,90 @@ describe("Evolution transport contract", () => {
       },
     })).toBe("Gabriele / Gabriele");
   });
+  it("renderiza a confirmação fotográfica do cliente com serviço e profissional", () => {
+    expect(textFor({
+      job_type: "BOOKING_CREATED_CLIENT",
+      payload: {
+        customer_name: "adriana andrade",
+        barber_name: "Julio Heiden",
+        primary_barber_name: "Julio Heiden",
+        service_names: "Foto Estúdio — Oferta 1",
+        customer_phone: "+5547991349093",
+        starts_at: "2026-11-07T19:15:00-03:00",
+        timezone: "America/Sao_Paulo",
+        templates: {
+          BOOKING_CREATED_CLIENT: "Oi {cliente}!\nO {servico} foi confirmado para {horario}. Fotógrafo {profissional}.",
+        },
+      },
+    })).toBe("Oi adriana andrade!\nO Foto Estúdio — Oferta 1 foi confirmado para 07/11/2026, 19:15. Fotógrafo Julio Heiden.");
+  });
+  it("separa as cópias de agendamento para profissional e auxiliar", () => {
+    const payload = {
+      customer_name: "Adriana",
+      barber_name: "Carlos auxiliar",
+      primary_barber_name: "Julio principal",
+      service_names: "Foto Estúdio — Oferta 1",
+      starts_at: "2026-11-07T19:15:00-03:00",
+      timezone: "America/Sao_Paulo",
+      templates: {
+        BOOKING_CREATED_STAFF: "PROFISSIONAL: {cliente} — {servico} — {profissional}",
+        BOOKING_CREATED_AUXILIARY: "AUXILIAR: {cliente} — {servico} — {profissional}",
+      },
+    };
+    expect(textFor({ job_type: "BOOKING_CREATED_STAFF", payload })).toBe("PROFISSIONAL: Adriana — Foto Estúdio — Oferta 1 — Carlos auxiliar");
+    expect(textFor({ job_type: "BOOKING_CREATED_STAFF", payload: { ...payload, message_audience: "AUXILIARY" } })).toBe("AUXILIAR: Adriana — Foto Estúdio — Oferta 1 — Carlos auxiliar");
+  });
+  it("separa as cópias de confirmação de presença para profissional e auxiliar", () => {
+    const templates = {
+      APPOINTMENT_CONFIRMED_STAFF: "PROFISSIONAL: {cliente} confirmou pelo WhatsApp para {horario}.",
+      APPOINTMENT_CONFIRMED_AUXILIARY: "AUXILIAR: {cliente} confirmou em {horario}. Você está escalado como auxiliar.",
+    };
+    const common = {
+      customer_name: "adriana andrade",
+      starts_at: "2026-11-07T19:15:00-03:00",
+      timezone: "America/Sao_Paulo",
+      templates,
+    };
+    expect(textFor({
+      job_type: "APPOINTMENT_CONFIRMED_STAFF",
+      payload: { ...common, barber_name: "Julio Heiden", primary_barber_name: "Julio Heiden" },
+    })).toBe("PROFISSIONAL: adriana andrade confirmou pelo WhatsApp para 07/11/2026, 19:15.");
+    expect(textFor({
+      job_type: "APPOINTMENT_CONFIRMED_STAFF",
+      payload: { ...common, barber_name: "Carlos Alberto", primary_barber_name: "Julio Heiden", message_audience: "AUXILIARY" },
+    })).toBe("AUXILIAR: adriana andrade confirmou em 07/11/2026, 19:15. Você está escalado como auxiliar.");
+  });
+  it("renderiza o retorno de presença configurado para o cliente", () => {
+    expect(textFor({
+      job_type: "CONFIRMATION_ACK_CLIENT",
+      payload: {
+        customer_name: "Adriana",
+        starts_at: "2026-11-07T19:15:00-03:00",
+        timezone: "America/Sao_Paulo",
+        templates: { CONFIRMATION_ACK_CLIENT: "Presença na sessão confirmada. Até {horario}." },
+      },
+    })).toBe("Presença na sessão confirmada. Até 07/11/2026, 19:15.");
+  });
+  it("renderiza tokens de contrato, reserva e mensagem personalizada", () => {
+    expect(textFor({
+      job_type: "MANUAL_OUTBOUND_TEXT",
+      payload: {
+        message_kind: "PROJECT_CONTRACT_CREATED_CLIENT",
+        customer_name: "Adriana",
+        customer_app_url: "https://cliente.estudio.example/assinaturas",
+        customer_email_masked: "jul*****@gmail.com",
+        templates: { PROJECT_CONTRACT_CREATED_CLIENT: "{cliente}: {link_app_cliente}; login {email_cliente}" },
+      },
+    })).toBe("Adriana: https://cliente.estudio.example/assinaturas; login jul*****@gmail.com");
+    expect(textFor({
+      job_type: "MANUAL_OUTBOUND_TEXT",
+      payload: { message_kind: "RESERVATION_CHOICE", reservations: "1 — hoje às 10h", templates: { RESERVATION_CHOICE: "Opções: {reservas}" } },
+    })).toBe("Opções: 1 — hoje às 10h");
+    expect(textFor({
+      job_type: "MANUAL_OUTBOUND_TEXT",
+      payload: { custom_key: "BIRTHDAY", customer_name: "Adriana", body: "Feliz aniversário, {cliente}!" },
+    })).toBe("Feliz aniversário, Adriana!");
+  });
   it.each([
     ["BOOKING_CREATED_STAFF", undefined, "BOOKING_CREATED_AUXILIARY"],
     ["APPOINTMENT_CONFIRMED_STAFF", undefined, "APPOINTMENT_CONFIRMED_AUXILIARY"],

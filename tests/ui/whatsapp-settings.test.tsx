@@ -113,6 +113,41 @@ describe("WhatsApp settings", () => {
     expect(screen.getByRole("button", { name: "Expandir mensagem: Confirmação manual para o auxiliar" })).toBeInTheDocument();
   });
 
+  it("oferece somente variáveis disponíveis no contexto de cada mensagem", () => {
+    render(<WhatsAppSettings organizationId="org-1" organizationName="Estúdio Le Gras" productKey="le-gras" status={{ ...status, runtime: { ready: true, pending: 0, failed: 0 } }} />);
+
+    fireEvent.click(screen.getByText("Agendamentos e sessões"));
+    const bookingTitle = localizeWhatsAppCopy("Confirmação de agendamento para o cliente", "le-gras");
+    fireEvent.click(screen.getByRole("button", { name: `Expandir mensagem: ${bookingTitle}` }));
+    for (const variable of ["{cliente}", "{profissional}", "{profissional_principal}", "{horario}", "{servico}", "{telefone}"]) {
+      expect(screen.getByRole("button", { name: `Inserir ${variable} em ${bookingTitle}` })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("button", { name: `Inserir {reservas} em ${bookingTitle}` })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Respostas e retornos"));
+    const invalidReplyTitle = localizeWhatsAppCopy("Resposta inválida", "le-gras");
+    fireEvent.click(screen.getByRole("button", { name: `Expandir mensagem: ${invalidReplyTitle}` }));
+    for (const variable of ["{cliente}", "{profissional}", "{profissional_principal}", "{horario}", "{servico}", "{telefone}"]) {
+      expect(screen.getByRole("button", { name: `Inserir ${variable} em ${invalidReplyTitle}` })).toBeInTheDocument();
+    }
+
+    const reservationTitle = localizeWhatsAppCopy("Escolha entre vários agendamentos", "le-gras");
+    fireEvent.click(screen.getByRole("button", { name: `Expandir mensagem: ${reservationTitle}` }));
+    expect(screen.getByRole("button", { name: `Inserir {reservas} em ${reservationTitle}` })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: `Inserir {horario} em ${reservationTitle}` })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Mensagens de contratos"));
+    const contractTitle = "Aviso de criação de contratos de projetos";
+    fireEvent.click(screen.getByRole("button", { name: `Expandir mensagem: ${contractTitle}` }));
+    for (const variable of ["{cliente}", "{link_app_cliente}", "{email_cliente}"]) {
+      expect(screen.getByRole("button", { name: `Inserir ${variable} em ${contractTitle}` })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("button", { name: `Inserir {profissional} em ${contractTitle}` })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Mensagens após a sessão"));
+    expect(screen.getAllByText(/Use \{cliente\} para incluir o nome do cliente/).length).toBeGreaterThan(0);
+  }, 15_000);
+
   it.each(["los-barberos", "le-gras", "pro-stetic", "music-pro"] as const)("inicia todos os menus do WhatsApp recolhidos em %s", (productKey) => {
     const { container } = render(<WhatsAppSettings organizationId="org-1" organizationName="Estabelecimento" status={status} productKey={productKey} />);
     const productCopy = getWhatsAppProductCopy(productKey);
