@@ -184,6 +184,26 @@ describe("Evolution transport contract", () => {
     })).toBe("Feliz aniversário, Adriana!");
   });
   it.each([
+    ["PROJECT_CONTRACT_CREATED_CLIENT", "foi criado um novo plano de serviços"],
+    ["SUBSCRIPTION_CREATED_CLIENT", "foi criada uma nova assinatura"],
+  ])("usa o texto de contrato correto como fallback para %s", (messageKind, expectedText) => {
+    const rendered = textFor({
+      job_type: "MANUAL_OUTBOUND_TEXT",
+      payload: {
+        message_kind: messageKind,
+        customer_name: "Julio Heiden",
+        customer_app_url: "https://cliente.example/b/estabelecimento",
+        customer_email_masked: "jul*****@gmail.com",
+      },
+    });
+
+    expect(rendered).toContain(expectedText);
+    expect(rendered).toContain("Julio Heiden");
+    expect(rendered).toContain("https://cliente.example/b/estabelecimento");
+    expect(rendered).toContain("jul*****@gmail.com");
+    expect(rendered).not.toContain("Atualização do agendamento");
+  });
+  it.each([
     ["BOOKING_CREATED_STAFF", undefined, "BOOKING_CREATED_AUXILIARY"],
     ["APPOINTMENT_CONFIRMED_STAFF", undefined, "APPOINTMENT_CONFIRMED_AUXILIARY"],
     ["APPOINTMENT_CANCELED_STAFF", undefined, "APPOINTMENT_CANCELED_AUXILIARY"],

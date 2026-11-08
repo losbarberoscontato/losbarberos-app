@@ -201,6 +201,10 @@ export function textFor(job: Job): string {
         fallback = typeof job.payload.body === "string"
           ? job.payload.body
           : "Encontrei mais de um agendamento. Responda com o número correspondente:\n\n{reservas}";
+      } else if (messageKind === "PROJECT_CONTRACT_CREATED_CLIENT") {
+        fallback = "Olá! {cliente}, passando para informar que foi criado um novo plano de serviços para você. Para mais detalhes e aceite do plano, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.";
+      } else if (messageKind === "SUBSCRIPTION_CREATED_CLIENT") {
+        fallback = "Olá! {cliente}, passando para informar que foi criada uma nova assinatura para você. Para mais detalhes e aceite desta assinatura, acesse o app do cliente na aba Assinaturas: {link_app_cliente}. Você deve fazer login no app com o e-mail {email_cliente}.";
       } else fallback = `Atualização do agendamento de ${name} com ${barber}.`;
       break;
     default:
