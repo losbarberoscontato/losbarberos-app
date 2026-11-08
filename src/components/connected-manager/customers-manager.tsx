@@ -60,34 +60,70 @@ function dateInTimezone(date: Date, timezone: string): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+function subscriptionDisplayStatuses(
+  subscription: { status?: unknown; contract_accepted_at?: unknown },
+  cycles: Array<Record<string, unknown>>,
+  today: string,
+  cancellationPending = false,
+): Set<SubscriptionDisplayStatus> {
+  const statuses = new Set<SubscriptionDisplayStatus>();
+  const status = String(subscription.status);
+  if (status === "REQUESTED") {
+    statuses.add("pending");
+  } else if (status === "DECLINED") {
+    statuses.add("declined");
+  } else if (status === "CANCELED") {
+    statuses.add("canceled");
+  } else {
+    const billableCycles = cycles.filter((cycle) => String(cycle.status) !== "CANCELED");
+    if (billableCycles.some((cycle) => {
+      const cycleStatus = String(cycle.status);
+      return cycleStatus === "OVERDUE" ||
+        (cycleStatus === "OPEN" && typeof cycle.due_on === "string" && cycle.due_on < today);
+    })) {
+      statuses.add("overdue");
+    } else if (billableCycles.length > 0 && billableCycles.every((cycle) => String(cycle.status) === "PAID")) {
+      statuses.add("finished");
+    } else {
+      const unpaidCycles = billableCycles.filter((cycle) =>
+        String(cycle.status) === "OPEN" || String(cycle.status) === "OVERDUE",
+      );
+      statuses.add(unpaidCycles.length === 1 ? "due" : "active");
+    }
+  }
+
+  if (cancellationPending && status !== "REQUESTED" && status !== "DECLINED" && status !== "CANCELED") {
+    statuses.add("cancellationPending");
+  }
+  return statuses;
+}
+
 function subscriptionDisplayStatus(
   subscription: { status?: unknown; contract_accepted_at?: unknown },
   cycles: Array<Record<string, unknown>>,
   today: string,
   cancellationPending = false,
 ): SubscriptionDisplayStatus {
-  if (cancellationPending) return "cancellationPending";
-  const status = String(subscription.status);
-  if (status === "REQUESTED") return "pending";
-  if (status === "DECLINED") return "declined";
-  if (status === "CANCELED") return "canceled";
-
-  const billableCycles = cycles.filter((cycle) => String(cycle.status) !== "CANCELED");
-  if (billableCycles.some((cycle) => {
-    const status = String(cycle.status);
-    return status === "OVERDUE" ||
-      (status === "OPEN" && typeof cycle.due_on === "string" && cycle.due_on < today);
-  })) return "overdue";
-
-  if (billableCycles.length > 0 && billableCycles.every((cycle) => String(cycle.status) === "PAID")) {
-    return "finished";
-  }
-
-  const unpaidCycles = billableCycles.filter((cycle) =>
-    String(cycle.status) === "OPEN" || String(cycle.status) === "OVERDUE",
-  );
-  return unpaidCycles.length === 1 ? "due" : "active";
+  const statuses = subscriptionDisplayStatuses(subscription, cycles, today, cancellationPending);
+  const priority: SubscriptionDisplayStatus[] = [
+    "cancellationPending",
+    "pending",
+    "declined",
+    "canceled",
+    "overdue",
+    "finished",
+    "due",
+    "active",
+  ];
+  return priority.find((status) => statuses.has(status)) ?? "active";
 }
+
+const activeSubscriptionStatuses = new Set<SubscriptionDisplayStatus>([
+  "cancellationPending",
+  "active",
+  "due",
+  "overdue",
+]);
 
 const subscriptionDisplayStatusLabels: Record<SubscriptionDisplayStatus, string> = {
   pending: "Pendente",
@@ -245,12 +281,14 @@ export function CustomersManager({
       const customerId = String(subscription.customer_id ?? "");
       if (!customerId) continue;
       const statuses = statusesByCustomer.get(customerId) ?? new Set<SubscriptionDisplayStatus>();
-      statuses.add(subscriptionDisplayStatus(
+      for (const status of subscriptionDisplayStatuses(
         subscription,
         cyclesBySubscription.get(String(subscription.id)) ?? [],
         todayInOrganization,
         subscriptionCancellationRequests.some((request) => String(request.subscription_id) === String(subscription.id)),
-      ));
+      )) {
+        statuses.add(status);
+      }
       statusesByCustomer.set(customerId, statuses);
     }
     return statusesByCustomer;
@@ -260,8 +298,11 @@ export function CustomersManager({
     const matchesQuery = `${customer.full_name} ${customer.phone_e164 ?? ""} ${customer.email ?? ""}`
       .toLowerCase()
       .includes(query.toLowerCase());
+    const customerSubscriptionStatuses = subscriptionStatusesByCustomer.get(customer.id);
     const matchesSubscriptionStatus = subscriptionFilter === "ALL" ||
-      subscriptionStatusesByCustomer.get(customer.id)?.has(subscriptionFilter) === true;
+      (subscriptionFilter === "active"
+        ? [...activeSubscriptionStatuses].some((status) => customerSubscriptionStatuses?.has(status))
+        : customerSubscriptionStatuses?.has(subscriptionFilter) === true);
     return matchesCustomerStatus && matchesQuery && matchesSubscriptionStatus;
   });
   const itemsByAppointment = useMemo(() => {
