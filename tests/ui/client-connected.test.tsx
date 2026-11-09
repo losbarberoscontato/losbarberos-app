@@ -20,7 +20,13 @@ import {
   resolveTenantSlug,
   selectionsFromAppointmentItems,
 } from "@/components/connected-client/format";
-import type { AppointmentItem, PublicBookingContext } from "@/components/connected-client/types";
+import type { AppointmentItem, PublicBarber, PublicBookingContext } from "@/components/connected-client/types";
+
+type SubscriptionBookingContextResult = {
+  plan_id: string;
+  services: Array<{ id: string; name: string; description: string | null; price_cents: number; duration_minutes: number }>;
+  barbers: PublicBarber[];
+};
 
 const authMocks = vi.hoisted(() => ({
   client: null as {
@@ -121,6 +127,7 @@ function installProviderClient({
   canonicalSlug = null,
   bookingHoldConflict = false,
   bookingHoldExpiresInMs = 3 * 60_000,
+  subscriptionBookingContext = null,
 }: {
   authenticated: boolean;
   failFirstLink?: boolean;
@@ -141,6 +148,7 @@ function installProviderClient({
   canonicalSlug?: string | null;
   bookingHoldConflict?: boolean;
   bookingHoldExpiresInMs?: number;
+  subscriptionBookingContext?: SubscriptionBookingContextResult | null;
 }) {
   const user = authenticated
     ? { id: "user-1", email: "ana@example.com", user_metadata: { full_name: "Ana Souza" } }
@@ -231,6 +239,7 @@ function installProviderClient({
       product_key: productKey,
     }, error: null };
     if (name === "get_public_booking_context") return { data: publicContext, error: null };
+    if (name === "get_customer_subscription_booking_context") return { data: subscriptionBookingContext, error: null };
     if (name === "get_available_slots_for_date") return {
       data: {
         duration_minutes: 35,
@@ -723,6 +732,41 @@ describe("cliente conectado", () => {
     await waitFor(() => expect((container.firstElementChild as HTMLElement).className).toContain("productTheme"));
     expect((container.firstElementChild as HTMLElement).style.getPropertyValue("--forest-900")).toBe("#29143d");
     expect((container.firstElementChild as HTMLElement).style.getPropertyValue("--paper")).toBe("#f5f0f7");
+  });
+
+  it("lista profissionais habilitados ao agendar serviço oculto de uma assinatura", async () => {
+    const hiddenServiceId = "hidden-service-1";
+    const planId = "subscription-plan-1";
+    const privateBookingContext: SubscriptionBookingContextResult = {
+      plan_id: planId,
+      services: [{ id: hiddenServiceId, name: "Acompanhamento mensal", description: null, price_cents: 34900, duration_minutes: 60 }],
+      barbers: [{
+        id: "subscription-barber-1",
+        name: "Mariana",
+        bio: null,
+        avatar_url: null,
+        service_ids: [hiddenServiceId],
+        subscription_plan_ids: [planId],
+      }],
+    };
+    const { rpc } = installProviderClient({
+      authenticated: true,
+      initiallyLinked: true,
+      productKey: "le-gras",
+      subscriptionBookingContext: privateBookingContext,
+    });
+    window.history.replaceState(null, "", "/cliente/agendar?barbearia=barbearia-real&subscriptionSession=session-1");
+
+    render(<ConnectedClientProvider initialSlug="barbearia-real"><ConnectedBooking /></ConnectedClientProvider>);
+
+    expect(await screen.findByRole("heading", { name: "Quem vai cuidar de você?" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Mariana/u })).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledWith("get_customer_subscription_booking_context", {
+      p_organization_id: context.organization.id,
+      p_customer_id: "customer-1",
+      p_subscription_session_id: "session-1",
+    });
+    expect(screen.queryByText("Nenhum profissional habilitado para esta seleção.")).not.toBeInTheDocument();
   });
 
   it("protege por três minutos o primeiro horário e o libera ao voltar", async () => {

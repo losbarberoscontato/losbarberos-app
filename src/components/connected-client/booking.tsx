@@ -32,7 +32,7 @@ import {
   serviceIdsForChoice,
 } from "@/components/connected-client/format";
 import { AuthPrompt, ConnectedClientGate } from "@/components/connected-client/state";
-import type { AvailableDateOption, AvailableSlot, CustomerDependent } from "@/components/connected-client/types";
+import type { AvailableDateOption, AvailableSlot, CatalogChoice, CustomerDependent, PublicBarber } from "@/components/connected-client/types";
 import styles from "@/components/connected-client/connected-client.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { CATALOG_AUDIENCES, audienceLabel, filterByAudience, type CatalogAudience } from "@/lib/catalog-audiences";
@@ -51,6 +51,11 @@ type Draft = {
 
 type CatalogChoiceKindFilter = "ALL" | "SERVICE" | "PACKAGE";
 type BarberMode = "ANY" | "SPECIFIC" | "";
+type SubscriptionBookingContext = {
+  plan_id: string;
+  services: Array<{ id: string; name: string; description: string | null; price_cents: number; duration_minutes: number }>;
+  barbers: PublicBarber[];
+};
 
 function periodLabel(startsAt: string, timezone: string) {
   const hour = Number(new Intl.DateTimeFormat("pt-BR", {
@@ -123,6 +128,7 @@ function BookingContent() {
   const [pendingOfferId, setPendingOfferId] = useState("");
   const [subscriptionSessionId, setSubscriptionSessionId] = useState<string | null>(null);
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<string | null>(null);
+  const [subscriptionBookingContext, setSubscriptionBookingContext] = useState<SubscriptionBookingContext | null>(null);
   const [subscriptionSelections, setSubscriptionSelections] = useState<Array<{ type: "SERVICE"; service_id: string; quantity: number }>>([]);
   const [barberMode, setBarberMode] = useState<BarberMode>("");
   const [barberId, setBarberId] = useState("");
@@ -154,14 +160,28 @@ function BookingContent() {
   const dialogBodyRef = useRef<HTMLDivElement>(null);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
 
-  const baseChoice = useMemo(() => choices.find((item) => item.id === choiceId) ?? null, [choiceId, choices]);
+  const isSubscriptionBooking = Boolean(subscriptionSessionId && subscriptionSelections.length);
+  const subscriptionChoice = useMemo<CatalogChoice | null>(() => {
+    const service = subscriptionBookingContext?.services[0];
+    return service ? {
+      id: service.id,
+      kind: "SERVICE",
+      name: service.name,
+      description: service.description,
+      priceCents: service.price_cents,
+      durationMinutes: service.duration_minutes,
+      audiences: [],
+    } : null;
+  }, [subscriptionBookingContext]);
+  const baseChoice = useMemo(() => choices.find((item) => item.id === choiceId)
+    ?? (isSubscriptionBooking && subscriptionChoice?.id === choiceId ? subscriptionChoice : null),
+  [choiceId, choices, isSubscriptionBooking, subscriptionChoice]);
   const selectedOffer = baseChoice?.offers?.find((offer) => offer.id === selectedOfferId) ?? null;
   const selectedOfferName = selectedOffer?.name?.trim() || (selectedOffer ? `Oferta ${(baseChoice?.offers ?? []).findIndex((offer) => offer.id === selectedOffer.id) + 1}` : "");
   const choice = useMemo(() => baseChoice && selectedOffer
     ? { ...baseChoice, name: `${baseChoice.name} — ${selectedOfferName}`, description: selectedOffer.description, priceCents: selectedOffer.priceCents, durationMinutes: selectedOffer.durationMinutes, offerId: selectedOffer.id }
     : baseChoice, [baseChoice, selectedOffer, selectedOfferName]);
   const offerDialogChoice = choices.find((item) => item.id === offerDialogChoiceId && item.kind === "SERVICE") ?? null;
-  const isSubscriptionBooking = Boolean(subscriptionSessionId && subscriptionSelections.length);
   const currentSelections = useCallback(() => subscriptionSelections.length ? subscriptionSelections : choice ? bookingSelection(choice) : [], [choice, subscriptionSelections]);
   const resetBookingHold = useCallback((options?: { clearSlot?: boolean; refreshAvailability?: boolean }) => {
     setBookingHold(null);
@@ -227,35 +247,40 @@ function BookingContent() {
     const sessionId = new URLSearchParams(window.location.search).get("subscriptionSession");
     if (!sessionId) return;
     let active = true;
-    void Promise.resolve(supabase.from("customer_subscription_sessions").select("id,subscription_id,status").eq("id", sessionId).eq("organization_id", context.organization.id).single()).then(async ({ data: session, error }) => {
-      if (error || !session || session.status !== "AVAILABLE") throw new Error("Sessão de assinatura indisponível.");
-      const { data: subscription, error: subscriptionError } = await supabase.from("customer_subscriptions").select("id,customer_id,plan_id,plan_version_id,status").eq("id", session.subscription_id).eq("organization_id", context.organization.id).single();
-      if (subscriptionError || !subscription || subscription.customer_id !== customer.id || subscription.status !== "ACTIVE") throw new Error("Assinatura não está ativa.");
-      const { data: links, error: linksError } = await supabase.from("subscription_plan_services").select("service_id").eq("organization_id", context.organization.id).eq("plan_version_id", subscription.plan_version_id).order("position");
-      if (linksError || !links?.length) throw new Error("Serviços da assinatura não encontrados.");
+    void Promise.resolve(supabase.rpc("get_customer_subscription_booking_context", {
+      p_organization_id: context.organization.id,
+      p_customer_id: customer.id,
+      p_subscription_session_id: sessionId,
+    })).then(({ data, error }) => {
+      const booking = data as SubscriptionBookingContext | null;
+      if (error || !booking?.plan_id || !booking.services?.length) throw new Error("Sessão de assinatura indisponível.");
       if (!active) return;
+      setSubscriptionBookingContext(booking);
       setSubscriptionSessionId(sessionId);
-      setSubscriptionPlanId(subscription.plan_id);
-      setSubscriptionSelections(links.map((link) => ({ type: "SERVICE" as const, service_id: link.service_id, quantity: 1 })));
-      const firstService = context.services.find((service) => service.id === links[0].service_id);
+      setSubscriptionPlanId(booking.plan_id);
+      setSubscriptionSelections(booking.services.map((service) => ({ type: "SERVICE" as const, service_id: service.id, quantity: 1 })));
+      const firstService = context.services.find((service) => service.id === booking.services[0].id);
       setSelectedAudience(firstService?.audiences?.[0] ?? bookingAudiences[0]?.audience_key ?? null);
-      setChoiceId(links[0].service_id);
+      setChoiceId(booking.services[0].id);
       setSelectedOfferId("");
       setStep(2);
     }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Sessão de assinatura indisponível."); });
     return () => { active = false; };
   }, [context, customer, supabase]);
   const compatibleBarbers = useMemo(() => {
-    if (!context || (!choice && !isSubscriptionBooking)) return context?.barbers ?? [];
+    const bookingBarbers = isSubscriptionBooking && subscriptionBookingContext
+      ? subscriptionBookingContext.barbers
+      : context?.barbers ?? [];
+    if (!context || (!choice && !isSubscriptionBooking)) return bookingBarbers;
     const requiredServices = isSubscriptionBooking
       ? subscriptionSelections.map((selection) => selection.service_id)
       : choice ? serviceIdsForChoice(context, choice) : [];
-    return context.barbers.filter((item) =>
+    return bookingBarbers.filter((item) =>
       barberSupportsServices(requiredServices, item.service_ids)
       && (!choice || choice.kind !== "PACKAGE" || item.package_ids === undefined || item.package_ids.includes(choice.id))
       && (!isSubscriptionBooking || !subscriptionPlanId || item.subscription_plan_ids === undefined || item.subscription_plan_ids.includes(subscriptionPlanId))
     );
-  }, [choice, context, isSubscriptionBooking, subscriptionPlanId, subscriptionSelections]);
+  }, [choice, context, isSubscriptionBooking, subscriptionBookingContext, subscriptionPlanId, subscriptionSelections]);
   const barber = compatibleBarbers.find((item) => item.id === barberId) ?? null;
 
   useEffect(() => {
