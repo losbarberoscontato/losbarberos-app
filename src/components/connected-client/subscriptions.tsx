@@ -697,10 +697,6 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
         {(view === "my-plans" || view === "closed-plans") && <p>Planos ativos, solicitações e histórico deste estabelecimento.</p>}
       </header>
       {message && <p>{message}</p>}
-      {view === "my-plans" && rows.filter((row) => row.status === "DECLINED").length > 0 && <div className={styles.subscriptionStack}>
-        <h2>Histórico · recusados</h2>
-        {rows.filter((row) => row.status === "DECLINED").map((row) => <article className={styles.subscriptionCard} key={`declined-${row.id}`}><span className={styles.planStatus}>Recusado</span><h3>{row.plan?.name ?? "Plano"}</h3><p>Oferta recusada e arquivada.</p></article>)}
-      </div>}
       {view === "my-plans" && projectOffers.some((offer) => !projectCancellationArchiveReady(offer) && (offer.created_by === user?.id || ["ACTIVE", "COMPLETED", "CANCELED", "CANCELED_BY_ORGANIZATION", "DECLINED"].includes(offer.status))) && <div className={styles.subscriptionStack}>
         <h2>Planos vinculados</h2>
         {projectOffers.filter((offer) => !projectCancellationArchiveReady(offer) && (offer.created_by === user?.id || ["ACTIVE", "COMPLETED", "CANCELED", "CANCELED_BY_ORGANIZATION", "DECLINED"].includes(offer.status))).map((offer) => {
@@ -721,9 +717,10 @@ export function ConnectedSubscriptions({ view = "home", itemId }: { view?: Subsc
       </div>}
       {view === "closed-plans" && <div className={styles.subscriptionStack}>
         <h2>Planos Encerrados</h2>
+        {rows.filter((row) => row.status === "DECLINED").map((row) => <article className={styles.subscriptionCard} key={`declined-${row.id}`}><span className={styles.planStatus}>Recusado</span><h3>{row.plan?.name ?? "Plano"}</h3><p>Oferta recusada e arquivada.</p></article>)}
         {projectOffers.filter(projectCancellationArchiveReady).map((offer) => <article className={styles.subscriptionCard} key={`closed-project-${offer.id}`}><span className={styles.planStatus}>Encerrado</span><h3>{offer.project?.name ?? "Projeto"} · {offer.package?.name ?? "Pacote"}</h3><p>Plano de projeto encerrado. Não há parcelas ou sessões pendentes.</p><strong>{money(offer.contracted_cents)}</strong></article>)}
         {rows.filter(cancellationArchiveReady).map((row) => <article className={styles.subscriptionCard} key={`closed-subscription-${row.id}`}><span className={styles.planStatus}>Encerrado</span><h3>{row.plan?.name ?? "Plano"}</h3><p>{row.plan?.description ?? "Assinatura encerrada sem pendências."}</p><strong>{row.plan_version ? money(row.plan_version.price_cents) : "—"}</strong></article>)}
-        {!projectOffers.some(projectCancellationArchiveReady) && !rows.some(cancellationArchiveReady) && <p>Nenhum plano encerrado disponível.</p>}
+        {!projectOffers.some(projectCancellationArchiveReady) && !rows.some((row) => row.status === "DECLINED" || cancellationArchiveReady(row)) && <p>Nenhum plano encerrado disponível.</p>}
       </div>}
       {(view === "my-plan" ? rows.filter((row) => row.id === itemId && row.status !== "DECLINED" && !cancellationArchiveReady(row)) : view === "closed-plans" ? [] : rows.filter((row) => row.status !== "DECLINED" && !cancellationArchiveReady(row) && !(row.status === "REQUESTED" && !row.contract_accepted_at && row.created_by !== user?.id))).map((row) => view === "my-plan" ? (
         <article className={styles.subscriptionCard} key={row.id}>
