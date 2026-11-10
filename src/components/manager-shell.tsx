@@ -156,6 +156,7 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
   const [notifications, setNotifications] = useState<ManagerNotification[]>([]);
   const [notificationsOrganizationId, setNotificationsOrganizationId] = useState<string | null>(null);
   const [notificationError, setNotificationError] = useState("");
+  const [archivingNotifications, setArchivingNotifications] = useState(false);
   const archivedNotificationIds = useRef(new Set<string>());
   const visibleNotifications = notificationsOrganizationId === organizationId ? notifications : [];
 
@@ -207,6 +208,28 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
     setNotifications((current) => current.filter((item) => item.id !== notification.id));
     setNotificationsOpen(false);
     router.push(notification.href);
+  }
+
+  async function archiveAllNotifications() {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase || !organizationId || archivingNotifications) {
+      if (!supabase || !organizationId) setNotificationError("Não foi possível arquivar as notificações. Tente novamente.");
+      return;
+    }
+    setNotificationError("");
+    setArchivingNotifications(true);
+    const { error } = await supabase
+      .from("manager_notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("organization_id", organizationId)
+      .is("read_at", null);
+    setArchivingNotifications(false);
+    if (error) {
+      setNotificationError("Não foi possível arquivar as notificações. Tente novamente.");
+      return;
+    }
+    for (const notification of visibleNotifications) archivedNotificationIds.current.add(notification.id);
+    setNotifications((current) => current.filter((item) => item.read_at !== null));
   }
 
   async function handleSignOut() {
@@ -313,6 +336,9 @@ export function ManagerShell({ children, demoMode = false, billingBlocked = fals
             </button>
             {notificationsOpen && <div className="manager-notifications-popover" role="dialog" aria-label="Notificações">
               <div className="manager-notifications-popover__head"><strong>Notificações</strong><small>{visibleNotifications.length} pendentes</small></div>
+              {visibleNotifications.length > 0 && <button type="button" className="manager-notifications-popover__archive-all" onClick={() => void archiveAllNotifications()} disabled={archivingNotifications}>
+                {archivingNotifications ? "Arquivando..." : "Marcar todos como visto"}
+              </button>}
               {notificationError && <p className="manager-notifications-popover__empty" role="alert">{notificationError}</p>}
               {!notificationError && (visibleNotifications.length === 0 ? <p className="manager-notifications-popover__empty">Nenhuma notificação pendente.</p> : <div className="manager-notifications-popover__list">{visibleNotifications.map((notification) => <button type="button" key={notification.id} className="manager-notification" onClick={() => void openNotification(notification)}><strong>{notification.title}</strong><span>{notification.body}</span><small>{new Date(notification.created_at).toLocaleString("pt-BR")}</small></button>)}</div>)}
             </div>}
