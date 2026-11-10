@@ -194,6 +194,7 @@
 .subscriptionSummaryStatusOverdue { background: #a51d2d; color: #fff; }
 .subscriptionSummaryStatusDeclined { background: #ece8ef; color: #54445e; }
 .subscriptionSummaryStatusCanceled { background: #fbe8e6; color: #8f2f2a; }
+.pendingSubscriptionNotice { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; }
 .customerFilters { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .45rem; }
 .customerSubscriptionFilter { min-width: 12rem; }
 .subscriptionLegacyAction { display: none; }

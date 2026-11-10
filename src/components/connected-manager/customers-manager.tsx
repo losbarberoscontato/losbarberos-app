@@ -251,6 +251,7 @@ export function CustomersManager({
   const [fixedEnrollmentDraft, setFixedEnrollmentDraft] = useState<FixedEnrollmentDraft | null>(null);
   const [fixedScheduleEditDraft, setFixedScheduleEditDraft] = useState<FixedScheduleEditDraft | null>(null);
   const [subscriptionControlId, setSubscriptionControlId] = useState<string | null>(null);
+  const [deletingSubscriptionId, setDeletingSubscriptionId] = useState<string | null>(null);
   const [subscriptionCycleDeleteTarget, setSubscriptionCycleDeleteTarget] = useState<Record<string, unknown> | null>(null);
   const [deletingSubscriptionCycle, setDeletingSubscriptionCycle] = useState(false);
   const [subscriptionCancellationDraft, setSubscriptionCancellationDraft] = useState<SubscriptionCancellationDraft | null>(null);
@@ -638,6 +639,23 @@ export function CustomersManager({
       },
       "Adesão enviada ao cliente. Ele precisa aceitar antes da aprovação.",
     );
+    if (saved) router.refresh();
+  }
+
+  async function deletePendingSubscription(subscriptionId: string) {
+    if (!window.confirm("Excluir esta assinatura que aguarda decisão do cliente?")) return;
+    setDeletingSubscriptionId(subscriptionId);
+    const saved = await runMutation(
+      setMessage,
+      async () => {
+        await assertResult(await connectedClient().rpc("delete_pending_customer_subscription_offer", {
+          p_organization_id: organizationId,
+          p_subscription_id: subscriptionId,
+        }));
+      },
+      "Assinatura pendente excluída.",
+    );
+    setDeletingSubscriptionId(null);
     if (saved) router.refresh();
   }
 
@@ -1532,7 +1550,7 @@ export function CustomersManager({
                                         Aprovar
                                       </button>
                                     )}
-                                    {subscription.status === "REQUESTED" && !subscription.contract_accepted_at && <small>Aguardando aceite do cliente</small>}
+                                    {subscription.status === "REQUESTED" && !subscription.contract_accepted_at && <small className={styles.pendingSubscriptionNotice}>Aguardando aceite do cliente<button type="button" className={`${styles.button} ${styles.buttonSmall}`} aria-label="Excluir assinatura pendente" title="Excluir assinatura pendente" disabled={deletingSubscriptionId === String(subscription.id)} onClick={() => void deletePendingSubscription(String(subscription.id))}><Trash2 size={14} /></button></small>}
                                     {subscription.status !== "REQUESTED" &&
                                       cycles
                                         .filter(
